@@ -303,13 +303,13 @@ class Drone{
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&_u.y<.7&&this.pivot(wt,dt))return 0;  // only once it has fallen over: standing on its fins it stays put
   if(gd)this.w.lerp(wt,1-Math.exp(-dt/.09));
-  else{const au=AMAX*(.3+.7*sm(Math.min(this.ms,1-this.ms)*4)),dw=_dw.subVectors(wt,this.w).multiplyScalar(1-Math.exp(-dt/TAU)),lim=au*dt;if(dw.length()>lim)dw.setLength(lim);this.w.add(dw);this.aero(dt)}  // rate loop with finite authority: differential thrust runs out near idle and full throttle
+  else{const au=AMAX*(.55+.45*sm(Math.min(this.ms,1-this.ms)*4)),dw=_dw.subVectors(wt,this.w).multiplyScalar(1-Math.exp(-dt/TAU)),lim=au*dt;if(dw.length()>lim)dw.setLength(lim);this.w.add(dw);this.aero(dt)}  // rate loop with finite authority: differential thrust runs out near idle and full throttle
   const AIR=_ag.copy(WIND).add(this.gu),up=_u.set(0,1,0).applyQuaternion(this.q),va=_vr.subVectors(this.v,AIR).dot(up);
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
   this.ms+=(this.thr-this.ms)*(1-Math.exp(-dt/Math.max(1e-3,this.thr>this.ms?SPOOL:SPOOL*1.6)));  // motor spool-up / spin-down
   this.mah+=(6+220*Math.max(this.ms,0)**1.5)*dt/3.6;  // battery current draw, mAh
-  let acc=THR*this.ms**TE*((4.2-.95*Math.min(1,this.mah/BCAP))/4.2)**1.5*(1-.06*this.ms);  // thrust ~ rpm², shaped by the thrust curve; falls as the pack drains and sags under load
+  let acc=THR*this.ms**TE*((4.2-.95*Math.min(1,this.mah/BCAP))/4.2)*(1-.03*this.ms);  // thrust ~ rpm², shaped by the thrust curve; falls as the pack drains and sags under load
   acc*=cl(1-va/VP,0,1.15);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
   this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;
   const vr=_vr.subVectors(this.v,AIR),s=vr.length();if(s>1e-4){const bx=_x.set(1,0,0).applyQuaternion(this.q),bz=_z.set(0,0,1).applyQuaternion(this.q),k=DQ*s,vx=vr.dot(bx),vy=vr.dot(up),vz=vr.dot(bz);
@@ -320,7 +320,7 @@ class Drone{
  // weathervane the nose into the airflow and damp pitch/yaw, gusts that push the airframe around. The rate loop has to fight all of it with finite authority.
  aero(dt){const vr=_vr.subVectors(this.v,WIND),s=vr.length(),agl=this.p.y-gh(this.p.x,this.p.z);let wk=0;
   for(const t of TH)if(live(t)){const r=_wk.subVectors(this.p,t.p),dv=_tv.copy(t.v).normalize(),al=r.dot(dv);if(al<-2&&al>-70){const lat=r.addScaledVector(dv,-al).length();if(lat<7)wk=Math.max(wk,(1-lat/7)*(1+al/70))}}
-  const sg=(1.2+WX.wind*.5+s*.07)*(1+1.5*sm(1-agl/60))*(1+5*wk),gs=.25*WX.wind+.6+8*wk;
+  const sg=(.3+WX.wind*.12+s*.015)*(1+.5*sm(1-agl/60))*(1+2*wk),gs=.08*WX.wind+.2+3*wk;
   this.w.addScaledVector(ou(this.tb,dt,.25,sg,.4),dt);ou(this.gu,dt,1.8,gs,.5);  // coloured noise: sg rad/s² over 0.25 s, gs m/s over 1.8 s
   if(s>6)weathervane(this,vr,s,dt,KW,KD)}  // fins rotate the nose toward the relative wind
  pivot(wt,dt){const ww=_ww.copy(wt).applyQuaternion(this.q);let bv=-.05,ok=false;
@@ -339,7 +339,7 @@ class Drone{
    m=Math.max(m,-vn)}
   this.w.copy(ww).applyQuaternion(_qb.copy(this.q).invert());this.gt=.12;return m}}
 const _H=Array.from({length:16},()=>[new V3(),new V3()]),_pv=new V3();
-const _dw=new V3(),_ag=new V3(),_ax=new V3(),_wk=new V3(),AMAX=110,KW=.0035,KD=.012;
+const _dw=new V3(),_ag=new V3(),_ax=new V3(),_wk=new V3(),AMAX=220,KW=.0015,KD=.006;
 const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new V3(),_qb=new QT();
 const cellV=d=>4.2-.95*Math.min(1,d.mah/BCAP)-.32*Math.max(d.ms,0);  // per-cell voltage with sag under load
 
@@ -485,7 +485,7 @@ function updateCam(dt,now){const me=player;camPrev.copy(camera.position);
  if(demo||!me){const t=now*1.5e-5,tg=nearestThreat(_ip.set(0,300,0));camPos.set(Math.sin(t)*1400,320+Math.sin(t*1.7)*60,900+Math.cos(t)*900);camera.position.copy(camPos);if(tg)camFwd.lerp(_t.copy(tg.p).sub(camPos).normalize(),1-Math.exp(-dt*.5));camera.lookAt(_t.copy(camPos).add(camFwd));setFov(55,false)}
  else if(me.dead>0){camPos.lerp(deadC,1-Math.exp(-dt*3));camera.position.copy(camPos);camera.lookAt(deadP);setFov(100)}
  else{const fpv=camMode===0;me.mesh.visible=!fpv;
-  if(fpv){camera.position.copy(me.p).add(_cp.set(0,.37,-.03).multiplyScalar(MSZ).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camA()*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);{const a=(.0006+.0022*me.ms+.0004*me.tb.length()*.1)*SHK;camera.quaternion.multiply(_q.setFromEuler(_je.set(gn()*a,gn()*a*.5,gn()*a)))}setFov(S.fov)}
+  if(fpv){camera.position.copy(me.p).add(_cp.set(0,.37,-.03).multiplyScalar(MSZ).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camA()*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);{const a=(.0003+.001*me.ms)*SHK;camera.quaternion.multiply(_q.setFromEuler(_je.set(gn()*a,gn()*a*.5,gn()*a)))}setFov(S.fov)}
   else{const f=fwdH(me.q,_f);if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);f.normalize();
    const nt=selT(),foc=nt?nt.p:_ip.set(PADP.x,PADY,PADP.z);if(camMode===2&&nt)f.subVectors(foc,me.p).setY(0).normalize();if(f.lengthSq()<.5)f.copy(camFwd);camFwd.lerp(f,1-Math.exp(-dt*5)).normalize();
    _cp.copy(me.p).addScaledVector(camFwd,-3.4*MSZ).add(_t.set(0,1.1*MSZ,0));_cp.y=Math.max(_cp.y,gh(_cp.x,_cp.z)+.6);
