@@ -37,5 +37,9 @@ await click('#gstock'); await click('#ghit'); await view(3.75, .5, 3.1); await s
 for (const [s, id] of [['0', 'deadcat'], ['1', 'brick'], ['2', 'lr']]) await click(`#gslots button[data-s="${s}"][data-id="${id}"]`);
 for (const [n, a, e] of [['front', 0, .25], ['side', Math.PI / 2, .2], ['top', 0.0001, 1.3]]) { await view(a, e, 3.1); await shot('mix-' + n); }
 await click('#gstock'); await view(3.75, .45, 3.1); await shot('garage-screen', '.gbox');
+// in game: League with a non-stock loadout, chase camera, bots on random loadouts
+for (const [s, id] of [['0', 'truex'], ['1', 'pod'], ['2', 'hikv']]) await click(`#gslots button[data-s="${s}"][data-id="${id}"]`);
+await click('#gok'); await click('#play'); await sleep(1200); await p.keyboard.press('c'); await sleep(SW ? 3000 : 1500);
+await p.screenshot({path: path.join(out, 'ingame-chase.png')}); console.log('shots/parts/ingame-chase.png');
 console.log(errors.length ? 'errors:\n ' + errors.join('\n ') : 'no errors');
 await browser.close(); server.close();
