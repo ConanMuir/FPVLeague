@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drone League</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;1,700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Launcher: pick a game. Games on the flight engine (engine/) share the pilot profile: radio calibration, rates, camera and flight mode */
+:root{--bg:#05070d;--ink:#eef3ff;--dim:#93a0b8;--panel:rgba(8,12,22,.84);--edge:rgba(150,180,255,.22);--blue:#3d95ff;--orange:#ff8a2a;--amber:#ffc640;--red:#ff4d4d;--green:#3ddc84;
+--disp:"Chakra Petch",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace;color-scheme:dark}
+html,body{margin:0;min-height:100%;background:radial-gradient(ellipse at 50% -10%,#16223d 0,var(--bg) 60%) fixed;color:var(--ink);font-family:var(--disp)}
+main{max-width:980px;margin:0 auto;padding:clamp(24px,6vw,64px) 16px}
+h1{margin:0;font-size:clamp(40px,7vw,68px);line-height:.9;font-style:italic;font-weight:700;letter-spacing:-.01em}
+h1 .b{color:var(--blue)}h1 .o{color:var(--orange)}
+.sub{color:var(--dim);max-width:60ch;margin:14px 0 28px;line-height:1.45}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+a.g{display:flex;flex-direction:column;gap:8px;padding:18px;border:1px solid var(--edge);border-radius:10px;background:var(--panel);color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
+a.g:hover,a.g:focus-visible{border-color:var(--c);transform:translateY(-2px);outline:none}
+a.g b{font-size:24px;font-style:italic;color:var(--c);letter-spacing:.02em}
+a.g span{color:var(--dim);font-size:14px;line-height:1.4}
+a.g i{margin-top:auto;font:12px var(--mono);font-style:normal;color:var(--c);letter-spacing:.1em;text-transform:uppercase}
+.note{font-size:12px;color:var(--dim);margin-top:26px;line-height:1.5}
+kbd{font:12px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:1px 5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<main>
+  <h1><span class="b">DRONE</span> <span class="o">LEAGUE</span></h1>
+  <p class="sub">5-inch acro quads with Betaflight rates, FPV uptilt and real radio support. Pick a game.</p>
+  <div class="games">
+    <a class="g" href="games/league/?mode=league" style="--c:var(--orange)"><b>Drone League</b><span>Rocket-powered soccer. 3v3 against bots or friends online, boost orbs, four maps and ball styles.</span><i>Play →</i></a>
+    <a class="g" href="games/league/?mode=df" style="--c:var(--blue)"><b>Dogfight</b><span>Guns over the Highlands: canyons, hangars and turrets. Team kills, FPV-aimed twin guns.</span><i>Play →</i></a>
+    <a class="g" href="games/interceptor/" style="--c:var(--red)"><b>Interceptor</b><span>Fly a warhead-carrying interceptor drone and take down waves of Shahed attack drones before they hit the sites.</span><i>Play →</i></a>
+  </div>
+  <p class="note">Esc in any game opens its menu. <kbd>T</kbd> opens the mod panel (rates and physics). Runs from GitHub Pages or any local web server; double-click <kbd>Play Drone League.bat</kbd> on Windows.</p>
+</main>
