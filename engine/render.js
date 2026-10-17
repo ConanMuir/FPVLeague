@@ -32,7 +32,7 @@ export function skyTex(c){const d=new V3(...c.sun).normalize(),t=tex(1024,512,(g
 let curFov=0;const tiltQ=new QT(),_cp=new V3(),_x=new V3();
 export function setFov(h,horizontal=true){const v=horizontal?2*Math.atan(Math.tan(h*Math.PI/360)/camera.aspect)*180/Math.PI:h;if(Math.abs(v-curFov)>.05){curFov=camera.fov=v;camera.updateProjectionMatrix()}}
 // FPV camera on the quad's nose, tilted up by the camera uptilt; extra = FOV stretch (super boost)
-export function fpvCam(me,extra=0){camera.position.copy(me.p).add(_cp.set(0,.25,-.38).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),S.tilt*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);setFov(S.fov+extra)}
+export function fpvCam(me,extra=0,k=1){camera.position.copy(me.p).add(_cp.set(0,.25,-.38).multiplyScalar(k).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),S.tilt*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);setFov(S.fov+extra)}
 // ---------- surface detail (shared by games' terrain, trees and buildings) ----------
 // close-up detail: two scales of tiling noise multiplied over the field texture so the ground keeps grain at low level
 function makeDetail(){const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d'),im=g.createImageData(256,256),D=im.data,N=(x,y,f)=>vnoise(x/256*f,y/256*f)*.6+vnoise(x/256*f*4,y/256*f*4)*.4;

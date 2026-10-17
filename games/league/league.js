@@ -345,7 +345,8 @@ function step(dt){const A=auth();
   if(live&&!a.remote&&!OBSON&&ballBox(a,_v)){const n=_v,pen=ballBox.pen,ib=1/BM,id=1;ball.p.addScaledVector(n,pen*ib/(ib+id));a.p.addScaledVector(n,-pen*id/(ib+id));
    const rv=_w.subVectors(ball.v,a.v).dot(n);if(rv<0){const hk=cl((-rv-6)/30,0,1),j=-(1+TB+(.6-TB)*hk)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);
     // Rocket League-style extra push along drone->ball (vertical softened), leaning toward where the quad is flying
-    const aim=_ip.subVectors(ball.p,a.p);aim.y*=.7;aim.normalize();const sp=a.v.length();if(sp>3)aim.addScaledVector(_lat.copy(a.v).divideScalar(sp),.5).normalize();ball.v.addScaledVector(aim,Math.min(14,-rv*.3)*hk*KICK);
+    const aim=_ip.subVectors(ball.p,a.p);aim.y*=.35;aim.normalize();const fw=_lat.set(0,0,-1).applyQuaternion(a.q);aim.addScaledVector(fw,-.35*aim.dot(fw)).normalize();
+    const u=BR/.93,rel=Math.min(_t.subVectors(a.v,ball.v).length(),46*u),sc=rel<=5*u?.65:rel<=23*u?.65-.1*(rel-5*u)/(18*u):.55-.25*(rel-23*u)/(23*u);ball.v.addScaledVector(aim,rel*sc*hk*KICK);  // RL: 0.65 up to 500 uu/s, 0.55 at 2300, 0.30 at 4600 (uu scaled to this ball)
     const gr=(1-hk)*.35;_t.subVectors(ball.v,a.v);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr);ball.last=a;
     if(net&&!net.host&&a===player){net.hit={s:++net.seq,p:r2(ball.p),v:r2(ball.v)};net.hitT=performance.now()}
     if(-rv>6){noise(.18,700+(-rv)*15,cl(-rv/35,0,.7)*near(ball.p));tone(240,90,.12,cl(-rv/120,0,.25)*near(ball.p));emit(ball.p.clone().addScaledVector(n,-BR),0x9fe8ff,cl(-rv,4,30)|0,10,.5)}}}
@@ -362,10 +363,10 @@ function updateCam(dt,now){const me=player;bfov+=((me?.boostOn?14:0)-bfov)*Math.
  if(menuOpen&&demo&&OBSON||!me&&OBSON){const t=now*3e-5;camPos.set(Math.sin(t)*300,150+Math.sin(t*1.7)*25,Math.cos(t)*400);camera.position.copy(camPos);camera.lookAt(0,20,0);setFov(55,false);return}
  if(menuOpen&&demo||!me){const t=now*4e-5;camPos.set(Math.sin(t)*W*.85,45+Math.sin(t*1.7)*10,Math.cos(t)*L*.75);camera.position.copy(camPos);camera.lookAt(ball.p.x*.5,6,ball.p.z*.5);setFov(55,false);return}
  const fpv=camMode===0&&me.dead<=0;me.mesh.visible=!fpv&&me.dead<=0;me.mark.visible=!fpv;
- if(fpv)fpvCam(me,bfov);
+ if(fpv)fpvCam(me,bfov,DRAD/.6);  // camera offset grows with the quad
  else{const f=_f.set(0,0,-1).applyQuaternion(me.q);f.y=0;if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);f.normalize();
   const foc=OBSON?nearestFoe(me)?.p||_ip.set(0,10,0):ball.p;if(camMode===2||me.dead>0)f.subVectors(foc,me.p).setY(0).normalize();if(f.lengthSq()<.5)f.copy(camFwd);camFwd.lerp(f,1-Math.exp(-dt*5)).normalize();
-  _cp.copy(me.p).addScaledVector(camFwd,-10).add(_t.set(0,3.6,0));if(OBSON){_cp.x=cl(_cp.x,-DHW+1,DHW-1);_cp.z=cl(_cp.z,-DHL+1,DHL-1);_cp.y=cl(_cp.y,dfH(_cp.x,_cp.z)+1.5,DCEIL-1)}else{_cp.x=cl(_cp.x,-HW+1,HW-1);_cp.y=cl(_cp.y,.8,H-1);_cp.z=cl(_cp.z,-HL-GD+1,HL+GD-1)}
+  const ck=1+.35*(DRAD/.6-1);_cp.copy(me.p).addScaledVector(camFwd,-10*ck).add(_t.set(0,3.6*ck,0));if(OBSON){_cp.x=cl(_cp.x,-DHW+1,DHW-1);_cp.z=cl(_cp.z,-DHL+1,DHL-1);_cp.y=cl(_cp.y,dfH(_cp.x,_cp.z)+1.5,DCEIL-1)}else{_cp.x=cl(_cp.x,-HW+1,HW-1);_cp.y=cl(_cp.y,.8,H-1);_cp.z=cl(_cp.z,-HL-GD+1,HL+GD-1)}  // chase cam backs off for a bigger quad
   camPos.lerp(_cp,1-Math.exp(-dt*9));camera.position.copy(camPos);camera.lookAt(camMode===2||me.dead>0?foc:_t.copy(me.p).addScaledVector(camFwd,8).setY(me.p.y+1));setFov(100+bfov)}
  if(OBSON){sun.target.position.set(camera.position.x,0,camera.position.z);sun.position.copy(sun.target.position).add(LOOKS.df.sp)}
  if(shake>.01){camera.position.add(_t.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(shake*.7*SHK));shake*=Math.exp(-dt*4)}}
@@ -432,17 +433,18 @@ $('play').onclick=startMatch;$('resume').onclick=()=>showMenu(false);$('leave').
 const MODS=[
  ['Drone','grav','Gravity',34.5,2,40,.5,'m/s²'],['Drone','thr','Thrust',345,20,600,5,'m/s²'],['Drone','te','Thrust curve',1.6,1,2.5,.05,'^'],['Drone','vp','Prop pitch speed',240,40,500,5,'m/s'],['Drone','maxv','Top speed',200,20,300,1,'m/s'],
  ['Drone','tau','Stick lag',4,2,60,1,'ms'],['Drone','dl','Linear drag',0.04,0,1,.01,''],['Drone','dq','Air drag',0.0039,0,.03,.0001,''],
- ['Drone','size','Drone size',0.75,.4,2.5,.05,'×'],['Drone','dbounce','Wall bounce',0.05,0,1,.05,''],['Drone','gfric','Ground grip',0.1,0,1,.02,''],['Drone','spool','Motor spool',20,0,150,5,'ms'],['Drone','turtle','Turtle rate',260,60,720,10,'°/s'],['Drone','wash','Prop wash',1.4,0,3,.1,'×'],
+ ['Drone','size','Drone size',2,.4,4,.05,'×'],['Drone','dbounce','Wall bounce',0.05,0,1,.05,''],['Drone','gfric','Ground grip',0.1,0,1,.02,''],['Drone','spool','Motor spool',20,0,150,5,'ms'],['Drone','turtle','Turtle rate',260,60,720,10,'°/s'],['Drone','wash','Prop wash',1.4,0,3,.1,'×'],
  ['Boost','bzone','Boost zone',5,0,30,1,'%'],['Boost','boost','Super boost',60,0,250,1,'m/s²'],['Boost','bkick','Boost kick',8,0,30,1,'m/s'],['Boost','drain','Boost drain',33,0,100,1,'/s'],['Boost','start','Kickoff boost',33,0,100,1,''],
  ['Boost','padb','Big orb refill',100,0,100,5,''],['Boost','pads','Small orb refill',20,0,100,5,''],
- ['Ball','bgrav','Ball gravity',19.5,0,30,.25,'m/s²'],['Ball','bsize','Ball radius',2.6,1,8,.1,'m'],['Ball','bbounce','Ball bounce',0.68,0,1.1,.02,''],['Ball','tbounce','Touch bounce',0.15,0,.6,.05,''],
- ['Ball','bdrag','Ball drag',0.03,0,.5,.005,''],['Ball','bmax','Ball top speed',85,20,200,1,'m/s'],['Ball','bmass','Ball weight',0.7,.1,5,.05,'×'],['Ball','kick','Hit power',1,0,4,.05,'×'],
+ ['Ball','bgrav','Ball gravity',34.5,0,60,.5,'m/s²'],['Ball','bsize','Ball radius',2.6,1,8,.1,'m'],['Ball','bbounce','Ball bounce',0.6,0,1.1,.02,''],['Ball','tbounce','Touch bounce',0.15,0,.6,.05,''],
+ ['Ball','bdrag','Ball drag',0.03,0,.5,.005,''],['Ball','bmax','Ball top speed',160,20,300,1,'m/s'],['Ball','bmass','Ball weight',0.2,.05,5,.05,'×'],['Ball','kick','Hit power',1,0,4,.05,'×'],
  ['Match','demo','Demolish speed',40,10,200,1,'m/s'],['Match','speed','Game speed',1,.25,2,.05,'×'],['Match','botv','Bot thrust',1,.3,1.5,.05,'×'],
  ['Look','bloom','Glow',0.9,0,2.5,.05,''],['Look','shake','Camera shake',1,0,3,.1,'×']];
 const PRESETS={'Default':{},'Moon ball':{bgrav:1.5,bbounce:.9,bdrag:.01},'Racer':{thr:430,maxv:280,dq:.0028,tau:3,spool:15},
- 'Heavy metal':{grav:28,thr:170,size:1.6,bmass:2,kick:1.4,demo:30},'Arcade':{grav:10,thr:45,te:1,maxv:90,dl:.14,dq:.0065,tau:20,kick:1.8,bsize:4,speed:.85},'Giant ball':{bsize:6,bgrav:3,bmass:1.5},'Infinite boost':{drain:0,start:100},'LiftOff real-scale':{grav:9.81,thr:98,vp:68,maxv:60,dl:.04,dq:.0137}};
+ 'Heavy metal':{grav:28,thr:170,size:2.8,bmass:2,kick:1.4,demo:30},'Arcade':{grav:10,thr:45,te:1,maxv:90,dl:.14,dq:.0065,tau:20,kick:1.8,bsize:4,speed:.85},'Giant ball':{bsize:6,bgrav:3,bmass:1.5},'Infinite boost':{drain:0,start:100},'LiftOff real-scale':{grav:9.81,thr:98,vp:68,maxv:60,dl:.04,dq:.0137}};
 function migrate(MDEF){if((S.physV|0)<2){const O={thr:124,maxv:111,dl:.14,dq:.0065,spool:30};for(const k in O)if(Math.abs(S.mod[k]-O[k])<1e-9)S.mod[k]=MDEF[k];S.physV=2;save()}  // v2 flight model: move untouched old defaults to the 6S defaults
- if((S.physV|0)<3){const O={dbounce:.2,wash:1,boost:140,bgrav:5};for(const k in O)if(Math.abs(S.mod[k]-O[k])<1e-9)S.mod[k]=MDEF[k];S.physV=3;save()}}  // v3: Riley's mode is the default
+ if((S.physV|0)<3){const O={dbounce:.2,wash:1,boost:140,bgrav:5};for(const k in O)if(Math.abs(S.mod[k]-O[k])<1e-9)S.mod[k]=MDEF[k];S.physV=3;save()}  // v3: Riley's mode is the default
+ if((S.physV|0)<4){const O={bgrav:19.5,bbounce:.68,bmax:85,bmass:.7,size:.75};for(const k in O)if(Math.abs(S.mod[k]-O[k])<1e-9)S.mod[k]=MDEF[k];S.physV=4;save()}}  // v4: Rocket League ball and car-to-ball scale
 function applyTune(){const T=tune();tuneFlight(T);tuneLeague(T,G,THR);bloom.strength=T.bloom*lookBK;
  ballMesh.scale.setScalar(BR/2.6);ring.scale.setScalar(BR/2.6);drones.forEach(d=>d.mesh.scale.setScalar(.68*T.size))}
 $('modbtn').onclick=toggleMod;
