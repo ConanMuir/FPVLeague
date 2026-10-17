@@ -1,6 +1,61 @@
 # Drone League: how the game is built
 
-## Files
+## Source layout (v16+, branch `modular-rewrite`)
+The game is now a Vite project at the repo root. Source is plain ES modules in `src/`; the build inlines everything into one HTML file. `Drone League/drone-league.html` is the frozen v15 single file (kept byte-identical as a reference). The sections and mechanics below still describe the code; the names are unchanged, only the file they live in moved.
+- **Build:** `npm ci`, then `npm run build` → `dist/index.html` (all JS + CSS inlined, vite-plugin-singlefile). `tools/postbuild.mjs` copies it to `Drone League/standalone/index.html` (what the .bat opens) and writes `dist/drone-league.artifact.html` (no doctype/html/head/body, for a claude.ai artifact). `npm run dev` serves it live. Three.js 0.160.0 comes from npm; PeerJS 1.5.4 is still loaded from jsDelivr on demand; the fonts link is in `index.html`, the CSS in `src/styles.css`.
+- **Test:** `npm run smoke` (`tools/smoke.mjs`) drives headless Edge: menu demo, League vs bots, Dogfight, mod panel, rates panel/CLI, sensitivity setup, a v15 localStorage save, and the artifact form; fails on any console/page error. It also runs the frozen v15 file as a baseline and compares (needs internet for its jsDelivr three.js; `--no-baseline` skips it, `--swiftshader` forces software WebGL). `window.__dl.snap()` is a read-only hook for it.
+- **Shared state:** ES modules can't reassign another module's `let`, so:
+  - `GS` (`src/state.js`) holds every v15 global that several modules reassign: `drones player state stT score clock overtime endPending demo paused menuOpen timeScale shake stepN lastCount camMode koN goalSide net room myPeer hostTune GM OBSON`. Write `GS.player`, never a copy.
+  - Physics tunables (`G THR TE VP MAXV TAU HBP HBR BBX DI HOV BR BB TB …`) are live `export let`s in `config/tune.js`; only `applyTune()` assigns them. Modules that cache something derived from them register `onTune(fn)` (bloom strength in `world/maps.js`, ball/ring scale in `render/ball.js`, drone mesh scale in `render/drone-mesh.js`).
+  - `S` (settings) is a live `export let` in `config/settings.js`; mutate `S.x` and call `save()`. Other single-writer live bindings: `floorM` (arena), `mapId`/`lookBK` (maps), `AC` (audio), `ballTick` (render/ball), `padX`/`padBlocked`/`mouseFire` (input), `calib` (input/calibration).
+  - `src/scratch.js` holds the scratch vectors that v15 shared between sections (`_v _w _u _q _t _a _b _f _x _z _ip _lat _gq …`); they stay shared so the maths is identical.
+  - Rollup refuses to build if a module assigns to an imported binding, so a missed one is a build error, not a silent bug.
+- **Boot:** `main.js` imports every module in v15's section order (so the scene is built in the same order), then calls the init functions in v15's order (`initMenu`, `initCalib`, `initModPanel`, `renderPresets/applyTune/syncMod/setMap/setBall`, `initRates`, `initSens`, `syncRates`, `setGame`, `startDemo`, the frame loop, `connectRoom`). Module top levels only declare things and build Three.js objects; DOM wiring is in the `init*` functions.
+- **Where each v15 section lives now:**
+  | v15 section | file(s) |
+  |---|---|
+  | `$ V3 QT cl`, world constants, `COL CSS TEAM UP DIFF` | `config/constants.js` |
+  | tunables `let G=…` + `applyTune()` (from the mod panel) | `config/tune.js` |
+  | `DEF`, `S`, `save`, all migrations (cal/xcal/map/ball/game, `physV` 2 and 3, presets, `rprof`) | `config/settings.js` |
+  | `MODS MDEF PRESETS cleanMod` (34 physics sliders) | `config/mods.js` |
+  | `RTYPES defRates` | `config/ratetypes.js` |
+  | rates maths `RT rate thrCurve stk` | `flight/rates.js` |
+  | renderer, scene, camera, bloom, lights, `tex glow scaleUV` | `render/renderer.js` |
+  | arena (`contour band prof RIM RIML goalG neonG …`) + `pitchLines` | `world/arena.js` |
+  | `hash2 sm vnoise fbm` | `world/noise.js` |
+  | maps (`OUT LOOKS buildOutdoor setMap snowP skyTex`) | `world/maps.js` |
+  | particles (`emit updParts dot`) | `render/particles.js` |
+  | audio (`audioInit audioTick noise tone near`) | `audio/audio.js` |
+  | physics: `pl sdArena sdGoal sdf sdN arena`, plus `los` | `physics/sdf.js` |
+  | `ball ballPhys ballBox` | `physics/ball.js` |
+  | `ballMesh ballLight ring BALLS SOC BSTY setBall` | `render/ball.js` |
+  | boost orbs `ORBS` | `world/orbs.js` |
+  | drone `GEO MAT markTex TN`, mesh building (`buildDrone`, was `Drone.build`) | `render/drone-mesh.js` |
+  | `Drone` (`step pivot ground spawn flipUp`), `NAMES SLOTS rightUp wrapA` | `flight/drone.js` |
+  | `attitude()` | `flight/attitude.js` |
+  | human input (`pad axv CAL humanControl RADIO PAIR BTN`), `flipIn`, key/mouse events, `padEdges cycleCam togglePause` | `input/input.js` |
+  | calibration (`calib calTick`) | `input/calibration.js` |
+  | League bots (`predict intercept think botControl assignRoles`) | `bots/league.js` |
+  | Highlands (`dfH OBS OGRID sdObs sdDF DSLOTS DFC LOOKS.df buildDF dfG`) | `world/highlands.js` |
+  | turrets, `DORB`, damage/kills/scoring, `fireIn aimOk setGame dfState nearestFoe` | `modes/dogfight.js` |
+  | bullets/tracers (`BUL shoot droneFire bullets dfDraw gunDir BSPD`) | `modes/guns.js` |
+  | `dfBot` | `bots/dogfight.js` |
+  | game state globals → `GS`; `isBot auth SB esc nick` | `state.js` |
+  | match flow (`applySlots buildTeams kickoff goal endMatch demolish startMatch startDemo showMenu`) | `modes/match.js` |
+  | `step()` | `modes/step.js` |
+  | online play (`netSync netSend enterGame leaveGame onHostState …`) + `connectRoom` (was the room IIFE) | `net/net.js` |
+  | PeerJS stand-in `p2pRoom p2p` | `net/p2p.js` |
+  | camera (`updateCam setFov`, `bfov`) | `render/camera.js` |
+  | HUD (`hud radar`), `banner feed tag` | `ui/hud.js` |
+  | `visuals()` | `render/visuals.js` |
+  | menu/settings (`FIELDS syncUI menuPad renderGames pickGame`, copy-settings button) | `ui/menu.js` |
+  | mod panel UI (`syncMod modChanged renderPresets toggleMod`) | `ui/modpanel.js` |
+  | Rates panel + CLI (`syncRates cliText tab drawRates`) | `ui/rates.js` |
+  | easy sensitivity setup | `ui/sens.js` |
+  | main loop `frame()`, boot | `main.js` |
+- `parts/` and `tuner/` are reserved for Phase 2 (see `docs/PLAN.md`).
+
+## Files (v15)
 - `drone-league.html` is the game. On claude.ai it is published as an artifact page, without `<!doctype>`/`<html>`/`<head>` tags, because the artifact adds them.
 - `standalone/index.html` is the same file wrapped in a full HTML document so it can run on its own. Rebuild it after every change to `drone-league.html`: add `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>` before it and `</body></html>` after it.
 - `Play Drone League.bat` opens `standalone/index.html` in a Microsoft Edge app window.
@@ -28,7 +83,7 @@
 ## Gotchas
 - The page relies on the CSS rule `[hidden]{display:none!important}`. Keep it.
 - Anything received from other players is untrusted. Validate the numbers and set names with `textContent`.
-- After editing, check that the script parses, for example by extracting the module script and running `node --check`.
+- After editing, check that the script parses, for example by extracting the module script and running `node --check`. (v16+: `npm run build && npm run smoke`.)
 - Bot slot keys are `b` + team + index; `isBot` must be `/^b[01]\d$/` (an earlier copy had lost the backslash, so bots mirrored the player's sticks).
 
 ## 12f. 6S 5-inch flight model, taller Highlands, motor audio (v11)
