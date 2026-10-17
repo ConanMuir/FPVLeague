@@ -17,6 +17,8 @@ Fly a Ukrainian-style tail-sitter interceptor drone and run down Shahed-136 and 
 | Arrow keys | Pitch / roll |
 | L | Camera tilt switch: 90° for cruise, level for take-off and hover |
 | H | Thermal camera switch (white-hot) |
+| G | Midcourse guidance on / off |
+| N | Next track (otherwise guidance takes the most urgent one) |
 | F or click | Detonate (the proximity fuse also fires on its own) |
 | V | Radar range 2 / 5 / 10 km |
 | C | Camera: FPV, chase, threat cam |
@@ -24,7 +26,7 @@ Fly a Ukrainian-style tail-sitter interceptor drone and run down Shahed-136 and 
 | R | Fresh interceptor on the mat |
 | Esc | Menu · T mod panel |
 
-**RC radio or sim dongle:** plug it in by USB, set it to USB Joystick (HID), move a stick, then press **Calibrate radio** in the menu. Detonate, camera tilt and thermal can each be mapped to a radio switch or button under the controller settings. Throttle is full range by default.
+**RC radio or sim dongle:** plug it in by USB, set it to USB Joystick (HID), move a stick, then press **Calibrate radio** in the menu. Detonate, camera tilt, thermal, guidance and next track can each be mapped to a radio switch or button under the controller settings: press **Learn** next to one, then flip the switch or press the button. Throttle is full range by default.
 
 ## How to intercept
 
@@ -32,6 +34,8 @@ Fly a Ukrainian-style tail-sitter interceptor drone and run down Shahed-136 and 
 2. Use the radar scope (bottom right) to head for the amber track, the most urgent one.
 3. Get behind it. The proximity fuse window shrinks as closing speed rises, so head-on passes need a direct hit; from the tail you get the full 4 m. Fly through the small circle drawn behind the target.
 4. Trees and houses are solid. A hit above 12 m/s is a crash.
-5. Thermal (H) makes the engines glow white, which helps spot a Shahed from behind.
+5. Midcourse guidance (on by default) puts a cyan PIP diamond on the feed and the radar: fly it to come out behind the selected track. The OSD shows time to go and steer / climb cues. Inside 1.5 km it hands over to TERMINAL and you fly it by eye.
+6. The video link fades with range from your launch position and drops when terrain blocks it. Watch LQ% on the OSD and climb to get the picture back.
+7. Thermal (H) makes the engines glow white, which helps spot a Shahed from behind.
 
 Settings live in your browser (localStorage key `dl-interceptor`). `interceptor-notes.md` explains how the code is put together.
