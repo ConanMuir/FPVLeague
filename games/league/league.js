@@ -7,7 +7,7 @@ import {scene,camera,bloom,tex,glow,dot,setFov,fpvCam} from '../../engine/render
 import {banner,feed,edgeArrow,fmt} from '../../engine/hud.js';
 import {AC,audioInit,audioOn,motorAudio,quadVoice,noise,tone} from '../../engine/audio.js';
 import {G,THR,TE,DL,DQ,BZ,BOOST,START,HOV,DRAD,Quad,setWorld,sdN,tuneFlight,attitude,humanControl} from '../../engine/flight.js';
-import {rate,initRates} from '../../engine/rates.js';
+import {rate,initRates,initSens} from '../../engine/rates.js';
 import {initInput,padEdges,pad,padX,fireBtnIn,mountPad} from '../../engine/input.js';
 import {PILOT_FIELDS,initMenu,syncUI} from '../../engine/menu.js';
 import {mountMod,initModPanel,tune,hostTune,setHostTune,toggleMod,tab,modMsg} from '../../engine/modpanel.js';
@@ -24,7 +24,7 @@ const DIFF=[
  {n:'Pro',kp:1.1,kd:2.6,vmax:48,att:9,rate:8,thr:.84,react:.18,noise:2,slack:1.2},
  {n:'All-Star',kp:1.3,kd:3,vmax:62,att:11,rate:10,thr:.94,react:.12,noise:1,slack:1.08},
  {n:'Legend',kp:1.5,kd:3.4,vmax:76,att:13,rate:12,thr:1,react:.08,noise:.4,slack:1}];
-const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,xfire:7,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}]};
+const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}]};
 loadSettings('droneleague',DEF);if(S.bots!==0)S.bots=1;
 if(!['arena','meadow','canyon','alpine'].includes(S.map))S.map='arena';if(!['classic','soccer','plasma','beach'].includes(S.ball))S.ball='classic';if(S.game!=='df')S.game='league';
 {const m=new URLSearchParams(location.search).get('mode');if(m==='df'||m==='league')S.game=m}  // the launcher opens Dogfight with ?mode=df
@@ -97,7 +97,7 @@ class Drone extends Quad{
   const sp=this.mark=new THREE.Sprite(new THREE.SpriteMaterial({map:markTex,color:new THREE.Color(COL[t]).multiplyScalar(1.6),depthTest:false,sizeAttenuation:false,toneMapped:false}));sp.scale.set(.022,.022,1);sp.position.y=1.8;sp.renderOrder=5;g.add(sp);
   g.scale.setScalar(.68*DRAD/.8);scene.add(g);this.tp=new Float32Array(TN*3);const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(this.tp,3));
   this.trail=new THREE.Line(tg,new THREE.LineBasicMaterial({color:new THREE.Color(COL[t]).multiplyScalar(2.2),transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));this.trail.frustumCulled=false;scene.add(this.trail)}
- spawn(){const s=(OBSON?DSLOTS:SLOTS)[this.i],k=this.team?-1:1;this.p.set(s[0]*k,s[1],s[2]*k);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);this.q.setFromAxisAngle(UP,this.team?Math.PI:0);
+ spawn(){const s=(OBSON?DSLOTS:SLOTS)[this.i],k=this.team?-1:1;this.hd=null;this.flipT=0;this.p.set(s[0]*k,s[1],s[2]*k);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);this.q.setFromAxisAngle(UP,this.team?Math.PI:0);
   this.boost=START;this.dead=0;this.hp=100;this.firing=false;this.thr=this.ms=HOV;this.gt=0;for(let j=0;j<TN;j++)this.p.toArray(this.tp,j*3);this.mesh.visible=true}
  dispose(){scene.remove(this.mesh,this.trail)}
  // flight physics is the engine's Quad; the League adds the boost kick feel and the bump sound for your own quad
@@ -447,9 +447,9 @@ function applyTune(){const T=tune();tuneFlight(T);tuneLeague(T,G,THR);bloom.stre
  ballMesh.scale.setScalar(BR/2.6);ring.scale.setScalar(BR/2.6);drones.forEach(d=>d.mesh.scale.setScalar(.68*T.size))}
 $('modbtn').onclick=toggleMod;
 initModPanel({mods:MODS,presets:PRESETS,migrate,onApply:applyTune});setMap(S.map);setBall(S.ball);
-initRates('Drone League');
+initRates('Drone League');initSens();
 
-$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','bots','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
+$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>mpMsg('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 {const m=location.hash.match(/^#([a-z0-9]{2,6})$/i);if(m)$('code').value=m[1]}
