@@ -27,7 +27,7 @@
       <div class="modes" role="group" aria-label="Game mode"><button class="sm on" id="m_league">Drone League</button><button class="sm" id="m_df">Dogfight</button></div>
       <h1><span class="b">DRONE</span><br><span class="o" id="h1o">LEAGUE</span></h1>
       <p class="sub" id="sub">Rocket-powered soccer for 5-inch acro quads. Betaflight-style rates, FPV uptilt, boost orbs and bots that read the ball.</p>
-      <div class="btns"><button class="go" id="play">Play vs bots</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Leave game</button><button id="modbtn">Mod panel</button></div>
+      <div class="btns"><button class="go" id="play">Play vs bots</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Leave game</button><button id="modbtn">Mod panel</button><button id="labbtn">Calibration Lab</button></div>
       <h2 style="margin-top:22px">Online match</h2>
       <div class="mp"><input id="nick" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><select id="tpref" aria-label="Team preference"><option value="auto">Any team</option><option value="0">Blue</option><option value="1">Orange</option></select><button class="sm" id="host">Host</button></div>
       <div class="mp"><input id="code" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="join">Join</button></div>
@@ -52,9 +52,9 @@
       <h2 style="margin-top:20px">Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
       <div class="axes" id="axes"></div><div class="btns" id="btns"></div>
       <div class="chans" id="chans"></div>
-      <div class="mp"><button class="sm" id="calbtn">Calibrate controller</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
+      <div class="mp"><button class="sm" id="calbtn">Choose your controls</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
       <div class="map" id="map"></div>
-      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Calibrate controller and follow the prompts. Xbox controller: works straight away (left stick throttle, centre = hover); calibrate it to put throttle on a trigger or bumper, or yaw on the bumpers (LB/RB) or triggers. It keeps its own setup, separate from your radio. Gamepad shortcut buttons are ignored for radios so switches don't trigger them.</p>
+      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Choose your controls and move or press whatever you want for each function. Xbox controller: works straight away (left stick throttle, centre = hover); choose your controls to put any function on any stick, trigger, bumper, d-pad or button. It keeps its own setup, separate from your radio. Gamepad shortcut buttons are ignored for radios so switches don't trigger them.</p>
     </div>
   </div>
 </div>
@@ -63,6 +63,27 @@
        <h3 id="sq"></h3><p class="note" id="sd"></p><div class="sch" id="sch"></div><div id="sl"><input type="range" id="sr"><output id="so"></output></div>
        <div class="sbars" id="sbars"></div>
        <div class="mp"><button class="sm" id="sback">Back</button><button class="sm" id="snext">Next</button></div></div></div>
+<div id="lab" hidden>
+  <canvas id="labc"></canvas>
+  <div id="labrun" hidden>
+    <div id="lhead" class="osd"><div id="ltop"></div><div id="lmsg"></div><div class="lbarw"><i id="lbar"></i></div></div>
+    <aside id="lside"><h3>Targets</h3><div class="ltg" id="ltg"></div><h3>Last rep</h3><p id="llast" class="note"></p><h3>What changed and why</h3><ul id="llog"></ul>
+      <h3>Current tune</h3><table class="rt" id="lrt"></table><div class="mp"><button class="sm" id="labskip">Skip drill</button><button class="sm" id="labend">End pack</button></div></aside>
+  </div>
+</div>
+<div id="labintro" class="modal" hidden><div class="sbox wide"><div class="mhead"><b>Calibration Lab</b><span class="note" style="margin:0">a training pack that tunes your rates while you fly</span></div>
+  <p class="note">Seven short drills, each measuring one thing. After every rep the tuner nudges your rates, deadband, throttle curve and assist toward the preset's targets, and you feel it straight away. Flies in Acro. Esc pauses.</p>
+  <h3>1 · Controls</h3><div class="mp"><button class="sm" id="lbind">Choose your controls…</button><span class="note" style="margin:0;align-self:center">or keep your current ones</span></div>
+  <h3>2 · Preset</h3><div id="lpre" class="lpre"></div>
+  <h3>3 · Drills</h3><ol id="ldrills" class="ldrills"></ol>
+  <div class="mp"><button class="go sm" id="lgo">Start</button><button class="sm" id="lquit">Leave Lab</button></div></div></div>
+<div id="labsum" class="modal" hidden><div class="sbox wide"><div class="mhead"><b>Pack complete</b><span class="note" id="lstitle" style="margin:0"></span></div>
+  <table class="rt lsum" id="lsrows"></table><ul id="lsmet" class="note"></ul>
+  <div class="mp"><select id="lslot" aria-label="Save to rate profile"><option value="0">Rate profile 1</option><option value="1">Rate profile 2</option><option value="2">Rate profile 3</option></select><button class="sm" id="lsave">Save</button><button class="sm" id="ldisc">Don't save</button><button class="sm" id="lrev" disabled>Revert</button></div>
+  <p class="note" id="lsmsg"></p><div class="mp"><button class="sm" id="lagain">Fly again</button><button class="sm" id="lexit">Back to menu</button></div></div></div>
+<div id="bind" class="modal" hidden><div class="sbox wide"><div class="mhead"><b id="bstep"></b><span class="note" id="bdev" style="margin:0"></span><button class="sm" id="bx" aria-label="Cancel">✕</button></div>
+  <h3 id="bq"></h3><p class="note" id="bmsg"></p><div id="blive" class="blive"></div><div id="bres" class="bres"></div>
+  <div class="mp"><button class="sm" id="bredo">Redo step</button><button class="sm" id="bskip">Skip</button><button class="go sm" id="bsave" hidden>Save</button></div></div></div>
 <aside id="mod" hidden aria-label="Mod panel">
   <div class="mhead"><h2 style="margin:0">Mod panel</h2><span class="note" style="margin:0">T toggles · changes apply live</span><button class="sm" id="mclose" aria-label="Close mod panel">✕</button></div>
   <div class="tabs" role="tablist"><button class="sm on" id="tabr" role="tab" aria-selected="true">Rates</button><button class="sm" id="tabp" role="tab" aria-selected="false">Physics</button></div>

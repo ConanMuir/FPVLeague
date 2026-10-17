@@ -165,11 +165,93 @@ async function settings(label, url) {
   return out;
 }
 
+// ---------- controls + Calibration Lab, with an injected fake Xbox pad ----------
+// axes: 0 LX, 1 LY, 2 RX, 3 RY, 4 LT as an axis resting at -1, 5 RT as an axis that reads 0 until its first press;
+// buttons 6/7 are LT/RT as analog buttons. window.__setPad(axes, {button: value}) drives it.
+function fakePad() {
+  const g = {id: 'Xbox 360 Controller (XInput STANDARD GAMEPAD)', index: 0, connected: true, mapping: 'standard', timestamp: 1,
+    axes: [0, 0, 0, 0, -1, 0], buttons: Array.from({length: 17}, () => ({pressed: false, touched: false, value: 0}))};
+  window.__setPad = (ax, bt) => { (ax || []).forEach((v, i) => { if (v != null) g.axes[i] = v; }); for (const j in bt || {}) g.buttons[j] = {pressed: bt[j] > .5, touched: bt[j] > 0, value: bt[j]}; g.timestamp = performance.now(); };
+  Object.defineProperty(navigator, 'getGamepads', {value: () => [g], configurable: true});
+}
+// scripted pilot inside the page: reads the Lab state through the read-only hook and flies each drill with a laggy
+// proportional controller (so it overshoots and the tuner has something to fix)
+function pilot() {
+  const buf = []; let t0 = 0;
+  window.__pilot = setInterval(() => {
+    const L = window.__dl.lab(), set = window.__setPad; if (!L.on || L.st !== 'drill') { set([0, 0, 0, 0, -1, -1], {6: 0}); return; }
+    const now = performance.now(), cl = v => Math.max(-1, Math.min(1, v)), yaw = v => set([null, null, null, null, v > 0 ? -1 + 2 * v : -1], {6: v < 0 ? -v : 0});
+    const thr = h => set([null, -cl((h - L.y) * .12)]);
+    let s = [0, 0, 0];
+    if (/roll|pitch|yaw/.test(L.drill)) { const ax = {roll: 0, pitch: 1, yaw: 2}[L.drill]; buf.push([now, cl((L.target - L.ang[ax]) / 35)]); while (buf.length && now - buf[0][0] > 160) s[ax] = buf.shift()[1]; }
+    else if (L.drill === 'track') s = [cl(L.err[0] / 12), cl(L.err[1] / 12), cl(L.err[2] / 12)];
+    else if (L.drill === 'dodge') { const p = L.proj.find(q => q.st !== 'gone'); s[0] = p ? (Math.sin(now / 300) > 0 ? .9 : -.9) : cl(-L.tilt / 20); }
+    set([0, 0, s[0], -s[1], -1, -1]); yaw(s[2]);
+    if (L.drill === 'still') set([null, L.t < 5 ? 0 : -cl((8 - L.y) * .12)]);
+    if (L.drill === 'alt') thr((L.band[0] + L.band[1]) / 2);
+  }, 8);
+}
+async function labScenario(url) {
+  const browser = await launch(), errors = [], out = {errors};
+  try {
+    const p = await browser.newPage();
+    await p.setViewport({width: 960, height: 540});
+    p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e)));
+    p.on('console', m => { if (m.type() === 'error' && !benign(m.text() + ' ' + (m.location()?.url || ''))) errors.push('console.error: ' + m.text()); });
+    await p.evaluateOnNewDocument(fakePad);
+    await p.goto(url, {waitUntil: 'domcontentloaded'});
+    await waitFor(p, s => s.drones.length > 0, 60000, 'the game to boot');
+    const pad = (ax, bt) => p.evaluate((a, b) => window.__setPad(a, b), ax, bt);
+    const R = [0, 0, 0, 0, -1];  // everything at rest (axis 5 left alone: it reads 0 until its first press)
+    // choose your controls: one function at a time
+    await click(p, '#calbtn'); out.bindOpen = !(await hidden(p, '#bind'));
+    const press = async (ax, bt, rel = R, relB = {6: 0, 7: 0}) => { await sleep(900); await pad(ax, bt); await sleep(550); await pad(rel, relB); await sleep(500); };
+    await press([0, -1, 0, 0, -1]);                 // throttle: left stick up (centre-sprung)
+    await press([0, 0, 0, 0, 1]);                   // yaw right: LT reported as an axis resting at -1
+    await press(R, {6: .9});                        // yaw left: LT as an analog button
+    await press([0, 0, 0, -1, -1]);                 // pitch forward: right stick up
+    await press([0, 0, 1, 0, -1]);                  // roll right: right stick right
+    await press(R, {7: 1});                         // fire: RT as an analog button
+    await sleep(900); await pad([0, 0, 0, 0, -1, 1]); await sleep(550); await pad([0, 0, 0, 0, -1, 0]); await sleep(60); await pad([0, 0, 0, 0, -1, -1]); await sleep(600);  // flip: RT axis that read 0 until pressed
+    out.bindText = await text(p, '#bres');
+    await click(p, '#bsave');
+    out.bound = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {xcal: s.xcal, xfire: s.xfire, xflip: s.xflip}; });
+    out.bindClosed = await hidden(p, '#bind');
+    // Calibration Lab, Pro preset; run every drill a few seconds with the scripted pilot, then skip
+    out.before = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {rprof: s.rprof, rpi: s.rpi, dz: s.dz, assist: s.assist}; });
+    await click(p, '#labbtn'); out.introOpen = !(await hidden(p, '#labintro'));
+    await click(p, '#lpre [data-p=pro]'); await click(p, '#lgo');
+    await p.evaluate(pilot);
+    out.drills = [];
+    for (const [id, secs] of [['still', 7], ['roll', 9], ['pitch', 5], ['yaw', 5], ['track', 9], ['dodge', 7], ['alt', 7]]) {
+      const L0 = await p.waitForFunction(i => { const L = window.__dl.lab(); return L.drill === i && L.st === 'drill'; }, {timeout: 20000}, id).then(() => true, () => false);
+      await sleep(secs * 1000);
+      const L = await p.evaluate(() => window.__dl.lab()), s = await snap(p);
+      out.drills.push({id, started: L0, t: L.t, reps: L.reps, changes: L.changes, finite: s.drones.every(d => d.p.every(Number.isFinite)) && L.ang.every(Number.isFinite), y: +s.drones[0].p[1].toFixed(1)});
+      await click(p, '#labskip');
+    }
+    await p.waitForFunction(() => window.__dl.lab().st === 'sum', {timeout: 10000});
+    const L = await p.evaluate(() => window.__dl.lab()); out.log = L.log; out.working = L.working; out.sumOpen = !(await hidden(p, '#labsum'));
+    await p.evaluate(() => clearInterval(window.__pilot));
+    await p.$eval('#lslot', e => { e.value = '2'; e.dispatchEvent(new Event('change')); });
+    await click(p, '#lsave');
+    out.saved = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {rprof: s.rprof, rpi: s.rpi, dz: s.dz, dzy: s.dzy, assist: s.assist}; });
+    out.ratesPanel = await p.evaluate(() => { document.getElementById('cexp').click(); return document.getElementById('cli').value; });
+    await click(p, '#lrev');
+    out.reverted = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {rprof: s.rprof, rpi: s.rpi, dz: s.dz, assist: s.assist}; });
+    await click(p, '#lexit'); await sleep(1500);
+    const e = await snap(p); out.exit = {demo: e.demo, lab: (await p.evaluate(() => window.__dl.lab().on)), drones: e.drones.length};
+  } catch (e) { errors.push('lab: ' + e.message); }
+  await browser.close();
+  return out;
+}
+
 // ---------- run ----------
 let failed = false;
 const fail = m => { failed = true; console.log('FAIL ' + m); };
 const results = {new: await scenario('new (dist/index.html)', origin + '/new/')};
 const set = {new: await settings('new', origin + '/new/')};
+const lab = await labScenario(origin + '/new/');
 if (BASELINE) {
   results.old = await scenario('v15 baseline', origin + '/old/');
   set.old = await settings('v15 baseline', origin + '/old/');
@@ -198,11 +280,34 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(s && s.physV === 3 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 2.5 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4,
     'v15 settings: migrations (physV 3, 6S defaults, clamping, rate profiles) should apply');
 }
+// controls + Calibration Lab
+{
+  const L = lab, eq = (a, b) => JSON.stringify(a) === JSON.stringify(b), x = L.bound?.xcal || [];
+  console.log('\n== controls + Calibration Lab\n binding: ' + JSON.stringify(L.bound) + '\n drills: ' + JSON.stringify(L.drills) + '\n last changes: ' + JSON.stringify(L.log) +
+    '\n working profile: ' + JSON.stringify(L.working) + '\n saved: ' + JSON.stringify(L.saved && {rprof3: L.saved.rprof[2], rpi: L.saved.rpi, dz: L.saved.dz, dzy: L.saved.dzy, assist: L.saved.assist}) + '\n exit: ' + JSON.stringify(L.exit) +
+    (L.errors.length ? '\n  errors:\n   ' + L.errors.slice(0, 20).join('\n   ') : '\n  no errors'));
+  if (L.errors.length) fail(`${L.errors.length} error(s) in the controls/Lab run`);
+  chk(L.bindOpen && L.bindClosed, 'binding: Choose your controls should open and close on Save');
+  chk(x[0]?.a === 1 && x[0].m === 'spring' && x[0].s < 0, 'binding: throttle on the left stick (centre = hover)');
+  chk(x[1]?.a === 4 && x[1].r === -1 && x[1].c === -1 && x[1].s === 2 && x[1].b === 6, 'binding: yaw right on LT reported as an axis resting at -1, yaw left on LT as an analog button');
+  chk(x[2]?.a === 3 && x[2].s < 0 && x[3]?.a === 2 && x[3].s > 0, 'binding: pitch and roll on the right stick');
+  chk(L.bound?.xfire === 7, 'binding: fire on RT reported as an analog button');
+  chk(L.bound?.xflip === 'a5', 'binding: flip on RT reported as an axis that reads 0 until its first press');
+  chk(L.introOpen && L.drills?.length === 7 && L.drills.every(d => d.started && d.finite && d.t > 2), 'Lab: every drill should start and run with finite state');
+  chk(L.drills?.reduce((a, d) => Math.max(a, d.reps), 0) > 0 && L.drills.at(-1).changes > 0, 'Lab: reps should be measured and the tuner should change something');
+  chk(L.sumOpen && L.working?.type === 'ACTUAL', 'Lab: summary should open; Pro tunes in Actual rates');
+  chk(L.saved && L.saved.rpi === 2 && eq(L.saved.rprof[2], L.working) && L.saved.assist === 0 && eq(L.saved.rprof.slice(0, 2), L.before.rprof.slice(0, 2)), 'Lab: Save should write the tuned profile into slot 3 only, Pro assist 0');
+  chk(/rates_type = ACTUAL/.test(L.ratesPanel) && /set deadband = \d+/.test(L.ratesPanel), 'Lab: the CLI export should read the saved profile and deadband');
+  chk(L.reverted && eq(L.reverted, L.before), 'Lab: Revert should restore the rate profiles, active profile, deadband and assist');
+  chk(L.exit?.demo && !L.exit.lab && L.exit.drones > 0, 'Lab: Back to menu should leave the Lab for the menu demo');
+}
 console.log('\n== settings from a v15 save\n new: ' + set.new.ui);
 if (set.old) {
   console.log(' v15: ' + set.old.ui);
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
-  else { chk(set.old.saved === set.new.saved, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + set.new.saved); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === set.new.saved) console.log(' saved settings identical to v15 after migration'); }
+  else { const NEW = ['assist'], strip = j => { const o = JSON.parse(j); for (const k of NEW) delete o[k]; return JSON.stringify(o); };  // settings added after v15 (their defaults)
+    set.old.saved = strip(set.old.saved); set.new.saved = strip(set.new.saved);
+    chk(set.old.saved === set.new.saved, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + set.new.saved); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === set.new.saved) console.log(' saved settings identical to v15 after migration'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check
 if (results.old) {

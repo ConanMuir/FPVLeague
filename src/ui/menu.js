@@ -1,9 +1,9 @@
 // ---------- menu / settings ----------
 import {$,DIFF} from '../config/constants.js';
 import {S,save} from '../config/settings.js';
-import {calTick} from '../input/calibration.js';
 import {BTN,CAL,PAIR,RADIO,axv,pad,padBlocked,padX} from '../input/input.js';
 import {setGame} from '../modes/dogfight.js';
+import {LAB,exitLab} from '../modes/lab.js';
 import {showMenu,startDemo,startMatch} from '../modes/match.js';
 import {enterGame,leaveGame,mpMsg} from '../net/net.js';
 import {BALLS,setBall} from '../render/ball.js';
@@ -14,7 +14,7 @@ import {tab} from './rates.js';
 import {OUT,setMap} from '../world/maps.js';
 const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],
  ['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
- ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]]];
+ ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['assist','Flight assist','rng',0,1,.05],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]]];
 // builds the settings and controller-mapping rows and wires the menu buttons (v15 ran this at load)
 export function initMenu(){
 const setEl=$('set');
@@ -35,10 +35,10 @@ $('chans').innerHTML=['THR','YAW','PIT','ROL'].map((n,i)=>`<div>${n}<b><i id="ch
 syncUI();
 addEventListener('gamepadconnected',e=>{if(RADIO.test(e.gamepad.id)&&S.thrMode!=='full'){S.thrMode='full';save();syncUI();feed('Radio detected: throttle set to full range. Open the menu and press Calibrate radio.')}});
 $('nick').value=S.name||'';$('nick').oninput=e=>{S.name=e.target.value.slice(0,16);save()};$('tpref').value=S.tp;$('tpref').onchange=e=>{S.tp=e.target.value;save()};
-$('host').onclick=()=>enterGame(Math.random().toString(36).slice(2,6),true);$('join').onclick=()=>enterGame($('code').value,false);$('code').onkeydown=e=>{if(e.key==='Enter')enterGame($('code').value,false)};
+$('host').onclick=()=>{exitLab();enterGame(Math.random().toString(36).slice(2,6),true)};$('join').onclick=()=>{exitLab();enterGame($('code').value,false)};$('code').onkeydown=e=>{if(e.key==='Enter'){exitLab();enterGame($('code').value,false)}};
 $('m_league').onclick=()=>pickGame('league');$('m_df').onclick=()=>pickGame('df');
-$('play').onclick=startMatch;$('resume').onclick=()=>showMenu(false);$('leave').onclick=()=>{leaveGame();startDemo()};
-$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
+$('play').onclick=()=>{exitLab();startMatch()};$('resume').onclick=()=>showMenu(false);$('leave').onclick=()=>{exitLab();leaveGame();startDemo()};
+$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi','assist','dzy','xboost','boostBtn'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>mpMsg('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 {const m=location.hash.match(/^#([a-z0-9]{2,6})$/i);if(m)$('code').value=m[1]}
@@ -46,13 +46,13 @@ $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','
 export function syncUI(){for(const[k,,type]of FIELDS){const inp=$('f_'+k);inp.value=type==='sel'?JSON.stringify(S[k]):S[k];
  $('o_'+k).textContent=type==='rng'?(k==='tilt'||k==='fov'?S[k]+'°':(+S[k]).toFixed(2)):''}
  for(let i=0;i<4;i++){$('ax'+i).value=CAL()[i].a;$('inv'+i).checked=CAL()[i].s<0}$('fireb').value=String(padX?S.xfire:S.fireBtn);$('flipb').value=String(padX?S.xflip:S.flipBtn)}
-function pickGame(m){if(GS.net){mpMsg('Leave the online game to switch modes.');return}S.game=m;save();setGame(m);if(GS.demo)startDemo();else startMatch()}
+function pickGame(m){if(GS.net){mpMsg('Leave the online game to switch modes.');return}const lab=LAB.on;exitLab();S.game=m;save();setGame(m);if(GS.demo||lab)startDemo();else startMatch()}
 export function menuPad(){const g=pad();if(padX!==menuPad.lx){menuPad.lx=padX;syncUI()}$('gpname').textContent=padBlocked?'· blocked in this view':g?'· '+g.id.slice(0,40)+(RADIO.test(g.id)?' (radio)':padX?' (Xbox layout)':''):'· none yet (move a stick or press a button)';
  for(let i=0;i<8;i++){const v=g?.axes[i]??0,b=$('ab'+i);b.style.height=Math.abs(v)*50+'%';b.style.bottom=v<0?(50-Math.abs(v)*50)+'%':'50%'}
  for(let i=0;i<4;i++){const v=g?axv(g,i):0,b=$('ch'+i);b.style.left=(v<0?50+v*50:50)+'%';b.style.width=Math.abs(v)*50+'%'}
  const bw=$('btns'),nb=g?g.buttons.length:0;if(bw.childElementCount!==nb||bw.dataset.x!==String(padX)){bw.dataset.x=padX;bw.innerHTML=Array.from({length:nb},(_,j)=>`<span>${padX&&BTN[j]?BTN[j]:'B'+j}</span>`).join('')}
  for(let j=0;j<nb;j++){const b=g.buttons[j],e=bw.children[j];e.classList.toggle('on',b.pressed||b.value>.5);e.style.setProperty('--v',Math.round(b.value*100)+'%')}
- calTick(g)}
+ }
 // online lobby
 export function renderGames(peers){const box=$('games');box.textContent='';for(const p of peers){const pr=p.presence;if(!pr?.game||p.sameTab)continue;const code=String(pr.game).replace(/[^a-z0-9]/g,'').slice(0,6);if(!code||GS.net?.code===code)continue;
  const b=document.createElement('button');b.className='sm';b.textContent=`Join ${String(pr.host||'Pilot').slice(0,16)} · ${pr.m==='df'?'Dogfight':'League'} · ${code.toUpperCase()} · ${Math.min(6,pr.pl|0)} pilot${(pr.pl|0)===1?'':'s'}`;b.onclick=()=>enterGame(code,false);box.append(b)}}

@@ -25,6 +25,9 @@ test('trigger axis that reads 0 until its first press, then rests at -1', () => 
   const D = run(detector(), [[1000, R0, B0], [400, [0, 0, 0, 0, -1, 1], B0], [100, [0, 0, 0, 0, -1, 0], B0], [500, [0, 0, 0, 0, -1, -1], B0]]);
   assert.equal(D.ph, 'done'); assert.equal(D.res.id, 5); assert.ok(D.res.late, 'flagged late'); assert.equal(D.res.rest, -1);
   assert.deepEqual(calEntry(D.res, 0, true), {a: 5, c: 0, s: 1, r: -1});
+  // ...but a stick axis that rests at exactly 0 and is held at -1 is a normal stick, not a late trigger
+  const S = run(detector(), [[1000, [0, 0, 0, 0, -1, -1], B0], [700, [0, -1, 0, 0, -1, -1], B0], [400, [0, 0, 0, 0, -1, -1], B0]]);
+  assert.equal(S.ph, 'done'); assert.ok(!S.res.late); assert.deepEqual(calEntry(S.res, 0, true), {a: 1, c: 0, s: -1, m: 'spring'});
 });
 test('analog trigger reported as a button AND an axis: the button wins', () => {
   const D = run(detector(), [[1000, REST, B0], [400, [0, 0, 0, 0, -1, 1], B(7, 1)], [400, REST, B0]]);

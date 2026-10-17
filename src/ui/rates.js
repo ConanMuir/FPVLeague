@@ -5,7 +5,7 @@ import {RTYPES,defRates} from '../config/ratetypes.js';
 import {S,save} from '../config/settings.js';
 import {RT,rate,stk,thrCurve} from '../flight/rates.js';
 import {calib} from '../input/calibration.js';
-import {axv,pad,thrFull} from '../input/input.js';
+import {assist,axv,dzOf,pad,thrFull} from '../input/input.js';
 export const AXN=['ROLL','PITCH','YAW'],AXC=['#ff5a5a','#5ad46a','#4aa8ff'],deg=r=>r*180/Math.PI;
 function rMsg(t){$('rmsg').textContent=t;clearTimeout(rMsg.t);rMsg.t=setTimeout(()=>$('rmsg').textContent='',3000)}
 export function syncRates(){const R=RT(),T=RTYPES[R.type];$('rpi').value=S.rpi;$('rtype').value=R.type;T.h.forEach((h,j)=>$('rh'+j).textContent=h);
@@ -13,7 +13,9 @@ export function syncRates(){const R=RT(),T=RTYPES[R.type];$('rpi').value=S.rpi;$
  $('tmid').value=(R.thrMid/100).toFixed(2);$('texpo').value=(R.thrExpo/100).toFixed(2);$('tlim').value=R.thrLimit}
 function cliText(){const R=RT(),L=[`# Drone League rate profile ${S.rpi+1}`,`rateprofile ${S.rpi}`,`set rates_type = ${R.type}`];
  ['roll','pitch','yaw'].forEach((n,i)=>L.push(`set ${n}_rc_rate = ${R.ax[i][0]}`,`set ${n}_expo = ${R.ax[i][2]}`,`set ${n}_srate = ${R.ax[i][1]}`));
- L.push(`set thr_mid = ${R.thrMid}`,`set thr_expo = ${R.thrExpo}`,`set throttle_limit_type = SCALE`,`set throttle_limit_percent = ${R.thrLimit}`);return L.join('\n')}
+ L.push(`set thr_mid = ${R.thrMid}`,`set thr_expo = ${R.thrExpo}`,`set throttle_limit_type = SCALE`,`set throttle_limit_percent = ${R.thrLimit}`);
+ // stick deadband: Betaflight's deadband / yaw_deadband are RC units (0-32 / 0-100 of 500 per half stick), global in Betaflight too
+ L.push(`set deadband = ${Math.min(32,Math.round(dzOf(0)*500))}`,`set yaw_deadband = ${Math.min(100,Math.round(dzOf(1)*500))}`);if(assist())L.push(`# Drone League assist ${assist().toFixed(2)} (no Betaflight equivalent)`);return L.join('\n')}
 export function tab(r){$('paner').hidden=!r;$('panep').hidden=r;$('tabr').classList.toggle('on',r);$('tabp').classList.toggle('on',!r);$('tabr').setAttribute('aria-selected',r);$('tabp').setAttribute('aria-selected',!r)}
 export function drawRates(){const gp=pad(),s=gp&&!calib?[axv(gp,3),axv(gp,2),axv(gp,1),thrFull()?(axv(gp,0)+1)/2:stk[3]]:stk;
  {const c=$('rgraph'),g=c.getContext('2d'),w=c.width,h=c.height,top=Math.max(200,Math.ceil(Math.max(...[0,1,2].map(i=>deg(rate(i,1))))/200)*200),L=64,B=h-34,X=v=>L+v*(w-L-14),Y=v=>B-v/top*(B-14);
@@ -42,5 +44,6 @@ $('cimp').onclick=()=>{const v={};for(const m of $('cli').value.matchAll(/^\s*se
  const ty=String(v.rates_type||'').toUpperCase();if(RTYPES[ty]){R.type=ty;n++}
  ['roll','pitch','yaw'].forEach((a,i)=>{const vals=[num(a+'_rc_rate',i<2?'rc_rate':'rc_rate_yaw'),num(a+'_srate'),num(a+'_expo',i<2?'rc_expo':'rc_expo_yaw')];vals.forEach((x,j)=>{if(x!=null){R.ax[i][j]=x;n++}})});
  const tm=num('thr_mid'),te=num('thr_expo'),tl=num('throttle_limit_percent');if(tm!=null){R.thrMid=Math.min(100,tm);n++}if(te!=null){R.thrExpo=Math.min(100,te);n++}if(tl!=null){R.thrLimit=cl(tl,25,100);n++}
+ const db=num('deadband'),ydb=num('yaw_deadband');if(db!=null){S.dz=Math.min(.15,db/500);n++}if(ydb!=null){S.dzy=Math.min(.2,ydb/500);n++}
  save();syncRates();rMsg(n?`Imported ${n} values into profile ${S.rpi+1}`:'No Betaflight rate settings found in that text.')};
 $('tabr').onclick=()=>tab(true);$('tabp').onclick=()=>tab(false);$('ratesbtn').onclick=()=>{$('mod').hidden=false;tab(true)};}

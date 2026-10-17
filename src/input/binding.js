@@ -33,7 +33,7 @@ export function detect(D,g,now){const ch=chans(g);
  if(D.ph==='release'){const id=D.cand,v=ch[id]??D.rest[id],r=D.rest[id];if(Math.abs(v-D.lastV)>.03){D.lastV=v;D.stT=now}
   if(Math.abs(v-r)>Math.abs(D.ext-r))D.ext=v;
   // settled (not moving for 200 ms) back at rest; or "late": an axis trigger that read 0 until its first press and now rests at -1
-  const still=now-D.stT>=200,back=still&&Math.abs(v-r)<.25*span(id),late=still&&id<100&&D.zero.has(id)&&v<-.5;
+  const still=now-D.stT>=200,back=still&&Math.abs(v-r)<.25*span(id),late=still&&id<100&&D.zero.has(id)&&D.ext>.5&&v<-.5;
   if(back||late){const rest=late?v:r;D.res={id,rest,ext:D.ext,dir:Math.sign(D.ext-rest)||1,btn:id>=100,trig:id<100&&Math.abs(rest)>.5,late};D.ph='done'}
   else D.msg='Let it go back to rest…';return D.ph}
  return D.ph}

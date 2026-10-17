@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {near,noise,tone} from '../audio/audio.js';
 import {$,COL,TEAM,V3} from '../config/constants.js';
 import {S} from '../config/settings.js';
-import {keys,mouseFire,pad,padX} from '../input/input.js';
+import {btnOn,keys,mouseFire,pad,padX} from '../input/input.js';
 import {BUL,gunDir,shoot} from './guns.js';
 import {endMatch} from './match.js';
 import {los} from '../physics/sdf.js';
@@ -47,7 +47,7 @@ function scored(by,v){const bt=by?.isTurret?by.t:by?.team;if(GS.state==='play'&&
  if(GS.overtime&&auth()&&GS.state==='play')endMatch()}
 export function applyHit(k,dmg,by){const o=objOf(k);if(!o||!by||o.team===by.team)return;if(o.isTurret){if(o.re<=0)hitTurret(o,dmg,by)}else if(o.dead<=0)hitDrone(o,dmg,by)}
 export const aimOk=(d,p,f,deg,r=260)=>{_gq.subVectors(p,d.p);const l=_gq.length();return l<r&&_gq.dot(f)/l>Math.cos(deg*Math.PI/180)};
-export function fireIn(d){if(keys.KeyF||mouseFire)return true;const g=pad(),b=padX?S.xfire:S.fireBtn;if(g&&(typeof b==='string'?(g.axes[+b.slice(1)]??(S.fireInv?1:-1))>.5:!!g.buttons[b]?.pressed)!==!!S.fireInv)return true;  // invert: fire with the switch/button in the other position
+export function fireIn(d){if(keys.KeyF||mouseFire)return true;const v=btnOn(pad(),padX?S.xfire:S.fireBtn);if(v!=null&&v!==!!S.fireInv)return true;  // invert: fire with the switch/button in the other position
  if(!S.afire)return false;const f=gunDir(d,S.tilt*Math.PI/180,_gd);return GS.drones.some(e=>e.dead<=0&&e.team!==d.team&&aimOk(d,e.p,f,3.5))||TUR.some(t=>t.re<=0&&t.t!==d.team&&aimOk(d,t.p,f,4))}
 export function setGame(m){GS.GM=m==='df'?'df':'league';GS.OBSON=GS.GM==='df';if(GS.OBSON)buildDF();setMap(GS.OBSON?'df':S.map);dfG.visible=GS.OBSON;ORBS.forEach(o=>{o.p.copy(GS.OBSON?o.dp:o.p0);o.g.position.copy(o.p)});goalG.visible=!GS.OBSON;ballMesh.visible=!GS.OBSON;BUL.forEach(b=>b.life=0);GS.drones.forEach(d=>d.firing=false);
  $('h1o').textContent=GS.OBSON?'DOGFIGHT':'LEAGUE';$('sub').textContent=GS.OBSON?'Acro quad dogfighting over the Highlands: a 1.4 km valley with a river canyon, mesas, spire fields, hangars to fly through and forests to hide in. Guns on the FPV camera axis, enemy turrets on the ground, bots in the air. Most points wins.':'Rocket-powered soccer for 5-inch acro quads. Betaflight-style rates, FPV uptilt, boost orbs and bots that read the ball.';
