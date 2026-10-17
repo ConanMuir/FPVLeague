@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Drone League</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;1,700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+<div id="hud" hidden>
+  <div id="score"><span id="sb">0</span><span id="clock" class="osd">3:00</span><span id="so">0</span></div>
+  <div id="feed"></div>
+  <canvas id="radar" width="110" height="170"></canvas>
+  <div id="xh"></div>
+  <div id="arrow" hidden></div>
+  <div id="hurt"></div>
+  <div id="center"></div>
+  <div id="osd" class="osd"></div>
+  <div id="boostw" class="osd"><div id="hpw" hidden><div class="lbl"><span>HEALTH</span><span id="hval">100</span></div><div class="bar"><div id="hpfill"></div></div></div><div id="bsec"><div class="lbl"><span id="blbl">BOOST</span><span id="bval">33</span></div><div id="boostbar"><div id="boostfill"></div></div></div></div>
+</div>
+
+<div id="menu">
+  <div id="panel">
+    <div>
+      <div class="modes" role="group" aria-label="Game mode"><button class="sm on" id="m_league">Drone League</button><button class="sm" id="m_df">Dogfight</button></div>
+      <h1><span class="b">DRONE</span><br><span class="o" id="h1o">LEAGUE</span></h1>
+      <p class="sub" id="sub">Rocket-powered soccer for 5-inch acro quads. Betaflight-style rates, FPV uptilt, boost orbs and bots that read the ball.</p>
+      <div class="btns"><button class="go" id="play">Play vs bots</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Leave game</button><button id="modbtn">Mod panel</button></div>
+      <h2 style="margin-top:22px">Online match</h2>
+      <div class="mp"><input id="nick" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><select id="tpref" aria-label="Team preference"><option value="auto">Any team</option><option value="0">Blue</option><option value="1">Orange</option></select><button class="sm" id="host">Host</button></div>
+      <div class="mp"><input id="code" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="join">Join</button></div>
+      <div id="games"></div>
+      <p class="note" id="mpnote">Connecting…</p>
+      <div class="keys">
+        <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
+        <kbd>A / D</kbd><span>Yaw</span>
+        <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
+        <kbd>Boost</kbd><span>Off by default (Super boost setting). When on: top 5% of the throttle stick = super boost (Shift / Space on keyboard), and gold orbs refill it</span>
+        <kbd>F / click</kbd><span>Fire (Dogfight). Guns follow the FPV camera; auto-fire shoots when the crosshair is on a target</span>
+        <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
+        <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
+        <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
+        <kbd>E</kbd><span>Flip back over (or just throttle up / move a stick when you're upside down on the ground)</span>
+        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped below</span>
+      </div>
+    </div>
+    <div>
+      <h2>Match &amp; flight</h2>
+      <div class="set" id="set"></div><div class="mp"><button class="sm" id="sensbtn">Easy sensitivity setup…</button><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div>
+      <h2 style="margin-top:20px">Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
+      <div class="axes" id="axes"></div><div class="btns" id="btns"></div>
+      <div class="chans" id="chans"></div>
+      <div class="mp"><button class="sm" id="calbtn">Calibrate controller</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
+      <div class="map" id="map"></div>
+      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Calibrate controller and follow the prompts. Xbox controller: works straight away (left stick throttle, centre = hover); calibrate it to put throttle on a trigger or bumper, or yaw on the bumpers (LB/RB) or triggers. It keeps its own setup, separate from your radio. Gamepad shortcut buttons are ignored for radios so switches don't trigger them.</p>
+    </div>
+  </div>
+</div>
+
+<div id="sens" hidden><div class="sbox"><div class="mhead"><b id="sstep">Step 1 of 4</b><span class="note" style="margin:0">Easy sensitivity setup</span><button class="sm" id="sx">✕</button></div>
+       <h3 id="sq"></h3><p class="note" id="sd"></p><div class="sch" id="sch"></div><div id="sl"><input type="range" id="sr"><output id="so"></output></div>
+       <div class="sbars" id="sbars"></div>
+       <div class="mp"><button class="sm" id="sback">Back</button><button class="sm" id="snext">Next</button></div></div></div>
+<aside id="mod" hidden aria-label="Mod panel">
+  <div class="mhead"><h2 style="margin:0">Mod panel</h2><span class="note" style="margin:0">T toggles · changes apply live</span><button class="sm" id="mclose" aria-label="Close mod panel">✕</button></div>
+  <div class="tabs" role="tablist"><button class="sm on" id="tabr" role="tab" aria-selected="true">Rates</button><button class="sm" id="tabp" role="tab" aria-selected="false">Physics</button></div>
+  <section id="paner">
+    <div class="mp"><select id="rpi" aria-label="Rate profile"><option value="0">Rate profile 1</option><option value="1">Rate profile 2</option><option value="2">Rate profile 3</option></select><select id="rtype" aria-label="Rates type"><option>BETAFLIGHT</option><option>ACTUAL</option><option>QUICK</option><option>KISS</option><option>RACEFLIGHT</option></select></div>
+    <table class="rt"><thead><tr><th></th><th id="rh0"></th><th id="rh1"></th><th id="rh2"></th><th class="mx">Max °/s</th></tr></thead><tbody id="rbody"></tbody></table>
+    <canvas id="rgraph" width="680" height="380" aria-label="Rate curves for roll, pitch and yaw"></canvas>
+    <h3>Throttle</h3>
+    <div class="thr"><div class="tin"><label for="tmid">Throttle MID</label><input type="number" id="tmid" min="0" max="1" step="0.01"><label for="texpo">Throttle EXPO</label><input type="number" id="texpo" min="0" max="1" step="0.01"><label for="tlim">Throttle limit %</label><input type="number" id="tlim" min="25" max="100" step="1"></div><canvas id="tgraph" width="240" height="160" aria-label="Throttle curve"></canvas></div>
+    <h3>Betaflight CLI</h3>
+    <textarea id="cli" rows="4" placeholder="Paste your quad's Betaflight diff or dump here and press Import CLI. Export CLI gives set commands you can paste into Betaflight." aria-label="Betaflight CLI text"></textarea>
+    <div class="mp"><button class="sm" id="cimp">Import CLI</button><button class="sm" id="cexp">Export CLI</button><button class="sm" id="rreset">Reset profile</button><span id="rmsg" class="note" style="margin:0;align-self:center"></span></div>
+  </section>
+  <section id="panep" hidden>
+    <div class="mp"><select id="mpre" aria-label="Preset"></select><button class="sm" id="mload">Load</button><button class="sm" id="mdel">Delete</button></div>
+    <div class="mp"><input id="mname" maxlength="24" placeholder="Name this setup" aria-label="Setup name"><button class="sm" id="msave">Save</button><button class="sm" id="mreset">Reset all</button></div>
+    <p class="note" id="modnote"></p>
+    <div id="modbody"></div>
+    <h3>Share a setup</h3>
+    <textarea id="mio" rows="3" placeholder="Export copies your setup here. Paste a friend's setup and press Import." aria-label="Settings text"></textarea>
+    <div class="mp"><button class="sm" id="mexp">Export</button><button class="sm" id="mimp">Import</button><span id="modmsg" class="note" style="margin:0;align-self:center"></span></div>
+  </section>
+</aside>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
