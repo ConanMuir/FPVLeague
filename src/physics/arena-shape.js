@@ -95,7 +95,7 @@ const flr=(x,z,uv)=>V([x,0,z],[0,1,0],uv);
 const mir=v=>V([v.p[0],v.p[1],-v.p[2]],[v.n[0],v.n[1],-v.n[2]],v.lu?[(LMZ+v.p[0])/6,v.uv[1]]:v.uv),mirC=new Map(),M=(v,e)=>{if(e>0)return v;let m=mirC.get(v);if(!m)mirC.set(v,m=mir(v));return m};
 
 export function buildArena(){mirC.clear();
- const out={floor:piece(),ramp:piece(),wall:piece(),ceil:piece(),mouth:[piece(),piece()],goalF:[piece(),piece()],nets:[piece(),piece()],rim:[[],[]]};
+ const out={floor:piece(),ramp:piece(),wall:piece(),ceil:piece(),floorRim:piece(),ceilRim:piece(),mouth:[piece(),piece()],goalF:[piece(),piece()],nets:[piece(),piece()],rim:[[],[]]};
  // band vertices (shared by the band and the outer ring of each goal window)
  const BV=COLS.map(c=>ROWS.map(r=>bandV(c.px,c.pz,c.nx,c.nz,r,c.len))),nc=COLS.length,inWin=c=>c.e&&Math.abs(c.px)<=XW;
  for(let i=0;i<nc;i++){const i2=(i+1)%nc,ca=COLS[i],cb=COLS[i2];for(let r=0;r<ROWS.length-1;r++){if(inWin(ca)&&inWin(cb)&&r+1<=IYT)continue;
@@ -135,15 +135,21 @@ export function buildArena(){mirC.clear();
   // post glow path: the middle of the rim fillet
   out.rim[t]=rings[nf0+NM/2].v.map(v=>M(v,e).p)}
  // field floor: the band's bottom row, with each goal window's arena-side ring bottoms in place of the window columns
- {const L=[],bots=(e,side)=>[...ARENA.keys(),nf0].filter(k=>k<ARENA.length||k===nf0).map(k=>M(rings[k].v[side>0?0:SAMP.length-1],e));  // outer ring -> rim
-  for(let i=0;i<nc;i++){const c=COLS[i];if(c.e&&Math.abs(c.px)<=XW){if(c.px===XW*c.e)L.push(...bots(c.e,c.e),...bots(c.e,-c.e).reverse());continue}L.push(BV[i][0])}  // a window: walk its bottom edge
-  // drop repeats (the outer ring bottoms are the window's boundary columns)
-  const F=L.filter((v,i)=>v!==L[(i+L.length-1)%L.length]);poly(out.floor,F.map(v=>V(v.p,[0,1,0],[v.p[0]/HW/2+.5,-v.p[2]/HL/2+.5])),1);
-  poly(out.ceil,COLS.map((c,i)=>BV[i][ROWS.length-1]),-1)}
+ {const L=[],O=[],bots=(e,side)=>[...ARENA.keys(),nf0].map(k=>M(rings[k].v[side>0?0:SAMP.length-1],e));  // outer ring -> rim
+  for(let i=0;i<nc;i++){const c=COLS[i];if(c.e&&Math.abs(c.px)<=XW){if(c.px===XW*c.e)for(const v of[...bots(c.e,c.e),...bots(c.e,-c.e).reverse()]){L.push(v);O.push([0,c.e])}continue}L.push(BV[i][0]);O.push([c.nx,c.nz])}  // a window: walk its bottom edge
+  const keep=L.map((v,i)=>v!==L[(i+L.length-1)%L.length]),F=L.filter((v,i)=>keep[i]),FO=O.filter((v,i)=>keep[i]);  // drop repeats (the outer ring bottoms are the window's boundary columns)
+  const fuv=v=>[v.p[0]/HW/2+.5,-v.p[2]/HL/2+.5];poly(out.floor,F.map(v=>V(v.p,[0,1,0],fuv(v))),1);
+  const T=COLS.map((c,i)=>BV[i][ROWS.length-1]);poly(out.ceil,T,-1);
+  // collision: the flat floor and ceiling are exact boxes in physics/world.js; the trimesh keeps a 4 m strip along their edges so the
+  // ramp/wall seams stay connected (and the floor isn't made of 200 m sliver triangles)
+  const strip=(P,L2,N,y,ny)=>{const n=L2.length,I=L2.map((v,i)=>V([v.p[0]-N[i][0]*4,y,v.p[2]-N[i][1]*4],[0,ny,0],[0,0])),B=L2.map(v=>V(v.p,[0,ny,0],[0,0]));for(let i=0;i<n;i++){const j=(i+1)%n;quad(P,B[i],B[j],I[j],I[i])}};
+  strip(out.floorRim,F,FO,0,1);strip(out.ceilRim,T,COLS.map(c=>[c.nx,c.nz]),H,-1)}
  return out}
-// all pieces welded into one indexed mesh (exactly equal positions share an index): Rapier's trimesh with FIX_INTERNAL_EDGES
-export function arenaTrimesh(A){const key=new Map(),vs=[],ix=[];
- for(const P of[A.floor,A.ramp,A.wall,A.ceil,...A.mouth,...A.goalF,...A.nets]){const map=[];for(let i=0;i<P.p.length/3;i++){const k=P.p[i*3]+','+P.p[i*3+1]+','+P.p[i*3+2];let j=key.get(k);if(j==null){j=vs.length/3;key.set(k,j);vs.push(P.p[i*3],P.p[i*3+1],P.p[i*3+2])}map.push(j)}
+// pieces welded into one indexed mesh (exactly equal positions share an index). Whole surface (closed; the checks use it), or
+// collision: everything curved plus the floor/ceiling edge strips (Rapier's trimesh with FIX_INTERNAL_EDGES; the flat floor and
+// ceiling are boxes), which only has open edges at the strips' inner loops and along the goal walls' floor line
+export function arenaTrimesh(A,collision){const key=new Map(),vs=[],ix=[];
+ for(const P of collision?[A.ramp,A.wall,...A.nets,A.floorRim,A.ceilRim]:[A.floor,A.ramp,A.wall,A.ceil,...A.mouth,...A.goalF,...A.nets]){const map=[];for(let i=0;i<P.p.length/3;i++){const k=P.p[i*3]+','+P.p[i*3+1]+','+P.p[i*3+2];let j=key.get(k);if(j==null){j=vs.length/3;key.set(k,j);vs.push(P.p[i*3],P.p[i*3+1],P.p[i*3+2])}map.push(j)}
   for(const i of P.idx)ix.push(map[i])}
  return{vertices:new Float32Array(vs),indices:new Uint32Array(ix)}}
-export const ARENA_ROWS=ROWS,ARENA_COLS=COLS;
+let cache=null;export const arenaData=()=>cache||(cache=buildArena());  // built once, shared by world/arena.js and physics/world.js
