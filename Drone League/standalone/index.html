@@ -117,7 +117,7 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
         <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
         <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
         <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
-        <kbd>E</kbd><span>Flip back over (or just throttle up / move a stick when you're upside down on the ground)</span>
+        <kbd>E</kbd><span>Flip back over now (upside down on the ground it also rolls back onto its feet by itself)</span>
         <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped below</span>
       </div>
     </div>
@@ -1154,7 +1154,7 @@ function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last
 setGame(GM);startDemo();requestAnimationFrame(frame);
 (async()=>{try{room=await window.claude?.use?.('room')}catch(e){room=null}
  if(!room){room=p2p;$('games').hidden=true;$('mpnote').textContent='Online over the internet: press Host, then send friends this page and the game code. They type the code and press Join.';return}
- $('mpnote').textContent='Host a game, or join one listed here. Bots fill empty slots.';
+ $('mpnote').textContent='Host a game, or join one listed here. Bots fill empty slots unless Bots is set to No bots.';
  room.onPeers(ch=>renderGames(ch.peers),e=>{$('mpnote').textContent=`Online play is unavailable here (${e.code}).`;$('host').disabled=$('join').disabled=true})})();
 </script>
 
