@@ -26,7 +26,8 @@ function hostSlots(){const hs=[{k:'h',tp:S.tp}];for(const p of[...GS.net.peers].
  const size=Math.min(3,Math.max(S.size,Math.ceil(hs.length/2))),T=[[],[]];
  for(const h of hs){let t=h.tp==='0'?0:h.tp==='1'?1:T[0].length<=T[1].length?0:1;if(T[t].length>=size)t=1-t;if(T[t].length<size)T[t].push(h.k)}
  if(S.bots)for(const t of[0,1])for(let i=T[t].length;i<size;i++)T[t].push('b'+t+i);return T}
-function setNet(d,a,now,dead,bo,fi,ti,lo){if(!okArr(a,10))return;const L=lo&&cleanLoadout(lo);if(L&&L.join()!==d.lo.ids.join())d.setLoadout(L);  // parts: untrusted ids, checked against the known listd.firing=!!fi&&!dead;d.tilt=Number.isFinite(+ti)?cl(+ti,0,60):30;const n=d.net||(d.net={p:new V3(),q:new QT(),v:new V3(),at:0});n.p.fromArray(a,0);n.q.fromArray(a,3).normalize();n.v.fromArray(a,7);n.at=now;
+// lo: the pilot's part ids (untrusted; cleanLoadout checks them against the known list)
+function setNet(d,a,now,dead,bo,fi,ti,lo){if(!okArr(a,10))return;const L=lo&&cleanLoadout(lo);if(L&&L.join()!==d.lo.ids.join())d.setLoadout(L);d.firing=!!fi&&!dead;d.tilt=Number.isFinite(+ti)?cl(+ti,0,60):30;const n=d.net||(d.net={p:new V3(),q:new QT(),v:new V3(),at:0});n.p.fromArray(a,0);n.q.fromArray(a,3).normalize();n.v.fromArray(a,7);n.at=now;
  const was=d.dead>0;d.dead=dead?1:0;d.boostOn=!!bo;d.thr=bo?1:.5;
  if(!d.seen||was&&!dead){d.seen=1;d.p.copy(n.p);d.q.copy(n.q);for(let j=0;j<TN;j++)d.p.toArray(d.tp,j*3)}
  if(!was&&dead){emit(d.p,COL[d.team],160,30,1.2);noise(.6,200,.7*near(d.p))}}

@@ -29,8 +29,8 @@ export class Drone{
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   const F=this.fl;  // parts: this drone's multipliers (src/parts)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*F.thr*this.ms**(TE*F.te)*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&this.pivot(wt,dt))return;
-  if(gd)this.w.lerp(wt,1-Math.exp(-dt/.09));else{const r=F.rmax,l=F.lag;  // parts: the airframe tops out at rmax and lags by its inertia (per axis: pitch, yaw, roll)
-   this.w.x+=(cl(wt.x,-r[0],r[0])-this.w.x)*(1-Math.exp(-dt/(TAU+l[0])));this.w.y+=(cl(wt.y,-r[1],r[1])-this.w.y)*(1-Math.exp(-dt/(TAU+l[1])));this.w.z+=(cl(wt.z,-r[2],r[2])-this.w.z)*(1-Math.exp(-dt/(TAU+l[2])))}const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
+  if(gd)this.w.lerp(wt,1-Math.exp(-dt/.09));else{const r=F.rmax,a=F.acc,k=1-Math.exp(-dt/TAU);  // parts: the airframe tops out at rmax and its torque/inertia caps angular acceleration (pitch, yaw, roll)
+   this.w.x+=cl((cl(wt.x,-r[0],r[0])-this.w.x)*k,-a[0]*dt,a[0]*dt);this.w.y+=cl((cl(wt.y,-r[1],r[1])-this.w.y)*k,-a[1]*dt,a[1]*dt);this.w.z+=cl((cl(wt.z,-r[2],r[2])-this.w.z)*k,-a[2]*dt,a[2]*dt)}const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
   this.ms+=(this.thr-this.ms)*(1-Math.exp(-dt/Math.max(1e-3,this.thr>this.ms?SPOOL*F.spool:SPOOL*F.spool*1.6)));  // motor spool-up / spin-down

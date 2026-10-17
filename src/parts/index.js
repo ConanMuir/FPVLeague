@@ -20,7 +20,7 @@ export function seededLoadout(key,seed=0){let h=(2166136261^seed)>>>0;for(const 
 
 // ---------- reference values: the v15 flight model is "nominal" (multiplier 1); Stock comes out a little under it ----------
 const R0=.29,REF_G=620,TW0=9.3;  // 5" prop radius at size 1, nominal all-up weight (g), nominal thrust-to-weight
-const RATE0=[1250,900,1250],LAG0=[.009,.02,.009];  // achievable body rate (deg/s) and airframe response lag (s) at authority 1: pitch, yaw, roll
+const RATE0=[1250,900,1250],SNAP0=[.06,.11,.06];  // at authority 1: achievable body rate (deg/s) and time to reach it from rest (s): pitch, yaw, roll
 const PEN=.9;  // Stock's authority relative to nominal (on top of its own heavier, flexier parts)
 const DRAG_PEN=1.06;  // Stock's drag area relative to nominal
 
@@ -57,7 +57,7 @@ const r3=v=>+v.toFixed(3),r4=v=>+v.toFixed(4),cl=(v,a,b)=>v<a?a:v>b?b:v;
 // ---------- the loadout ----------
 // k: drone size scale (tune "Drone size" / 0.75); colliders, hull and box come out in world metres at that size
 export function computeLoadout(ids,k=1){ids=cleanLoadout(ids)||[...STOCK];const B=build(ids),{a,c,p,M,r}=B,mass=B.auw/REF_G;
- const auth=B.alpha.map((v,i)=>cl(v/REF_ALPHA[i],.5,1.8)),rateMul=auth.map(v=>cl(v**.4,.7,1.3)),lagMul=auth.map(v=>cl(v**-.8,.55,1.8));
+ const auth=B.alpha.map((v,i)=>cl(v/REF_ALPHA[i],.5,1.8)),rateMul=auth.map(v=>cl(v**.4,.7,1.3)),snapMul=auth.map(v=>cl(v**-.8,.55,1.8));
  const dq=B.area.map((v,i)=>v/REF_AREA[i]/mass),vp=p.kv.vp*(R0/r)**.6,tw=4*B.Tm/B.auw;
  const flight={
   thr:tw/TW0,                       // x THR (thrust-to-weight)
@@ -66,7 +66,8 @@ export function computeLoadout(ids,k=1){ids=cleanLoadout(ids)||[...STOCK];const 
   spool:p.kv.spool*(r/R0)**1.5,     // x SPOOL (bigger props spin up slower)
   dl:(dq[0]+dq[1]+dq[2])/3,dq,      // x DL, x the body-axis DQ factors (side, disc, front)
   rmax:RATE0.map((v,i)=>v*rateMul[i]*Math.PI/180),  // achievable body rate (rad/s): pitch, yaw, roll
-  lag:LAG0.map((v,i)=>v*lagMul[i]), // airframe response time added to the stick lag TAU (s): pitch, yaw, roll
+  snap:SNAP0.map((v,i)=>v*snapMul[i]),  // time from rest to rmax (s); acc = rmax/snap is the airframe's angular acceleration (torque / inertia)
+  acc:SNAP0.map((v,i)=>RATE0[i]*rateMul[i]*Math.PI/180/(v*snapMul[i])),  // rad/s²: pitch, yaw, roll
   boost:1/mass,drain:p.drain*(R0/r)**1.5,  // x BOOST (a fixed shove, so heavier quads get less), x DRAIN (pack capacity; big props are more efficient)
   mass,grip:B.grip,kick:c.kick};    // ball touches: drone mass (1 = nominal), dribble grip, added touch restitution
  // collider descriptors (track B / Rapier): box size = half-extents; capsule, cylinder = [halfHeight, radius]; sphere = [radius]
@@ -112,8 +113,8 @@ export function statsOf(lo,T){const f=lo.flight,G=T.grav,dl=T.dl*f.dl,thr=T.thr*
    if(sp>1e-4){const k=T.dq*sp,uy=vy*c-vz*s,uz=vy*s+vz*c,Dy=uy*(dl+k*1.8*f.dq[1]),Dz=uz*(dl+k*.7*f.dq[2]);let ay=c*Dy+s*Dz,az=-s*Dy+c*Dz;const l=Math.hypot(ay,az)*dt;if(l>sp){ay*=sp/l;az*=sp/l}vy-=ay*dt;vz-=az*dt}
    const s2=Math.hypot(vy,vz);if(s2>maxv){const m=Math.max(maxv/s2,1-dt*2);vy*=m;vz*=m}}
   if(vy>-1)top=Math.max(top,-vz)}
- const real=9.81/G,rate=i=>f.rmax[i]*180/Math.PI*.015/(.015+f.lag[i]+T.tau/1000);  // achievable rate, discounted by response time
+ const real=9.81/G,rate=i=>f.rmax[i]*180/Math.PI*.1/(.1+f.snap[i]+T.tau/1000);  // achievable rate, discounted by the time to reach it
  return {speed:top*real*3.6,punch:thr/G,pitch:rate(0),yaw:rate(1),roll:rate(2),resp:1000/(T.spool*f.spool),boost:T.boost*f.boost*100/(T.drain*f.drain),hit:(1.6+f.kick)/(1/.7+1/f.mass)/(1.6/(1/.7+1)),ball:f.grip*Math.sqrt(lo.bbx[0]*lo.bbx[2]/REF_TOP),size:lo.size,
-  te,raw:{rmax:f.rmax.map(v=>Math.round(v*180/Math.PI)),lag:f.lag.map(v=>+(v*1000).toFixed(1)),spool:+(T.spool*f.spool).toFixed(1)}}}
+  te,raw:{rmax:f.rmax.map(v=>Math.round(v*180/Math.PI)),snap:f.snap.map(v=>Math.round(v*1000)),spool:+(T.spool*f.spool).toFixed(1)}}}
 // every loadout (5 x 5 x 5), for normalising bars
 export function allLoadouts(){const o=[];for(const a of ARMS)for(const c of CHASSIS)for(const p of POWER)o.push([a.id,c.id,p.id]);return o}

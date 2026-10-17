@@ -38,7 +38,7 @@ function showDrone(lo){if(V.drone)V.pivot.remove(V.drone);if(V.wire)V.pivot.remo
  V.drone=group;V.props=props;V.pivot.add(group);V.wire=colliderWire(lo.colliders);V.wire.visible=$('ghit').checked;V.pivot.add(V.wire)}
 
 // ---------- UI ----------
-const fmt={speed:s=>`${Math.round(s.speed)} km/h`,punch:s=>`${s.punch.toFixed(1)}:1 T/W`,pitch:s=>`${s.raw.rmax[0]}°/s ${s.raw.lag[0]}ms`,yaw:s=>`${s.raw.rmax[1]}°/s ${s.raw.lag[1]}ms`,roll:s=>`${s.raw.rmax[2]}°/s ${s.raw.lag[2]}ms`,
+const fmt={speed:s=>`${Math.round(s.speed)} km/h`,punch:s=>`${s.punch.toFixed(1)}:1 T/W`,pitch:s=>`${s.raw.rmax[0]}°/s in ${s.raw.snap[0]}ms`,yaw:s=>`${s.raw.rmax[1]}°/s in ${s.raw.snap[1]}ms`,roll:s=>`${s.raw.rmax[2]}°/s in ${s.raw.snap[2]}ms`,
  resp:s=>`${s.raw.spool} ms spool`,boost:(s,lo)=>`${(100/(MDEF.drain*lo.flight.drain)).toFixed(1)} s tank`,hit:(s,lo)=>`${lo.auw} g AUW`,ball:s=>`grip ×${s.ball.toFixed(2)}`,size:s=>`×${s.size.toFixed(2)} Stock`};
 function update(){const ids=S.loadout,lo=computeLoadout(ids),st=statsOf(lo,MDEF),R=ranges();
  document.querySelectorAll('#gslots button').forEach(b=>b.classList.toggle('on',ids[+b.dataset.s]===b.dataset.id));
