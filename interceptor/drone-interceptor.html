@@ -121,8 +121,9 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
       <div class="axes" id="axes"></div>
       <div class="chans" id="chans"></div>
       <div class="mp"><button class="sm" id="calbtn">Calibrate radio</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
+      <div class="mp"><button class="sm" id="asnbtn">Assign switches</button><button class="sm" id="asnskip" hidden>Skip</button><span id="asnmsg" class="note" style="margin:0;align-self:center"></span></div>
       <div class="map" id="map"></div>
-      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Calibrate radio and follow the prompts. Gamepad shortcut buttons are ignored for radios so switches don't trigger them. To map a switch, press Learn next to it and flip the switch.</p>
+      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Calibrate radio and follow the prompts. Gamepad shortcut buttons are ignored for radios so switches don't trigger them. To map switches, press Assign switches and flip each one when it asks (any key skips), or press Learn next to a single one.</p>
     </div>
   </div>
 </div>
@@ -778,13 +779,13 @@ function visuals(dt,now){const me=player;
 // ---------- input events ----------
 function cycleCam(){camMode=(camMode+1)%3;S.cam=camMode;save()}
 function togglePause(){if(demo)return;showMenu(!menuOpen)}
-addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!menuOpen)e.preventDefault();if(e.repeat)return;
+addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(learn?.seq&&!e.repeat){e.preventDefault();if(e.code==='Escape'){learn=null;syncSw()}else asnStep(learn.k);return}if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!menuOpen)e.preventDefault();if(e.repeat)return;
  if(e.code==='Escape'||e.code==='KeyP')togglePause();if(menuOpen)return;
  if(e.code==='KeyC')cycleCam();if(e.code==='KeyL')setCam(!camUp);if(e.code==='KeyH')setTherm(!therm);if(e.code==='KeyG')setGuide(!S.guide);if(e.code==='KeyN')nextTrack();if(e.code==='KeyV'){S.rr=(S.rr+1)%3;save();syncUI()}if(e.code==='KeyM'){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}if(e.code==='KeyR'&&player&&!demo&&wstate!=='over')relaunch()});
 addEventListener('keyup',e=>keys[e.code]=false);addEventListener('blur',()=>{for(const k in keys)keys[k]=false;mouseFire=false});
 addEventListener('mousedown',e=>{if(e.button===0&&!menuOpen&&!e.target.closest?.('#mod,#menu,button,input,select,textarea'))mouseFire=true});addEventListener('mouseup',e=>{if(e.button===0)mouseFire=false});
 function padEdges(){const g=pad();if(!g||RADIO.test(g.id))return;const b=g.buttons.map(x=>x.pressed),e=i=>b[i]&&!prevBtn[i];
- if(e(9))togglePause();if(!menuOpen&&!demo){if(e(4))cycleCam();if(e(3)&&player&&wstate!=='over')relaunch()}prevBtn=b}
+ if(e(9)&&!learn)togglePause();if(!menuOpen&&!demo){if(e(4))cycleCam();if(e(3)&&player&&wstate!=='over')relaunch()}prevBtn=b}
 
 // ---------- menu / settings ----------
 const FIELDS=[['diff','Threat level','sel',DIFF.map((d,i)=>[i,d.n])],['wx','Weather','sel',[['random','Random'],...Object.entries(WXS).map(([k,w])=>[k,w.n])]],['fuse','Warhead fuse','sel',[['auto','Proximity (auto)'],['manual','Manual (detonate button)']]],
@@ -806,11 +807,16 @@ for(const[k,lab,key]of SWS){const l=document.createElement('label');l.textConten
  s.onchange=()=>{const v=s.value;S[k]=/a/.test(v)?v:+v;delete swPrev[k];save()};
  const w=document.createElement('span');w.style.cssText='display:flex;gap:6px;align-items:center';w.innerHTML=`<button class="sm" id="ln_${k}" style="padding:4px 10px;font-size:12px">Learn</button><span class="note" id="st_${k}" style="margin:0;min-width:5.5em">${key} key</span>`;
  map.append(l,s,w);w.firstChild.onclick=()=>{const g=pad();if(!g){$('st_'+k).textContent='no radio';return}learn={k,ax:[...g.axes],bt:g.buttons.map(x=>x.pressed),t:performance.now()};syncSw()}}
-function syncSw(){for(const[k]of SWS){const s=$('sw_'+k);s.value=String(S[k]);if(s.selectedIndex<0)s.value='-1';$('ln_'+k).textContent=learn?.k===k?'Flip it…':'Learn'}}
-function learnTick(g){if(!learn)return;if(!g||performance.now()-learn.t>10000){learn=null;syncSw();return}const sticks=S.cal.map(c=>c.a);let v=null;
+function syncSw(){for(const[k]of SWS){const s=$('sw_'+k);s.value=String(S[k]);if(s.selectedIndex<0)s.value='-1';$('ln_'+k).textContent=learn?.k===k?'Flip it…':'Learn'}
+ const q=learn?.seq;$('asnbtn').textContent=q?'Stop':'Assign switches';$('asnskip').hidden=!q;$('asnmsg').innerHTML=q?`Flip the switch for <b>${SWS.find(s=>s[0]===learn.k)[1]}</b> (any key skips)`:''}
+// Assign switches: walks the rows in order; each step waits for a flip, then moves on. The next step takes its baseline once the last switch has settled.
+function asnStep(k){const i=k==null?0:SWS.findIndex(s=>s[0]===k)+1;learn=i<SWS.length?{k:SWS[i][0],seq:1,ax:null,t:performance.now()}:null;syncSw();if(!learn&&k!=null)$('asnmsg').textContent='Done: all switches assigned'}
+$('asnbtn').onclick=()=>{if(learn?.seq){learn=null;syncSw();return}if(!pad()){$('asnmsg').textContent='No radio yet: move a stick first';return}asnStep()};$('asnskip').onclick=()=>asnStep(learn?.k);
+function learnTick(g){if(!learn)return;if(!g||!learn.seq&&performance.now()-learn.t>10000){learn=null;syncSw();return}
+ if(!learn.ax){if(performance.now()-learn.t>400){learn.ax=[...g.axes];learn.bt=g.buttons.map(x=>x.pressed)}return}const sticks=S.cal.map(c=>c.a);let v=null;
  g.buttons.forEach((b,i)=>{if(v==null&&b.pressed&&!learn.bt[i])v=i});
  if(v==null)g.axes.forEach((a,i)=>{if(v==null&&!sticks.includes(i)&&Math.abs(a-(learn.ax[i]??0))>.6)v=(a>(learn.ax[i]??0)?'a':'-a')+i});  // the new position counts as ON
- if(v!=null){S[learn.k]=v;delete swPrev[learn.k];save();$('st_'+learn.k).textContent=swName(v);learn=null;syncSw();tone(880,880,.08,.08)}}
+ if(v!=null){const k=learn.k;S[k]=v;delete swPrev[k];save();$('st_'+k).textContent=swName(v);tone(880,880,.08,.08);if(learn.seq)asnStep(k);else{learn=null;syncSw()}}}
 syncSw();
 $('axes').innerHTML=Array.from({length:8},(_,i)=>`<div>${i}<i id="ab${i}"></i></div>`).join('');
 $('chans').innerHTML=['THR','YAW','PIT','ROL'].map((n,i)=>`<div>${n}<b><i id="ch${i}"></i></b></div>`).join('');

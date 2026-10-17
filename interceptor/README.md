@@ -26,7 +26,7 @@ Fly a Ukrainian-style tail-sitter interceptor drone and run down Shahed-136 and 
 | R | Fresh interceptor on the mat |
 | Esc | Menu · T mod panel |
 
-**RC radio or sim dongle:** plug it in by USB, set it to USB Joystick (HID), move a stick, then press **Calibrate radio** in the menu. Detonate, camera tilt, thermal, guidance and next track can each be mapped to a radio switch or button under the controller settings: press **Learn** next to one, then flip the switch or press the button. Throttle is full range by default.
+**RC radio or sim dongle:** plug it in by USB, set it to USB Joystick (HID), move a stick, then press **Calibrate radio** in the menu. Detonate, camera tilt, thermal, guidance and next track can each be mapped to a radio switch or button under the controller settings: press **Assign switches** and flip each switch when it names the function (any key skips one), or press **Learn** next to a single one. Throttle is full range by default.
 
 ## How to intercept
 
