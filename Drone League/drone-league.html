@@ -170,7 +170,9 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 
 const $=id=>document.getElementById(id), V3=THREE.Vector3, QT=THREE.Quaternion, cl=(v,a,b)=>v<a?a:v>b?b:v;
 // ---------- world constants (metres, seconds) ----------
-const W=220,L=280,H=64,GW=46,GH=18,GD=14,RC=32,RF=10,HW=W/2,HL=L/2;
+// arena sizes [name, width, length, ceiling]; an online client builds the host's size (set before its rejoin reload)
+const ARENAS=[['Classic',220,280,90],['Big',280,360,100],['Huge',340,440,115],['Massive',420,540,130]],AI=(()=>{let a=1;try{const n=sessionStorage.getItem('dlArenaNet');sessionStorage.removeItem('dlArenaNet');a=n!=null?+n:JSON.parse(localStorage.getItem('droneleague')||'{}').arena??1}catch(e){}return ARENAS[a]?a:1})();
+const[,W,L,H]=ARENAS[AI],GW=46,GH=18,GD=14,RC=32,RF=10,HW=W/2,HL=L/2;
 let G=15,BR=2.6,DRAD=.8,BG=5,THR=58,BZ=.05,BOOST=140,BKICK=8,bfov=0,GF=.1,TB=.15,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,BBX=[.6,.28,.65],DI=.22,MAXV=78,TE=1.6,VP=240,BTHR=124,MAXB=85,DEMO=48,DL=.1,DQ=.006,HOV=(G/THR)**(1/TE),TAU=.012,DRAIN=33,START=33,PBG=100,PSM=20,BB=.68,BD=.03,BM=.7,KICK=1,GSPD=1,BOTV=1,SHK=1,DB=.35;
 const COL=[0x2d8cff,0xff7a1a],CSS=['#3d95ff','#ff8a2a'],TEAM=['BLUE','ORANGE'],UP=new V3(0,1,0);
 const DIFF=[
@@ -178,10 +180,10 @@ const DIFF=[
  {n:'Pro',kp:1.1,kd:2.6,vmax:48,att:9,rate:8,thr:.84,react:.18,noise:2,slack:1.2},
  {n:'All-Star',kp:1.3,kd:3,vmax:62,att:11,rate:10,thr:.94,react:.12,noise:1,slack:1.08},
  {n:'Legend',kp:1.5,kd:3.4,vmax:76,att:13,rate:12,thr:1,react:.08,noise:.4,slack:1}];
-const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}]};
+const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,arena:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}]};
 let S;try{S={...DEF,...JSON.parse(localStorage.getItem('droneleague')||'{}')}}catch(e){S={...DEF}}
 if(!Array.isArray(S.cal)||S.cal.length!==4||!S.cal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.cal=DEF.cal.map(c=>({...c}));
-if(!Array.isArray(S.xcal)||S.xcal.length!==4||!S.xcal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.xcal=DEF.xcal.map(c=>({...c}));if(S.bots!==0)S.bots=1;
+if(!Array.isArray(S.xcal)||S.xcal.length!==4||!S.xcal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.xcal=DEF.xcal.map(c=>({...c}));if(S.bots!==0)S.bots=1;if(!ARENAS[S.arena])S.arena=1;
 if(!['arena','meadow','canyon','alpine'].includes(S.map))S.map='arena';if(!['classic','soccer','plasma','beach'].includes(S.ball))S.ball='classic';if(S.game!=='df')S.game='league';
 const save=()=>{try{localStorage.setItem('droneleague',JSON.stringify(S))}catch(e){}};
 // Betaflight rate maths (rc.c) for every rates type; axis 0 roll, 1 pitch, 2 yaw; returns rad/s
@@ -278,8 +280,8 @@ const neonG=new THREE.Group();scene.add(neonG);
   if(r<.012)col.setRGB(2.2,2.2,2.4);else if(r<.12)col.set(COL[Math.random()<.75?team:1-team]).multiplyScalar(.55+Math.random()*.6);else col.setRGB(.04,.05,.08).multiplyScalar(.6+Math.random());
   im.setColorAt(n++,col)}}
  im.count=n;neonG.add(im);
- for(const[x,z]of[[-1,-1],[1,-1],[1,1],[-1,1]]){const px=x*(HW+52),pz=z*(HL+52);const p=new THREE.Mesh(new THREE.CylinderGeometry(.8,1.2,70,8),new THREE.MeshStandardMaterial({color:0x1a1f2b,metalness:.6,roughness:.5}));p.position.set(px,35,pz);neonG.add(p);
-  const head=new THREE.Mesh(new THREE.BoxGeometry(9,4,1.5),glow(0xeaf2ff,4));head.position.set(px,71,pz);head.lookAt(0,0,0);neonG.add(head)}
+ for(const[x,z]of[[-1,-1],[1,-1],[1,1],[-1,1]]){const px=x*(HW+52),pz=z*(HL+52);const p=new THREE.Mesh(new THREE.CylinderGeometry(.8,1.2,H+6,8),new THREE.MeshStandardMaterial({color:0x1a1f2b,metalness:.6,roughness:.5}));p.position.set(px,(H+6)/2,pz);neonG.add(p);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(9,4,1.5),glow(0xeaf2ff,4));head.position.set(px,H+7,pz);head.lookAt(0,0,0);neonG.add(head)}
  const sp=[];for(let i=0;i<1600;i++){const t=Math.random()*Math.PI*2,u=Math.random()*.9+.08,r=1000;sp.push(Math.cos(t)*r*Math.sqrt(1-u*u),u*r,Math.sin(t)*r*Math.sqrt(1-u*u))}
  const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));neonG.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xbcd0ff,size:1.6,sizeAttenuation:false,fog:false})))}
 
@@ -494,11 +496,12 @@ class Drone{
   if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT)}
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&this.pivot(wt,dt)){this.pw=0;return}
-  // inverted pendulum: once it has come to rest on its back or side against the floor or a wall (never the ceiling), it starts to tip,
-  // slowly at first and faster the further it leans (torque ~ sin of the lean), until it lands on its feet. Sliding or flying, nothing grabs it.
-  const cn=this.cn||(this.cn=new V3(0,1,0)),vt=this.v.lengthSq()-this.v.dot(cn)**2;
-  if(gd&&cn.y>-.3&&vt<9+(this.pw*DRAD*1.6)**2){const up=_u.set(0,1,0).applyQuaternion(this.q);if(up.y<.9){const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
-   this.pw=Math.min(8,(this.pw||0)+PEND*(Math.max(sn,.1)+(1-up.y)*.15)*(this.thr>.3?1.5:1)*dt);if(this.pw>.15&&this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return}else this.pw=0}else this.pw=0
+  // inverted pendulum: resting fully upside down on the floor, it eases itself over onto its feet. The roll rate glides up from zero,
+  // peaks while it is on its back and eases off as it comes upright. Once started it carries through; walls, ceiling, sides and sliding never trigger it.
+  const cn=this.cn||(this.cn=new V3(0,1,0)),vt=this.v.lengthSq()-this.v.dot(cn)**2,uy=_u.set(0,1,0).applyQuaternion(this.q).y;
+  if(gd&&uy<.93&&(this.pr?vt<9+(this.pw*DRAD*1.6)**2:cn.y>.6&&uy<-.6&&vt<9)){const up=_u;this.pr=1;const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
+   const tg=PEND*(.5+.5*sm((1-up.y)/2))*(this.thr>.3?1.3:1);this.pw=(this.pw||0)+(tg-(this.pw||0))*(1-Math.exp(-dt/.35));
+   if(this.pw>.15&&this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return}else this.pw=this.pr=0
   this.w.lerp(wt,1-Math.exp(-dt/(gd?.09:TAU)));const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
@@ -529,7 +532,7 @@ class Drone{
    m=Math.max(m,-vn)}
   this.w.copy(ww).applyQuaternion(_qb.copy(this.q).invert());this.gt=.12;return m}}
 const _H=Array.from({length:16},()=>[new V3(),new V3()]),_pv=new V3();
-const _pa=new V3(),_pw=new V3(),PEND=14,_rf=new V3(),_qr=new QT(),wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
+const _pa=new V3(),_pw=new V3(),PEND=3.6,_rf=new V3(),_qr=new QT(),wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
 function rightUp(d,k){const f=_rf.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,1,0).applyQuaternion(d.q);f.y=0}_qr.setFromAxisAngle(UP,f.lengthSq()>1e-4?Math.atan2(-f.x,-f.z):0);d.q.slerp(_qr,k)}  // level, keeping the heading
 const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new V3(),_qb=new QT(),_lb=new V3();
 // ball vs the drone's box (props included): contact normal from the closest point on the box
@@ -794,12 +797,12 @@ function applySlots(T){const old=new Map(drones.map(d=>[d.key,d])),nd=[];player=
   const mine=net?k===(net.host?'h':myPeer):k==='h';d.bot=isBot(k)&&auth();d.remote=!!net&&!mine&&!d.bot;d.name=nameOf(k,t,i);if(mine)player=d;nd.push(d)}));
  old.forEach(d=>d.dispose());drones=nd;if(!player&&demo)player=drones[0]}
 function buildTeams(){drones.forEach(d=>d.dispose());drones=[];const n=demo?3:S.size;applySlots([0,1].map(t=>Array.from({length:demo||S.bots?n:t?0:1},(_,i)=>!demo&&!t&&!i?'h':'b'+t+i)))}
-function kickoff(){koN++;state='kickoff';stT=3;lastCount=4;ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ball.last=null;ballMesh.visible=!OBSON;drones.forEach(d=>{if(!d.remote)d.spawn()});ORBS.forEach(p=>p.cd=0);predict();assignRoles();
+function kickoff(){koN++;state='kickoff';stT=3;timeScale=1;lastCount=4;ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ball.last=null;ballMesh.visible=!OBSON;drones.forEach(d=>{if(!d.remote)d.spawn()});ORBS.forEach(p=>p.cd=0);predict();assignRoles();
  if(OBSON){TUR.forEach(t=>{t.hp=TUR_HP;t.re=0;t.cd=1+Math.random()});BUL.forEach(b=>b.life=0)}}
 function banner(txt,cls='',dur=1.2){const c=$('center');c.textContent=txt;c.className=cls;clearTimeout(banner.t);if(dur)banner.t=setTimeout(()=>c.textContent='',dur*1000)}
 function feed(html){const e=document.createElement('div');e.innerHTML=html;$('feed').prepend(e);setTimeout(()=>e.remove(),4500);while($('feed').children.length>4)$('feed').lastChild.remove()}
 const tag=d=>`<span class="${d.team?'co':'cb'}">${esc(d.name)}</span>`;
-function goalFx(t,lt){shake=1.4;ballMesh.visible=false;emit(ball.p,COL[t],500,45,1.8);emit(ball.p,0xffffff,150,25,1.2);noise(1.4,300,.8*near(ball.p)+.2,.6);tone(880,180,.9,.18,'sawtooth');
+function goalFx(t,lt){ballMesh.visible=false;emit(ball.p,COL[t],500,45,1.8);emit(ball.p,0xffffff,150,25,1.2);noise(1.4,300,.8*near(ball.p)+.2,.6);tone(880,180,.9,.18,'sawtooth');
  if(!demo){const d=drones.find(x=>x.key===lt);banner('GOAL!',t?'co':'cb',2.6);feed(`${d&&d.team===t?tag(d):'Own goal'} scores for ${TEAM[t]}`)}}
 function goal(t){score[t]++;state='goal';stT=3.2;timeScale=net?1:.3;goalSide=t;goalFx(t,ball.last?.key);if(overtime)endPending=true}
 function endFx(){const w=score[0]>score[1]?0:1;banner(`${TEAM[w]} WINS ${score[0]}–${score[1]}`,w?'co':'cb',0);tone(523,1046,.6,.2,'triangle')}
@@ -821,7 +824,7 @@ function setNet(d,a,now,dead,bo,fi,ti){if(!okArr(a,10))return;d.firing=!!fi&&!de
  const was=d.dead>0;d.dead=dead?1:0;d.boostOn=!!bo;d.thr=bo?1:.5;
  if(!d.seen||was&&!dead){d.seen=1;d.p.copy(n.p);d.q.copy(n.q);for(let j=0;j<TN;j++)d.p.toArray(d.tp,j*3)}
  if(!was&&dead){emit(d.p,COL[d.team],160,30,1.2);noise(.6,200,.7*near(d.p))}}
-function onHostState(g,now){if(!g||typeof g!=='object')return;net.sb=g.sb==null?null:!!g.sb;if((g.m==='df')!==OBSON)setGame(g.m);if(g.tu&&typeof g.tu==='object'){const j=JSON.stringify(g.tu);if(j!==net.tuJ){net.tuJ=j;hostTune={...MDEF,...cleanMod(g.tu)};applyTune();syncMod()}}const sj=JSON.stringify(g.sl);
+function onHostState(g,now){if(!g||typeof g!=='object')return;if(g.ar!=null&&g.ar!==AI&&ARENAS[g.ar]&&!net.rl){net.rl=1;mpMsg('Switching to the host\'s '+ARENAS[g.ar][0]+' arena…');try{sessionStorage.setItem('dlArenaNet',g.ar);sessionStorage.setItem('dlRejoin',net.code)}catch(e){}net.r.leave().catch(()=>{});setTimeout(()=>location.reload(),200);return}net.sb=g.sb==null?null:!!g.sb;if((g.m==='df')!==OBSON)setGame(g.m);if(g.tu&&typeof g.tu==='object'){const j=JSON.stringify(g.tu);if(j!==net.tuJ){net.tuJ=j;hostTune={...MDEF,...cleanMod(g.tu)};applyTune();syncMod()}}const sj=JSON.stringify(g.sl);
  if(sj!==net.slotsJ&&Array.isArray(g.sl)&&g.sl.length===2&&g.sl.some(a=>Array.isArray(a)&&a.length)&&g.sl.every(a=>Array.isArray(a)&&a.length<=3&&a.every(k=>typeof k==='string'&&k&&k.length<48))){net.slotsJ=sj;net.slots=g.sl;applySlots(g.sl)}
  if(g.ko!==net.ko){net.ko=g.ko;player?.spawn();ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ballMesh.visible=!OBSON;BUL.forEach(b=>b.life=0);lastCount=4;ORBS.forEach(p=>p.cd=0)}
  if(g.st==='goal'&&state!=='goal'){if(okArr(g.bl,3))ball.p.fromArray(g.bl);goalFx(g.gs?1:0,g.lt)}
@@ -846,7 +849,7 @@ function netSync(now){if(!net)return;
 function netSend(now){if(!net||now-net.sendT<33)return;net.sendT=now;const me=player,P={n:nick(),tp:S.tp};
  if(me){P.s=pack(me);P.d=me.dead>0?1:0;P.b=me.boostOn?1:0;if(OBSON){P.f=me.firing?1:0;P.ti=S.tilt}}
  if(net.host){const bots={};for(const d of drones)if(d.bot)bots[d.key]=[...pack(d),d.boostOn?1:0,d.dead>0?1:0,d.firing?1:0];
-  P.g={st:state,t:+stT.toFixed(2),sc:score,ck:+clock.toFixed(1),ot:overtime?1:0,ko:koN,gs:goalSide,sl:net.slots,bl:[...r2(ball.p),...r2(ball.v)],ack:net.ack,bots,lt:ball.last?.key||null,tu:S.mod,m:GM,sb:S.sboost?1:0};
+  P.g={st:state,t:+stT.toFixed(2),sc:score,ck:+clock.toFixed(1),ot:overtime?1:0,ko:koN,gs:goalSide,sl:net.slots,bl:[...r2(ball.p),...r2(ball.v)],ack:net.ack,bots,lt:ball.last?.key||null,tu:S.mod,m:GM,sb:S.sboost?1:0,ar:AI};
   if(OBSON){P.g.hp={};P.g.lf={};for(const d of drones){P.g.hp[d.key]=Math.round(d.hp);P.g.lf[d.key]=d.life}P.g.tg=TUR.map(t=>t.re>0?0:Math.max(1,Math.round(t.hp)));P.g.kf=net.kf}
   if(now-net.lobT>2000){net.lobT=now;room.presence({game:net.code,m:GM,host:nick(),pl:net.slots.flat().filter(k=>!isBot(k)).length,sz:net.slots[0].length}).catch(()=>{})}}
  else{if(net.hit)P.h=net.hit;if(OBSON&&net.hits.length)P.hs=net.hits.slice(-16)}
@@ -866,7 +869,7 @@ function leaveGame(){if(!net)return;const r=net.r;net=null;if(hostTune){hostTune
 
 function step(dt){const A=auth();
  if(state==='kickoff'){stT-=dt;const n=Math.ceil(stT);if(n!==lastCount){lastCount=n;if(!demo){if(n>0){banner(n,'',.9);tone(660,660,.12,.12,'square')}else{banner('GO!','',.6);tone(990,990,.25,.15,'square')}}}if(A&&stT<=0)state='play'}
- else if(state==='goal'){stT-=dt;if(stT<2.4)timeScale=1;if(A&&stT<=0){if(endPending)endMatch();else kickoff()}}
+ else if(state==='goal'){stT-=dt;if(stT<2.4)timeScale=Math.min(1,timeScale+dt*1.2);if(A&&stT<=0){if(endPending)endMatch();else kickoff()}}
  else if(state==='end'){stT-=dt;if(A&&stT<=0){banner('');if(net){score=[0,0];clock=S.len;overtime=endPending=false;kickoff()}else{startDemo();return}}}
  else if(state==='play'&&!demo&&A){if(!overtime){clock-=dt;if(clock<=0){clock=0;if(score[0]===score[1]){overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else clock+=dt}
  const frozen=state==='kickoff',live=state==='play'||state==='kickoff';
@@ -902,7 +905,7 @@ function updateCam(dt,now){const me=player;bfov+=((me?.boostOn?14:0)-bfov)*Math.
  if(fpv){camera.position.copy(me.p).add(_cp.set(0,.25,-.38).multiplyScalar(DRAD/.6).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),S.tilt*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);setFov(S.fov+bfov)}
  else{const f=_f.set(0,0,-1).applyQuaternion(me.q);f.y=0;if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);f.normalize();
   const foc=OBSON?nearestFoe(me)?.p||_ip.set(0,10,0):ball.p;if(camMode===2||me.dead>0)f.subVectors(foc,me.p).setY(0).normalize();if(f.lengthSq()<.5)f.copy(camFwd);camFwd.lerp(f,1-Math.exp(-dt*5)).normalize();
-  const ck=1+.35*(DRAD/.6-1);_cp.copy(me.p).addScaledVector(camFwd,-10*ck).add(_t.set(0,3.6*ck,0));  // chase cam backs off for a bigger quadif(OBSON){_cp.x=cl(_cp.x,-DHW+1,DHW-1);_cp.z=cl(_cp.z,-DHL+1,DHL-1);_cp.y=cl(_cp.y,dfH(_cp.x,_cp.z)+1.5,DCEIL-1)}else{_cp.x=cl(_cp.x,-HW+1,HW-1);_cp.y=cl(_cp.y,.8,H-1);_cp.z=cl(_cp.z,-HL-GD+1,HL+GD-1)}
+  const ck=1+.35*(DRAD/.6-1);_cp.copy(me.p).addScaledVector(camFwd,-10*ck).add(_t.set(0,3.6*ck,0));if(OBSON){_cp.x=cl(_cp.x,-DHW+1,DHW-1);_cp.z=cl(_cp.z,-DHL+1,DHL-1);_cp.y=cl(_cp.y,dfH(_cp.x,_cp.z)+1.5,DCEIL-1)}else{_cp.x=cl(_cp.x,-HW+1,HW-1);_cp.y=cl(_cp.y,.8,H-1);_cp.z=cl(_cp.z,-HL-GD+1,HL+GD-1)}  // chase cam backs off for a bigger quad
   camPos.lerp(_cp,1-Math.exp(-dt*9));camera.position.copy(camPos);camera.lookAt(camMode===2||me.dead>0?foc:_t.copy(me.p).addScaledVector(camFwd,8).setY(me.p.y+1));setFov(100+bfov)}
  if(OBSON){sun.target.position.set(camera.position.x,0,camera.position.z);sun.position.copy(sun.target.position).add(LOOKS.df.sp)}
  if(shake>.01){camera.position.add(_t.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(shake*.7*SHK));shake*=Math.exp(-dt*4)}}
@@ -958,14 +961,14 @@ function padEdges(){const g=pad();if(!g||RADIO.test(g.id))return;const u=new Set
  if(e(9))togglePause();if(!menuOpen&&!demo){if(e(4))cycleCam();if(e(3)&&player&&player.dead<=0)player.spawn()}prevBtn=b}
 
 // ---------- menu / settings ----------
-const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],
+const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['arena','Arena size','sel',ARENAS.map((a,i)=>[i,`${a[0]} (${a[1]}×${a[2]} m)`])],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],
  ['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
  ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]]];
 const setEl=$('set');
 for(const[k,lab,type,...o]of FIELDS){const l=document.createElement('label');l.textContent=lab;l.htmlFor='f_'+k;setEl.append(l);let inp;
  if(type==='sel'){inp=document.createElement('select');for(const[v,t]of o[0])inp.add(new Option(t,JSON.stringify(v)))}else{inp=document.createElement('input');inp.type='range';[inp.min,inp.max,inp.step]=o}
  inp.id='f_'+k;const out=document.createElement('output');out.id='o_'+k;setEl.append(inp,out);
- inp.addEventListener('input',()=>{S[k]=type==='sel'?JSON.parse(inp.value):+inp.value;save();syncUI();if(k==='map'&&!OBSON)setMap(S.map);if(k==='ball')setBall(S.ball)})}
+ inp.addEventListener('input',()=>{S[k]=type==='sel'?JSON.parse(inp.value):+inp.value;save();syncUI();if(k==='map'&&!OBSON)setMap(S.map);if(k==='ball')setBall(S.ball);if(k==='arena'&&S.arena!==AI&&!net){mpMsg('Building the '+ARENAS[S.arena][0]+' arena…');setTimeout(()=>location.reload(),60)}})}  // arena geometry is built at load, so a new size reloads the page
 const map=$('map');['Throttle','Yaw','Pitch','Roll'].forEach((n,i)=>{const l=document.createElement('label');l.textContent=n;l.htmlFor='ax'+i;const s=document.createElement('select');s.id='ax'+i;for(let a=0;a<8;a++)s.add(new Option('Axis '+a,a));BTN.forEach((n,j)=>s.add(new Option(n+(j>3&&j<8?'':' button'),100+j)));
  const c=document.createElement('label');c.innerHTML=`<input type="checkbox" id="inv${i}"> invert`;map.append(l,s,c);
  s.onchange=()=>{const a=+s.value,C=CAL(),sg=C[i].s<0?-1:1;C[i]=a<100?{a,c:0,s:sg}:i?{a,c:0,s:sg,...(PAIR[a-100]!=null?{b:PAIR[a-100]}:{})}:{a,c:.5,s:.5*sg};save()};c.firstChild.onchange=()=>{CAL()[i].s=-CAL()[i].s;save()}});
@@ -1152,10 +1155,11 @@ $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','
 // ---------- main loop ----------
 let last=performance.now(),acc=0;const DT=1/120;
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);
- if(!paused){acc+=dt*timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){step(DT);acc-=DT}}
+ if(!paused){if(timeScale<1){let r=Math.min(dt,.05)*timeScale*GSPD;while(r>1e-6){const h=Math.min(DT,r);step(h);r-=h}acc=0}else{acc+=dt*timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){step(DT);acc-=DT}}}  // slow-mo steps every frame by a smaller dt, so nothing stutters
  visuals(paused?0:dt*timeScale*GSPD,now);updateCam(dt,now);hud();if(menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);composer.render()}
 setGame(GM);startDemo();requestAnimationFrame(frame);
 (async()=>{try{room=await window.claude?.use?.('room')}catch(e){room=null}
+ {let c=null;try{c=sessionStorage.getItem('dlRejoin');sessionStorage.removeItem('dlRejoin')}catch(e){}if(c)setTimeout(()=>enterGame(c,false),300)}  // back after rebuilding for the host's arena size
  if(!room){room=p2p;$('games').hidden=true;$('mpnote').textContent='Online over the internet: press Host, then send friends this page and the game code. They type the code and press Join.';return}
  $('mpnote').textContent='Host a game, or join one listed here. Bots fill empty slots unless Bots is set to No bots.';
  room.onPeers(ch=>renderGames(ch.peers),e=>{$('mpnote').textContent=`Online play is unavailable here (${e.code}).`;$('host').disabled=$('join').disabled=true})})();
