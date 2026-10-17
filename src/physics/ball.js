@@ -7,6 +7,6 @@ export function ballPhys(p,v,dt){v.y-=BG*dt;const s=v.length();v.multiplyScalar(
 
 export const ball={p:new V3(0,BR+6,0),v:new V3(),last:null};
 // ball vs the drone's box (props included): contact normal from the closest point on the box
-export function ballBox(a,out){const l=_lb.subVectors(ball.p,a.p);if(l.lengthSq()>(BR+2)**2)return false;l.applyQuaternion(_qb.copy(a.q).invert());
- out.set(l.x-cl(l.x,-BBX[0],BBX[0]),l.y-cl(l.y,-BBX[1],BBX[1]),l.z-cl(l.z,-BBX[2],BBX[2]));let d=out.length();
+export function ballBox(a,out){const l=_lb.subVectors(ball.p,a.p);if(l.lengthSq()>(BR+2)**2)return false;l.applyQuaternion(_qb.copy(a.q).invert());const X=a.bbx||BBX;  // per-drone box from its parts loadout
+ out.set(l.x-cl(l.x,-X[0],X[0]),l.y-cl(l.y,-X[1],X[1]),l.z-cl(l.z,-X[2],X[2]));let d=out.length();
  if(d<1e-4){d=0;out.copy(l);if(out.lengthSq()<1e-6)out.set(0,1,0);out.normalize()}else out.divideScalar(d);if(d>=BR)return false;ballBox.pen=BR-d;out.applyQuaternion(a.q);return true}

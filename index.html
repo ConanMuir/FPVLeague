@@ -27,7 +27,7 @@
       <div class="modes" role="group" aria-label="Game mode"><button class="sm on" id="m_league">Drone League</button><button class="sm" id="m_df">Dogfight</button></div>
       <h1><span class="b">DRONE</span><br><span class="o" id="h1o">LEAGUE</span></h1>
       <p class="sub" id="sub">Rocket-powered soccer for 5-inch acro quads. Betaflight-style rates, FPV uptilt, boost orbs and bots that read the ball.</p>
-      <div class="btns"><button class="go" id="play">Play vs bots</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Leave game</button><button id="modbtn">Mod panel</button></div>
+      <div class="btns"><button class="go" id="play">Play vs bots</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Leave game</button><button id="garbtn">Garage</button><button id="modbtn">Mod panel</button></div>
       <h2 style="margin-top:22px">Online match</h2>
       <div class="mp"><input id="nick" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><select id="tpref" aria-label="Team preference"><option value="auto">Any team</option><option value="0">Blue</option><option value="1">Orange</option></select><button class="sm" id="host">Host</button></div>
       <div class="mp"><input id="code" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="join">Join</button></div>
@@ -63,6 +63,15 @@
        <h3 id="sq"></h3><p class="note" id="sd"></p><div class="sch" id="sch"></div><div id="sl"><input type="range" id="sr"><output id="so"></output></div>
        <div class="sbars" id="sbars"></div>
        <div class="mp"><button class="sm" id="sback">Back</button><button class="sm" id="snext">Next</button></div></div></div>
+<div id="garage" hidden role="dialog" aria-label="Garage"><div class="gbox">
+  <div class="mhead"><h2 style="margin:0">Garage</h2><span class="note" id="gname" style="margin:0"></span><button class="sm" id="gx" aria-label="Close garage">✕</button></div>
+  <div class="ggrid">
+    <div class="gview"><canvas id="gcv" aria-label="Drone preview (drag to turn)"></canvas><label class="gtog"><input type="checkbox" id="ghit"> Hitbox</label><div class="gauw osd" id="gauw"></div></div>
+    <div class="gside"><div id="gslots"></div><div id="gstats" class="gstats"></div></div>
+  </div>
+  <div id="gdesc" class="gdesc"></div>
+  <div class="mp"><button class="sm" id="gstock">Back to Stock</button><button class="sm" id="grand">Random</button><span class="note" style="margin:0;align-self:center;flex:1">Bars: this loadout against all 125. The white tick is Stock. Measured with the default physics settings.</span><button class="sm go" id="gok">Done</button></div>
+</div></div>
 <aside id="mod" hidden aria-label="Mod panel">
   <div class="mhead"><h2 style="margin:0">Mod panel</h2><span class="note" style="margin:0">T toggles · changes apply live</span><button class="sm" id="mclose" aria-label="Close mod panel">✕</button></div>
   <div class="tabs" role="tablist"><button class="sm on" id="tabr" role="tab" aria-selected="true">Rates</button><button class="sm" id="tabp" role="tab" aria-selected="false">Physics</button></div>
