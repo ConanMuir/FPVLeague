@@ -17,7 +17,7 @@ import {connectRoom,netSend,netSync} from './net/net.js';
 import {ball} from './physics/ball.js';
 import {setBall} from './render/ball.js';
 import {updateCam} from './render/camera.js';
-import {composer} from './render/renderer.js';
+import {draw} from './render/renderer.js';
 import {visuals} from './render/visuals.js';
 import {GS} from './state.js';
 import {hud} from './ui/hud.js';
@@ -31,7 +31,7 @@ import {setMap} from './world/maps.js';
 let last=performance.now(),acc=0;const DT=1/120;
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);
  if(!GS.paused){acc+=dt*GS.timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){step(DT);acc-=DT}}
- visuals(GS.paused?0:dt*GS.timeScale*GSPD,now);updateCam(dt,now);hud();if(GS.menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);composer.render()}
+ visuals(GS.paused?0:dt*GS.timeScale*GSPD,now);updateCam(dt,now);hud();if(GS.menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);draw()}
 // boot, in v15's order
 initMenu();initCalib();initModPanel();
 renderPresets();applyTune();syncMod();setMap(S.map);setBall(S.ball);

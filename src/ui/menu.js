@@ -7,12 +7,13 @@ import {setGame} from '../modes/dogfight.js';
 import {showMenu,startDemo,startMatch} from '../modes/match.js';
 import {enterGame,leaveGame,mpMsg} from '../net/net.js';
 import {BALLS,setBall} from '../render/ball.js';
+import {setQuality} from '../render/renderer.js';
 import {GS} from '../state.js';
 import {feed} from './hud.js';
 import {modMsg} from './modpanel.js';
 import {tab} from './rates.js';
 import {OUT,setMap} from '../world/maps.js';
-const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],
+const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],['gfx','Graphics quality','sel',[['auto','Auto'],['high','High'],['med','Medium'],['low','Low (integrated GPUs)']]],
  ['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
  ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]]];
 // builds the settings and controller-mapping rows and wires the menu buttons (v15 ran this at load)
@@ -21,7 +22,7 @@ const setEl=$('set');
 for(const[k,lab,type,...o]of FIELDS){const l=document.createElement('label');l.textContent=lab;l.htmlFor='f_'+k;setEl.append(l);let inp;
  if(type==='sel'){inp=document.createElement('select');for(const[v,t]of o[0])inp.add(new Option(t,JSON.stringify(v)))}else{inp=document.createElement('input');inp.type='range';[inp.min,inp.max,inp.step]=o}
  inp.id='f_'+k;const out=document.createElement('output');out.id='o_'+k;setEl.append(inp,out);
- inp.addEventListener('input',()=>{S[k]=type==='sel'?JSON.parse(inp.value):+inp.value;save();syncUI();if(k==='map'&&!GS.OBSON)setMap(S.map);if(k==='ball')setBall(S.ball)})}
+ inp.addEventListener('input',()=>{S[k]=type==='sel'?JSON.parse(inp.value):+inp.value;save();syncUI();if(k==='map'&&!GS.OBSON)setMap(S.map);if(k==='ball')setBall(S.ball);if(k==='gfx')setQuality(S.gfx)})}
 const map=$('map');['Throttle','Yaw','Pitch','Roll'].forEach((n,i)=>{const l=document.createElement('label');l.textContent=n;l.htmlFor='ax'+i;const s=document.createElement('select');s.id='ax'+i;for(let a=0;a<8;a++)s.add(new Option('Axis '+a,a));BTN.forEach((n,j)=>s.add(new Option(n+(j>3&&j<8?'':' button'),100+j)));
  const c=document.createElement('label');c.innerHTML=`<input type="checkbox" id="inv${i}"> invert`;map.append(l,s,c);
  s.onchange=()=>{const a=+s.value,C=CAL(),sg=C[i].s<0?-1:1;C[i]=a<100?{a,c:0,s:sg}:i?{a,c:0,s:sg,...(PAIR[a-100]!=null?{b:PAIR[a-100]}:{})}:{a,c:.5,s:.5*sg};save()};c.firstChild.onchange=()=>{CAL()[i].s=-CAL()[i].s;save()}});

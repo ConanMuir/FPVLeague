@@ -77,5 +77,5 @@ export function leaveGame(){if(!GS.net)return;const r=GS.net.r;GS.net=null;if(GS
 // connect to the claude.ai room channel, or fall back to PeerJS (p2p) outside claude.ai
 export async function connectRoom(){try{GS.room=await window.claude?.use?.('room')}catch(e){GS.room=null}
  if(!GS.room){GS.room=p2p;$('games').hidden=true;$('mpnote').textContent='Online over the internet: press Host, then send friends this page and the game code. They type the code and press Join.';return}
- $('mpnote').textContent='Host a game, or join one listed here. Bots fill empty slots.';
+ $('mpnote').textContent='Host a game, or join one listed here. Bots fill empty slots unless Bots is set to No bots.';
  GS.room.onPeers(ch=>renderGames(ch.peers),e=>{$('mpnote').textContent=`Online play is unavailable here (${e.code}).`;$('host').disabled=$('join').disabled=true})}
