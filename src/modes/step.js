@@ -6,6 +6,7 @@ import {HL,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {BM,BR,DEMO,DRAD,KICK,PBG,PSM,TB} from '../config/tune.js';
 import {humanControl} from '../input/input.js';
+import {LAB,labStep} from './lab.js';
 import {fireIn,turrets} from './dogfight.js';
 import {bullets,droneFire} from './guns.js';
 import {demolish,endMatch,goal,kickoff,startDemo} from './match.js';
@@ -16,7 +17,7 @@ import {_ip,_lat,_t,_v,_w} from '../scratch.js';
 import {GS,SB,auth} from '../state.js';
 import {banner} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
-export function step(dt){const A=auth();
+export function step(dt){if(LAB.on){labStep(dt);return}const A=auth();
  if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);tone(660,660,.12,.12,'square')}else{banner('GO!','',.6);tone(990,990,.25,.15,'square')}}}if(A&&GS.stT<=0)GS.state='play'}
  else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=1;if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
  else if(GS.state==='end'){GS.stT-=dt;if(A&&GS.stT<=0){banner('');if(GS.net){GS.score=[0,0];GS.clock=S.len;GS.overtime=GS.endPending=false;kickoff()}else{startDemo();return}}}

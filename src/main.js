@@ -4,7 +4,7 @@ import './render/renderer.js';import './world/arena.js';import './world/maps.js'
 import './physics/sdf.js';import './physics/ball.js';import './render/ball.js';import './world/orbs.js';import './render/drone-mesh.js';import './flight/drone.js';
 import './flight/attitude.js';import './input/input.js';import './bots/league.js';import './world/highlands.js';import './modes/dogfight.js';import './modes/guns.js';
 import './bots/dogfight.js';import './state.js';import './modes/match.js';import './net/net.js';import './modes/step.js';import './render/camera.js';import './ui/hud.js';
-import './render/visuals.js';import './ui/menu.js';import './input/calibration.js';import './ui/modpanel.js';import './ui/rates.js';import './ui/sens.js';import './net/p2p.js';
+import './render/visuals.js';import './ui/menu.js';import './input/calibration.js';import './ui/modpanel.js';import './ui/rates.js';import './ui/sens.js';import './net/p2p.js';import './modes/lab.js';import './ui/lab.js';
 import {$} from './config/constants.js';
 import {S} from './config/settings.js';
 import {GSPD,applyTune} from './config/tune.js';
@@ -25,17 +25,19 @@ import {initMenu,menuPad} from './ui/menu.js';
 import {initModPanel,renderPresets,syncMod} from './ui/modpanel.js';
 import {drawRates,initRates,syncRates} from './ui/rates.js';
 import {initSens} from './ui/sens.js';
+import {labSnap} from './modes/lab.js';
+import {initLab,labFrame} from './ui/lab.js';
 import {setMap} from './world/maps.js';
 // ---------- main loop ----------
 let last=performance.now(),acc=0;const DT=1/120;
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);
  if(!GS.paused){acc+=dt*GS.timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){step(DT);acc-=DT}}
- visuals(GS.paused?0:dt*GS.timeScale*GSPD,now);updateCam(dt,now);hud();if(GS.menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);draw()}
+ visuals(GS.paused?0:dt*GS.timeScale*GSPD,now);updateCam(dt,now);hud();labFrame(now);if(GS.menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);draw()}
 // boot, in v15's order
 initMenu();initCalib();initModPanel();
 renderPresets();applyTune();syncMod();setMap(S.map);setBall(S.ball);
-initRates();initSens();syncRates();
+initRates();initSens();initLab();syncRates();
 setGame(GS.GM);startDemo();requestAnimationFrame(frame);
 connectRoom();
 // read-only snapshot for tools/smoke.mjs; nothing in the game reads it
-window.__dl={snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray()}))})};
+window.__dl={snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray()}))}),lab:labSnap};
