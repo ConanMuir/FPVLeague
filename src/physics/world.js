@@ -12,12 +12,13 @@
 //  - Bullets: a ray (world) and a 1.4 m sphere cast (drones) from the previous to the new position each tick.
 import RAPIER from '@dimforge/rapier3d-compat';
 import {GD,H,HL,HW,QT,V3,cl} from '../config/constants.js';
-import {BB,BR,DB,DI,DRAD,BBX,G,GF,HBP,HBR,onTune} from '../config/tune.js';
+import {BB,BR,DB,DI as DI0,DRAD,BBX,G,GF,HBP,HBR,onTune} from '../config/tune.js';
 import {GS} from '../state.js';
 import {arenaData,arenaTrimesh} from './arena-shape.js';
 import {sdN,sdf} from './sdf.js';
 import {ball,ballContact,ballRoll} from './ball.js';
 import {dfCollision,sdDFt} from '../world/highlands.js';
+import {bodyOf} from '../parts/index.js';
 export let R=null,world=null;
 export const PHYS={ballMesh:false,net:true,stats:{escapes:0,steps:0,ms:0}};  // net: the escape safety net (checks switch it off for free flight)
 // collision groups: membership<<16 | filter. QRY is only ever a query's membership, so query-only colliders never form solver pairs.
@@ -31,11 +32,11 @@ export async function initPhysics(){await RAPIER.init();R=RAPIER;world=new R.Wor
  arenaCol=[st(R.ColliderDesc.trimesh(T.vertices,T.indices,R.TriMeshFlags.FIX_INTERNAL_EDGES)),st(R.ColliderDesc.cuboid(HW+40,10,HL+GD+40).setTranslation(0,-10,0)),st(R.ColliderDesc.cuboid(HW+40,10,HL+GD+40).setTranslation(0,H+10,0))];  // curved surface, floor, ceiling
  ballBody=world.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(ball.p.x,ball.p.y,ball.p.z).setCcdEnabled(true).setCanSleep(false).setGravityScale(0));
  ballCol=world.createCollider(R.ColliderDesc.ball(BR).setMass(1),ballBody);setBallMode(PHYS.ballMesh);
- onTune(()=>{ballCol.setRadius(BR);ballCol.setRestitution(BB);for(const d of GS.drones)if(d.desc0)buildDroneBody(d)})}
+ onTune(()=>{ballCol.setRadius(BR);ballCol.setRestitution(BB)})}  // drones rebuild their bodies through Drone.setLoadout on tune changes
 export function setBallMode(mesh){PHYS.ballMesh=mesh;ballCol.setCollisionGroups(grp(GB_,mesh?GW_|QRY:QRY));ballCol.setFriction(.25);ballCol.setFrictionCombineRule(R.CoefficientCombineRule.Min);ballCol.setRestitution(BB);ballCol.setRestitutionCombineRule(R.CoefficientCombineRule.Max)}
 
 /**
- * The drone's collision description (track D builds these from parts; defaultDroneDesc() is the stock v15 quad).
+ * The drone's collision description. Drones use loadoutDesc(d.lo) (their parts); defaultDroneDesc() is the v15 stock quad.
  * desc = {mass, inertia:[ix,iy,iz]|null, colliders:[{shape, size, pos, rot, tag, points?, round?, use?}]}
  *  shape  'box' size [hx,hy,hz] half extents | 'sphere' [r] | 'capsule' [halfHeight,r] (local Y) | 'cylinder' [halfHeight,r] (local Y)
  *         | 'hull' points [x,y,z, x,y,z, ...] (or [[x,y,z],...])
@@ -54,11 +55,18 @@ export function setBallMode(mesh){PHYS.ballMesh=mesh;ballCol.setCollisionGroups(
  * Prefer rounded boxes, spheres and capsules for 'world' colliders: their contact normals are smooth. Hull facets can give a tilted
  * normal when a flat face slides on the floor, which turns sliding speed into a small bounce.
  */
+// a parts loadout (src/parts) as a body: its colliders (chassis, battery, camera, arms, props; tags reported) take ball touches,
+// drone bumps and bullets; contact with the map is a rounded box fitted to the loadout's ground hull outline (lo.hbp/hbr), so the
+// ground feel stays v15's and scales with the parts; mass from the parts, inertia = v15's soft contact inertia (di/.45 per unit mass)
+// split over the axes like the parts' real inertia
+export function loadoutDesc(lo){const b=bodyOf(lo),r=lo.hbr,hx=Math.max(...lo.hbp.map(p=>Math.abs(p[0])))+r,hz=Math.max(...lo.hbp.map(p=>Math.abs(p[2])))+r,im=(b.inertia[0]+b.inertia[1]+b.inertia[2])/3;
+ return{mass:b.mass,inertia:b.inertia.map(v=>b.mass*lo.di/.45*v/im),pivot:lo.hbp.map(p=>({p,r})),colliders:[
+  {shape:'box',size:[hx,r+.001,hz],round:r,pos:[0,0,0],rot:[0,0,0,1],tag:'chassis',use:['world']},...b.colliders.map(c=>({...c,use:['ball','drone','bullet']}))]}}
 export function defaultDroneDesc(){const k=HBR/.13;
- return{mass:1,inertia:[DI/.45,DI/.45,DI/.45],pivot:HBP.map(p=>({p:[p.x,0,p.z],r:HBR})),colliders:[
+ return{mass:1,inertia:[DI0/.45,DI0/.45,DI0/.45],pivot:HBP.map(p=>({p:[p.x,0,p.z],r:HBR})),colliders:[
   {shape:'box',size:[.55*k,HBR+.001,.6*k],round:HBR,pos:[0,0,0],rot:[0,0,0,1],tag:'chassis',use:['world']},  // v15 ground hull: 1.1 x 0.26 x 1.2 m, 0.13 m round edges (x size)
   {shape:'box',size:[...BBX],pos:[0,0,0],rot:[0,0,0,1],tag:'chassis',use:['ball','bullet']},  // v15 ball box (props included)
-  {shape:'sphere',size:[DRAD],pos:[0,0,0],rot:[0,0,0,1],tag:'other',use:['drone']}]}}  // v15 drone-drone sphere
+  {shape:'sphere',size:[DRAD-BUMP/2],pos:[0,0,0],rot:[0,0,0,1],tag:'other',use:['drone']}]}}  // v15 drone-drone sphere (with the BUMP skin: DRAD)
 const SPH=[[0,1,0],[0,-1,0]];for(let i=0;i<12;i++)for(const la of[-60,-30,0,30,60]){const a=i*Math.PI/6,l=la*Math.PI/180;SPH.push([Math.cos(l)*Math.cos(a),Math.sin(l),Math.cos(l)*Math.sin(a)])}
 const grow=(P,r)=>{const o=[];for(let i=0;i<P.length;i+=3)for(const d of SPH)o.push(P[i]+d[0]*r,P[i+1]+d[1]*r,P[i+2]+d[2]*r);return new Float32Array(o)};  // points + sphere (62 directions, < 4 mm short)
 function shapeDesc(c){const s=c.size||[],r=c.round||0;
@@ -73,9 +81,9 @@ function pivotPts(c,lp,lq){const s=c.size||[],r=c.round||0,L=[],add=(x,y,z,rr)=>
  else if(c.shape==='sphere')add(0,0,0,s[0]);else if(c.shape==='capsule'){add(0,s[0],0,s[1]);add(0,-s[0],0,s[1])}
  else if(c.shape==='cylinder')for(const y of[-1,1])for(let i=0;i<8;i++){const a=i*Math.PI/4;add(Math.cos(a)*(s[1]-r),y*(s[0]-r),Math.sin(a)*(s[1]-r),r)}
  else{const P=(c.points||[]).flat();for(let i=0;i<P.length;i+=3)add(P[i],P[i+1],P[i+2],r)}return L}
-/** Build (or rebuild) drone d's Rapier body from desc (default: the stock quad). Sets d.body, d.cols [{c, tag, use, lp, lq}], d.pts, d.bound. */
-export function buildDroneBody(d,desc){freeDroneBody(d);d.desc0=!desc;desc=desc||defaultDroneDesc();
- const b=d.body=world.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(d.p.x,d.p.y,d.p.z).setRotation(vec4(d.q)).setCcdEnabled(true).setCanSleep(false).setGravityScale(0));
+/** Build (or rebuild) drone d's Rapier body from desc (default: its parts loadout d.lo, else the v15 stock quad). Sets d.rb, d.cols [{c, tag, use, lp, lq}], d.pts, d.bound. */
+export function buildDroneBody(d,desc){freeDroneBody(d);desc=desc||(d.lo?loadoutDesc(d.lo):defaultDroneDesc());
+ const b=d.rb=world.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(d.p.x,d.p.y,d.p.z).setRotation(vec4(d.q)).setCcdEnabled(true).setCanSleep(false).setGravityScale(0));
  d.cols=[];d.pts=[];let bound=0,vol=0;
  for(const c of desc.colliders){const use=c.use||['world','ball','drone','bullet'],wd=use.includes('world'),lp=new V3(...(c.pos||[0,0,0])),lq=new QT(...(c.rot||[0,0,0,1]));let m=0;for(const u of use)m|=USE[u]||0;
   const cd=shapeDesc(c).setTranslation(lp.x,lp.y,lp.z).setRotation(vec4(lq)).setCollisionGroups(grp(m,(wd?GW_:0)|QRY)).setDensity(0)
@@ -88,7 +96,7 @@ export function buildDroneBody(d,desc){freeDroneBody(d);d.desc0=!desc;desc=desc|
  if(desc.inertia)b.setAdditionalMassProperties(desc.mass,{x:0,y:0,z:0},{x:desc.inertia[0],y:desc.inertia[1],z:desc.inertia[2]},IDQ,true);
  else{for(const e of d.cols)if(e.use.includes('world'))e.c.setDensity(desc.mass/Math.max(vol,1e-6));b.recomputeMassPropertiesFromColliders()}
  d.bound=bound;d.ph=0;d.bodyMode='dyn';if(d.dead>0)b.setEnabled(false)}
-export function freeDroneBody(d){if(!d.body)return;for(const e of d.cols)C2D.delete(e.c.handle);world.removeRigidBody(d.body);d.body=null;d.cols=[]}
+export function freeDroneBody(d){if(!d.rb)return;for(const e of d.cols)C2D.delete(e.c.handle);world.removeRigidBody(d.rb);d.rb=null;d.cols=[]}
 const vec4=q=>({x:q.x,y:q.y,z:q.z,w:q.w});
 function setMode(b,o,m){if(o.bodyMode===m)return;if(m==='off'){b.setEnabled(false)}else{if(o.bodyMode==='off')b.setEnabled(true);
  b.setBodyType(m==='dyn'?R.RigidBodyType.Dynamic:R.RigidBodyType.KinematicPositionBased,true)}o.bodyMode=m}
@@ -98,14 +106,14 @@ function setMode(b,o,m){if(o.bodyMode===m)return;if(m==='off'){b.setEnabled(fals
 // after Drone.step, like the Calibration Lab's rigs, is integrated from as-is);
 // the ball's velocity already has gravity/drag (ballPre). simBall: the ball moves this tick.
 export function physStep(dt,simBall){const t0=performance.now();setMap(!!GS.OBSON);
- for(const d of GS.drones){const b=d.body;if(!b)continue;const m=d.dead>0?'off':d.ph?'dyn':'kin';setMode(b,d,m);
+ for(const d of GS.drones){const b=d.rb;if(!b)continue;const m=d.dead>0?'off':d.ph?'dyn':'kin';setMode(b,d,m);
   if(m==='dyn'){b.setTranslation(d.p,true);b.setRotation(vec4(d.q),true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
   else if(m==='kin'){b.setNextKinematicTranslation(d.p);b.setNextKinematicRotation(vec4(d.q))}}
  {const m=GS.OBSON?'off':simBall?'dyn':'kin';setMode(ballBody,ball,m);
   if(m==='dyn'){ball.v0.copy(ball.v);ballBody.setTranslation(ball.p,true);ballBody.setRotation(vec4(ball.q),true);ballBody.setLinvel(ball.v,true);ballBody.setAngvel(ball.w,true)}
   else if(m==='kin'){ballBody.setNextKinematicTranslation(ball.p);ballBody.setNextKinematicRotation(vec4(ball.q));ball.w.set(0,0,0);ball.c=false}}
  world.step();
- for(const d of GS.drones){if(!d.body||d.bodyMode!=='dyn')continue;const b=d.body,t=b.translation(),r=b.rotation(),lv=b.linvel(),av=b.angvel();
+ for(const d of GS.drones){if(!d.rb||d.bodyMode!=='dyn')continue;const b=d.rb,t=b.translation(),r=b.rotation(),lv=b.linvel(),av=b.angvel();
   d.p.set(t.x,t.y,t.z);d.q.set(r.x,r.y,r.z,r.w);d.v.set(lv.x,lv.y,lv.z);d.w.set(av.x,av.y,av.z).applyQuaternion(_q.copy(d.q).invert());d.hit=groundContacts(d,dt);
   const s=PHYS.net?(GS.OBSON?sdDFt:sdf)(d.p.x,d.p.y,d.p.z):0;if(s>.05){sdN(d.p,_n);d.p.addScaledVector(_n,-(s+.2));const vn=d.v.dot(_n);if(vn>0)d.v.addScaledVector(_n,-vn*1.2);PHYS.stats.escapes++}  // safety net: never leave the map (Highlands: terrain, walls and ceiling; obstacles' SDF is only approximate)
   d.ph=0}
@@ -115,12 +123,12 @@ export function physStep(dt,simBall){const t0=performance.now();setMap(!!GS.OBSO
   else ball.hit=ballContact(ball,dt)}
  PHYS.stats.steps++;PHYS.stats.ms+=performance.now()-t0}
 // contacts of a stepped drone with the world: ground timer, impact speed, our ground friction (Rapier's solver friction is 0)
-function groundContacts(d,dt){let touch=false,jn=0,hit=0;const n=_n.set(0,0,0),pc=_t.set(0,0,0);let np=0;
+function groundContacts(d,dt){let touch=false,jn=0,hit=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0),pc=_t.set(0,0,0);let np=0;
  for(const e of d.cols){if(!e.use.includes('world'))continue;world.contactPairsWith(e.c,o=>{if(C2D.has(o.handle))return;world.contactPair(e.c,o,(m,fl)=>{const k=m.numSolverContacts();if(!k)return;touch=true;
    const nn=m.normal(),s=fl?1:-1;let j=0;for(let i=0;i<m.numContacts();i++)j+=m.contactImpulse(i);jn+=j;n.x+=nn.x*s*Math.max(j,1e-3);n.y+=nn.y*s*Math.max(j,1e-3);n.z+=nn.z*s*Math.max(j,1e-3);
    for(let i=0;i<k;i++){const p=m.solverContactPoint(i);pc.x+=p.x;pc.y+=p.y;pc.z+=p.z;np++}
    hit=Math.max(hit,-(d.v0.x*nn.x+d.v0.y*nn.y+d.v0.z*nn.z)*s)})})}
- if(!touch)return 0;d.gt=.12;if(n.lengthSq()<1e-12||!np)return hit;n.normalize();pc.divideScalar(np);const r=_r.subVectors(pc,d.p);
+ if(!touch)return 0;d.gt=.12;if(n.lengthSq()<1e-12||!np)return hit;n.normalize();pc.divideScalar(np);const r=_r.subVectors(pc,d.p);jn*=im;  // impulse -> velocity change
  // Coulomb friction from the normal impulse, capped at G*.05 so thrusting into the ground doesn't add grip; spin from it x.2 (v15)
  const ww=_w.copy(d.w).applyQuaternion(d.q),vp=_v.crossVectors(ww,r).add(d.v);vp.addScaledVector(n,-vp.dot(n));const tl=vp.length();
  if(tl>1e-4){vp.divideScalar(tl);const rt=_t.crossVectors(r,vp),jt=Math.min(GF*Math.min(jn,G*.05),tl/(1+rt.lengthSq()/DI));d.v.addScaledVector(vp,-jt);ww.addScaledVector(rt,-jt*.2/DI);d.w.copy(ww).applyQuaternion(_q.copy(d.q).invert())}
@@ -151,13 +159,14 @@ export function los(a,b){const d=_v.subVectors(b,a),L=d.length();if(L<4)return t
  return!world.castRay(new R.Ray(_w,d),L-4,true,undefined,grp(QRY,GW_))}
 let tbShape=null,tbR=0;
 /** ball vs drone d's 'ball' colliders: n (unit, drone -> ball) and pen like v15's ballBox, plus the tag touched */
-export function ballTouch(d,n){if(!d.body||d.p.distanceToSquared(ball.p)>(BR+d.bound+.5)**2)return null;if(!tbShape||tbR!==BR){tbShape=new R.Ball(BR);tbR=BR}let best=null;
+export function ballTouch(d,n){if(!d.rb||d.p.distanceToSquared(ball.p)>(BR+d.bound+.5)**2)return null;if(!tbShape||tbR!==BR){tbShape=new R.Ball(BR);tbR=BR}let best=null;
  for(const e of d.cols){if(!e.use.includes('ball'))continue;const c=e.c.contactShape(tbShape,ball.p,IDQ,0);if(c&&c.distance<0&&(!best||c.distance<best.distance))best={distance:c.distance,n:c.normal2,tag:e.tag}}
  if(!best)return null;n.set(-best.n.x,-best.n.y,-best.n.z);if(n.lengthSq()<.5)n.subVectors(ball.p,d.p).normalize();return{pen:-best.distance,tag:best.tag}}
-/** drone a vs drone b ('drone' colliders): n (unit, a -> b), pen, tags */
-export function droneTouch(a,b,n){if(!a.body||!b.body||a.p.distanceToSquared(b.p)>(a.bound+b.bound+.2)**2)return null;let best=null;
- for(const ea of a.cols){if(!ea.use.includes('drone'))continue;for(const eb of b.cols){if(!eb.use.includes('drone'))continue;const c=ea.c.contactCollider(eb.c,0);
-  if(c&&c.distance<0&&(!best||c.distance<best.distance))best={distance:c.distance,n:c.normal1,ta:ea.tag,tb:eb.tag}}}
- if(!best)return null;n.set(best.n.x,best.n.y,best.n.z);if(n.lengthSq()<.5)n.subVectors(b.p,a.p).normalize();return{pen:-best.distance,ta:best.ta,tb:best.tb}}
+/** drone a vs drone b ('drone' colliders, with the BUMP skin): n (unit, a -> b), pen, tags */
+export const BUMP=.4;  // drone-drone contact skin (m): parts within this distance bump (v15's 1.2 m spheres were generous; thin frames need some)
+export function droneTouch(a,b,n){if(!a.rb||!b.rb||a.p.distanceToSquared(b.p)>(a.bound+b.bound+BUMP+.2)**2)return null;let best=null;
+ for(const ea of a.cols){if(!ea.use.includes('drone'))continue;for(const eb of b.cols){if(!eb.use.includes('drone'))continue;const c=ea.c.contactCollider(eb.c,BUMP);
+  if(c&&c.distance<BUMP&&(!best||c.distance<best.distance))best={distance:c.distance,n:c.normal1,ta:ea.tag,tb:eb.tag}}}
+ if(!best)return null;n.set(best.n.x,best.n.y,best.n.z);if(n.lengthSq()<.5)n.subVectors(b.p,a.p).normalize();return{pen:BUMP-best.distance,ta:best.ta,tb:best.tb}}
 // contact / hit events for gameplay code (track D: zone hits): {type:'ball'|'drone'|'bullet', d, tag, other, otherTag, speed}
 const hitFns=[];export const onHit=f=>{hitFns.push(f)},emitHit=e=>{for(const f of hitFns)f(e)};

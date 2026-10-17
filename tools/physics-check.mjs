@@ -141,17 +141,17 @@ if (drops) {
 }
 
 // ---------- (c) free flight vs the v15 integration ----------
-console.log('\n== (c) free flight: Rapier-integrated drone vs the plain v15 integration of the same flight model (default 6S settings)');
+console.log('\n== (c) free flight: Rapier-integrated drone vs the plain v15 integration of the same flight model (default 6S settings, stock parts loadout)');
 const fl = await run('c', () => {
   const M = window.__pc, {W, T, D, GS} = M, dt = M.dt, out = {};
   M.league(); W.PHYS.net = false; const statics = []; W.world.forEachCollider(c => { if (!c.parent()) { statics.push([c, c.isEnabled()]); c.setEnabled(false); } });
-  const d = new D.Drone(0, 0, false, 'x'); GS.drones = [d]; d.boosting = false;
-  const reset = (q) => { d.p.set(0, 0, 0); d.v.set(0, 0, 0); d.w.set(0, 0, 0); d.wt.set(0, 0, 0); d.q.copy(q || new M.QT()); d.thr = d.ms = T.HOV; d.gt = 0; d.flipT = 0; d.boost = 0; };
+  const d = new D.Drone(0, 0, false, 'x'); GS.drones = [d]; d.boosting = false; const HOV = (T.G / (T.THR * d.fl.thr)) ** (1 / (T.TE * d.fl.te));  // the stock parts loadout's hover
+  const reset = (q) => { d.p.set(0, 0, 0); d.v.set(0, 0, 0); d.w.set(0, 0, 0); d.wt.set(0, 0, 0); d.q.copy(q || new M.QT()); d.thr = d.ms = HOV; d.gt = 0; d.flipT = 0; d.boost = 0; };
   const go = (rapier, secs, thr, q) => { reset(q); const tr = []; for (let i = 0; i < secs * 120; i++) { d.thr = thr; d.wt.set(0, 0, 0); d.step(dt); if (rapier) W.physStep(dt, false); else ref();  tr.push(d.p.clone()); } return tr; };
   const real = x => x / (T.G / 9.81);
   const ref = () => { const wl = d.w.length(); if (wl > 1e-6) d.q.multiply(new M.QT().setFromAxisAngle(d.w.clone().divideScalar(wl), wl * dt)).normalize(); d.p.addScaledVector(d.v, dt); d.ph = 0; };  // v15: q turned by w*dt, p += v*dt
-  out.hoverThrottle = +T.HOV.toFixed(4);
-  { const a = go(false, 2, T.HOV), b = go(true, 2, T.HOV); out.hoverDrift2s = [+a[a.length - 1].y.toFixed(4), +b[b.length - 1].y.toFixed(4)]; }
+  out.hoverThrottle = +HOV.toFixed(4);
+  { const a = go(false, 2, HOV), b = go(true, 2, HOV); out.hoverDrift2s = [+a[a.length - 1].y.toFixed(4), +b[b.length - 1].y.toFixed(4)]; }
   { const a = go(false, 1, 1), b = go(true, 1, 1); out.punch1s = {v15: +a[119].y.toFixed(2), rapier: +b[119].y.toFixed(2), realMetres: +real(b[119].y).toFixed(1), maxDiff: +Math.max(...a.map((p, i) => p.distanceTo(b[i]))).toFixed(5)}; }
   // level top speed: fixed pitch (no rotation), full throttle; bisect the pitch so the height stays put after 12 s
   const lev = (rapier, th) => { const q = new M.QT().setFromAxisAngle(new M.V3(1, 0, 0), -th); const tr = go(rapier, 12, 1, q); return {vy: (tr[tr.length - 1].y - tr[tr.length - 121].y), vh: Math.hypot(d.v.x, d.v.z)}; };
@@ -178,14 +178,14 @@ const gr = await run('d', () => {
   const d = new D.Drone(0, 0, false, 'x'); GS.drones = [d]; d.boosting = false;
   // v17's own ground() (src/flight/drone.js at 4f7a32a), on the same SDF, for reference numbers: motors off or a fixed thrust, no rotation input
   const v15 = (p0, q0, v0, thr, secs, rec) => { const p = new M.V3(...p0), q = q0.clone(), v = new M.V3(...v0), w = new M.V3(), _H = Array.from({length: 16}, () => [new M.V3(), new M.V3()]);
-    for (let i = 0; i < secs * 120; i++) { const up = new M.V3(0, 1, 0).applyQuaternion(q); v.addScaledVector(up, thr ? T.THR * thr ** T.TE * dt : 0); v.y -= T.G * dt;
+    for (let i = 0; i < secs * 120; i++) { const up = new M.V3(0, 1, 0).applyQuaternion(q); v.addScaledVector(up, thr ? T.THR * d.fl.thr * thr ** (T.TE * d.fl.te) * dt : 0); v.y -= T.G * dt;
       { const s = v.length(); if (s > 1e-4) { const bx = new M.V3(1, 0, 0).applyQuaternion(q), bz = new M.V3(0, 0, 1).applyQuaternion(q), k = T.DQ * s, g = bx.clone().multiplyScalar(v.dot(bx) * (T.DL + k * .9)).addScaledVector(up, v.dot(up) * (T.DL + k * 1.8)).addScaledVector(bz, v.dot(bz) * (T.DL + k * .7)), dl = g.length() * dt; v.addScaledVector(g, -dt * (dl > s ? s / dl : 1)); } }  // the flight model's body drag
       const wl = w.length(); if (wl > 1e-6) q.multiply(new M.QT().setFromAxisAngle(w.clone().divideScalar(wl), wl * dt)).normalize(); p.addScaledVector(v, dt);
       let c = 0, dm = 0; const ww = w.clone().applyQuaternion(q), na = new M.V3();
-      for (const C of T.HBP) { const r = C.clone().applyQuaternion(q), P = p.clone().add(r), d = S.sdf(P.x, P.y, P.z) + T.HBR; if (d <= 0) continue; const h = _H[c++]; S.sdN(P, h[1]).negate(); h[0].copy(r).addScaledVector(h[1], -T.HBR); na.add(h[1]); dm = Math.max(dm, d); }
+      for (const C of d.hbp) { const r = C.clone().applyQuaternion(q), P = p.clone().add(r), dd = S.sdf(P.x, P.y, P.z) + d.hbr; if (dd <= 0) continue; const h = _H[c++]; S.sdN(P, h[1]).negate(); h[0].copy(r).addScaledVector(h[1], -d.hbr); na.add(h[1]); dm = Math.max(dm, dd); }
       if (c) { p.addScaledVector(na.normalize(), dm); for (let k = 0; k < c; k++) { const [r, n] = _H[k], vp = new M.V3().crossVectors(ww, r).add(v), vn = vp.dot(n); if (vn >= 0) continue;
-        const rn = new M.V3().crossVectors(r, n), den = 1 + rn.lengthSq() / T.DI, j = -(1 + (-vn > 3 ? T.DB : 0)) * vn / den / c * 1.15; v.addScaledVector(n, j); ww.addScaledVector(rn, j * .45 / T.DI);
-        vp.addScaledVector(n, -vn); const tl = vp.length(); if (tl > 1e-4) { vp.divideScalar(tl); const rt = new M.V3().crossVectors(r, vp), jt = Math.min(T.GF * Math.min(j, T.G * .05 / c), tl / (1 + rt.lengthSq() / T.DI) / c); v.addScaledVector(vp, -jt); ww.addScaledVector(rt, -jt * .2 / T.DI); } }
+        const rn = new M.V3().crossVectors(r, n), den = 1 + rn.lengthSq() / d.di, j = -(1 + (-vn > 3 ? T.DB : 0)) * vn / den / c * 1.15; v.addScaledVector(n, j); ww.addScaledVector(rn, j * .45 / d.di);
+        vp.addScaledVector(n, -vn); const tl = vp.length(); if (tl > 1e-4) { vp.divideScalar(tl); const rt = new M.V3().crossVectors(r, vp), jt = Math.min(T.GF * Math.min(j, T.G * .05 / c), tl / (1 + rt.lengthSq() / d.di) / c); v.addScaledVector(vp, -jt); ww.addScaledVector(rt, -jt * .2 / d.di); } }
         w.copy(ww).applyQuaternion(q.clone().invert()); w.multiplyScalar(Math.exp(-dt / .09)); }  // (ground rate damping, as the flight model with sticks centred)
       rec?.(i, p, v, q); } return {p, v, q}; };
   const pen = () => { let m = -1; for (const c of d.pts) { const p = c.p.clone().applyQuaternion(d.q).add(d.p); m = Math.max(m, S.sdf(p.x, p.y, p.z) + c.r); } return m; };
@@ -263,7 +263,7 @@ if (bul) {
 
 // ---------- (g) bots' predictor and the touch model ----------
 console.log('\n== (g) bot prediction vs the real ball; ball touches and drone bumps through Rapier queries vs v15 formulas');
-const pt = await run('g', () => {
+const pt = await run('g', async () => {
   const M = window.__pc, {W, B, T, D, GS, C} = M, dt = M.dt, out = {}; M.league(); const L = window.__pcLeague;
   let seed = 5; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647, ball = B.ball;
   // predictor: 2 s ahead at 50 Hz (as bots/league.js) vs the game's ball at 120 Hz, from random throws
@@ -272,8 +272,8 @@ const pt = await run('g', () => {
     const pb = {p: ball.p.clone(), v: ball.v.clone(), w: new M.V3(), c: false, n: new M.V3()}; for (let i = 0; i < 100; i++) B.ballPhys(pb, 1 / 50);
     for (let i = 0; i < 240; i++) { B.ballPre(ball.v, dt); W.physStep(dt, true); } const e = ball.p.distanceTo(pb.p); worst = Math.max(worst, e); sum += e; n++; }
   out.predict = {mean: +(sum / n).toFixed(2), worst: +worst.toFixed(2)};
-  // ball touch: Rapier contact on the stock box vs v15's ballBox() formula, random poses
-  const d = new D.Drone(0, 0, false, 't'); GS.drones = [d]; let dn = 0, dp = 0, cnt = 0, miss = 0, tag = null; const n1 = new M.V3(), l = new M.V3(), o = new M.V3(), qi = new M.QT();
+  // ball touch: Rapier queries on the v15 descriptor (defaultDroneDesc: BBX box) vs v15's ballBox() formula, random poses
+  const d = new D.Drone(0, 0, false, 't'); W.buildDroneBody(d, W.defaultDroneDesc()); GS.drones = [d]; let dn = 0, dp = 0, cnt = 0, miss = 0, tag = null; const n1 = new M.V3(), l = new M.V3(), o = new M.V3(), qi = new M.QT();
   for (let k = 0; k < 400; k++) { d.p.set(0, 20, 0); d.q.set(rnd() - .5, rnd() - .5, rnd() - .5, rnd() - .5).normalize(); d.ph = 0; W.physStep(dt, false);
     ball.p.copy(d.p).add(new M.V3(rnd() - .5, rnd() - .5, rnd() - .5).normalize().multiplyScalar(T.BR + rnd() * 1.2 - .3));
     l.subVectors(ball.p, d.p).applyQuaternion(qi.copy(d.q).invert()); o.set(l.x - C.cl(l.x, -T.BBX[0], T.BBX[0]), l.y - C.cl(l.y, -T.BBX[1], T.BBX[1]), l.z - C.cl(l.z, -T.BBX[2], T.BBX[2])); const dd = o.length();
@@ -281,17 +281,25 @@ const pt = await run('g', () => {
     o.divideScalar(dd).applyQuaternion(d.q); dn = Math.max(dn, o.angleTo(n1) * 180 / Math.PI); dp = Math.max(dp, Math.abs(r.pen - (T.BR - dd))); cnt++; tag = r.tag; }
   out.touch = {cases: cnt, disagreements: miss, maxNormalDeg: +dn.toFixed(3), maxPenMm: +(dp * 1000).toFixed(2), tag};
   // drone-drone: two stock quads 1 m apart (spheres DRAD as v15)
-  const e = new D.Drone(1, 0, false, 'u'); GS.drones = [d, e]; d.p.set(0, 20, 0); e.p.set(.9, 20.3, 0); d.q.set(0, 0, 0, 1); e.q.set(0, 0, 0, 1); d.ph = e.ph = 0; W.physStep(dt, false);
+  const e = new D.Drone(1, 0, false, 'u'); W.buildDroneBody(e, W.defaultDroneDesc()); GS.drones = [d, e]; d.p.set(0, 20, 0); e.p.set(.9, 20.3, 0); d.q.set(0, 0, 0, 1); e.q.set(0, 0, 0, 1); d.ph = e.ph = 0; W.physStep(dt, false);
   const c = W.droneTouch(d, e, n1), dist = d.p.distanceTo(e.p); out.bump = {pen: c ? +c.pen.toFixed(4) : null, v15pen: +(2 * T.DRAD - dist).toFixed(4), normalDeg: c ? +(n1.angleTo(e.p.clone().sub(d.p).normalize()) * 180 / Math.PI).toFixed(3) : null, tags: c ? [c.ta, c.tb] : null};
-  d.dispose(); e.dispose(); GS.drones = []; return out;
+  d.dispose(); e.dispose();
+  // every parts loadout builds a body and rests on the floor
+  const P = await import('/src/parts/index.js'); const LS = P.allLoadouts(); let ok = 0, lo = 9, hi = 0, bad = [];
+  for (const ids of LS) { const q = new D.Drone(0, 0, false, 'p'); q.setLoadout(ids); GS.drones = [q]; q.p.set(0, .6, 0); q.q.set(0, 0, 0, 1); q.v.set(0, 0, 0); q.w.set(0, 0, 0); q.thr = q.ms = 0;
+    for (let i = 0; i < 240; i++) { q.thr = 0; q.wt.set(0, 0, 0); q.step(dt); W.physStep(dt, false); } const y = q.p.y, sp = q.v.length();
+    if (Number.isFinite(y) && Math.abs(y - q.hbr) < .02 && sp < .1) ok++; else bad.push(ids.join('/') + ' y' + y.toFixed(3) + ' v' + sp.toFixed(2)); lo = Math.min(lo, q.rb.numColliders()); hi = Math.max(hi, q.rb.numColliders()); q.dispose(); }
+  out.loadouts = {n: LS.length, ok, colliders: [lo, hi], bad: bad.slice(0, 4)}; GS.drones = []; return out;
 });
 if (pt) {
   console.log(`  predictor (50 Hz, same ball code) vs the game ball (120 Hz in Rapier), 2 s ahead, 40 throws: mean ${pt.predict.mean} m, worst ${pt.predict.worst} m`);
-  console.log(`  ball touch on the stock quad: ${pt.touch.cases} contacts, ${pt.touch.disagreements} disagreements with v15's ballBox (beyond 1 cm), normal within ${pt.touch.maxNormalDeg} deg, depth within ${pt.touch.maxPenMm} mm, tag '${pt.touch.tag}'`);
-  console.log(`  drone bump: depth ${pt.bump.pen} m (v15 spheres ${pt.bump.v15pen}), normal off by ${pt.bump.normalDeg} deg, tags ${pt.bump.tags}`);
+  console.log(`  ball touch, v15 descriptor: ${pt.touch.cases} contacts, ${pt.touch.disagreements} disagreements with v15's ballBox (beyond 1 cm), normal within ${pt.touch.maxNormalDeg} deg, depth within ${pt.touch.maxPenMm} mm, tag '${pt.touch.tag}'`);
+  console.log(`  drone bump, v15 descriptor: depth ${pt.bump.pen} m (v15 spheres ${pt.bump.v15pen}), normal off by ${pt.bump.normalDeg} deg, tags ${pt.bump.tags}`);
   check(pt.predict.mean < 1.5, 'bots\' prediction tracks the real ball (mean error < 1.5 m over 2 s)');
   check(pt.touch.disagreements === 0 && pt.touch.maxNormalDeg < .5 && pt.touch.maxPenMm < 2, 'ball touches: same contact, normal and depth as v15 ballBox()');
   check(pt.bump.pen != null && Math.abs(pt.bump.pen - pt.bump.v15pen) < .002 && pt.bump.normalDeg < .1, 'drone bumps: same contact as v15 (DRAD spheres)');
+  console.log(`  parts loadouts: ${pt.loadouts.ok}/${pt.loadouts.n} build a body (${pt.loadouts.colliders.join('-')} colliders) and rest on their ground hull${pt.loadouts.bad.length ? '; not: ' + pt.loadouts.bad.join(', ') : ''}`);
+  check(pt.loadouts.ok === pt.loadouts.n, 'every parts loadout builds a Rapier body and rests on the floor');
 }
 
 // ---------- heightfield = terrain mesh ----------

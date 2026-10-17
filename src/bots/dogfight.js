@@ -31,7 +31,7 @@ export function dfBot(d,dt){const D=DIFF[S.diff],ai=d.ai;
  if(e&&ai.vis&&dist<200&&s<=-3&&clr>4){const g=_dir.subVectors(aim,d.p).normalize(),r=_lat.crossVectors(g,UP);if(r.lengthSq()>.01){r.normalize();const gu=_b.copy(g).multiplyScalar(.5).addScaledVector(_t.crossVectors(r,g),.866),ty=T.y;
   T.normalize().lerp(gu,(dist<140?1:.7)*cl((-s-3)/5,0,1)).normalize().multiplyScalar(cl(ty,G*.3,G*2.5)/Math.max(T.y,.35))}}
  const need=T.length()||1;T.divideScalar(need);
- const al=_u.set(0,1,0).applyQuaternion(d.q).dot(T);let thr=need/THR;d.boosting=SB()&&thr>1.02&&al>.9&&d.boost>3;if(d.boosting)thr=(need-BOOST)/THR;thr=Math.max(thr,0)**(1/TE);d.thr=cl(thr,0,lim)*cl((al-.1)/.6,.05,1);
+ const al=_u.set(0,1,0).applyQuaternion(d.q).dot(T);const F=d.fl;let thr=need/(THR*F.thr);d.boosting=SB()&&thr>1.02&&al>.9&&d.boost>3;if(d.boosting)thr=(need-BOOST*F.boost)/(THR*F.thr);thr=Math.max(thr,0)**(1/(TE*F.te));d.thr=cl(thr,0,lim)*cl((al-.1)/.6,.05,1);  // parts: F = this quad's thrust
  const look=_f.subVectors(ai.look,d.p);look.y=0;if(look.lengthSq()<1)look.set(0,0,d.team?1:-1);look.normalize();const th=Math.hypot(T.x,T.z);
  if(th>.08)look.lerp(_lat.set(T.x,0,T.z).divideScalar(th),cl((th-.08)/.2,0,1)).normalize();attitude(d,T,look,D.att*.75,D.rate*.8,.6);
  // stick and throttle smoothing: a pilot's hands, not a flight computer

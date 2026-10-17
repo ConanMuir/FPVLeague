@@ -4,7 +4,7 @@ import './render/renderer.js';import './world/arena.js';import './world/maps.js'
 import './physics/sdf.js';import './physics/ball.js';import './render/ball.js';import './world/orbs.js';import './render/drone-mesh.js';import './flight/drone.js';
 import './flight/attitude.js';import './input/input.js';import './bots/league.js';import './world/highlands.js';import './modes/dogfight.js';import './modes/guns.js';
 import './bots/dogfight.js';import './state.js';import './modes/match.js';import './net/net.js';import './modes/step.js';import './render/camera.js';import './ui/hud.js';
-import './render/visuals.js';import './ui/menu.js';import './input/calibration.js';import './ui/modpanel.js';import './ui/rates.js';import './ui/sens.js';import './net/p2p.js';import './modes/lab.js';import './ui/lab.js';
+import './render/visuals.js';import './ui/menu.js';import './input/calibration.js';import './ui/modpanel.js';import './ui/rates.js';import './ui/sens.js';import './ui/garage.js';import './net/p2p.js';import './modes/lab.js';import './ui/lab.js';
 import {$,QT,V3} from './config/constants.js';
 import {initPhysics} from './physics/world.js';
 import {S} from './config/settings.js';
@@ -28,6 +28,7 @@ import {drawRates,initRates,syncRates} from './ui/rates.js';
 import {initSens} from './ui/sens.js';
 import {labSnap} from './modes/lab.js';
 import {initLab,labFrame} from './ui/lab.js';
+import {garageView,initGarage} from './ui/garage.js';
 import {setMap} from './world/maps.js';
 // ---------- main loop ----------
 // fixed 120 Hz simulation (timeScale / Game speed change how much sim time a frame covers; pause runs none), rendered between
@@ -45,8 +46,8 @@ function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last
 initPhysics().then(()=>{
 initMenu();initCalib();initModPanel();
 renderPresets();applyTune();syncMod();setMap(S.map);setBall(S.ball);
-initRates();initSens();initLab();syncRates();
+initRates();initSens();initLab();initGarage();syncRates();
 setGame(GS.GM);startDemo();requestAnimationFrame(frame);
 connectRoom()});
 // read-only snapshot for tools/smoke.mjs; nothing in the game reads it
-window.__dl={snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray()}))}),lab:labSnap};
+window.__dl={snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView};

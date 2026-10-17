@@ -39,7 +39,7 @@ $('nick').value=S.name||'';$('nick').oninput=e=>{S.name=e.target.value.slice(0,1
 $('host').onclick=()=>{exitLab();enterGame(Math.random().toString(36).slice(2,6),true)};$('join').onclick=()=>{exitLab();enterGame($('code').value,false)};$('code').onkeydown=e=>{if(e.key==='Enter'){exitLab();enterGame($('code').value,false)}};
 $('m_league').onclick=()=>pickGame('league');$('m_df').onclick=()=>pickGame('df');
 $('play').onclick=()=>{exitLab();startMatch()};$('resume').onclick=()=>showMenu(false);$('leave').onclick=()=>{exitLab();leaveGame();startDemo()};
-$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi','assist','dzy','xboost','boostBtn'])o[k]=S[k];const t=JSON.stringify(o);
+$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi','assist','dzy','xboost','boostBtn','loadout'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>mpMsg('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 {const m=location.hash.match(/^#([a-z0-9]{2,6})$/i);if(m)$('code').value=m[1]}
