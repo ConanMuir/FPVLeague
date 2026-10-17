@@ -4,7 +4,7 @@ import {COL,GD,GW,HL,HW,L,QT,RF,UP,V3,W,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {onTune} from '../config/tune.js';
 import {dot} from '../render/particles.js';
-import {bloom,hemi,renderer,scaleUV,scene,sun,tex} from '../render/renderer.js';
+import {bloom,fitShadow,hemi,renderer,scaleUV,scene,sun,tex} from '../render/renderer.js';
 import {GS} from '../state.js';
 import {GOALF,NETM,RIML,floorM,gridTex,mouthM,neonG,outer,pitchLines,rampM,wallM} from './arena.js';
 import {fbm,sm,vnoise} from './noise.js';
@@ -17,15 +17,23 @@ export const OUT={
   turf:[92,22,42,18,27,12],tile:['#3c8731',88,30,20,24],line:'rgba(255,255,255,.88)',wall:0xf2f8ff,lo:[.2,.4,.13],hi:[.5,.52,.47],hiY:[40,140],hill:55,mtn:190,props:['broad','broad','pine'],n:900,clouds:32,ct:0xffffff},
  canyon:{name:'Canyon (sunset)',sky:['#26346e','#6d5c9e','#ee9a6a','#ffcf9a','#c98d5e','#6e4226'],sun:[.72,.16,-.66],sc:0xffb070,si:2.8,hemi:[0xffcfa6,0x8a5030,.95],fog:0xe9b78e,
   turf:[74,18,30,14,26,10],tile:['#b98c5a',28,14,45,20],line:'rgba(255,248,235,.85)',wall:0xffe6cc,lo:[.8,.58,.38],hi:[.62,.3,.17],hiY:[6,50],hill:22,mtn:130,mesa:95,band:1,props:['cactus','cactus','rock'],n:520,clouds:14,ct:0xffc8a0},
- alpine:{name:'Alpine (snow)',sky:['#2f62a0','#6f9fd2','#c8dcee','#eef4f8','#dfe7ef','#b4c2d0'],sun:[.3,.45,.8],sc:0xfff6ee,si:2.6,hemi:[0xe8f0ff,0x9aa8b8,1.25],fog:0xdde8f2,
-  turf:[98,18,34,12,25,10],tile:['#7f9bb8',210,18,52,12],line:'rgba(255,255,255,.92)',wall:0x1c64d8,wo:.55,lo:[.9,.93,.97],hi:[.42,.44,.48],hiY:[260,420],hill:70,mtn:360,steep:1,props:['snowpine'],n:1000,clouds:38,ct:0xffffff,snow:1}};
+ alpine:{name:'Alpine (snow)',sky:['#2f62a0','#6f9fd2','#c8dcee','#eef4f8','#dfe7ef','#b4c2d0'],sun:[.3,.45,.8],sc:0xfff6ee,si:2.6,hemi:[0xe8f0ff,0x9aa8b8,1.05],fog:0xdde8f2,
+  turf:[98,18,34,12,25,10],tile:['#7f9bb8',210,18,52,12],line:'rgba(255,255,255,.92)',wall:0x1c64d8,wo:.3,exp:.9,lo:[.9,.93,.97],hi:[.42,.44,.48],hiY:[260,420],hill:70,mtn:360,steep:1,props:['snowpine'],n:1000,clouds:38,ct:0xffffff,snow:1}};
 function hgt(c,x,z){const e=edgeD(x,z);let y=sm(e/90)*(fbm(x/140,z/140)*c.hill+e*.05)+cl((e-380)/220,0,1)*fbm(x/90+7,z/90)*c.mtn;
  if(c.mesa)y+=sm(e/50)*cl((fbm(x/170+3,z/170-2)-.5)*14,0,1)*c.mesa*(.7+.3*vnoise(x/40,z/40));return y-.06}
 export function skyTex(c){const d=new V3(...c.sun).normalize(),t=tex(1024,512,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);[0,.3,.46,.5,.53,1].forEach((s,i)=>gr.addColorStop(s,c.sky[i]));g.fillStyle=gr;g.fillRect(0,0,w,h);
  const u=(Math.atan2(d.z,d.x)/(2*Math.PI)+.5)*w,v=(.5-Math.asin(d.y)/Math.PI)*h,r=g.createRadialGradient(u,v,0,u,v,h*.4);r.addColorStop(0,'rgba(255,248,225,.9)');r.addColorStop(.12,'rgba(255,240,205,.4)');r.addColorStop(1,'rgba(255,240,205,0)');g.fillStyle=r;g.fillRect(0,0,w,h)});
  t.mapping=THREE.EquirectangularReflectionMapping;return t}
-export const LOOKS={arena:{bg:new THREE.Color(0x04060c),fog:scene.fog,hemi:[0x8fb4ff,0x0a0c14,.7],sun:[0xfff4e8,2.4],sp:new V3(42,126,28),sc:[125,155,330],exp:1.05,bk:1,th:.82}};
-for(const[id,c]of Object.entries(OUT))LOOKS[id]={bg:null,fog:new THREE.Fog(c.fog,320,1500),hemi:c.hemi,sun:[c.sc,c.si],sp:new V3(...c.sun).normalize().multiplyScalar(260),sc:[180,180,620],exp:1,bk:.4,th:1};
+// per-map look: background, fog, hemisphere [sky, ground, intensity], sun [colour, intensity], sun position, shadow frustum [half w, half h, far], exposure,
+// bloom: bk (x the Glow slider), th (threshold, linear luminance: only glow materials should pass it), br (radius)
+// Neon Arena reflections: a dark bowl with the four light towers, a ring of crowd light and team-coloured ends, prefiltered once (PMREM)
+const neonEnv=(()=>{const s=new THREE.Scene(),add=(geo,c,x,y,z,side)=>{const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:c,side}));m.position.set(x,y,z);s.add(m);m.lookAt(0,0,0);return m};
+ add(new THREE.SphereGeometry(60,32,16),0x06080f,0,0,0,THREE.BackSide);add(new THREE.CylinderGeometry(44,44,5,48,1,true),0x1c2638,0,6,0,THREE.BackSide);
+ for(const[x,z]of[[-1,-1],[1,-1],[1,1],[-1,1]])add(new THREE.PlaneGeometry(9,4),new THREE.Color(0xeaf2ff).multiplyScalar(6),x*24,30,z*30);
+ for(const t of[0,1])add(new THREE.PlaneGeometry(30,8),new THREE.Color(COL[t]).multiplyScalar(.9),0,8,(t?-1:1)*50);
+ const pm=new THREE.PMREMGenerator(renderer),e=pm.fromScene(s,.02).texture;pm.dispose();return e})();
+export const LOOKS={arena:{bg:new THREE.Color(0x04060c),env:neonEnv,fog:scene.fog,hemi:[0x8fb4ff,0x0a0c14,.7],sun:[0xfff4e8,2.4],sp:new V3(42,126,28),sc:[125,155,330],exp:1,bk:1,th:.9,br:.35}};
+for(const[id,c]of Object.entries(OUT))LOOKS[id]={bg:null,fog:new THREE.Fog(c.fog,320,1500),hemi:c.hemi,sun:[c.sc,c.si],sp:new V3(...c.sun).normalize().multiplyScalar(260),sc:[180,180,620],exp:c.exp||1,bk:.6,th:1.25,br:.3};
 const arenaMat={floor:floorM.material,ramp:rampM.material,wall:wallM.material,mouth:mouthM.map(m=>m.material),gf:GOALF.map(m=>m.material)};
 export const snowP=(()=>{const N=2600,p=new Float32Array(N*3);for(let i=0;i<N*3;i++)p[i]=(Math.random()-.5)*160;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(p,3));
  const s=new THREE.Points(g,new THREE.PointsMaterial({map:dotTex(),color:0xffffff,size:.45,transparent:true,depthWrite:false,opacity:.9}));s.frustumCulled=false;s.visible=false;scene.add(s);return s})();
@@ -41,7 +49,7 @@ function buildOutdoor(id){if(mapG[id])return;const c=OUT[id],G=mapG[id]=new THRE
  const P=c.tile,tile=tex(256,256,(g,w,h)=>{g.fillStyle=P[0];g.fillRect(0,0,w,h);for(let i=0;i<3000;i++){g.fillStyle=`hsla(${rnd(P[1],P[2])},45%,${rnd(P[3],P[4])}%,.7)`;g.fillRect(Math.random()*w,Math.random()*h,1.5,2+Math.random()*4)}},true);
  if(!uvDone){uvDone=true;mouthM.forEach(m=>scaleUV(m.geometry,GW/6,(RF+.6)/6));GOALF.forEach(m=>scaleUV(m.geometry,GW/6,GD/6))}
  const ramp=new THREE.MeshStandardMaterial({map:tile,roughness:.95,side:THREE.DoubleSide});
- mapMat[id]={floor:new THREE.MeshStandardMaterial({map:turf,roughness:.9}),ramp,wall:new THREE.MeshBasicMaterial({map:gridTex,color:c.wall,transparent:true,opacity:c.wo||.3,depthWrite:false,side:THREE.DoubleSide}),
+ mapMat[id]={floor:new THREE.MeshStandardMaterial({map:turf,roughness:.9}),ramp,wall:new THREE.MeshBasicMaterial({map:gridTex,color:c.wall,transparent:true,opacity:c.wo||.14,depthWrite:false,side:THREE.DoubleSide}),
   mouth:mouthM.map(()=>ramp),gf:COL.map(k=>new THREE.MeshStandardMaterial({map:tile,roughness:.95,emissive:k,emissiveIntensity:.12}))};
  const c3=new THREE.Color(),c2=new THREE.Color(),lo=new THREE.Color().setRGB(...c.lo,THREE.SRGBColorSpace),hi=new THREE.Color().setRGB(...c.hi,THREE.SRGBColorSpace);
  // terrain: flat around the stadium, hills, then mountains (and mesas on Canyon)
@@ -62,14 +70,14 @@ function buildOutdoor(id){if(mapG[id])return;const c=OUT[id],G=mapG[id]=new THRE
   for(const k in I){const L2=I[k],N=L2.length/2,im=new THREE.InstancedMesh(GEO2[k],new THREE.MeshStandardMaterial({roughness:.88,flatShading:true}),N);
    for(let j=0;j<N;j++){im.setMatrixAt(j,L2[2*j]);im.setColorAt(j,L2[2*j+1])}im.castShadow=im.receiveShadow=true;im.frustumCulled=false;G.add(im)}}
  // sun disc + drifting clouds
- const sunS=new THREE.Sprite(new THREE.SpriteMaterial({map:dot,color:new THREE.Color(c.sc).multiplyScalar(3),fog:false,toneMapped:false,depthWrite:false}));sunS.position.copy(LOOKS[id].sp).setLength(1300);sunS.scale.setScalar(150);G.add(sunS);
+ const sunS=new THREE.Sprite(new THREE.SpriteMaterial({map:dot,color:new THREE.Color(c.sc).multiplyScalar(2),fog:false,toneMapped:false,depthWrite:false}));sunS.position.copy(LOOKS[id].sp).setLength(1300);sunS.scale.setScalar(150);G.add(sunS);
  const ct=[0,1,2].map(()=>tex(256,128,(g,w,h)=>{for(let i=0;i<24;i++){const x=w*rnd(.18,.64),y=h*rnd(.42,.26),r=rnd(14,30),gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(255,255,255,.85)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,w,h)}}));
  const cl2=G.userData.clouds=new THREE.Group();for(let i=0;i<c.clouds;i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:ct[i%3],color:c.ct,transparent:true,opacity:.9,depthWrite:false,fog:false})),a=Math.random()*Math.PI*2,r=rnd(450,650),k=rnd(180,220);
   s.position.set(Math.cos(a)*r,rnd(200,180),Math.sin(a)*r);s.scale.set(k,k*.5,1);cl2.add(s)}G.add(cl2)}
 export function setMap(id){if(!LOOKS[id])id='arena';if(id===mapId)return;mapId=id;const O=OUT[id],K=LOOKS[id],DF=id==='df';if(O)buildOutdoor(id);const A=O?mapMat[id]:arenaMat;
- neonG.visible=outer.visible=!O&&!DF;[floorM,rampM,wallM,...mouthM,...RIML].forEach(m=>m.visible=!DF);sun.target.position.set(0,0,0);for(const k in mapG)mapG[k].visible=k===id;snowP.visible=!!O?.snow;scene.background=K.bg;scene.fog=K.fog;scene.environment=O||DF?K.bg:null;
+ neonG.visible=outer.visible=!O&&!DF;[floorM,rampM,wallM,...mouthM,...RIML].forEach(m=>m.visible=!DF);sun.target.position.set(0,0,0);for(const k in mapG)mapG[k].visible=k===id;snowP.visible=!!O?.snow;scene.background=K.bg;scene.fog=K.fog;scene.environment=K.env||(O||DF?K.bg:null);
  hemi.color.set(K.hemi[0]);hemi.groundColor.set(K.hemi[1]);hemi.intensity=K.hemi[2];sun.color.set(K.sun[0]);sun.intensity=K.sun[1];sun.position.copy(K.sp);
- const sc=sun.shadow.camera;sc.left=-K.sc[0];sc.right=K.sc[0];sc.top=K.sc[1];sc.bottom=-K.sc[1];sc.far=K.sc[2];sc.updateProjectionMatrix();
- renderer.toneMappingExposure=K.exp;lookBK=K.bk;bloom.threshold=K.th;bloom.strength=(GS.hostTune||S.mod).bloom*K.bk;
+ fitShadow(...K.sc);
+ renderer.toneMappingExposure=K.exp;lookBK=K.bk;bloom.threshold=K.th;bloom.radius=K.br;bloom.strength=(GS.hostTune||S.mod).bloom*K.bk;
  floorM.material=A.floor;rampM.material=A.ramp;wallM.material=A.wall;mouthM.forEach((m,i)=>m.material=A.mouth[i]);GOALF.forEach((m,t)=>m.material=A.gf[t]);
  NETM.forEach(m=>{m.blending=O?THREE.NormalBlending:THREE.AdditiveBlending;m.opacity=O?.75:.5;m.needsUpdate=true})}

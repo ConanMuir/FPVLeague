@@ -134,6 +134,9 @@ async function scenario(label, url) {
     for (let i = 0; i < 3; i++) { await click(p, '#snext'); await sleep(200); }
     await click(p, '#snext');
     out.sens = {opened: sensOpen, closed: await hidden(p, '#sens'), msg: await text(p, '#calmsg')};
+    // graphics quality: switch through every level live (render targets, MSAA/SMAA, shadow map and bloom get rebuilt)
+    if (await p.$('#f_gfx')) for (const q of ['low', 'med', 'high', 'auto']) { await p.$eval('#f_gfx', (e, v) => { e.value = JSON.stringify(v); e.dispatchEvent(new Event('input')); }, q); await sleep(400); }
+    out.gfx = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').gfx ?? null);
     // calibration start/cancel, then back into the match for a moment
     await click(p, '#calbtn'); await sleep(300); await click(p, '#calbtn');
     await click(p, '#resume'); await sleep(1000);
@@ -192,17 +195,21 @@ chk(n.mod?.open && n.mod.sliders === 34 && /^20\.0 /.test(n.mod.changed) && /^34
 chk(n.rates?.inputs === 9 && +n.rates.maxRoll > 0 && n.rates.cliExport >= 15 && /^Imported 6 values/.test(n.rates.cliImport) && n.rates.typeAfter === 'ACTUAL', 'rates panel: table, CLI export/import');
 chk(n.sens?.opened && n.sens.closed && /Sensitivity saved/.test(n.sens.msg), 'easy sensitivity setup should open, step through and save');
 chk(n.final?.finite && n.final.state, 'game should still be running at the end');
+chk(n.gfx === 'auto', 'graphics quality should switch live through Low/Medium/High/Auto and save');
 if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
 {
   let s = null; try { s = JSON.parse(set.new.saved); } catch {}
-  chk(s && s.physV === 3 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 2.5 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4,
-    'v15 settings: migrations (physV 3, 6S defaults, clamping, rate profiles) should apply');
+  chk(s && s.physV === 3 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 2.5 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
+    'v15 settings: migrations (physV 3, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
 }
 console.log('\n== settings from a v15 save\n new: ' + set.new.ui);
 if (set.old) {
   console.log(' v15: ' + set.old.ui);
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
-  else { chk(set.old.saved === set.new.saved, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + set.new.saved); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === set.new.saved) console.log(' saved settings identical to v15 after migration'); }
+  else {
+    // settings added after v15 (with defaults) are left out of the comparison
+    const NEWKEYS = ['gfx'], ns = (() => { try { const o = JSON.parse(set.new.saved); for (const k of NEWKEYS) delete o[k]; return JSON.stringify(o); } catch { return set.new.saved; } })();
+    chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check
 if (results.old) {
