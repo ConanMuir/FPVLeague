@@ -45,7 +45,10 @@ function sdObs(x,y,z){const L=OGRID.get(Math.floor((x+DHW)/OC)*1000+Math.floor((
   else if(o.t==='ring'){const a=o.ax?lz:lx,b=o.ax?lx:lz;d=Math.hypot(Math.hypot(a,y-o.y)-o.R,b)-o.r}
   else if(o.t==='tree')d=Math.min(sdCyl(lx,y,lz,.5,o.y0,o.y0+o.h*.4),sdCyl(lx,y,lz,o.cr*.75,o.y0+o.h*.28,o.y0+o.h));
   else d=Math.hypot(lx,y-o.y,lz)-o.r;if(d<m)m=d}return m}
-export const sdDF=(x,y,z)=>Math.max(y-DCEIL,Math.abs(x)-DHW,Math.abs(z)-DHL,(dfH(x,z)-y)*.75,-sdObs(x,y,z));
+// terrain height: once the map is built, the mesh triangles (= the Rapier heightfield, cells split (x1,z0)-(x0,z1)); before that dfH()
+export const dfHt=(x,z)=>{if(!grid)return dfH(x,z);const T=grid,fx=cl((x+T.w/2)/T.w*T.nx,0,T.nx-1e-9),fz=cl((z+T.l/2)/T.l*T.nz,0,T.nz-1e-9),ix=fx|0,iz=fz|0,u=fx-ix,v=fz-iz,n1=T.nx+1,i=iz*n1+ix,h=T.h;
+ return u+v<1?h[i]+u*(h[i+1]-h[i])+v*(h[i+n1]-h[i]):h[i+n1+1]+(1-u)*(h[i+n1]-h[i+n1+1])+(1-v)*(h[i+1]-h[i+n1+1])};
+export const sdDFt=(x,y,z)=>Math.max(y-DCEIL,Math.abs(x)-DHW,Math.abs(z)-DHL,(dfHt(x,z)-y)*.75),sdDF=(x,y,z)=>Math.max(sdDFt(x,y,z),-sdObs(x,y,z));  // sdDFt: without obstacles
 export const DSLOTS=[[0,12,DBASE],[-26,12,DBASE+16],[26,12,DBASE+16]];
 const DFC={sky:['#3b6fb0','#79a6d8','#c5dbee','#e6eef2','#9fb38f','#4d6340'],sun:[-.45,.55,-.7],fog:0xc9d9e6};
 LOOKS.df={bg:null,fog:new THREE.Fog(DFC.fog,380,1750),hemi:[0xdde9ff,0x55663f,1.05],sun:[0xfff0dc,3],sp:new V3(...DFC.sun).normalize().multiplyScalar(300),sc:[170,170,800],exp:1,bk:.6,th:1.25,br:.3};

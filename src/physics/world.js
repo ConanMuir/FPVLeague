@@ -17,7 +17,7 @@ import {GS} from '../state.js';
 import {arenaData,arenaTrimesh} from './arena-shape.js';
 import {sdN,sdf} from './sdf.js';
 import {ball,ballContact,ballRoll} from './ball.js';
-import {dfCollision} from '../world/highlands.js';
+import {dfCollision,sdDFt} from '../world/highlands.js';
 export let R=null,world=null;
 export const PHYS={ballMesh:false,net:true,stats:{escapes:0,steps:0,ms:0}};  // net: the escape safety net (checks switch it off for free flight)
 // collision groups: membership<<16 | filter. QRY is only ever a query's membership, so query-only colliders never form solver pairs.
@@ -49,10 +49,14 @@ export function setBallMode(mesh){PHYS.ballMesh=mesh;ballCol.setCollisionGroups(
  *         stock quad is hit within ~2 m of its centre, like v15's 2 m sphere)
  *  mass   kg-equivalent (the stock quad is 1; the flight model's thrust is per unit mass, so mass only changes contact response)
  *  inertia principal moments in the body frame; null = computed from the 'world' colliders at uniform density
+ *  pivot  optional [{p:[x,y,z], r}]: points (sphere centres + radius) the turtle / self-righting lever looks at; default: derived
+ *         from the 'world' colliders (box corners, capsule ends, cylinder rims, hull points)
+ * Prefer rounded boxes, spheres and capsules for 'world' colliders: their contact normals are smooth. Hull facets can give a tilted
+ * normal when a flat face slides on the floor, which turns sliding speed into a small bounce.
  */
-export function defaultDroneDesc(){const pts=[];for(const p of HBP)pts.push(p.x,0,p.z);
- return{mass:1,inertia:[DI/.45,DI/.45,DI/.45],colliders:[
-  {shape:'hull',points:pts,round:HBR,pos:[0,0,0],rot:[0,0,0,1],tag:'chassis',use:['world']},  // v15 ground hull: rounded rectangle 0.55 x 0.6 m, 0.34 m corners, 0.13 m edges (x size)
+export function defaultDroneDesc(){const k=HBR/.13;
+ return{mass:1,inertia:[DI/.45,DI/.45,DI/.45],pivot:HBP.map(p=>({p:[p.x,0,p.z],r:HBR})),colliders:[
+  {shape:'box',size:[.55*k,HBR+.001,.6*k],round:HBR,pos:[0,0,0],rot:[0,0,0,1],tag:'chassis',use:['world']},  // v15 ground hull: 1.1 x 0.26 x 1.2 m, 0.13 m round edges (x size)
   {shape:'box',size:[...BBX],pos:[0,0,0],rot:[0,0,0,1],tag:'chassis',use:['ball','bullet']},  // v15 ball box (props included)
   {shape:'sphere',size:[DRAD],pos:[0,0,0],rot:[0,0,0,1],tag:'other',use:['drone']}]}}  // v15 drone-drone sphere
 const SPH=[[0,1,0],[0,-1,0]];for(let i=0;i<12;i++)for(const la of[-60,-30,0,30,60]){const a=i*Math.PI/6,l=la*Math.PI/180;SPH.push([Math.cos(l)*Math.cos(a),Math.sin(l),Math.cos(l)*Math.sin(a)])}
@@ -79,7 +83,8 @@ export function buildDroneBody(d,desc){freeDroneBody(d);d.desc0=!desc;desc=desc|
   const col=world.createCollider(cd,b),e={c:col,tag:c.tag||'other',use,lp,lq,d},s=c.size||[1],P=(c.points||[]).flat();d.cols.push(e);C2D.set(col.handle,e);
   let ext=c.shape==='box'||c.shape==='cylinder'?Math.hypot(...s):c.shape==='capsule'?s[0]+s[1]:c.shape==='sphere'?s[0]:0;for(let i=0;i<P.length;i+=3)ext=Math.max(ext,Math.hypot(P[i],P[i+1],P[i+2])+(c.round||0));
   bound=Math.max(bound,lp.length()+ext);
-  if(wd){d.pts.push(...pivotPts(c,lp,lq));vol+=col.volume()}}
+  if(wd){if(!desc.pivot)d.pts.push(...pivotPts(c,lp,lq));vol+=col.volume()}}
+ if(desc.pivot)d.pts=desc.pivot.map(o=>({p:new V3(...o.p),r:o.r}));
  if(desc.inertia)b.setAdditionalMassProperties(desc.mass,{x:0,y:0,z:0},{x:desc.inertia[0],y:desc.inertia[1],z:desc.inertia[2]},IDQ,true);
  else{for(const e of d.cols)if(e.use.includes('world'))e.c.setDensity(desc.mass/Math.max(vol,1e-6));b.recomputeMassPropertiesFromColliders()}
  d.bound=bound;d.ph=0;d.bodyMode='dyn';if(d.dead>0)b.setEnabled(false)}
@@ -102,7 +107,7 @@ export function physStep(dt,simBall){const t0=performance.now();setMap(!!GS.OBSO
  world.step();
  for(const d of GS.drones){if(!d.body||d.bodyMode!=='dyn')continue;const b=d.body,t=b.translation(),r=b.rotation(),lv=b.linvel(),av=b.angvel();
   d.p.set(t.x,t.y,t.z);d.q.set(r.x,r.y,r.z,r.w);d.v.set(lv.x,lv.y,lv.z);d.w.set(av.x,av.y,av.z).applyQuaternion(_q.copy(d.q).invert());d.hit=groundContacts(d,dt);
-  const s=PHYS.net?sdf(d.p.x,d.p.y,d.p.z):0;if(s>.05){sdN(d.p,_n);d.p.addScaledVector(_n,-(s+.2));const vn=d.v.dot(_n);if(vn>0)d.v.addScaledVector(_n,-vn*1.2);PHYS.stats.escapes++}  // safety net: never leave the map
+  const s=PHYS.net?(GS.OBSON?sdDFt:sdf)(d.p.x,d.p.y,d.p.z):0;if(s>.05){sdN(d.p,_n);d.p.addScaledVector(_n,-(s+.2));const vn=d.v.dot(_n);if(vn>0)d.v.addScaledVector(_n,-vn*1.2);PHYS.stats.escapes++}  // safety net: never leave the map (Highlands: terrain, walls and ceiling; obstacles' SDF is only approximate)
   d.ph=0}
  ball.hit=0;if(ball.bodyMode==='dyn'){const t=ballBody.translation(),lv=ballBody.linvel(),av=ballBody.angvel(),r=ballBody.rotation();ball.p.set(t.x,t.y,t.z);ball.v.set(lv.x,lv.y,lv.z);ball.w.set(av.x,av.y,av.z);ball.q.set(r.x,r.y,r.z,r.w);
   if(PHYS.ballMesh){let n=null,hit=0;world.contactPairsWith(ballCol,o=>world.contactPair(ballCol,o,(m,fl)=>{for(let i=0;i<m.numContacts();i++)if(m.contactDist(i)<.05){const nn=m.normal();n=_n.set(nn.x,nn.y,nn.z).multiplyScalar(fl?1:-1);break}}));
