@@ -19,9 +19,9 @@ export function nameOf(k,t,i){if(isBot(k))return NAMES[t][i];if(!GS.net)return '
 // slots: [[keys of blue],[keys of orange]]; 'h' = host's drone, 'bTI' = bot, anything else = a peer label
 export function applySlots(T){const old=new Map(GS.drones.map(d=>[d.key,d])),nd=[];GS.player=null;
  T.forEach((arr,t)=>arr.forEach((k,i)=>{let d=old.get(k);if(d&&d.team===t&&d.i===i)old.delete(k);else d=new Drone(t,i,false,k);
-  const mine=GS.net?k===(GS.net.host?'h':GS.myPeer):k==='h';d.bot=isBot(k)&&auth();d.remote=!!GS.net&&!mine&&!d.bot;d.name=nameOf(k,t,i);if(mine)GS.player=d;nd.push(d)}));
+  const mine=GS.net?k===(GS.net.host?'h':GS.myPeer):k==='h';d.bot=isBot(k)&&auth();d.remote=!!GS.net&&!mine&&!d.bot;d.name=nameOf(k,t,i);if(mine){GS.player=d;d.setLoadout(S.loadout)}nd.push(d)}));
  old.forEach(d=>d.dispose());GS.drones=nd;if(!GS.player&&GS.demo)GS.player=GS.drones[0]}
-function buildTeams(){GS.drones.forEach(d=>d.dispose());GS.drones=[];const n=GS.demo?3:S.size;applySlots([0,1].map(t=>Array.from({length:GS.demo||S.bots?n:t?0:1},(_,i)=>!GS.demo&&!t&&!i?'h':'b'+t+i)))}
+function buildTeams(){GS.drones.forEach(d=>d.dispose());GS.drones=[];GS.lseed=Math.random()*1e9|0;const n=GS.demo?3:S.size;applySlots([0,1].map(t=>Array.from({length:GS.demo||S.bots?n:t?0:1},(_,i)=>!GS.demo&&!t&&!i?'h':'b'+t+i)))}
 export function kickoff(){GS.koN++;GS.state='kickoff';GS.stT=3;GS.lastCount=4;ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ball.last=null;ballMesh.visible=!GS.OBSON;GS.drones.forEach(d=>{if(!d.remote)d.spawn()});ORBS.forEach(p=>p.cd=0);predict();assignRoles();
  if(GS.OBSON){TUR.forEach(t=>{t.hp=TUR_HP;t.re=0;t.cd=1+Math.random()});BUL.forEach(b=>b.life=0)}}
 export function goalFx(t,lt){GS.shake=1.4;ballMesh.visible=false;emit(ball.p,COL[t],500,45,1.8);emit(ball.p,0xffffff,150,25,1.2);noise(1.4,300,.8*near(ball.p)+.2,.6);tone(880,180,.9,.18,'sawtooth');

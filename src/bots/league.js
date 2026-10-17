@@ -38,7 +38,7 @@ export function botControl(d,dt){const D=DIFF[S.diff],ai=d.ai;if((ai.t-=dt)<=0){
  if(d.p.y<1.6&&d.v.y<0)a.y+=-d.v.y*2+(1.6-d.p.y)*8;if(d.p.y>H-4&&d.v.y>0)a.y-=d.v.y*2;
  const lim=Math.min(1,D.thr*BOTV),cap=BTHR*lim+(SB()&&d.boost>5?BOOST:0);if(a.length()>cap)a.setLength(cap);
  const T=_T.copy(a);T.y+=G;T.addScaledVector(d.v,DL+DQ*d.v.length());const need=T.length()||1;T.divideScalar(need);
- const al=_u.set(0,1,0).applyQuaternion(d.q).dot(T);let thr=need/THR;d.boosting=SB()&&thr>1.02&&al>.9&&d.boost>3;if(d.boosting)thr=(need-BOOST)/THR;thr=Math.max(thr,0)**(1/TE);
+ const al=_u.set(0,1,0).applyQuaternion(d.q).dot(T);const F=d.fl;let thr=need/(THR*F.thr);d.boosting=SB()&&thr>1.02&&al>.9&&d.boost>3;if(d.boosting)thr=(need-BOOST*F.boost)/(THR*F.thr);thr=Math.max(thr,0)**(1/(TE*F.te));  // parts: this quad's thrust
  d.thr=cl(thr,0,lim)*cl((al-.1)/.6,.05,1);
  const look=_f.subVectors(ai.look,d.p);look.y=0;if(look.lengthSq()<1)look.set(0,0,d.team?1:-1);look.normalize();attitude(d,T,look,D.att,D.rate,.6)}
 export function assignRoles(){for(const t of[0,1]){const s=t?1:-1,ms=GS.drones.filter(d=>d.team===t&&d.dead<=0);if(!ms.length)continue;

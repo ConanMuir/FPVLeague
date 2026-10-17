@@ -24,7 +24,7 @@ export function droneFire(d,dt,real){d.fcd-=dt;if(!d.firing||d.dead>0||d.fcd>0)r
  shoot(mz,dir,d.v,d.team,real,d,8,d.bot?DIFF[S.diff].noise*.012+.006:.006,BSPD);const k=near(d.p);if(k>.05)noise(.05,1800,.1*k,2)}
 function segHit(a,b,c,r){_gq.subVectors(b,a);const l2=_gq.lengthSq(),t=l2?cl(_gq.dot(_v.subVectors(c,a))/l2,0,1):0;return _v.copy(a).addScaledVector(_gq,t).distanceToSquared(c)<r*r}
 export function bullets(dt){for(const b of BUL){if(b.life<=0)continue;b.life-=dt;b.dist+=b.v.length()*dt;const p0=_gp.copy(b.p);b.p.addScaledVector(b.v,dt);
- for(const d of GS.drones){if(d.dead>0||d.team===b.team||d===b.by)continue;if(segHit(p0,b.p,d.p,2)){b.life=0;emit(b.p,COL[d.team],10,8,.4);if(b.real)hitDrone(d,b.dmg,b.by);break}}
+ for(const d of GS.drones){if(d.dead>0||d.team===b.team||d===b.by)continue;if(segHit(p0,b.p,d.p,d.hitR||2)){b.life=0;emit(b.p,COL[d.team],10,8,.4);if(b.real)hitDrone(d,b.dmg,b.by);break}}
  if(b.life>0)for(const t of TUR){if(t.re>0||t.t===b.team)continue;if(segHit(p0,b.p,t.p,2.6)){b.life=0;emit(b.p,0xffc640,10,8,.4);if(b.real)hitTurret(t,b.dmg,b.by);break}}
  if(b.life>0&&sdf(b.p.x,b.p.y,b.p.z)>0){emit(b.p,0xffd0a0,4,6,.3);b.life=0}}}
 const _bc=new THREE.Color(),_bm4=new THREE.Matrix4(),_bq=new QT(),_bz=new V3(0,0,1),_bs=new V3();

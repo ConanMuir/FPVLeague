@@ -99,10 +99,22 @@ async function scenario(label, url) {
     // menu demo: bots play behind the menu
     const d0 = await waitFor(p, s => s.state === 'play', wall, 'the demo kickoff to end'); await sleep(SW ? 6000 : 2000); const d1 = await snap(p);
     out.demo = {menuOpen: !(await hidden(p, '#menu')), moved: +Math.max(...d1.drones.map((d, i) => dist(d.p, d0.drones[i].p))).toFixed(1)};
+    // Garage: open it, cycle every part in every slot, toggle the hitbox overlay, leave a non-stock loadout on
+    if (await p.$('#garbtn')) {
+      await click(p, '#garbtn'); const g = {open: !(await hidden(p, '#garage')), parts: 0, stats: []};
+      for (const [s, id] of await p.$$eval('#gslots button', l => l.map(b => [b.dataset.s, b.dataset.id]))) {
+        await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`); g.parts++; g.stats.push(await text(p, '#gstats div:first-child span:last-child'));
+      }
+      await click(p, '#ghit'); await sleep(300); await click(p, '#ghit');
+      for (const [s, id] of [['0', 'stretch'], ['1', 'plank'], ['2', 'punch']]) await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`);
+      g.name = await text(p, '#gname'); g.saved = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').loadout?.join('/'));
+      await click(p, '#gok'); g.closed = await hidden(p, '#garage'); g.stats = new Set(g.stats).size; out.garage = g;
+    }
     // League vs bots (default settings: 2v2, bots fill, Legend)
     await click(p, '#play');
     await waitFor(p, s => !s.demo && s.state === 'play', wall, 'League kickoff to end');
     out.league = await run(p, 10, wall * 2);
+    { const s = await snap(p); out.league.player = s.drones.find(d => d.key === 'h')?.lo; out.league.botLoadouts = [...new Set(s.drones.filter(d => d.bot).map(d => d.lo))].length; }
     // Dogfight: open the menu, press the Dogfight mode button (starts a new match)
     await key(p, 'Escape'); out.menuAfterEsc = !(await hidden(p, '#menu'));
     await click(p, '#m_df');
@@ -260,7 +272,7 @@ if (BASELINE) {
   set.old = await settings('v15 baseline', origin + '/old/');
 }
 
-const show = r => console.log(`\n== ${r.label}  [${r.renderer || '?'}]\n` + JSON.stringify({demo: r.demo, league: r.league, dogfight: r.dogfight, mod: r.mod, rates: r.rates, sens: r.sens, final: r.final}, null, 1).replace(/\n\s*/g, ' ') +
+const show = r => console.log(`\n== ${r.label}  [${r.renderer || '?'}]\n` + JSON.stringify({demo: r.demo, garage: r.garage, league: r.league, dogfight: r.dogfight, mod: r.mod, rates: r.rates, sens: r.sens, final: r.final}, null, 1).replace(/\n\s*/g, ' ') +
   (r.errors.length ? '\n  errors:\n   ' + r.errors.slice(0, 20).join('\n   ') : '\n  no errors'));
 for (const k in results) show(results[k]);
 
@@ -272,6 +284,9 @@ chk(n.demo?.menuOpen && n.demo.moved > 0.5, 'menu demo: bots should be flying be
 chk(n.league && n.league.sim >= 9 && !n.league.nan, 'League: sim should run 10 s without NaN');
 chk(n.league && n.league.ballPath > 1 && n.league.botPathMin > 5, 'League: ball and every bot should move');
 chk(n.menuAfterEsc, 'Esc should open the menu');
+chk(n.garage?.open && n.garage.closed && n.garage.parts === 15 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch', 'garage: opens, cycles all 15 parts, saves the loadout, closes');
+chk(n.league?.player === 'stretch/plank/punch', 'League: the player should fly the garage loadout');
+chk(n.league?.botLoadouts >= 2, 'League: bots should spawn with varied loadouts');
 chk(n.dogfight && n.dogfight.sim >= 3 && !n.dogfight.nan && n.dogfight.botPathMin > 5 && n.dogfight.title === 'DOGFIGHT', 'Dogfight: should start and bots should fly');
 chk(n.mod?.open && n.mod.sliders === 34 && /^20\.0 /.test(n.mod.changed) && /^34\.5 /.test(n.mod.reset) && n.mod.export === '{}', 'mod panel: 34 sliders, change, reset, export');
 chk(n.rates?.inputs === 9 && +n.rates.maxRoll > 0 && n.rates.cliExport >= 15 && /^Imported 6 values/.test(n.rates.cliImport) && n.rates.typeAfter === 'ACTUAL', 'rates panel: table, CLI export/import');
@@ -281,6 +296,7 @@ chk(n.gfx === 'auto', 'graphics quality should switch live through Low/Medium/Hi
 if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
 {
   let s = null; try { s = JSON.parse(set.new.saved); } catch {}
+  chk(s && s.loadout?.join('/') === 'stock/stock/stock', 'v15 settings: the loadout should migrate to Stock');
   chk(s && s.physV === 3 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 2.5 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
     'v15 settings: migrations (physV 3, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
 }
@@ -311,7 +327,7 @@ if (set.old) {
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
   else {
     // settings added after v15 (with defaults) are left out of the comparison
-    const NEWKEYS = ['gfx', 'assist'], ns = (() => { try { const o = JSON.parse(set.new.saved); for (const k of NEWKEYS) delete o[k]; return JSON.stringify(o); } catch { return set.new.saved; } })();
+    const NEWKEYS = ['gfx', 'assist', 'loadout'], ns = (() => { try { const o = JSON.parse(set.new.saved); for (const k of NEWKEYS) delete o[k]; return JSON.stringify(o); } catch { return set.new.saved; } })();
     chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check
