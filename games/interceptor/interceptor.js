@@ -6,12 +6,12 @@ import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {Sky} from 'three/addons/objects/Sky.js';
 import {$,V3,QT,cl,UP,seeded,sm,vnoise,fbm} from '../../engine/util.js';
 import {S,save,loadSettings} from '../../engine/settings.js';
-import {initRender,renderer,scene,camera,composer,bloom,tex,glow,dot,setFov} from '../../engine/render.js';
+import {initRender,renderer,scene,camera,composer,bloom,tex,glow,dot,setFov,detail,crownGeo} from '../../engine/render.js';
 import {banner,feed,setFeedTime} from '../../engine/hud.js';
 import {AC,audioInit,audioOn,motorAudio,noise,tone} from '../../engine/audio.js';
-import {attitude} from '../../engine/flight.js';
+import {attitude,gn,ou,weathervane} from '../../engine/flight.js';
 import {rate,thrCurve,stk,initRates} from '../../engine/rates.js';
-import {keys,pad,axv,thrFull,calib,fireBtnIn,initInput,padEdges,mountPad} from '../../engine/input.js';
+import {keys,pad,axv,thrFull,calib,fireBtnIn,initInput,padEdges,mountPad,mountSwitches,pollSwitches,swRead} from '../../engine/input.js';
 import {initMenu,syncUI} from '../../engine/menu.js';
 import {mountMod,initModPanel,toggleMod,tab,modMsg} from '../../engine/modpanel.js';
 import {startLoop} from '../../engine/loop.js';
@@ -36,9 +36,9 @@ scene.fog=new THREE.Fog(0xc9d6e0,1500,9000);
 // FPV camera feed as the goggles see it: wide-lens barrel distortion and colour fringing, a soft small-sensor picture with flat CMOS colour,
 // shadow-heavy sensor noise and chroma speckle, line flicker, a rolling band, and analog-style breakup (sync jitter, torn lines, snow) as the video link weakens (lq).
 // White-hot thermal turns the picture into luminance (hot = white).
-sens=new ShaderPass({uniforms:{tDiffuse:{value:null},t:{value:0},gr:{value:.5},th:{value:0},lq:{value:1},res:{value:new THREE.Vector2(1,1)}},
+sens=new ShaderPass({uniforms:{tDiffuse:{value:null},t:{value:0},gr:{value:.5},th:{value:0},lq:{value:1},ex:{value:1},res:{value:new THREE.Vector2(1,1)}},
  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
- fragmentShader:`uniform sampler2D tDiffuse;uniform float t,gr,th,lq;uniform vec2 res;varying vec2 vUv;
+ fragmentShader:`uniform sampler2D tDiffuse;uniform float t,gr,th,lq,ex;uniform vec2 res;varying vec2 vUv;
 float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 void main(){float bad=1.-lq,row=floor(vUv.y*res.y/2.),fr=floor(t*30.);
  vec2 c0=vUv-.5;vec2 uv=.5+c0*(1.+.13*dot(c0,c0))/1.033;  // barrel distortion
@@ -47,16 +47,16 @@ void main(){float bad=1.-lq,row=floor(vUv.y*res.y/2.),fr=floor(t*30.);
  vec2 ca=c0*.007,p=1.2/res;
  vec3 c=vec3(texture2D(tDiffuse,uv+ca).r,texture2D(tDiffuse,uv).g,texture2D(tDiffuse,uv-ca).b);  // lateral colour fringing
  vec3 s=(texture2D(tDiffuse,uv+vec2(p.x,0.)).rgb+texture2D(tDiffuse,uv-vec2(p.x,0.)).rgb+texture2D(tDiffuse,uv+vec2(0.,p.y)).rgb+texture2D(tDiffuse,uv-vec2(0.,p.y)).rgb)*.25;
- c=mix(c,s,th>.5?.6:.4);  // small sensor and video compression: soft detail
+ c=mix(c,s,th>.5?.6:.3);  // small sensor and video compression: soft detail
  float l=dot(c,vec3(.299,.587,.114));
  if(th>.5)c=vec3(pow(clamp((l-.06)*1.35,0.,1.),.85));
- else{c=mix(vec3(l),c,.8);c=c*vec3(.97,1.,.95)*.92+.035;}  // flat FPV-cam colour, lifted blacks
+ else{c=mix(vec3(l),c,.85);c=c*vec3(.97,1.,.95)*.95*ex+.025;c=c/(1.+max(c-.85,0.)*1.5);}  // flat FPV-cam colour, lifted blacks, exposure, soft highlight roll-off
  float g=gr*(th>.5?1.6:1.),n=h(vUv*res+fract(t*7.13)*91.)-.5;
- c+=n*g*(.1+.22*(1.-l));  // sensor noise, strongest in the shadows
- if(th<.5)c+=(vec3(h(vUv*res*.7+fract(t*3.1)*17.),h(vUv*res*.7+fract(t*5.3)*29.),h(vUv*res*.7+fract(t*2.7)*41.))-.5)*g*.06;  // chroma speckle
+ c+=n*g*(th>.5?.1+.22*(1.-l):.04+.13*(1.-l));  // sensor noise, strongest in the shadows
+ if(th<.5)c+=(vec3(h(vUv*res*.7+fract(t*3.1)*17.),h(vUv*res*.7+fract(t*5.3)*29.),h(vUv*res*.7+fract(t*2.7)*41.))-.5)*g*.03;  // chroma speckle
  c=mix(c,vec3(h(floor(vUv*res/vec2(2.,1.))+fract(t*11.)*73.)),clamp(bad*bad*1.1-.05,0.,.85));  // snow as the link fades
  c*=1.-g*.05*h(vec2(row,fr))-(g*.06+bad*.2)*smoothstep(.0,.08,abs(fract(vUv.y*.7-t*.23)-.5)-.42);  // line flicker and a rolling band
- float d=length(c0*vec2(res.x/res.y,1.));c*=1.-.6*smoothstep(.4,1.05,d);  // lens vignette
+ float d=length(c0*vec2(res.x/res.y,1.));c*=1.-(th>.5?.5:.2)*smoothstep(th>.5?.4:.55,1.15,d);  // lens vignette: light on the colour cam, heavier on the thermal
  gl_FragColor=vec4(c,1.);}`});
 sens.enabled=false;composer.addPass(sens);
 resize();
@@ -115,22 +115,16 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
    g.save();g.translate(gx(x),gx(z));g.rotate(A);g.fillStyle='#788a4b';g.fillRect(-16*KP,-24*KP,32*KP,48*KP);g.fillStyle='#4e6a35';g.fillRect(-14*KP,4*KP,28*KP,18*KP);g.restore();HOUSES.push([x,z,A,rnd()])}}
  for(const s of SOLG){g.fillStyle=s.fob?'#5d5340':s===PADP?'#8a8b84':'#86857c';g.fillRect(gx(s.x-s.r),gx(s.z-s.r*.8),s.r*2*KP,s.r*1.6*KP);if(s.fob)road([[s.x,s.z],[s.x+40,s.z+260]],5,'#7a6f58')}
  const im=g.getImageData(0,0,GT,GT),D=im.data;for(let i=0;i<D.length;i+=4){const n=.9+Math.random()*.2;D[i]*=n;D[i+1]*=n;D[i+2]*=n}g.putImageData(im,0,0)});
-// close-up detail: two scales of tiling noise multiplied over the field texture so the ground keeps grain at low level
-const detailTex=(()=>{const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d'),im=g.createImageData(256,256),D=im.data,N=(x,y,f)=>vnoise(x/256*f,y/256*f)*.6+vnoise(x/256*f*4,y/256*f*4)*.4;
- for(let y=0;y<256;y++)for(let x=0;x<256;x++){const i=(y*256+x)*4,a=(N(x,y,8)+N((x+128)%256,y,8)*0)*.7+Math.random()*.3,b=N(x,y,4);D[i]=a*255;D[i+1]=b*255;D[i+2]=128;D[i+3]=255}g.putImageData(im,0,0);
- const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t})();
-function detail(m,s1=7,s2=53){m.onBeforeCompile=sh=>{sh.uniforms.dTex={value:detailTex};sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <project_vertex>','#include <project_vertex>\nvWP=(modelMatrix*vec4(transformed,1.)).xyz;');
- sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;uniform sampler2D dTex;').replace('#include <map_fragment>',`#include <map_fragment>\n{float a=texture2D(dTex,vWP.xz/${s1}.).r,b=texture2D(dTex,vWP.xz/${s2}.+.37).g;diffuseColor.rgb*=(.78+.44*a)*(.86+.28*b);}`)};return m}
 {const g=new THREE.PlaneGeometry(TW,TW,TN,TN);g.rotateX(-Math.PI/2);const p=g.attributes.position;for(let k=0;k<p.count;k++)p.setY(k,HF[k]);g.computeVertexNormals();
- const m=new THREE.Mesh(g,detail(new THREE.MeshStandardMaterial({map:groundTex,roughness:1})));m.receiveShadow=true;scene.add(m);
+ const m=new THREE.Mesh(g,detail(new THREE.MeshStandardMaterial({map:groundTex,roughness:1}),7,53,1,.45));m.receiveShadow=true;scene.add(m);
  // river surface: a ribbon along the river line only (the low ground elsewhere stays dry)
  const rv=[];for(let x=-TW/2;x<=TW/2;x+=25){const z=rivZ(x),dz=(rivZ(x+1)-z),n=Math.hypot(1,dz),ox=-dz/n*68,oz=1/n*68;rv.push(x+ox,-10.5,z+oz,x-ox,-10.5,z-oz)}
  const ri=[];for(let k=0;k<rv.length/6-1;k++){const a=k*2;ri.push(a,a+2,a+1,a+1,a+2,a+3)}const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rv,3));rg.setIndex(ri);rg.computeVertexNormals();
  scene.add(new THREE.Mesh(rg,new THREE.MeshStandardMaterial({color:0x2f5562,roughness:.08,metalness:.1,side:THREE.DoubleSide})))}
 // trees (trunk + two-lobed crown), village houses, power line from the substation
 {const m4=new THREE.Matrix4(),q=new QT(),s=new V3(),c=new THREE.Color(),N=TREES.length,
-  trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(.2,.35,1,6).translate(0,.5,0),new THREE.MeshStandardMaterial({color:0x4a3b2c,roughness:1}),N),
-  crown=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),new THREE.MeshStandardMaterial({roughness:.95,flatShading:true}),N*2);
+  trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(.2,.35,1,7).translate(0,.5,0),detail(new THREE.MeshStandardMaterial({color:0x4a3b2c,roughness:1}),.6,3,0,.25),N),
+  crown=new THREE.InstancedMesh(crownGeo(),detail(new THREE.MeshStandardMaterial({roughness:.9,vertexColors:true}),1.3,5,0,.6),N*2);
  TREES.forEach(([x,z,h],i)=>{const y=gh(x,z)-.3,r=h*.26;m4.compose(_t.set(x,y,z),q.identity(),s.set(1+h*.03,h*.55,1+h*.03));trunk.setMatrixAt(i,m4);
   c.setHSL(.23+Math.random()*.08,.38+Math.random()*.15,.12+Math.random()*.08,THREE.SRGBColorSpace);
   for(let k=0;k<2;k++){q.setFromAxisAngle(UP,x*z+k);m4.compose(_t.set(x+(k?r*.4:-r*.3),y+h*(k?.72:.55),z+(k?-r*.3:r*.3)),q,s.set(r*(k?.8:1),r*(k?.9:1.15),r*(k?.8:1)));crown.setMatrixAt(i*2+k,m4);crown.setColorAt(i*2+k,c)}});
@@ -175,7 +169,7 @@ const cloudG=new THREE.Group();scene.add(cloudG);
 const deckTex=tex(512,512,g=>{g.fillStyle='#fff';g.fillRect(0,0,512,512);for(let i=0;i<500;i++){const x=Math.random()*512,y=Math.random()*512,r=20+Math.random()*60,gr=g.createRadialGradient(x,y,0,x,y,r);const v=Math.random()<.5?'0,0,0':'255,255,255';gr.addColorStop(0,`rgba(${v},.12)`);gr.addColorStop(1,`rgba(${v},0)`);g.fillStyle=gr;g.fillRect(0,0,512,512)}},true);
 deckTex.repeat.set(24,24);
 const deck=new THREE.Mesh(new THREE.PlaneGeometry(40000,40000),new THREE.MeshLambertMaterial({map:deckTex,color:0x9aa0a6,side:THREE.DoubleSide,transparent:true,opacity:.97,depthWrite:false}));deck.rotation.x=-Math.PI/2;scene.add(deck);
-const sunDisc=new THREE.Sprite(new THREE.SpriteMaterial({map:dot,color:new THREE.Color(0xfff2dc).multiplyScalar(4),fog:false,toneMapped:false,depthWrite:false}));sunDisc.scale.setScalar(900);scene.add(sunDisc);
+const _je=new THREE.Euler();const sunDisc=new THREE.Sprite(new THREE.SpriteMaterial({map:dot,color:new THREE.Color(0xfff2dc).multiplyScalar(4),fog:false,toneMapped:false,depthWrite:false}));sunDisc.scale.setScalar(900);scene.add(sunDisc);
 // rain: streaks drawn in a box around the camera, stretched by the drop's velocity relative to the camera (so speed reads as slanted streaks)
 const RN=5000,rP=new Float32Array(RN*3),rL=new Float32Array(RN*6);
 for(let i=0;i<RN*3;i++)rP[i]=(Math.random()-.5)*120;
@@ -292,7 +286,7 @@ const MAT={carbon:new THREE.MeshStandardMaterial({color:0x16191f,roughness:.45,m
  band:new THREE.MeshStandardMaterial({color:0xd8b12a,roughness:.5}),led:glow(0xff3030,4)};
 const _q=new QT(),_v=new V3(),_w=new V3(),_u=new V3();
 class Drone{
- constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),dead:0,mah:0,t:0,home:FOBS[1]});this.build();this.spawn()}
+ constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),tb:new V3(),gu:new V3(),dead:0,mah:0,t:0,home:FOBS[1]});this.build();this.spawn()}
  build(){const g=this.mesh=new THREE.Group();
   const add=(geo,mat,x,y,z,ry=0,par=g)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.y=ry;m.castShadow=true;par.add(m);return m};
   add(GEO.body,MAT.olive,0,0,0);add(GEO.nose,MAT.olive,0,.28,0);add(GEO.tail,MAT.olive,0,-.32,0);add(GEO.band,MAT.band,0,.17,0);  // fuselage, warhead section behind the nose
@@ -304,22 +298,31 @@ class Drone{
  // on the launch mat at the forward position nearest the most urgent track, standing on its fins, nose up, facing the track, motors off
  spawn(){const u=selT(),f=this.home=u?FOBS.reduce((a,b)=>Math.hypot(b.x-u.p.x,b.z-u.p.z)<Math.hypot(a.x-u.p.x,a.z-u.p.z)?b:a):FOBS[1];
   this.p.set(f.mat.x,f.mat.y+(.36+.04)*MSZ+.005,f.mat.z);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);
-  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true}
+  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true}
  step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT);if(THR*this.ms**TE<G*.5&&_u.set(0,1,0).applyQuaternion(this.q).y>.7)wt.set(0,0,0)}this.t+=dt;  // standing on its fins below half-hover thrust: the sticks can't tip it over
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&_u.y<.7&&this.pivot(wt,dt))return 0;  // only once it has fallen over: standing on its fins it stays put
-  this.w.lerp(wt,1-Math.exp(-dt/(gd?.09:TAU)));const up=_u.set(0,1,0).applyQuaternion(this.q),va=_vr.subVectors(this.v,WIND).dot(up);
+  if(gd)this.w.lerp(wt,1-Math.exp(-dt/.09));
+  else{const au=AMAX*(.3+.7*sm(Math.min(this.ms,1-this.ms)*4)),dw=_dw.subVectors(wt,this.w).multiplyScalar(1-Math.exp(-dt/TAU)),lim=au*dt;if(dw.length()>lim)dw.setLength(lim);this.w.add(dw);this.aero(dt)}  // rate loop with finite authority: differential thrust runs out near idle and full throttle
+  const AIR=_ag.copy(WIND).add(this.gu),up=_u.set(0,1,0).applyQuaternion(this.q),va=_vr.subVectors(this.v,AIR).dot(up);
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
   this.ms+=(this.thr-this.ms)*(1-Math.exp(-dt/Math.max(1e-3,this.thr>this.ms?SPOOL:SPOOL*1.6)));  // motor spool-up / spin-down
   this.mah+=(6+220*Math.max(this.ms,0)**1.5)*dt/3.6;  // battery current draw, mAh
-  let acc=THR*this.ms**TE;  // thrust ~ rpm², shaped by the thrust curve
+  let acc=THR*this.ms**TE*((4.2-.95*Math.min(1,this.mah/BCAP))/4.2)**1.5*(1-.06*this.ms);  // thrust ~ rpm², shaped by the thrust curve; falls as the pack drains and sags under load
   acc*=cl(1-va/VP,0,1.15);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
   this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;
-  const vr=_vr.subVectors(this.v,WIND),s=vr.length();if(s>1e-4){const bx=_x.set(1,0,0).applyQuaternion(this.q),bz=_z.set(0,0,1).applyQuaternion(this.q),k=DQ*s,vx=vr.dot(bx),vy=vr.dot(up),vz=vr.dot(bz);
+  const vr=_vr.subVectors(this.v,AIR),s=vr.length();if(s>1e-4){const bx=_x.set(1,0,0).applyQuaternion(this.q),bz=_z.set(0,0,1).applyQuaternion(this.q),k=DQ*s,vx=vr.dot(bx),vy=vr.dot(up),vz=vr.dot(bz);
    _gw.copy(bx).multiplyScalar(vx*(DL+k*FS)).addScaledVector(up,vy*(DL+k)).addScaledVector(bz,vz*(DL+k*FS));const dl=_gw.length()*dt;this.v.addScaledVector(_gw,-dt*(dl>s?s/dl:1))}  // body-axis drag on the airspeed (wind included): the dart slips through the air nose-first, while the fuselage and cruciform fins resist sideways flow (FS x), which swings the velocity onto the nose, so it flies where it points and the fins carry it in level flight
   const s2=this.v.length();if(s2>MAXV)this.v.multiplyScalar(Math.max(MAXV/s2,1-dt*2));
   this.p.addScaledVector(this.v,dt);const hit=this.ground();if(hit>9)noise(.12,500,cl(hit/60,0,.4));return hit}
+ // airframe aerodynamics and the air it flies through: turbulence (stronger with wind, speed, near the ground and in a Shahed's wake), cruciform fins that
+ // weathervane the nose into the airflow and damp pitch/yaw, gusts that push the airframe around. The rate loop has to fight all of it with finite authority.
+ aero(dt){const vr=_vr.subVectors(this.v,WIND),s=vr.length(),agl=this.p.y-gh(this.p.x,this.p.z);let wk=0;
+  for(const t of TH)if(live(t)){const r=_wk.subVectors(this.p,t.p),dv=_tv.copy(t.v).normalize(),al=r.dot(dv);if(al<-2&&al>-70){const lat=r.addScaledVector(dv,-al).length();if(lat<7)wk=Math.max(wk,(1-lat/7)*(1+al/70))}}
+  const sg=(1.2+WX.wind*.5+s*.07)*(1+1.5*sm(1-agl/60))*(1+5*wk),gs=.25*WX.wind+.6+8*wk;
+  this.w.addScaledVector(ou(this.tb,dt,.25,sg,.4),dt);ou(this.gu,dt,1.8,gs,.5);  // coloured noise: sg rad/s² over 0.25 s, gs m/s over 1.8 s
+  if(s>6)weathervane(this,vr,s,dt,KW,KD)}  // fins rotate the nose toward the relative wind
  pivot(wt,dt){const ww=_ww.copy(wt).applyQuaternion(this.q);let bv=-.05,ok=false;
   for(const C of HBP){const r=_br.copy(C).applyQuaternion(this.q),P=_bp2.copy(this.p).add(r);if(sdf(P.x,P.y,P.z)+HBR<-.15)continue;
    const n=sdN(P,_an);r.addScaledVector(n,HBR);const s=_vp.crossVectors(ww,r).dot(n);if(-s<bv){bv=-s;_pv.copy(r);ok=true}}  // corner the rotation would push hardest into the ground = pivot
@@ -336,6 +339,7 @@ class Drone{
    m=Math.max(m,-vn)}
   this.w.copy(ww).applyQuaternion(_qb.copy(this.q).invert());this.gt=.12;return m}}
 const _H=Array.from({length:16},()=>[new V3(),new V3()]),_pv=new V3();
+const _dw=new V3(),_ag=new V3(),_ax=new V3(),_wk=new V3(),AMAX=110,KW=.0035,KD=.012;
 const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new V3(),_qb=new QT();
 const cellV=d=>4.2-.95*Math.min(1,d.mah/BCAP)-.32*Math.max(d.ms,0);  // per-cell voltage with sag under load
 
@@ -361,15 +365,11 @@ function humanControl(d,dt){const g=pad();let thr=null,yaw=0,pit=0,rol=0;
 const fwdH=(q,o)=>o.set(0,1,-1).applyQuaternion(q).setY(0);
 const fireIn=fireBtnIn;
 // camera tilt switch (S.tilt for cruise / level for take-off and hover) and thermal switch: keyboard L / H toggle; a mapped radio switch axis sets the position whenever it moves, a mapped button toggles
-let camUp=false,therm=false;const swPrev={},camA=()=>camUp?S.tilt:0;
+let camUp=false,therm=false;const camA=()=>camUp?S.tilt:0;
 const setGuide=v=>{S.guide=v?1:0;save();if(!demo)banner(v?'GUIDANCE ON':'GUIDANCE OFF','',.7)};
 const setCam=v=>{if(v!==camUp){camUp=v;if(!demo)banner(v?`CAM ${S.tilt}°`:'CAM LEVEL','',.7)}},setTherm=v=>{if(v!==therm){therm=v;if(!demo)banner(v?'THERMAL WHT':'DAY CAM','',.7)}};
-// switch mapping: -1 none, a button index, 'aN' = axis N above +0.5, '-aN' = axis N below -0.5 (2- and 3-position radio switches report as axes)
-const swOn=(g,b)=>b===-1||b==null?null:typeof b==='string'?(b[0]==='-'?(g.axes[+b.slice(2)]??0)<-.5:(g.axes[+b.slice(1)]??0)>.5):!!g.buttons[b]?.pressed;
-function swRead(b){const g=pad();return g?swOn(g,b):null}
 const SWA={tiltSw:[setCam,()=>camUp],thermSw:[setTherm,()=>therm],guideSw:[v=>setGuide(v),()=>!!S.guide],nextSw:[()=>nextTrack(),null]};
-function switches(){for(const k in SWA){const[set,get]=SWA[k],b=S[k],v=swRead(b),p=swPrev[k];swPrev[k]=v;if(v==null||v===p)continue;
- if(!get){if(p!=null&&(typeof b==='string'||v))set()}else if(typeof b==='string')set(v);else if(v&&p!=null)set(!get())}}  // switch axes set the position whenever they move; buttons toggle; Next track fires on any flip
+const switches=()=>pollSwitches(SWA);
 
 // ---------- threats: Shahed-136 / Geran-2 (3.5 m, 2.5 m span, MD-550 two-stroke pusher, ~185 km/h) and jet Geran-3 (3.5 m, 3 m span, turbojet on top, 300–370 km/h) ----------
 function shWing(span){const s=new THREE.Shape(),h=span/2;s.moveTo(0,.95);s.lineTo(h,-.95);s.lineTo(h,-1.72);s.lineTo(-h,-1.72);s.lineTo(-h,-.95);s.closePath();return new THREE.ExtrudeGeometry(s,{depth:.06,bevelEnabled:true,bevelThickness:.015,bevelSize:.02,bevelSegments:1}).rotateX(Math.PI/2).translate(0,-.02,0)}
@@ -399,6 +399,7 @@ function threatStep(t,dt){if(t.st==='dead')return;
   if(sdf(t.p.x,t.p.y,t.p.z)>-.5){boom(t.p,1.6);t.st='dead'}return}
  if(t.st==='cruise'){
   if(t.tgt.hp<=0){const L=liveSites();if(L.length){t.tgt=L.reduce((a,b)=>Math.hypot(a.x-t.p.x,a.z-t.p.z)<Math.hypot(b.x-t.p.x,b.z-t.p.z)?a:b);t.aim=t.tgt.aims[Math.random()*t.tgt.aims.length|0]}}
+  if(t.dmg){t.alt=Math.max(25,t.alt-dt*5);if((t.smoke-=dt)<=0){t.smoke=.08;SMK.emit(t.p,0x2e2b28,1,1.2,4,null,1,.75)}if(t.fail&&(t.fail-=dt)<=0){killThreat(t);if(!demo)feed(`<span class="cg">${tName(t)} failed from its damage, going down</span>`);return}}
   const w=t.wps[0]||t.aim;_td.set(w.x-t.p.x,0,w.z-t.p.z);if(t.wps.length&&_td.length()<Math.max(300,t.spd/.35*1.6))t.wps.shift();
   // jet Geran-3: full speed on the first leg, throttled back to piston speed on the middle leg (fuel), full speed again for the run-in
   if(t.jet){const tgt=(t.wps.length===1?.6:1)*t.cs;t.spd+=(tgt-t.spd)*Math.min(1,dt*.3)}
@@ -411,7 +412,7 @@ function threatStep(t,dt){if(t.st==='dead')return;
 function impact(t){t.st='dead';boom(t.aim,4);if(demo||wstate==='over')return;const s=t.tgt;
  if(s.hp>0){s.hp--;lost++;wl++;FIRES.push({p:t.aim.clone(),t:0});feed(`<span class="cr">Impact</span> on the ${s.n.toLowerCase()}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(220,110,.6,.12,'sawtooth')}
  if(!liveSites().length){wstate='over';wT=8;banner('ALL SITES DESTROYED','cr',0);feed(`Held ${wave-1} wave${wave===2?'':'s'} · ${saved} downed · ${spent} interceptors`)}}
-function killThreat(t){t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
+function killThreat(t,cat){if(cat){t.st='dead';boom(t.p,3.2);SMK.emit(t.p,0x1c1a18,30,14,6,_t.set(0,3,0),1.4,.85);if(!demo){saved++;ws++;tone(660,1320,.25,.12,'triangle')}return}t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
  boom(t.p,1.2);if(demo)return;saved++;ws++;tone(660,1320,.25,.12,'triangle')}
 function boom(p,k){FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
  boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*k);shake=Math.max(shake,near(p)*k*.6);noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}
@@ -431,8 +432,9 @@ function guidance(me){const t=selT();if(!t||!me)return null;const r=t.rb,age=r?r
  for(let i=0;i<6;i++){GD.pip.copy(GD.tp).addScaledVector(GD.tv,tau);if(t.st!=='dive')GD.pip.addScaledVector(vh,-60);tau=Math.min(150,GD.pip.distanceTo(me.p)/vi)}
  const f=me.v.lengthSq()>100?_tl.copy(me.v).setY(0):fwdH(me.q,_tl),b=Math.atan2(GD.pip.x-me.p.x,-(GD.pip.z-me.p.z)),h=Math.atan2(f.x,-f.z);
  return{t,ttg:tau,rng,ph:rng>1500?'MIDCOURSE':'TERMINAL',herr:((b-h)*180/Math.PI+540)%360-180,dalt:GD.pip.y-me.p.y}}
-// fuse window: the proximity fuse can't resolve a fast pass, so the effective radius shrinks with closing speed (tail chase = full window, head-on = direct hit only)
-const fuseR=cv=>LETH*cl(1.3-cv/70,.15,1);
+// warhead: a small fragmentation charge. Kill probability falls off with miss distance; the proximity fuse fires at closest approach but has ~15 ms of delay,
+// so at high closing speed it bursts past the target (tail chase ≈ full lethal radius, head-on ≈ direct hit only). fuseR = the 50% kill radius at a closing speed.
+const FDLY=.015,pkill=(r,cv)=>{const re=r+cv*FDLY,k=LETH/4;return re<1.2?1:Math.exp(-(((re-1.2)/(2.5*k))**2))},fuseR=cv=>Math.max(.3,1.2+2.08*LETH/4-cv*FDLY);
 const aspect=(t,p)=>{const c=_ad.subVectors(p,t.p).normalize().dot(_tv.copy(t.v).normalize());return c<-.5?'TAIL':c>.5?'HEAD-ON':'BEAM'};
 
 // ---------- interceptor life: launch, fuse, detonation, crash, battery ----------
@@ -446,27 +448,34 @@ function lose(why){const d=player;if(d.dead>0)return;d.dead=RELT;spent++;deadP.c
  _f.copy(d.v).setY(0);if(_f.lengthSq()<.01)_f.set(0,0,-1);deadC.copy(d.p).addScaledVector(_f.normalize(),-25).setY(Math.max(d.p.y,gh(d.p.x,d.p.z))+8);
  boom(d.p,why==='det'?.7:.4);if(camMode===0){const f=$('flash');f.style.transition='none';f.style.opacity=why==='det'?.9:.5;requestAnimationFrame(()=>{f.style.transition='opacity .6s';f.style.opacity=0})}
  if(why==='crash')feed('Interceptor lost: crashed');if(why==='bat')feed('Interceptor lost: battery flat')}
-function detonate(){const d=player;let n=0,j=0;for(const t of TH)if(live(t)){const r=t.p.distanceTo(d.p),cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a.subVectors(t.p,d.p))/(r||1));if(r<Math.max(2,fuseR(cv))){killThreat(t);n++;if(t.jet)j++}}
- lose('det');feed(n?`<span class="cg">${n>1?'Double kill':j?'Jet Geran-3 down':'Shahed down'}</span>`:'Detonated: nothing in the fuse window')}
-// warhead: contact always fires it; the proximity fuse fires at closest approach inside the fuse window; the detonate button fires it any time
+const tName=t=>`T${String(t.id).padStart(2,'0')} ${t.jet?'Geran-3':'Shahed'}`;
+function detonate(){const d=player,out=[];
+ for(const t of TH)if(live(t)){const r=t.p.distanceTo(d.p);if(r>30)continue;const cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a.subVectors(t.p,d.p))/(r||1)),re=r+cv*FDLY;
+  if(Math.random()<pkill(r,cv)){const cat=re<2.4&&Math.random()<.55;killThreat(t,cat);out.push(`<span class="cg">${tName(t)} ${cat?'destroyed: its warhead went up':'hit, going down'}</span> (${r.toFixed(1)} m)`)}
+  else if(!t.dmg&&Math.random()<Math.exp(-(((re-1.2)/(5*LETH/4))**2))){damage(t);out.push(`<span class="co">${tName(t)} damaged, still flying</span> (${r.toFixed(1)} m)`)}
+  else out.push(`<span class="co">Missed ${tName(t)}: burst ${re.toFixed(1)} m away</span>${cv>40?' · closing too fast, get in its six':''}`)}
+ lose('det');if(!demo)feed(out.join('<br>')||'Detonated: nothing in range')}
+// damaged: smoking, slower, sinking; some fail a little later
+function damage(t){t.dmg=1;t.cs*=.8;t.spd*=.8;t.fail=Math.random()<.45?6+Math.random()*16:0;FX.emit(t.p,0xffb040,30,8,.6,null,2)}
+// warhead: contact always fires it; the proximity fuse fires at closest approach inside its 6 m sensing range; the detonate button fires it any time
 function fuse(){const d=player,fire=fireIn(),edge=fire&&!fireWas;fireWas=fire;let hit=false,rec=false;
  for(const t of TH){if(!live(t))continue;const r=_a.subVectors(t.p,d.p).length(),cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a)/(r||1));
-  if(r<2)hit=true;else if(r<fuseR(cv)&&r>t.pd)rec=true;
-  if(r<LETH*1.5){t.dmin=Math.min(t.dmin,r);t.cvm=Math.max(t.cvm,cv)}else if(t.dmin<LETH&&r>t.pd&&!demo){feed(`<span class="co">Missed: closing at ${Math.round(t.cvm*3.6)} km/h is too fast for the fuse.</span> Get behind it.`);t.dmin=1e9;t.cvm=0}
+  if(r<1.5)hit=true;else if(r<LETH*1.5&&r>t.pd)rec=true;
+  if(r<20){t.dmin=Math.min(t.dmin,r);t.cvm=Math.max(t.cvm,cv)}else if(t.dmin<20&&r>t.pd&&!demo){feed(`<span class="co">Passed ${tName(t)} ${Math.round(t.dmin)} m off</span>${S.fuse==='auto'?' · outside the 6 m fuse':''}`);t.dmin=1e9;t.cvm=0}
   t.pd=r}
  if(hit||S.fuse==='auto'&&rec||edge)detonate()}
 
 // ---------- waves ----------
-function startWave(){wave++;wstate='brief';wT=demo?1:6;toSpawn=Math.max(1,Math.round((3+2*wave)*DIFF[demo?1:S.diff].cnt*TCNT));ws=wl=0;spawnT=0;
- if(!demo){banner('WAVE '+wave,'cr',2.4);feed(`${toSpawn} tracks inbound from the north`)}}
+function startWave(){wave++;wstate='brief';wT=demo?1:6;toSpawn=2;ws=wl=0;spawnT=0;
+ if(!demo){banner('WAVE '+wave,'cr',2.4);feed('Two tracks inbound from the north: a Shahed-136, then a jet Geran-3')}}
 function waves(dt){
  if(wstate==='over'){if((wT-=dt)<=0)startDemo();return}
  if(wstate==='brief'){if((wT-=dt)<=0)wstate='wave';return}
- if(wstate==='wave'){if(toSpawn>0&&(spawnT-=dt)<=0){toSpawn--;spawnThreat(wave>=3&&Math.random()<Math.min(.4,.1*(wave-2)));spawnT=(7-Math.min(wave,8)*.45)*DIFF[demo?1:S.diff].gap*(.6+Math.random()*.8)}
+ if(wstate==='wave'){if(toSpawn>0&&(spawnT-=dt)<=0){toSpawn--;spawnThreat(toSpawn===0);spawnT=(25+Math.random()*20)*DIFF[demo?1:S.diff].gap}  // each wave: one piston Shahed-136, then one jet Geran-3 a little later
   if(!toSpawn&&!TH.some(live)){wstate='clear';wT=5;if(!demo){banner(`WAVE ${wave} CLEAR`,'cg',2.6);feed(`Wave ${wave}: <span class="cg">${ws} down</span> · <span class="cr">${wl} hit${wl===1?'':'s'}</span>`)}}return}
  if(wstate==='clear'&&(wT-=dt)<=0)startWave()}
 function resetWorld(){pickT=null;TH.forEach(t=>scene.remove(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
-function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);startWave();toSpawn--;spawnThreat(false);launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
+function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);startWave();toSpawn--;spawnThreat(false);spawnT=25+Math.random()*20;launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
 function startDemo(){demo=true;resetWorld();setWeather(S.wx);if(player)player.mesh.visible=false;startWave();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
 function showMenu(v){menuOpen=v;$('menu').hidden=!v;paused=v&&!demo}
 
@@ -476,7 +485,7 @@ function updateCam(dt,now){const me=player;camPrev.copy(camera.position);
  if(demo||!me){const t=now*1.5e-5,tg=nearestThreat(_ip.set(0,300,0));camPos.set(Math.sin(t)*1400,320+Math.sin(t*1.7)*60,900+Math.cos(t)*900);camera.position.copy(camPos);if(tg)camFwd.lerp(_t.copy(tg.p).sub(camPos).normalize(),1-Math.exp(-dt*.5));camera.lookAt(_t.copy(camPos).add(camFwd));setFov(55,false)}
  else if(me.dead>0){camPos.lerp(deadC,1-Math.exp(-dt*3));camera.position.copy(camPos);camera.lookAt(deadP);setFov(100)}
  else{const fpv=camMode===0;me.mesh.visible=!fpv;
-  if(fpv){camera.position.copy(me.p).add(_cp.set(0,.37,-.03).multiplyScalar(MSZ).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camA()*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);setFov(S.fov)}
+  if(fpv){camera.position.copy(me.p).add(_cp.set(0,.37,-.03).multiplyScalar(MSZ).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camA()*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);{const a=(.0006+.0022*me.ms+.0004*me.tb.length()*.1)*SHK;camera.quaternion.multiply(_q.setFromEuler(_je.set(gn()*a,gn()*a*.5,gn()*a)))}setFov(S.fov)}
   else{const f=fwdH(me.q,_f);if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);f.normalize();
    const nt=selT(),foc=nt?nt.p:_ip.set(PADP.x,PADY,PADP.z);if(camMode===2&&nt)f.subVectors(foc,me.p).setY(0).normalize();if(f.lengthSq()<.5)f.copy(camFwd);camFwd.lerp(f,1-Math.exp(-dt*5)).normalize();
    _cp.copy(me.p).addScaledVector(camFwd,-3.4*MSZ).add(_t.set(0,1.1*MSZ,0));_cp.y=Math.max(_cp.y,gh(_cp.x,_cp.z)+.6);
@@ -531,7 +540,7 @@ function hud(dt){if(demo)return;const me=player;$('sw').textContent='WAVE '+wave
    `<span class="${cv<3.5?'r':''}">BAT ${(cv*12).toFixed(1)}V 12S  ${String(Math.round(me.mah)).padStart(5)} mAh  ${String(fl/60|0).padStart(2,'0')}:${String(fl%60).padStart(2,'0')}</span>`:`<span class="r">NEXT INTERCEPTOR ${me.dead.toFixed(1)}</span>`)+
   `<span>FUSE ${S.fuse==='auto'?'PROX':'MANUAL'} · INBOUND ${inb} · INTERCEPTORS USED ${spent}</span>`;
  if(sel){const r=_a.subVectors(sel.p,me.p),d=r.length(),c2=-_b.subVectors(sel.v,me.v).dot(r)/d,asp=aspect(sel,me.p),win=fuseR(Math.max(0,c2));
-  $('trk').innerHTML=`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${sel.jet?'GERAN-3 JET':'SHAHED-136'}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}<br>${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}<br>${alive?`ASPECT <span class="${asp==='TAIL'?'cg':asp==='HEAD-ON'?'cr':''}">${asp}</span> · CLOSING ${Math.round(c2*3.6)} km/h · FUSE ${win.toFixed(1)} m`:''}`}else $('trk').textContent='NO TRACKS';
+  $('trk').innerHTML=`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${sel.jet?'GERAN-3 JET':'SHAHED-136'}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}<br>${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}<br>${alive?`ASPECT <span class="${asp==='TAIL'?'cg':asp==='HEAD-ON'?'cr':''}">${asp}</span> · CLOSING ${Math.round(c2*3.6)} km/h · KILL R ${win.toFixed(1)} m`:''}`}else $('trk').textContent='NO TRACKS';
  const lq=alive?linkQ(me,dt):1;$('warn').textContent=!alive?'':lq<.45?'VIDEO LINK WEAK · CLIMB OR TURN BACK':Math.abs(me.p.x)>AW-300||Math.abs(me.p.z)>AW-300?'LEAVING THE AO · TURN BACK':cv<3.5?'BATTERY LOW · LAND':'';
  $('xh').hidden=camMode!==0||!alive;
  const a=$('arrow');if(!sel||!alive){a.hidden=true}else{_t.copy(sel.p).project(camera);let x=_t.x,y=_t.y;const behind=_t.z>1;if(behind){x=-x;y=-y}
@@ -580,22 +589,8 @@ const padKeys=e=>{if(e(9))togglePause();if(!menuOpen&&!demo){if(e(4))cycleCam();
 const FIELDS=[['diff','Threat level','sel',DIFF.map((d,i)=>[i,d.n])],['wx','Weather','sel',[['random','Random'],...Object.entries(WXS).map(([k,w])=>[k,w.n])]],['fuse','Warhead fuse','sel',[['auto','Proximity (auto)'],['manual','Manual (detonate button)']]],
  ['rr','Radar range','sel',RRS.map((r,i)=>[i,r/1000+' km'])],['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
  ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['guide','Midcourse guidance','sel',[[1,'On (PIP cue from ground radar)'],[0,'Off']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
-mountPad($('pilotpad'),{fireLabel:'Detonate',fireNote:'Warhead',flip:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx)});
-// switch and button mapping, each with a Learn button: press it, then flip the switch or press the button on the radio/gamepad
-const SWS=[['tiltSw','Cam tilt','L'],['thermSw','Thermal','H'],['guideSw','Guidance','G'],['nextSw','Next track','N']];let learn=null;
-const swName=b=>b===-1||b==null?'None':typeof b==='string'?(b[0]==='-'?`Axis ${b.slice(2)} low`:`Axis ${b.slice(1)} high`):'Button '+b;
-for(const[k,lab,key]of SWS){const l=document.createElement('label');l.textContent=lab;l.htmlFor='sw_'+k;const s=document.createElement('select');s.id='sw_'+k;s.add(new Option('None','-1'));
- for(let b=0;b<32;b++)s.add(new Option('Button '+b,b));for(let a=0;a<16;a++){s.add(new Option(`Switch axis ${a} high`,'a'+a));s.add(new Option(`Switch axis ${a} low`,'-a'+a))}
- s.onchange=()=>{const v=s.value;S[k]=/a/.test(v)?v:+v;delete swPrev[k];save()};
- const w=document.createElement('span');w.style.cssText='display:flex;gap:6px;align-items:center';w.innerHTML=`<button class="sm" id="ln_${k}" style="padding:4px 10px;font-size:12px">Learn</button><span class="note" id="st_${k}" style="margin:0;min-width:5.5em">${key} key</span>`;
- $('map').append(l,s,w);w.firstChild.onclick=()=>{const g=pad();if(!g){$('st_'+k).textContent='no radio';return}learn={k,ax:[...g.axes],bt:g.buttons.map(x=>x.pressed),t:performance.now()};syncSw()}}
-function syncSw(){for(const[k]of SWS){const s=$('sw_'+k);s.value=String(S[k]);if(s.selectedIndex<0)s.value='-1';$('ln_'+k).textContent=learn?.k===k?'Flip it…':'Learn'}}
-function learnTick(g){if(!learn)return;if(!g||performance.now()-learn.t>10000){learn=null;syncSw();return}const sticks=S.cal.map(c=>c.a);let v=null;
- g.buttons.forEach((b,i)=>{if(v==null&&b.pressed&&!learn.bt[i])v=i});
- if(v==null)g.axes.forEach((a,i)=>{if(v==null&&!sticks.includes(i)&&Math.abs(a-(learn.ax[i]??0))>.6)v=(a>(learn.ax[i]??0)?'a':'-a')+i});  // the new position counts as ON
- if(v!=null){S[learn.k]=v;delete swPrev[learn.k];save();$('st_'+learn.k).textContent=swName(v);learn=null;syncSw();tone(880,880,.08,.08)}}
-syncSw();
-const swTick=()=>{const g=pad();learnTick(g);for(const[k,,key]of SWS){if(learn?.k===k)continue;const v=g?swOn(g,S[k]):null;$('st_'+k).textContent=v==null?key+' key':v?'● ON':'○ off'}}
+mountPad($('pilotpad'),{flip:false,fire:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx)});
+mountSwitches([['fire','Detonate','F'],['tiltSw','Cam tilt','L'],['thermSw','Thermal','H'],['guideSw','Guidance','G'],['nextSw','Next track','N']]);
 syncUI();
 $('play').onclick=startMatch;$('resume').onclick=()=>showMenu(false);$('leave').onclick=startDemo;
 // ---------- mod panel ----------
@@ -625,7 +620,7 @@ function step(dt){const me=player;
  for(const t of TH)threatStep(t,dt);waves(dt);fires(dt)}
 startDemo();
 startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD,paused:()=>paused,menu:()=>menuOpen,draw:(vd,dt,now)=>{
- if(!menuOpen&&!demo)switches();if(menuOpen)swTick();
+ if(!menuOpen&&!demo)switches();
  const fpvOn=!demo&&camMode===0&&player&&player.dead<=0,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
- sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;
+ sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.08-.3*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
  weather(vd,now);visuals(vd,now);updateCam(dt,now);hud(vd);overlay()}});

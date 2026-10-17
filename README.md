@@ -23,14 +23,16 @@ index.html              launcher
 engine/                 shared by every game
   flight.js             the quad: thrust curve, prop inflow, spool, body-axis drag, prop wash, super boost,
                         rounded-box ground contact, turtle pivots, inverted-pendulum self-righting, flip-over,
-                        attitude controller (Angle mode + bots), stick input; tuneFlight(T), setWorld(sdf)
+                        attitude controller (Angle mode + bots), stick input; tuneFlight(T), setWorld(sdf);
+                        rough-air helpers (coloured-noise turbulence, fin weathervaning) for airframes that use them
   rates.js              Betaflight rates (BETAFLIGHT / ACTUAL / QUICK / KISS / RACEFLIGHT), 3 profiles,
                         throttle curve, Rates tab with CLI import/export, Easy sensitivity setup
   input.js              keyboard, mouse, Gamepad API, RC radio detection + guided calibration, Xbox profile,
-                        controller panel, fire / flip buttons
+                        controller panel, fire / flip buttons, switch mapping with Learn and Assign switches
   settings.js           saved settings; the pilot profile (calibration, rates, camera, flight mode, buttons)
                         is shared between games under the "droneleague" key
-  render.js             Three.js renderer, bloom, sky texture, FPV camera (uptilt, horizontal FOV)
+  render.js             Three.js renderer, bloom, sky texture, FPV camera (uptilt, horizontal FOV),
+                        world-space surface detail shader, lumpy tree crowns
   hud.js audio.js       banner / feed / edge arrow; motor synth (4 motors, Betaflight quad-X mixer), noise, tones
   menu.js modpanel.js   settings grid, mod panel (Rates + Physics tabs, presets, export/import)
   net.js loop.js        online rooms (claude.ai room or PeerJS), 120 Hz fixed-step main loop
