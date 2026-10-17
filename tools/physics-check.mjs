@@ -147,8 +147,9 @@ const fl = await run('c', () => {
   M.league(); W.PHYS.net = false; const statics = []; W.world.forEachCollider(c => { if (!c.parent()) { statics.push([c, c.isEnabled()]); c.setEnabled(false); } });
   const d = new D.Drone(0, 0, false, 'x'); GS.drones = [d]; d.boosting = false;
   const reset = (q) => { d.p.set(0, 0, 0); d.v.set(0, 0, 0); d.w.set(0, 0, 0); d.wt.set(0, 0, 0); d.q.copy(q || new M.QT()); d.thr = d.ms = T.HOV; d.gt = 0; d.flipT = 0; d.boost = 0; };
-  const go = (rapier, secs, thr, q) => { reset(q); const tr = []; for (let i = 0; i < secs * 120; i++) { d.thr = thr; d.wt.set(0, 0, 0); d.step(dt); if (rapier) W.physStep(dt, false); else { d.p.addScaledVector(d.v, dt); d.ph = 0; } tr.push(d.p.clone()); } return tr; };
+  const go = (rapier, secs, thr, q) => { reset(q); const tr = []; for (let i = 0; i < secs * 120; i++) { d.thr = thr; d.wt.set(0, 0, 0); d.step(dt); if (rapier) W.physStep(dt, false); else ref();  tr.push(d.p.clone()); } return tr; };
   const real = x => x / (T.G / 9.81);
+  const ref = () => { const wl = d.w.length(); if (wl > 1e-6) d.q.multiply(new M.QT().setFromAxisAngle(d.w.clone().divideScalar(wl), wl * dt)).normalize(); d.p.addScaledVector(d.v, dt); d.ph = 0; };  // v15: q turned by w*dt, p += v*dt
   out.hoverThrottle = +T.HOV.toFixed(4);
   { const a = go(false, 2, T.HOV), b = go(true, 2, T.HOV); out.hoverDrift2s = [+a[a.length - 1].y.toFixed(4), +b[b.length - 1].y.toFixed(4)]; }
   { const a = go(false, 1, 1), b = go(true, 1, 1); out.punch1s = {v15: +a[119].y.toFixed(2), rapier: +b[119].y.toFixed(2), realMetres: +real(b[119].y).toFixed(1), maxDiff: +Math.max(...a.map((p, i) => p.distanceTo(b[i]))).toFixed(5)}; }
@@ -157,7 +158,7 @@ const fl = await run('c', () => {
   let lo = .2, hi = 1.5; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (lev(false, m).vy > 0) lo = m; else hi = m; }
   const r0 = lev(false, lo), r1 = lev(true, lo); out.level = {pitchDeg: +(lo * 180 / Math.PI).toFixed(1), v15: +r0.vh.toFixed(2), rapier: +r1.vh.toFixed(2), kmhReal: +(r1.vh * 3.6 / (T.G / 9.81)).toFixed(0)};
   // a flip with stick input (rates), and drop to terminal flat
-  { const run2 = rapier => { reset(); const tr = []; for (let i = 0; i < 240; i++) { d.thr = .3; d.wt.set(i < 60 ? 6 : 0, 0, i < 120 ? 3 : 0); d.step(dt); if (rapier) W.physStep(dt, false); else { d.p.addScaledVector(d.v, dt); d.ph = 0; } tr.push([d.p.clone(), d.q.clone()]); } return tr; };
+  { const run2 = rapier => { reset(); const tr = []; for (let i = 0; i < 240; i++) { d.thr = .3; d.wt.set(i < 60 ? 6 : 0, 0, i < 120 ? 3 : 0); d.step(dt); if (rapier) W.physStep(dt, false); else ref();  tr.push([d.p.clone(), d.q.clone()]); } return tr; };
     const a = run2(false), b = run2(true); out.sticks2s = {maxPosDiff: +Math.max(...a.map((p, i) => p[0].distanceTo(b[i][0]))).toFixed(5), maxAngleDiffDeg: +Math.max(...a.map((p, i) => p[1].angleTo(b[i][1]) * 180 / Math.PI)).toFixed(4)}; }
   { const tr = go(true, 8, 0); out.flatFallTerminalReal = +real((tr[tr.length - 1].y - tr[tr.length - 2].y) * 120).toFixed(1); }
   statics.forEach(([c, e]) => c.setEnabled(e)); W.PHYS.net = true; d.dispose(); GS.drones = []; return out;

@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node tools/postbuild.mjs",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "test": "node --test \"test/*.test.mjs\""
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.14.0",

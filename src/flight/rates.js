@@ -1,8 +1,11 @@
 // Betaflight rate maths (rc.c) for every rates type; axis 0 roll, 1 pitch, 2 yaw; returns rad/s
 import {cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
-export const RT=()=>S.rprof[S.rpi],P3=x=>x*x*x,stk=[0,0,0,0];
-export function rate(axis,x){const R=RT(),[rc,sr,ex]=R.ax[axis],a=Math.abs(x);let r;
+// RO.r: a temporary rate profile (the Calibration Lab's working copy) that wins over S.rprof while it is set, so nothing half-tuned is ever saved
+export const RO={r:null},RT=()=>RO.r||S.rprof[S.rpi],P3=x=>x*x*x,stk=[0,0,0,0];
+export const rate=(axis,x)=>rateR(RT(),axis,x);
+// pure: rate of profile R (any rates type) on one axis at stick x (-1..1), rad/s
+export function rateR(R,axis,x){const[rc,sr,ex]=R.ax[axis],a=Math.abs(x);let r;
  switch(R.type){
   case'ACTUAL':{const e=ex/100,ef=a*(Math.pow(x,5)*e+x*(1-e)),cs=rc*10;r=x*cs+Math.max(0,sr*10-cs)*ef;break}
   case'QUICK':{const rr=rc*2,md=Math.max(sr*10,rr),e=ex/100,sf=(md/rr-1)/(md/rr),c=P3(a)*e+a*(1-e);r=x*rr/cl(1-c*sf,.01,1);break}

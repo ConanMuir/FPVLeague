@@ -89,11 +89,12 @@ function setMode(b,o,m){if(o.bodyMode===m)return;if(m==='off'){b.setEnabled(fals
  b.setBodyType(m==='dyn'?R.RigidBodyType.Dynamic:R.RigidBodyType.KinematicPositionBased,true)}o.bodyMode=m}
 
 // ---------- the step ----------
-// before: drones the flight model stepped this tick have d.ph=1, d.q0 (rotation at the start of the tick) and d.av (world rates);
+// before: drones the flight model stepped this tick have d.ph=1 and this tick's v and body rates w (anything that clamps p q v w
+// after Drone.step, like the Calibration Lab's rigs, is integrated from as-is);
 // the ball's velocity already has gravity/drag (ballPre). simBall: the ball moves this tick.
 export function physStep(dt,simBall){const t0=performance.now();setMap(!!GS.OBSON);
  for(const d of GS.drones){const b=d.body;if(!b)continue;const m=d.dead>0?'off':d.ph?'dyn':'kin';setMode(b,d,m);
-  if(m==='dyn'){b.setTranslation(d.p,true);b.setRotation(vec4(d.q0||d.q),true);b.setLinvel(d.v,true);b.setAngvel(d.av||_v.set(0,0,0),true);d.v0=(d.v0||new V3()).copy(d.v)}
+  if(m==='dyn'){b.setTranslation(d.p,true);b.setRotation(vec4(d.q),true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
   else if(m==='kin'){b.setNextKinematicTranslation(d.p);b.setNextKinematicRotation(vec4(d.q))}}
  {const m=GS.OBSON?'off':simBall?'dyn':'kin';setMode(ballBody,ball,m);
   if(m==='dyn'){ball.v0.copy(ball.v);ballBody.setTranslation(ball.p,true);ballBody.setRotation(vec4(ball.q),true);ballBody.setLinvel(ball.v,true);ballBody.setAngvel(ball.w,true)}
