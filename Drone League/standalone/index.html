@@ -55,6 +55,10 @@ select{background:#0d1322;color:var(--ink);border:1px solid var(--edge);border-r
 input[type=range]{accent-color:var(--amber)}
 .axes{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin:8px 0 2px}
 .axes div{height:34px;background:rgba(0,0,0,.4);border:1px solid var(--edge);border-radius:3px;position:relative;font:10px var(--mono);color:var(--dim);text-align:center}
+.btns{display:flex;flex-wrap:wrap;gap:3px;margin:4px 0}.btns span{font:10px var(--mono);padding:2px 5px;border:1px solid var(--edge);border-radius:3px;color:var(--dim);background:linear-gradient(90deg,rgba(255,176,46,.55) var(--v,0%),rgba(0,0,0,.4) var(--v,0%))}.btns span.on{color:#fff;border-color:var(--amber)}
+#sens{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,7,13,.6);z-index:20}.sbox{width:min(460px,100%);box-sizing:border-box;padding:16px;background:var(--panel);border:1px solid var(--edge);border-radius:10px}.sbox h3{color:var(--amber);margin:14px 0 4px}
+.sch{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.sch button{flex:1;min-width:90px;font-size:13px;padding:8px}.sch button.on{border-color:var(--amber);color:#fff;background:rgba(255,176,46,.18)}#sl{display:flex;gap:8px;align-items:center}#sl input{flex:1}
+.sbars div{display:grid;grid-template-columns:52px 1fr 70px;gap:8px;align-items:center;font:11px var(--mono);color:var(--dim);margin:4px 0}.sbars b{height:8px;background:rgba(0,0,0,.4);border-radius:4px;position:relative;overflow:hidden}.sbars i{position:absolute;left:0;top:0;bottom:0;background:var(--amber)}
 .axes i{position:absolute;left:0;right:0;bottom:50%;background:var(--amber);opacity:.85}
 .note{font-size:12px;color:var(--dim);margin-top:8px}
 .mp{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
@@ -113,14 +117,15 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
         <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
         <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
         <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
-        <kbd>Gamepad</kbd><span>Mode 2 sticks, RB fire, LB camera, Y respawn, Start menu</span>
+        <kbd>E</kbd><span>Flip back over (or just throttle up / move a stick when you're upside down on the ground)</span>
+        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped below</span>
       </div>
     </div>
     <div>
       <h2>Match &amp; flight</h2>
-      <div class="set" id="set"></div><div class="mp"><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div>
+      <div class="set" id="set"></div><div class="mp"><button class="sm" id="sensbtn">Easy sensitivity setup…</button><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div>
       <h2 style="margin-top:20px">Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
-      <div class="axes" id="axes"></div>
+      <div class="axes" id="axes"></div><div class="btns" id="btns"></div>
       <div class="chans" id="chans"></div>
       <div class="mp"><button class="sm" id="calbtn">Calibrate controller</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
       <div class="map" id="map"></div>
@@ -129,6 +134,10 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
   </div>
 </div>
 
+<div id="sens" hidden><div class="sbox"><div class="mhead"><b id="sstep">Step 1 of 4</b><span class="note" style="margin:0">Easy sensitivity setup</span><button class="sm" id="sx">✕</button></div>
+       <h3 id="sq"></h3><p class="note" id="sd"></p><div class="sch" id="sch"></div><div id="sl"><input type="range" id="sr"><output id="so"></output></div>
+       <div class="sbars" id="sbars"></div>
+       <div class="mp"><button class="sm" id="sback">Back</button><button class="sm" id="snext">Next</button></div></div></div>
 <aside id="mod" hidden aria-label="Mod panel">
   <div class="mhead"><h2 style="margin:0">Mod panel</h2><span class="note" style="margin:0">T toggles · changes apply live</span><button class="sm" id="mclose" aria-label="Close mod panel">✕</button></div>
   <div class="tabs" role="tablist"><button class="sm on" id="tabr" role="tab" aria-selected="true">Rates</button><button class="sm" id="tabp" role="tab" aria-selected="false">Physics</button></div>
@@ -171,7 +180,7 @@ const DIFF=[
  {n:'Pro',kp:1.1,kd:2.6,vmax:48,att:9,rate:8,thr:.84,react:.18,noise:2,slack:1.2},
  {n:'All-Star',kp:1.3,kd:3,vmax:62,att:11,rate:10,thr:.94,react:.12,noise:1,slack:1.08},
  {n:'Legend',kp:1.5,kd:3.4,vmax:76,att:13,rate:12,thr:1,react:.08,noise:.4,slack:1}];
-const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,xfire:7,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}]};
+const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}]};
 let S;try{S={...DEF,...JSON.parse(localStorage.getItem('droneleague')||'{}')}}catch(e){S={...DEF}}
 if(!Array.isArray(S.cal)||S.cal.length!==4||!S.cal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.cal=DEF.cal.map(c=>({...c}));
 if(!Array.isArray(S.xcal)||S.xcal.length!==4||!S.xcal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.xcal=DEF.xcal.map(c=>({...c}));if(S.bots!==0)S.bots=1;
@@ -478,12 +487,18 @@ class Drone{
   const sp=this.mark=new THREE.Sprite(new THREE.SpriteMaterial({map:markTex,color:new THREE.Color(COL[t]).multiplyScalar(1.6),depthTest:false,sizeAttenuation:false,toneMapped:false}));sp.scale.set(.022,.022,1);sp.position.y=1.8;sp.renderOrder=5;g.add(sp);
   g.scale.setScalar(.68*DRAD/.8);scene.add(g);this.tp=new Float32Array(TN*3);const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(this.tp,3));
   this.trail=new THREE.Line(tg,new THREE.LineBasicMaterial({color:new THREE.Color(COL[t]).multiplyScalar(2.2),transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));this.trail.frustumCulled=false;scene.add(this.trail)}
- spawn(){const s=(OBSON?DSLOTS:SLOTS)[this.i],k=this.team?-1:1;this.p.set(s[0]*k,s[1],s[2]*k);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);this.q.setFromAxisAngle(UP,this.team?Math.PI:0);
+ spawn(){const s=(OBSON?DSLOTS:SLOTS)[this.i],k=this.team?-1:1;this.hd=null;this.flipT=0;this.p.set(s[0]*k,s[1],s[2]*k);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);this.q.setFromAxisAngle(UP,this.team?Math.PI:0);
   this.boost=START;this.dead=0;this.hp=100;this.firing=false;this.thr=this.ms=HOV;this.gt=0;for(let j=0;j<TN;j++)this.p.toArray(this.tp,j*3);this.mesh.visible=true}
  dispose(){scene.remove(this.mesh,this.trail)}
- step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT)}
+ flipUp(){if(this.dead<=0&&this.v.lengthSq()<400)this.flipT=.35}
+ step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;
+  if(this.flipT>0){this.flipT=Math.max(0,this.flipT-dt);rightUp(this,this.flipT?1-Math.exp(-dt*16):1);this.v.multiplyScalar(Math.exp(-dt*6));this.v.y=Math.max(this.v.y,2.5);this.ms+=(this.thr-this.ms)*.1;this.p.addScaledVector(this.v,dt);this.ground();this.w.set(0,0,0);this.wt.set(0,0,0);if(!this.flipT)this.gt=0;return}
+  if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT)}
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
-  if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&this.pivot(wt,dt))return;
+  if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&this.pivot(wt,dt)){this.pw=0;return}
+  // inverted pendulum: upside down or on its side on the ground, it leans further and further over its edge until it lands on its feet
+  if(gd&&(THR*this.ms**TE<G||this.v.x**2+this.v.z**2<9)){const up=_u.set(0,1,0).applyQuaternion(this.q);if(up.y<.9&&(up.y<.2||this.v.lengthSq()<25)){const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
+   this.pw=Math.min(9,(this.pw||1.2)+PEND*Math.max(sn,.25)*(this.thr>.3?1.6:1)*dt);if(this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return}else this.pw=0}
   this.w.lerp(wt,1-Math.exp(-dt/(gd?.09:TAU)));const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
@@ -497,8 +512,8 @@ class Drone{
    _gw.copy(bx).multiplyScalar(vx*(DL+k*.9)).addScaledVector(up,vy*(DL+k*1.8)).addScaledVector(bz,vz*(DL+k*.7));const dl=_gw.length()*dt;this.v.addScaledVector(_gw,-dt*(dl>s?s/dl:1))}  // body-axis drag: the disc face has ~2x the frontal area
   const vm=MAXV*(this.boostOn?1.5:1),s2=this.v.length();if(s2>vm)this.v.multiplyScalar(Math.max(vm/s2,1-dt*2));
   this.p.addScaledVector(this.v,dt);const hit=this.ground();if(this===player&&hit>10)noise(.16,280,cl(hit/90,0,.25),.7)}
- pivot(wt,dt){const ww=_ww.copy(wt).applyQuaternion(this.q);let bv=-.05,ok=false;
-  for(const C of HBP){const r=_br.copy(C).applyQuaternion(this.q),P=_bp2.copy(this.p).add(r);if(sdf(P.x,P.y,P.z)+HBR<-.15)continue;
+ pivot(wt,dt,deep=-.15){const ww=_ww.copy(wt).applyQuaternion(this.q);let bv=-.05,ok=false;
+  for(const C of HBP){const r=_br.copy(C).applyQuaternion(this.q),P=_bp2.copy(this.p).add(r);if(sdf(P.x,P.y,P.z)+HBR<deep)continue;
    const n=sdN(P,_an);r.addScaledVector(n,HBR);const s=_vp.crossVectors(ww,r).dot(n);if(-s<bv){bv=-s;_pv.copy(r);ok=true}}  // corner the rotation would push hardest into the ground = pivot
   if(!ok)return false;this.w.copy(wt);this.v.crossVectors(ww,_pv).negate();this.boostOn=false;this.ms+=(this.thr-this.ms)*.1;
   const wl=wt.length();_q.setFromAxisAngle(_v.copy(wt).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();this.p.addScaledVector(this.v,dt);this.ground();this.gt=.12;return true}
@@ -509,10 +524,12 @@ class Drone{
   if(!c)return 0;this.p.addScaledVector(na.normalize(),dm);
   for(let i=0;i<c;i++){const[r,n]=_H[i],vp=_vp.crossVectors(ww,r).add(this.v),vn=vp.dot(n);if(vn>=0)continue;
    const rn=_rn.crossVectors(r,n),den=1+rn.lengthSq()/DI,j=-(1+(-vn>3?DB:0))*vn/den/c*1.15;this.v.addScaledVector(n,j);ww.addScaledVector(rn,j*.45/DI);  // softened: less overshoot, less tumble off a bump
-   vp.addScaledVector(n,-vn);const tl=vp.length();if(tl>1e-4){vp.divideScalar(tl);const rt=_rn.crossVectors(r,vp),jt=Math.min(GF*j,tl/(1+rt.lengthSq()/DI)/c);this.v.addScaledVector(vp,-jt);ww.addScaledVector(rt,-jt*.2/DI)}
+   vp.addScaledVector(n,-vn);const tl=vp.length();if(tl>1e-4){vp.divideScalar(tl);const rt=_rn.crossVectors(r,vp),jt=Math.min(GF*Math.min(j,G*.05/c),tl/(1+rt.lengthSq()/DI)/c);this.v.addScaledVector(vp,-jt);ww.addScaledVector(rt,-jt*.2/DI)}
    m=Math.max(m,-vn)}
   this.w.copy(ww).applyQuaternion(_qb.copy(this.q).invert());this.gt=.12;return m}}
 const _H=Array.from({length:16},()=>[new V3(),new V3()]),_pv=new V3();
+const _pa=new V3(),_pw=new V3(),PEND=14,_rf=new V3(),_qr=new QT(),wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
+function rightUp(d,k){const f=_rf.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,1,0).applyQuaternion(d.q);f.y=0}_qr.setFromAxisAngle(UP,f.lengthSq()>1e-4?Math.atan2(-f.x,-f.z):0);d.q.slerp(_qr,k)}  // level, keeping the heading
 const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new V3(),_qb=new QT(),_lb=new V3();
 // ball vs the drone's box (props included): contact normal from the closest point on the box
 function ballBox(a,out){const l=_lb.subVectors(ball.p,a.p);if(l.lengthSq()>(BR+2)**2)return false;l.applyQuaternion(_qb.copy(a.q).invert());
@@ -530,8 +547,8 @@ const keys={},ks={y:0,p:0,r:0};let kbThr=HOV,prevBtn=[];
 let padBlocked=false;
 let padX=false;  // Xbox-style gamepad: its own calibration profile, so a radio's stays untouched
 const isX=g=>!RADIO.test(g.id)&&(g.mapping==='standard'||/xbox|xinput|045e/i.test(g.id));
-const pad=()=>{let ps=[];try{ps=navigator.getGamepads?navigator.getGamepads():[]}catch(e){padBlocked=true}for(const g of ps)if(g&&g.connected){padX=isX(g);return g}return null};
-const CAL=()=>padX?S.xcal:S.cal,thrFull=()=>padX?CAL()[0].m!=='spring':S.thrMode==='full',BTN=['A','B','X','Y','LB','RB','LT','RT','View','Menu','LS','RS','D-up','D-down','D-left','D-right'];
+const pad=()=>{let ps=[];try{ps=navigator.getGamepads?navigator.getGamepads():[]}catch(e){padBlocked=true}let best=null;for(const g of ps)if(g&&g.connected&&(!best||(g.timestamp||0)>(best.timestamp||0)))best=g;if(best)padX=isX(best);return best};
+const CAL=()=>padX?S.xcal:S.cal,thrFull=()=>padX?CAL()[0].m!=='spring':S.thrMode==='full',BTN=['A','B','X','Y','LB','RB','LT','RT','View','Menu','LS','RS','D-up','D-down','D-left','D-right','Xbox'];
 // sources 0-99 are axes, 100+ are buttons/triggers (analog 0..1); b = paired button pulling the other way (RB/LB, RT/LT)
 const src=(g,a,f=0)=>a>=100?(g.buttons[a-100]?.value??f):(g.axes[a]??f);
 // calibrated channel: (raw - centre) / signed half-range, so direction is baked in
@@ -547,7 +564,9 @@ function humanControl(d,dt){const g=pad(),bz=SB()?BZ:0;let thr=null,yaw=0,pit=0,
  stk[3]=cl(thr,0,1);d.thr=thrCurve(Math.min(1,stk[3]/(1-bz||1)));d.boosting=bz>0&&stk[3]>1-bz+1e-4||SB()&&!!(keys.ShiftLeft||keys.ShiftRight||keys.Space);
  stk[0]=rol;stk[1]=pit;stk[2]=yaw;if(S.mode==='acro')d.wt.set(-rate(1,pit),-rate(2,yaw),-rate(0,rol));
  else{const f=_f.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,-1,0).applyQuaternion(d.q);f.y=0}if(f.lengthSq()<1e-4)f.set(0,0,-1);f.normalize();
-  const r=_r.crossVectors(f,UP),T=1.5;const u=_v.copy(UP).addScaledVector(f,pit*T).addScaledVector(r,rol*T).normalize();attitude(d,u,f,16,18,1);d.wt.y-=rate(2,yaw)*.7}}
+  const ch=Math.atan2(-f.x,-f.z);if(d.hd==null||Math.abs(wrapA(d.hd-ch))>1.2)d.hd=ch;d.hd=wrapA(d.hd-rate(2,yaw)*.7*dt);f.set(-Math.sin(d.hd),0,-Math.cos(d.hd));  // heading follows the yaw stick only
+  const r=_r.crossVectors(f,UP),T=1.5;const u=_v.copy(UP).addScaledVector(f,pit*T).addScaledVector(r,rol*T).normalize();attitude(d,u,f,16,18,1);d.wt.y-=rate(2,yaw)*.7}
+ const fl=flipIn();if(fl&&!flipPrev)d.flipUp();flipPrev=fl}
 
 // ---------- bots ----------
 const PDT=1/50,PRED=Array.from({length:200},()=>new V3()),_bp=new V3(),_bv=new V3();
@@ -712,6 +731,7 @@ function scored(by,v){const bt=by?.isTurret?by.t:by?.team;if(state==='play'&&bt!
  if(overtime&&auth()&&state==='play')endMatch()}
 function applyHit(k,dmg,by){const o=objOf(k);if(!o||!by||o.team===by.team)return;if(o.isTurret){if(o.re<=0)hitTurret(o,dmg,by)}else if(o.dead<=0)hitDrone(o,dmg,by)}
 const aimOk=(d,p,f,deg,r=260)=>{_gq.subVectors(p,d.p);const l=_gq.length();return l<r&&_gq.dot(f)/l>Math.cos(deg*Math.PI/180)};
+let flipPrev=false;const flipIn=()=>{if(keys.KeyE)return true;const g=pad(),b=padX?S.xflip:S.flipBtn;if(!g||b===-1||b==null)return false;return typeof b==='string'?(g.axes[+b.slice(1)]??-1)>.5:!!g.buttons[b]?.pressed};
 function fireIn(d){if(keys.KeyF||mouseFire)return true;const g=pad(),b=padX?S.xfire:S.fireBtn;if(g&&(typeof b==='string'?(g.axes[+b.slice(1)]??(S.fireInv?1:-1))>.5:!!g.buttons[b]?.pressed)!==!!S.fireInv)return true;  // invert: fire with the switch/button in the other position
  if(!S.afire)return false;const f=gunDir(d,S.tilt*Math.PI/180,_gd);return drones.some(e=>e.dead<=0&&e.team!==d.team&&aimOk(d,e.p,f,3.5))||TUR.some(t=>t.re<=0&&t.t!==d.team&&aimOk(d,t.p,f,4))}
 // dogfighting bot: pick a target (nearest enemy drone, weighted to what's in front; else an enemy turret), sit ~40 m off its lead point, fire when the camera axis is on it
@@ -947,13 +967,16 @@ for(const[k,lab,type,...o]of FIELDS){const l=document.createElement('label');l.t
 const map=$('map');['Throttle','Yaw','Pitch','Roll'].forEach((n,i)=>{const l=document.createElement('label');l.textContent=n;l.htmlFor='ax'+i;const s=document.createElement('select');s.id='ax'+i;for(let a=0;a<8;a++)s.add(new Option('Axis '+a,a));BTN.forEach((n,j)=>s.add(new Option(n+(j>3&&j<8?'':' button'),100+j)));
  const c=document.createElement('label');c.innerHTML=`<input type="checkbox" id="inv${i}"> invert`;map.append(l,s,c);
  s.onchange=()=>{const a=+s.value,C=CAL(),sg=C[i].s<0?-1:1;C[i]=a<100?{a,c:0,s:sg}:i?{a,c:0,s:sg,...(PAIR[a-100]!=null?{b:PAIR[a-100]}:{})}:{a,c:.5,s:.5*sg};save()};c.firstChild.onchange=()=>{CAL()[i].s=-CAL()[i].s;save()}});
-{const l=document.createElement('label');l.textContent='Fire';l.htmlFor='fireb';const s=document.createElement('select');s.id='fireb';for(let b=0;b<16;b++)s.add(new Option('Button '+b,b));for(let a=4;a<8;a++)s.add(new Option('Switch axis '+a,'a'+a));
+const btnOpts=(s,none)=>{if(none)s.add(new Option('None','-1'));for(let b=0;b<18;b++)s.add(new Option('Button '+b+(BTN[b]?' ('+BTN[b]+' on Xbox)':''),b));for(let a=2;a<8;a++)s.add(new Option('Switch / trigger axis '+a,'a'+a))};
+{const l=document.createElement('label');l.textContent='Flip over';l.htmlFor='flipb';const s=document.createElement('select');s.id='flipb';btnOpts(s,true);
+ s.onchange=()=>{const v=s.value[0]==='a'?s.value:+s.value;if(padX)S.xflip=v;else S.flipBtn=v;save()};map.append(l,s,document.createElement('span'))}
+{const l=document.createElement('label');l.textContent='Fire';l.htmlFor='fireb';const s=document.createElement('select');s.id='fireb';btnOpts(s);
  s.value=String(S.fireBtn);s.onchange=()=>{const v=s.value[0]==='a'?s.value:+s.value;if(padX)S.xfire=v;else S.fireBtn=v;save()};const c=document.createElement('label');c.innerHTML='<input type="checkbox" id="fireinv"> invert';c.firstChild.checked=!!S.fireInv;c.firstChild.onchange=e=>{S.fireInv=e.target.checked;save()};map.append(l,s,c)}
 $('axes').innerHTML=Array.from({length:8},(_,i)=>`<div>${i}<i id="ab${i}"></i></div>`).join('');
 $('chans').innerHTML=['THR','YAW','PIT','ROL'].map((n,i)=>`<div>${n}<b><i id="ch${i}"></i></b></div>`).join('');
 function syncUI(){for(const[k,,type]of FIELDS){const inp=$('f_'+k);inp.value=type==='sel'?JSON.stringify(S[k]):S[k];
  $('o_'+k).textContent=type==='rng'?(k==='tilt'||k==='fov'?S[k]+'°':(+S[k]).toFixed(2)):''}
- for(let i=0;i<4;i++){$('ax'+i).value=CAL()[i].a;$('inv'+i).checked=CAL()[i].s<0}$('fireb').value=String(padX?S.xfire:S.fireBtn)}
+ for(let i=0;i<4;i++){$('ax'+i).value=CAL()[i].a;$('inv'+i).checked=CAL()[i].s<0}$('fireb').value=String(padX?S.xfire:S.fireBtn);$('flipb').value=String(padX?S.xflip:S.flipBtn)}
 syncUI();
 // RC radio support: auto-detect + guided calibration (finds axis, centre, range and direction per channel)
 const RADIO=/edgetx|opentx|radiomaster|frsky|taranis|jumper|tbs|tango|mambo|boxer|zorro|spektrum|betafpv|literadio|flysky|ethos|stm32|dji|interlink|realflight|usb joystick/i;
@@ -961,7 +984,7 @@ addEventListener('gamepadconnected',e=>{if(RADIO.test(e.gamepad.id)&&S.thrMode!=
 let calib=null;const PAIR={4:5,5:4,6:7,7:6};  // a bumper or trigger on yaw/pitch/roll gets its partner for the other direction
 $('calbtn').onclick=()=>{calib=calib?null:{i:-1,base:null,t:0,used:[],res:[],cand:-1,e:0,back:false};$('calbtn').textContent=calib?'Cancel':'Calibrate controller';if(!calib)$('calmsg').textContent=''};
 function calTick(g){if(!calib)return;const m=$('calmsg'),now=performance.now();if(!g){m.textContent='Connect the radio or controller and move a stick.';return}const ax=[...g.axes];g.buttons.forEach((b,j)=>ax[100+j]=b.value);
- if(calib.i<0){if(!calib.base||ax.some((v,j)=>Math.abs(v-calib.base[j])>.04)){calib.base=ax;calib.t=now}else if(now-calib.t>1200)calib.i=0;
+ if(calib.i<0){if(!calib.base||ax.some((v,j)=>Math.abs(v-calib.base[j])>(padX?.12:.04))){calib.base=ax;calib.t=now}else if(now-calib.t>1200)calib.i=0;
   m.textContent='Centre yaw, pitch and roll. Throttle fully DOWN. Hold still…';return}
  if(calib.back){m.textContent='Got it. Let the stick go back (throttle back down).';
   if(ax.every((v,j)=>Math.abs(v-calib.base[j])<.25)){calib.back=false;if(calib.i>3){if(padX){S.xcal=calib.res;const u=calib.res.flatMap(c=>[c.a,c.b==null?-1:100+c.b]);if(typeof S.xfire==='number'&&u.includes(100+S.xfire)){S.xfire=u.includes(100)?(u.includes(107)?2:7):0;feed('Fire moved to '+BTN[S.xfire])}}else{S.cal=calib.res;S.thrMode='full'}save();syncUI();calib=null;$('calbtn').textContent='Calibrate controller';m.textContent='Calibrated. Check the THR/YAW/PIT/ROL bars.'}}return}
@@ -970,10 +993,12 @@ function calTick(g){if(!calib)return;const m=$('calmsg'),now=performance.now();i
  if(bd<.5){calib.cand=-1;return}
  if(calib.cand!==best){calib.cand=best;calib.t=now;calib.e=ax[best]}
  if(Math.abs(ax[best]-calib.base[best])>Math.abs(calib.e-calib.base[best]))calib.e=ax[best];
- if(now-calib.t>450){const b=calib.base[best],e=calib.e;const pr=best>=100?PAIR[best-100]:null;calib.res[calib.i]=calib.i?(best>=100?{a:best,c:0,s:1,...(pr!=null?{b:pr}:{})}:{a:best,c:b,s:e-b}):padX&&best<100?{a:best,c:b,s:e-b,m:'spring'}:{a:best,c:(b+e)/2,s:(e-b)/2};calib.used.push(best);if(calib.i&&pr!=null)calib.used.push(100+pr);calib.i++;calib.back=true;tone(880,880,.08,.08)}}
+ if(now-calib.t>450){const b=calib.base[best],e=calib.e;const pr=best>=100?PAIR[best-100]:null;calib.res[calib.i]=calib.i?(best>=100?{a:best,c:0,s:1,...(pr!=null?{b:pr}:{})}:{a:best,c:b,s:e-b}):padX&&best<100&&Math.abs(b)<.5?{a:best,c:b,s:e-b,m:'spring'}:{a:best,c:(b+e)/2,s:(e-b)/2};calib.used.push(best);if(calib.i&&pr!=null)calib.used.push(100+pr);calib.i++;calib.back=true;tone(880,880,.08,.08)}}
 function menuPad(){const g=pad();if(padX!==menuPad.lx){menuPad.lx=padX;syncUI()}$('gpname').textContent=padBlocked?'· blocked in this view':g?'· '+g.id.slice(0,40)+(RADIO.test(g.id)?' (radio)':padX?' (Xbox layout)':''):'· none yet (move a stick or press a button)';
  for(let i=0;i<8;i++){const v=g?.axes[i]??0,b=$('ab'+i);b.style.height=Math.abs(v)*50+'%';b.style.bottom=v<0?(50-Math.abs(v)*50)+'%':'50%'}
  for(let i=0;i<4;i++){const v=g?axv(g,i):0,b=$('ch'+i);b.style.left=(v<0?50+v*50:50)+'%';b.style.width=Math.abs(v)*50+'%'}
+ const bw=$('btns'),nb=g?g.buttons.length:0;if(bw.childElementCount!==nb||bw.dataset.x!==String(padX)){bw.dataset.x=padX;bw.innerHTML=Array.from({length:nb},(_,j)=>`<span>${padX&&BTN[j]?BTN[j]:'B'+j}</span>`).join('')}
+ for(let j=0;j<nb;j++){const b=g.buttons[j],e=bw.children[j];e.classList.toggle('on',b.pressed||b.value>.5);e.style.setProperty('--v',Math.round(b.value*100)+'%')}
  calTick(g)}
 // online lobby
 function renderGames(peers){const box=$('games');box.textContent='';for(const p of peers){const pr=p.presence;if(!pr?.game||p.sameTab)continue;const code=String(pr.game).replace(/[^a-z0-9]/g,'').slice(0,6);if(!code||net?.code===code)continue;
@@ -1066,6 +1091,22 @@ $('cimp').onclick=()=>{const v={};for(const m of $('cli').value.matchAll(/^\s*se
  const tm=num('thr_mid'),te=num('thr_expo'),tl=num('throttle_limit_percent');if(tm!=null){R.thrMid=Math.min(100,tm);n++}if(te!=null){R.thrExpo=Math.min(100,te);n++}if(tl!=null){R.thrLimit=cl(tl,25,100);n++}
  save();syncRates();rMsg(n?`Imported ${n} values into profile ${S.rpi+1}`:'No Betaflight rate settings found in that text.')};
 function tab(r){$('paner').hidden=!r;$('panep').hidden=r;$('tabr').classList.toggle('on',r);$('tabp').classList.toggle('on',!r);$('tabr').setAttribute('aria-selected',r);$('tabp').setAttribute('aria-selected',!r)}
+// beginner sensitivity walkthrough: three plain questions, written into the current rate profile as Actual rates (center sens / max rate / expo)
+{const W={max:670,feel:1,yaw:1},FEEL=[[120,55,'Smooth','Gentle around centre, easy to hold steady. Good for learning.'],[180,35,'Balanced','The usual freestyle feel.'],[260,15,'Twitchy','Small moves react fast. For racers.']],
+ SPD=[[450,'Chill'],[670,'Normal'],[900,'Fast'],[1200,'Pro']],YW=[[.7,'Slower'],[1,'Same'],[1.15,'Faster']];let st=0,bak=null,iv=0;
+ const apply=()=>{const[c,e]=FEEL[W.feel],ax=f=>[Math.round(Math.min(c,W.max*f)/10),Math.round(W.max*f/10),e];S.rprof[S.rpi]={...RT(),type:'ACTUAL',ax:[ax(1),ax(1),ax(YW[W.yaw][0])]}};
+ const choices=(list,cur,set)=>{const h=$('sch');h.textContent='';list.forEach((t,i)=>{const b=document.createElement('button');b.className='sm'+(i===cur?' on':'');b.textContent=t;b.onclick=()=>{set(i);show()};h.append(b)})};
+ function show(){$('sstep').textContent=`Step ${st+1} of 4`;$('sback').disabled=!st;$('snext').textContent=st<3?'Next':'Save';$('sl').hidden=st!==0;apply();
+  if(st===0){$('sq').textContent='How fast should it spin at full stick?';$('sd').textContent='This is how fast a flip or roll goes with the stick pushed all the way. Pick one, then fine-tune with the slider.';
+   choices(SPD.map(([v,n])=>`${n} ${v}°/s`),SPD.findIndex(x=>x[0]===W.max),i=>W.max=SPD[i][0]);const r=$('sr');r.min=300;r.max=1500;r.step=10;r.value=W.max;$('so').textContent=W.max+'°/s';r.oninput=()=>{W.max=+r.value;$('so').textContent=W.max+'°/s';[...$('sch').children].forEach(b=>b.classList.remove('on'));apply()}}
+  else if(st===1){$('sq').textContent='How should small stick moves feel?';$('sd').textContent=FEEL[W.feel][3];choices(FEEL.map(f=>f[2]),W.feel,i=>W.feel=i)}
+  else if(st===2){$('sq').textContent='Yaw (spinning flat) speed?';$('sd').textContent='Most pilots keep yaw a bit slower than flips and rolls.';choices(YW.map(y=>y[1]),W.yaw,i=>W.yaw=i)}
+  else{$('sq').textContent='Try it';$('sd').textContent='Move your sticks (or arrow keys and A/D). The bars show how fast the drone will spin. Go back to change anything, or Save.';$('sch').textContent=''}}
+ const tick=()=>{const g=pad(),v=g?[axv(g,3),axv(g,2),axv(g,1)]:[(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0),(keys.ArrowUp?1:0)-(keys.ArrowDown?1:0),(keys.KeyD?1:0)-(keys.KeyA?1:0)];
+  $('sbars').innerHTML=st<3?'':AXN.map((n,i)=>{const r=Math.abs(deg(rate(i,v[i])));return `<div>${n}<b><i style="width:${Math.min(100,r/15)}%"></i></b>${Math.round(r)}°/s</div>`}).join('')};
+ const close=ok=>{if(!ok&&bak)S.rprof[S.rpi]=bak;else{apply();save();syncRates()}$('sens').hidden=true;clearInterval(iv);bak=null};
+ $('sensbtn').onclick=()=>{bak=JSON.parse(JSON.stringify(RT()));st=0;$('sens').hidden=false;show();iv=setInterval(tick,80)};
+ $('sx').onclick=()=>close(false);$('sback').onclick=()=>{st=Math.max(0,st-1);show()};$('snext').onclick=()=>{if(st<3){st++;show()}else{close(true);$('calmsg').textContent='Sensitivity saved (rate profile '+(S.rpi+1)+'). Fine-tune any time in Rates.'}}}
 $('tabr').onclick=()=>tab(true);$('tabp').onclick=()=>tab(false);$('ratesbtn').onclick=()=>{$('mod').hidden=false;tab(true)};
 function drawRates(){const gp=pad(),s=gp&&!calib?[axv(gp,3),axv(gp,2),axv(gp,1),thrFull()?(axv(gp,0)+1)/2:stk[3]]:stk;
  {const c=$('rgraph'),g=c.getContext('2d'),w=c.width,h=c.height,top=Math.max(200,Math.ceil(Math.max(...[0,1,2].map(i=>deg(rate(i,1))))/200)*200),L=64,B=h-34,X=v=>L+v*(w-L-14),Y=v=>B-v/top*(B-14);
@@ -1100,7 +1141,7 @@ function p2pRoom(isHost,code){return new Promise((res,rej)=>{
    conn.on('data',m=>{if(!m||typeof m.from!=='string'||m.from.length>48)return;if(m.t==='x')others.delete(m.from);else if(m.t==='p'&&m.d&&typeof m.d==='object')others.set(m.from,{peer:m.from,sameTab:false,isMe:false,presence:m.d});else return;fire()});
    conn.on('close',()=>fail('host_left'))}})})}
 const p2p={p2p:true,presence:()=>Promise.resolve(),onPeers:()=>()=>{},join:(code,isHost)=>loadPeer().then(()=>p2pRoom(isHost,code))};
-$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','bots','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
+$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>mpMsg('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 {const m=location.hash.match(/^#([a-z0-9]{2,6})$/i);if(m)$('code').value=m[1]}
