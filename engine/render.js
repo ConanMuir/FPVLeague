@@ -7,19 +7,19 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {V3,QT} from './util.js';
 import {S} from './settings.js';
 export let renderer,scene,camera,composer,bloom;
-// far: camera far plane; bl: bloom [strength, radius, threshold]; onResize runs after the renderer resizes (now: also once at start)
-export function initRender({far,bl,exposure,onResize,now}){
- renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+// far/near: camera planes; logDepth: logarithmic depth buffer (big worlds); bl: bloom [strength, radius, threshold]; onResize runs after the renderer resizes (now: also once at start). Returns the resize function
+export function initRender({far,near=.08,logDepth=false,bl,exposure,onResize,now}){
+ renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance',...(logDepth?{logarithmicDepthBuffer:true}:{})});
  renderer.domElement.id='gl';document.body.prepend(renderer.domElement);
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);
  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=exposure;
  scene=new THREE.Scene();
- camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.08,far);
+ camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,near,far);
  composer=new EffectComposer(renderer);composer.addPass(new RenderPass(scene,camera));
  bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),...bl);composer.addPass(bloom);composer.addPass(new OutputPass());
  const rs=()=>{renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();onResize?.()};
- addEventListener('resize',rs);if(now)rs()}
+ addEventListener('resize',rs);if(now)rs();return rs}
 export function tex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;if(rep)t.wrapS=t.wrapT=THREE.RepeatWrapping;return t}
 export const glow=(hex,k=3)=>new THREE.MeshBasicMaterial({color:new THREE.Color(hex).multiplyScalar(k),toneMapped:false});
 export function scaleUV(g,sx,sy){const uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*sx,uv.getY(i)*sy);return g}

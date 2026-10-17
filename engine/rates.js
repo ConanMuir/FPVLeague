@@ -64,14 +64,14 @@ export function drawRates(){const gp=pad(),s=gp&&!calib?[axv(gp,3),axv(gp,2),axv
   g.fillStyle='#fff';g.beginPath();g.arc(X(t),Y(thrCurve(t)),6,0,7);g.fill()}}
 // beginner sensitivity walkthrough: three plain questions, written into the current rate profile as Actual rates (center sens / max rate / expo)
 export function initSens(){const el=document.createElement('div');el.innerHTML=`<div class="sbox"><div class="mhead"><b id="sstep">Step 1 of 4</b><span class="note" style="margin:0">Easy sensitivity setup</span><button class="sm" id="sx">✕</button></div>
-       <h3 id="sq"></h3><p class="note" id="sd"></p><div class="sch" id="sch"></div><div id="sl"><input type="range" id="sr"><output id="so"></output></div>
+       <h3 id="sq"></h3><p class="note" id="sd"></p><div class="sch" id="sch"></div><div id="ssl"><input type="range" id="sr"><output id="so"></output></div>
        <div class="sbars" id="sbars"></div>
        <div class="mp"><button class="sm" id="sback">Back</button><button class="sm" id="snext">Next</button></div></div>`;el.id='sens';el.hidden=true;document.body.append(el);
 {const W={max:670,feel:1,yaw:1},FEEL=[[120,55,'Smooth','Gentle around centre, easy to hold steady. Good for learning.'],[180,35,'Balanced','The usual freestyle feel.'],[260,15,'Twitchy','Small moves react fast. For racers.']],
  SPD=[[450,'Chill'],[670,'Normal'],[900,'Fast'],[1200,'Pro']],YW=[[.7,'Slower'],[1,'Same'],[1.15,'Faster']];let st=0,bak=null,iv=0;
  const apply=()=>{const[c,e]=FEEL[W.feel],ax=f=>[Math.round(Math.min(c,W.max*f)/10),Math.round(W.max*f/10),e];S.rprof[S.rpi]={...RT(),type:'ACTUAL',ax:[ax(1),ax(1),ax(YW[W.yaw][0])]}};
  const choices=(list,cur,set)=>{const h=$('sch');h.textContent='';list.forEach((t,i)=>{const b=document.createElement('button');b.className='sm'+(i===cur?' on':'');b.textContent=t;b.onclick=()=>{set(i);show()};h.append(b)})};
- function show(){$('sstep').textContent=`Step ${st+1} of 4`;$('sback').disabled=!st;$('snext').textContent=st<3?'Next':'Save';$('sl').hidden=st!==0;apply();
+ function show(){$('sstep').textContent=`Step ${st+1} of 4`;$('sback').disabled=!st;$('snext').textContent=st<3?'Next':'Save';$('ssl').hidden=st!==0;apply();
   if(st===0){$('sq').textContent='How fast should it spin at full stick?';$('sd').textContent='This is how fast a flip or roll goes with the stick pushed all the way. Pick one, then fine-tune with the slider.';
    choices(SPD.map(([v,n])=>`${n} ${v}°/s`),SPD.findIndex(x=>x[0]===W.max),i=>W.max=SPD[i][0]);const r=$('sr');r.min=300;r.max=1500;r.step=10;r.value=W.max;$('so').textContent=W.max+'°/s';r.oninput=()=>{W.max=+r.value;$('so').textContent=W.max+'°/s';[...$('sch').children].forEach(b=>b.classList.remove('on'));apply()}}
   else if(st===1){$('sq').textContent='How should small stick moves feel?';$('sd').textContent=FEEL[W.feel][3];choices(FEEL.map(f=>f[2]),W.feel,i=>W.feel=i)}

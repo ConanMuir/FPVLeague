@@ -6,7 +6,9 @@ export const PILOT_DEF={mode:"acro",tilt:30,fov:110,thrMode:"full",cal:[{"a":2,"
 let KEY=SHARED;
 const read=k=>{try{return JSON.parse(localStorage.getItem(k)||'{}')||{}}catch(e){return{}}};
 const okCal=a=>Array.isArray(a)&&a.length===4&&a.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s));
-export function loadSettings(key,DEF){KEY=key;const own=read(key),sh=key===SHARED?{}:read(SHARED),P={};for(const k of PILOT)if(k in sh)P[k]=sh[k];
+// local: pilot fields this game keeps to itself (e.g. a camera tilt that only suits its airframe)
+let LOCAL=[];
+export function loadSettings(key,DEF,local=[]){KEY=key;LOCAL=local;const own=read(key),sh=key===SHARED?{}:read(SHARED),P={};for(const k of PILOT)if(k in sh&&!local.includes(k))P[k]=sh[k];
  Object.assign(S,PILOT_DEF,DEF,own,P);
  if(!okCal(S.cal))S.cal=(DEF.cal||PILOT_DEF.cal).map(c=>({...c}));if(!okCal(S.xcal))S.xcal=(DEF.xcal||PILOT_DEF.xcal).map(c=>({...c}));return S}
-export const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));if(KEY!==SHARED){const sh=read(SHARED);for(const k of PILOT)if(k in S)sh[k]=S[k];localStorage.setItem(SHARED,JSON.stringify(sh))}}catch(e){}};
+export const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));if(KEY!==SHARED){const sh=read(SHARED);for(const k of PILOT)if(k in S&&!LOCAL.includes(k))sh[k]=S[k];localStorage.setItem(SHARED,JSON.stringify(sh))}}catch(e){}};

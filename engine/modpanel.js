@@ -25,7 +25,8 @@ export function mountMod(){const a=document.createElement('aside');a.id='mod';a.
     <textarea id="mio" rows="3" placeholder="Export copies your setup here. Paste a friend's setup and press Import." aria-label="Settings text"></textarea>
     <div class="mp"><button class="sm" id="mexp">Export</button><button class="sm" id="mimp">Import</button><span id="modmsg" class="note" style="margin:0;align-self:center"></span></div>
   </section>`;document.body.append(a);
- $('tabr').onclick=()=>tab(true);$('tabp').onclick=()=>tab(false);$('mclose').onclick=toggleMod}
+ $('tabr').onclick=()=>tab(true);$('tabp').onclick=()=>tab(false);$('mclose').onclick=toggleMod;
+ const rb=$('ratesbtn');if(rb)rb.onclick=()=>{a.hidden=false;tab(true)}}  // the menu's Rates button opens this panel on the Rates tab
 export function cleanMod(o){const r={};if(o&&typeof o==='object')for(const[,k,,,mn,mx]of MODS){const v=+o[k];if(k in o&&Number.isFinite(v))r[k]=cl(v,mn,mx)}return r}
 // MODS rows: [group, key, label, default, min, max, step, unit]; migrate(MDEF) moves untouched old defaults; onApply() pushes tune() into the game
 export function initModPanel({mods,presets,migrate,onApply}){MODS=mods;MDEF=Object.fromEntries(MODS.map(m=>[m[1],m[3]]));PRESETS=presets;apply=onApply;

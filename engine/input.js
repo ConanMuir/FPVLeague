@@ -35,7 +35,7 @@ export function padEdges(fn){const g=pad();if(!g||RADIO.test(g.id))return;const 
  const b=g.buttons.map(x=>x.pressed),e=i=>b[i]&&!prevBtn[i]&&!u.has(i);fn(e);prevBtn=b}
 
 // ---------- controller panel ----------
-export function mountPad(el,{fireLabel='Fire',fireNote=null}={}){el.innerHTML=`<h2 style="margin-top:20px">Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
+export function mountPad(el,{fireLabel='Fire',fireNote=null,flip=true}={}){el.innerHTML=`<h2 style="margin-top:20px">Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
  <div class="axes" id="axes"></div><div class="btns" id="btns"></div><div class="chans" id="chans"></div>
  <div class="mp"><button class="sm" id="calbtn">Calibrate controller</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
  <div class="map" id="map"></div>
@@ -44,7 +44,7 @@ export function mountPad(el,{fireLabel='Fire',fireNote=null}={}){el.innerHTML=`<
   const c=document.createElement('label');c.innerHTML=`<input type="checkbox" id="inv${i}"> invert`;map.append(l,s,c);
   s.onchange=()=>{const a=+s.value,C=CAL(),sg=C[i].s<0?-1:1;C[i]=a<100?{a,c:0,s:sg}:i?{a,c:0,s:sg,...(PAIR[a-100]!=null?{b:PAIR[a-100]}:{})}:{a,c:.5,s:.5*sg};save()};c.firstChild.onchange=()=>{CAL()[i].s=-CAL()[i].s;save()}});
  const btnOpts=(s,none)=>{if(none)s.add(new Option('None','-1'));for(let b=0;b<18;b++)s.add(new Option('Button '+b+(BTN[b]?' ('+BTN[b]+' on Xbox)':''),b));for(let a=2;a<8;a++)s.add(new Option('Switch / trigger axis '+a,'a'+a))};
- {const l=document.createElement('label');l.textContent='Flip over';l.htmlFor='flipb';const s=document.createElement('select');s.id='flipb';btnOpts(s,true);
+ if(flip){const l=document.createElement('label');l.textContent='Flip over';l.htmlFor='flipb';const s=document.createElement('select');s.id='flipb';btnOpts(s,true);
   s.onchange=()=>{const v=s.value[0]==='a'?s.value:+s.value;if(padX)S.xflip=v;else S.flipBtn=v;save()};map.append(l,s,document.createElement('span'))}
  {const l=document.createElement('label');l.textContent=fireLabel;l.htmlFor='fireb';const s=document.createElement('select');s.id='fireb';btnOpts(s);
   s.value=String(S.fireBtn);s.onchange=()=>{const v=s.value[0]==='a'?s.value:+s.value;if(padX)S.xfire=v;else S.fireBtn=v;save()};let c;
@@ -52,7 +52,7 @@ export function mountPad(el,{fireLabel='Fire',fireNote=null}={}){el.innerHTML=`<
  $('axes').innerHTML=Array.from({length:8},(_,i)=>`<div>${i}<i id="ab${i}"></i></div>`).join('');
  $('chans').innerHTML=['THR','YAW','PIT','ROL'].map((n,i)=>`<div>${n}<b><i id="ch${i}"></i></b></div>`).join('');
  $('calbtn').onclick=()=>{calib=calib?null:{i:-1,base:null,t:0,used:[],res:[],cand:-1,e:0,back:false};$('calbtn').textContent=calib?'Cancel':'Calibrate controller';if(!calib)$('calmsg').textContent=''}}
-export function syncPad(){for(let i=0;i<4;i++){$('ax'+i).value=CAL()[i].a;$('inv'+i).checked=CAL()[i].s<0}$('fireb').value=String(padX?S.xfire:S.fireBtn);$('flipb').value=String(padX?S.xflip:S.flipBtn)}
+export function syncPad(){for(let i=0;i<4;i++){$('ax'+i).value=CAL()[i].a;$('inv'+i).checked=CAL()[i].s<0}$('fireb').value=String(padX?S.xfire:S.fireBtn);if($('flipb'))$('flipb').value=String(padX?S.xflip:S.flipBtn)}
 // RC radio support: guided calibration (finds axis, centre, range and direction per channel)
 function calTick(g){if(!calib)return;const m=$('calmsg'),now=performance.now();if(!g){m.textContent='Connect the radio or controller and move a stick.';return}const ax=[...g.axes];g.buttons.forEach((b,j)=>ax[100+j]=b.value);
  if(calib.i<0){if(!calib.base||ax.some((v,j)=>Math.abs(v-calib.base[j])>(padX?.12:.04))){calib.base=ax;calib.t=now}else if(now-calib.t>1200)calib.i=0;

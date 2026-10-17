@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="../../engine/engine.css">
 <style>
 /* Drone League: scoreboard, boost and health bars, mode switch; blue/orange theme */
+#radar{position:absolute;right:20px;top:calc(14px + env(safe-area-inset-top,0px));background:rgba(5,8,16,.55);border:1px solid var(--edge);border-radius:6px}
 #score{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;align-items:stretch;font-weight:700;font-size:28px;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.5)}
 #score>span{padding:4px 16px;min-width:34px;text-align:center;font-variant-numeric:tabular-nums}
 #sb{background:var(--blue)}#so{background:var(--orange)}
@@ -62,7 +63,7 @@ button.go{background:linear-gradient(90deg,var(--blue),#6a5cff 50%,var(--orange)
         <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
         <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
         <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
-        <kbd>E</kbd><span>Flip back over (or just throttle up / move a stick when you're upside down on the ground)</span>
+        <kbd>E</kbd><span>Flip back over now (upside down on the ground it also rolls back onto its feet by itself)</span>
         <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped below</span>
       </div>
     </div>

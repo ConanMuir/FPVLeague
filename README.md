@@ -1,10 +1,19 @@
 # FPVLeague
 Rocket league but with drones
 
-## Play
-- **Online:** turn on GitHub Pages for this repo and open the site. The launcher (`index.html`) lists the games.
-- **On Windows:** double-click `Play Drone League.bat`. It starts a small local web server (`serve.ps1`) and opens the launcher in an Edge app window. The games are ES modules, so they need a web server; opening `index.html` straight from the folder won't work.
-- **Anywhere else:** run any static server in this folder, for example `python -m http.server 8765`, then open http://localhost:8765/.
+## How to play
+
+The launcher (`index.html`) lists every game: **Drone League**, **Dogfight** and **Interceptor**. Pick whichever way is easiest:
+
+1. **Windows:** double-click `Play Drone League.bat`. It starts a small local web server and opens the launcher in its own Edge window. Close the black server window when you're done.
+2. **Online:** turn on GitHub Pages for this repo (Settings > Pages > deploy from the main branch), then open the site link. Nothing to install.
+3. **Mac / Linux:** open a terminal in this folder, run `python3 -m http.server 8765`, then open http://localhost:8765/ in Chrome or Edge.
+
+Double-clicking `index.html` on its own won't work: the games are split into modules, and browsers only load those from a web server. You need an internet connection the first time, because Three.js (the 3D library) loads from the web. Chrome or Edge work best.
+
+Each game folder has its own README with the controls: [Drone League and Dogfight](games/league/README.md), [Interceptor](games/interceptor/README.md).
+
+**Radio or Xbox controller:** plug it in, press a button or move a stick, then use **Calibrate controller** in a game's menu. Your calibration, rates, flight mode and FOV are shared between games, so you only set them up once.
 
 ## Layout
 One flight engine, several games on top of it. Plain ES modules, no build step. The only outside code is Three.js 0.160.0 and PeerJS 1.5.4, loaded from jsDelivr.
@@ -29,7 +38,7 @@ engine/                 shared by every game
 games/league/           Drone League + Dogfight (one game, two modes: ?mode=league / ?mode=df)
   league.js             match rules, ball, bots, guns, turrets, online sync, HUD
   consts.js arena.js highlands.js scene.js   arena + maps + ball styles, the Highlands, lights
-games/interceptor/      Interceptor (still its own single file for now, not yet on the engine)
+games/interceptor/      Interceptor: the tail-sitter dart keeps its own flight model (interceptor.js); everything else is the engine
 Drone League/           the original single-file Drone League (claude.ai artifact version), kept as is
 ```
 

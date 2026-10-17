@@ -460,5 +460,5 @@ startLoop({pre:now=>{padEdges(padKeys);netSync(now)},step,speed:()=>timeScale*GS
  draw:(dt,rdt,now)=>{visuals(dt,now);updateCam(rdt,now);hud()},post:netSend});
 (async()=>{room=await getRoom();
  if(room.p2p){$('games').hidden=true;$('mpnote').textContent='Online over the internet: press Host, then send friends this page and the game code. They type the code and press Join.';return}
- $('mpnote').textContent='Host a game, or join one listed here. Bots fill empty slots.';
+ $('mpnote').textContent='Host a game, or join one listed here. Bots fill empty slots unless Bots is set to No bots.';
  room.onPeers(ch=>renderGames(ch.peers),e=>{$('mpnote').textContent=`Online play is unavailable here (${e.code}).`;$('host').disabled=$('join').disabled=true})})();
