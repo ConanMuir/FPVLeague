@@ -2,7 +2,7 @@
 // rounded-box ground contact with turtle-style pivots (thrust shoving into the ground slides rather than grips), the attitude controller (bots + Angle mode) and stick input.
 // A game hands it the world's collision shape with setWorld(sdf) and its physics sliders with tuneFlight(T).
 import * as THREE from 'three';
-import {V3,QT,cl,UP} from './util.js';
+import {V3,QT,cl,UP,sm} from './util.js';
 import {S} from './settings.js';
 import {pad,axv,keys,thrFull,calib,flipIn} from './input.js';
 import {rate,thrCurve,stk} from './rates.js';
@@ -24,7 +24,7 @@ const _H=Array.from({length:16},()=>[new V3(),new V3()]),_pv=new V3();
 const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new V3(),_qb=new QT();
 // a game's drone extends Quad: it builds its own mesh and spawn, and may define onBoost() (super boost just lit)
 // flip-over (E / flip button): level the quad keeping its heading
-const _pa=new V3(),_pw=new V3(),PEND=14,_rf=new V3(),_qr=new QT(),wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
+const _pa=new V3(),_pw=new V3(),PEND=3.6,_rf=new V3(),_qr=new QT(),wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
 function rightUp(d,k){const f=_rf.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,1,0).applyQuaternion(d.q);f.y=0}_qr.setFromAxisAngle(UP,f.lengthSq()>1e-4?Math.atan2(-f.x,-f.z):0);d.q.slerp(_qr,k)}  // level, keeping the heading
 export class Quad{
  constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),boost:0,boostOn:false,boosting:false,dead:0})}
@@ -35,11 +35,12 @@ export class Quad{
   if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT)}
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&this.pivot(wt,dt)){this.pw=0;return 0}
-  // inverted pendulum: once it has come to rest on its back or side against the floor or a wall (never the ceiling), it starts to tip,
-  // slowly at first and faster the further it leans (torque ~ sin of the lean), until it lands on its feet. Sliding or flying, nothing grabs it.
-  const cn=this.cn||(this.cn=new V3(0,1,0)),vt=this.v.lengthSq()-this.v.dot(cn)**2;
-  if(gd&&cn.y>-.3&&vt<9+(this.pw*DRAD*1.6)**2){const up=_u.set(0,1,0).applyQuaternion(this.q);if(up.y<.9){const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
-   this.pw=Math.min(8,(this.pw||0)+PEND*(Math.max(sn,.1)+(1-up.y)*.15)*(this.thr>.3?1.5:1)*dt);if(this.pw>.15&&this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return 0}else this.pw=0}else this.pw=0
+  // inverted pendulum: resting fully upside down on the floor, it eases itself over onto its feet. The roll rate glides up from zero,
+  // peaks while it is on its back and eases off as it comes upright. Once started it carries through; walls, ceiling, sides and sliding never trigger it.
+  const cn=this.cn||(this.cn=new V3(0,1,0)),vt=this.v.lengthSq()-this.v.dot(cn)**2,uy=_u.set(0,1,0).applyQuaternion(this.q).y;
+  if(gd&&uy<.93&&(this.pr?vt<9+(this.pw*DRAD*1.6)**2:cn.y>.6&&uy<-.6&&vt<9)){const up=_u;this.pr=1;const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
+   const tg=PEND*(.5+.5*sm((1-up.y)/2))*(this.thr>.3?1.3:1);this.pw=(this.pw||0)+(tg-(this.pw||0))*(1-Math.exp(-dt/.35));
+   if(this.pw>.15&&this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return 0}else this.pw=this.pr=0
   this.w.lerp(wt,1-Math.exp(-dt/(gd?.09:TAU)));const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
