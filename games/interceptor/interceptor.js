@@ -24,7 +24,7 @@ let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.
 const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3(),_tl=new V3(),_vr=new V3();
 const DIFF=[{n:'Light',cnt:.7,spd:.92,gap:1.3},{n:'Heavy',cnt:1,spd:1,gap:1},{n:'Saturation',cnt:1.5,spd:1.06,gap:.7}];
 const RRS=[2000,5000,10000];
-const DEF={mode:"acro",diff:1,tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fuse:'auto',fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1};
+const DEF={mode:"acro",diff:1,tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fuse:'auto',fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,guideSw:-1,nextSw:-1,guide:1};
 loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the dart's camera sits at 90°, a 5-inch quad's at 30°
 if(S.fuse!=='manual')S.fuse='auto';S.diff=cl(S.diff|0,0,2);S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
@@ -33,19 +33,30 @@ if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (s
 const ov=$('ov'),oc=ov.getContext('2d');let sens;
 const resize=initRender({far:40000,near:.05,logDepth:true,bl:[.3,.45,1.4],exposure:.6,onResize:()=>{if(sens)renderer.getDrawingBufferSize(sens.uniforms.res.value);const r=Math.min(devicePixelRatio,2);ov.width=innerWidth*r;ov.height=innerHeight*r;oc.setTransform(r,0,0,r,0,0)}});
 scene.fog=new THREE.Fog(0xc9d6e0,1500,9000);
-// FPV camera feed: sensor grain, line noise, rolling band and vignette; white-hot thermal turns the picture into luminance (hot = white)
-sens=new ShaderPass({uniforms:{tDiffuse:{value:null},t:{value:0},gr:{value:.5},th:{value:0},res:{value:new THREE.Vector2(1,1)}},
+// FPV camera feed as the goggles see it: wide-lens barrel distortion and colour fringing, a soft small-sensor picture with flat CMOS colour,
+// shadow-heavy sensor noise and chroma speckle, line flicker, a rolling band, and analog-style breakup (sync jitter, torn lines, snow) as the video link weakens (lq).
+// White-hot thermal turns the picture into luminance (hot = white).
+sens=new ShaderPass({uniforms:{tDiffuse:{value:null},t:{value:0},gr:{value:.5},th:{value:0},lq:{value:1},res:{value:new THREE.Vector2(1,1)}},
  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
- fragmentShader:`uniform sampler2D tDiffuse;uniform float t,gr,th;uniform vec2 res;varying vec2 vUv;
+ fragmentShader:`uniform sampler2D tDiffuse;uniform float t,gr,th,lq;uniform vec2 res;varying vec2 vUv;
 float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
-void main(){vec2 uv=vUv;float row=floor(uv.y*res.y/2.),fr=floor(t*30.),ln=h(vec2(row*.37,fr));
- uv.x+=(ln>.993?(h(vec2(fr,row))-.5)*.02:0.)*gr;  // torn lines
- vec3 c=texture2D(tDiffuse,uv).rgb;
- if(th>.5){vec2 p=1.5/res;c=(c*2.+texture2D(tDiffuse,uv+vec2(p.x,0.)).rgb+texture2D(tDiffuse,uv-vec2(p.x,0.)).rgb+texture2D(tDiffuse,uv+vec2(0.,p.y)).rgb+texture2D(tDiffuse,uv-vec2(0.,p.y)).rgb)/6.;  // microbolometer: softer, lower-res picture
-  float l=dot(c,vec3(.299,.587,.114));c=vec3(pow(clamp((l-.06)*1.35,0.,1.),.85));}
- float g=gr*(th>.5?1.6:1.);c+=(h(vUv*res+fract(t*7.13)*91.)-.5)*g*.22;  // per-pixel sensor grain
- c*=1.-g*.05*h(vec2(row,fr))-g*.06*smoothstep(.0,.08,abs(fract(vUv.y*.7-t*.23)-.5)-.42);  // line flicker and a slow rolling band
- float d=length((vUv-.5)*vec2(res.x/res.y,1.));c*=1.-.55*smoothstep(.45,1.05,d);  // lens vignette
+void main(){float bad=1.-lq,row=floor(vUv.y*res.y/2.),fr=floor(t*30.);
+ vec2 c0=vUv-.5;vec2 uv=.5+c0*(1.+.13*dot(c0,c0))/1.033;  // barrel distortion
+ uv.x+=((h(vec2(row*.13,fr))-.5)*.006*bad*bad+(h(vec2(row*.37,fr))>.994-.05*bad?(h(vec2(fr,row))-.5)*.035:0.))*(.3+gr);  // sync jitter and torn lines
+ uv.y+=bad>.6&&h(vec2(fr,7.))>.85?(h(vec2(fr,3.))-.5)*.04*bad:0.;  // frame roll on a bad link
+ vec2 ca=c0*.007,p=1.2/res;
+ vec3 c=vec3(texture2D(tDiffuse,uv+ca).r,texture2D(tDiffuse,uv).g,texture2D(tDiffuse,uv-ca).b);  // lateral colour fringing
+ vec3 s=(texture2D(tDiffuse,uv+vec2(p.x,0.)).rgb+texture2D(tDiffuse,uv-vec2(p.x,0.)).rgb+texture2D(tDiffuse,uv+vec2(0.,p.y)).rgb+texture2D(tDiffuse,uv-vec2(0.,p.y)).rgb)*.25;
+ c=mix(c,s,th>.5?.6:.4);  // small sensor and video compression: soft detail
+ float l=dot(c,vec3(.299,.587,.114));
+ if(th>.5)c=vec3(pow(clamp((l-.06)*1.35,0.,1.),.85));
+ else{c=mix(vec3(l),c,.8);c=c*vec3(.97,1.,.95)*.92+.035;}  // flat FPV-cam colour, lifted blacks
+ float g=gr*(th>.5?1.6:1.),n=h(vUv*res+fract(t*7.13)*91.)-.5;
+ c+=n*g*(.1+.22*(1.-l));  // sensor noise, strongest in the shadows
+ if(th<.5)c+=(vec3(h(vUv*res*.7+fract(t*3.1)*17.),h(vUv*res*.7+fract(t*5.3)*29.),h(vUv*res*.7+fract(t*2.7)*41.))-.5)*g*.06;  // chroma speckle
+ c=mix(c,vec3(h(floor(vUv*res/vec2(2.,1.))+fract(t*11.)*73.)),clamp(bad*bad*1.1-.05,0.,.85));  // snow as the link fades
+ c*=1.-g*.05*h(vec2(row,fr))-(g*.06+bad*.2)*smoothstep(.0,.08,abs(fract(vUv.y*.7-t*.23)-.5)-.42);  // line flicker and a rolling band
+ float d=length(c0*vec2(res.x/res.y,1.));c*=1.-.6*smoothstep(.4,1.05,d);  // lens vignette
  gl_FragColor=vec4(c,1.);}`});
 sens.enabled=false;composer.addPass(sens);
 resize();
@@ -291,10 +302,10 @@ class Drone{
   add(GEO.lens,MAT.lens,0,.36,-.02);add(GEO.ant,MAT.carbon,.15,-.3,0);add(new THREE.BoxGeometry(.02,.04,.02),MAT.led,0,-.2,.062);
   scene.add(g)}
  // on the launch mat at the forward position nearest the most urgent track, standing on its fins, nose up, facing the track, motors off
- spawn(){const u=urgent(),f=this.home=u?FOBS.reduce((a,b)=>Math.hypot(b.x-u.p.x,b.z-u.p.z)<Math.hypot(a.x-u.p.x,a.z-u.p.z)?b:a):FOBS[1];
+ spawn(){const u=selT(),f=this.home=u?FOBS.reduce((a,b)=>Math.hypot(b.x-u.p.x,b.z-u.p.z)<Math.hypot(a.x-u.p.x,a.z-u.p.z)?b:a):FOBS[1];
   this.p.set(f.mat.x,f.mat.y+(.36+.04)*MSZ+.005,f.mat.z);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);
   this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true}
- step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT);if(THR*this.ms**TE<G*.5&&_u.set(0,1,0).applyQuaternion(this.q).y>.7)wt.set(0,0,0)}  // standing on its fins below half-hover thrust: the sticks can't tip it overthis.t+=dt;
+ step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT);if(THR*this.ms**TE<G*.5&&_u.set(0,1,0).applyQuaternion(this.q).y>.7)wt.set(0,0,0)}this.t+=dt;  // standing on its fins below half-hover thrust: the sticks can't tip it over
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&_u.y<.7&&this.pivot(wt,dt))return 0;  // only once it has fallen over: standing on its fins it stays put
   this.w.lerp(wt,1-Math.exp(-dt/(gd?.09:TAU)));const up=_u.set(0,1,0).applyQuaternion(this.q),va=_vr.subVectors(this.v,WIND).dot(up);
@@ -351,9 +362,14 @@ const fwdH=(q,o)=>o.set(0,1,-1).applyQuaternion(q).setY(0);
 const fireIn=fireBtnIn;
 // camera tilt switch (S.tilt for cruise / level for take-off and hover) and thermal switch: keyboard L / H toggle; a mapped radio switch axis sets the position whenever it moves, a mapped button toggles
 let camUp=false,therm=false;const swPrev={},camA=()=>camUp?S.tilt:0;
+const setGuide=v=>{S.guide=v?1:0;save();if(!demo)banner(v?'GUIDANCE ON':'GUIDANCE OFF','',.7)};
 const setCam=v=>{if(v!==camUp){camUp=v;if(!demo)banner(v?`CAM ${S.tilt}°`:'CAM LEVEL','',.7)}},setTherm=v=>{if(v!==therm){therm=v;if(!demo)banner(v?'THERMAL WHT':'DAY CAM','',.7)}};
-function swRead(b){const g=pad();if(!g||b===-1||b==null)return null;return typeof b==='string'?(g.axes[+b.slice(1)]??-1)>.5:!!g.buttons[b]?.pressed}
-function switches(){for(const[k,set,get]of[['tiltSw',setCam,()=>camUp],['thermSw',setTherm,()=>therm]]){const v=swRead(S[k]),p=swPrev[k];swPrev[k]=v;if(v==null||v===p)continue;if(typeof S[k]==='string')set(v);else if(v&&p!=null)set(!get())}}
+// switch mapping: -1 none, a button index, 'aN' = axis N above +0.5, '-aN' = axis N below -0.5 (2- and 3-position radio switches report as axes)
+const swOn=(g,b)=>b===-1||b==null?null:typeof b==='string'?(b[0]==='-'?(g.axes[+b.slice(2)]??0)<-.5:(g.axes[+b.slice(1)]??0)>.5):!!g.buttons[b]?.pressed;
+function swRead(b){const g=pad();return g?swOn(g,b):null}
+const SWA={tiltSw:[setCam,()=>camUp],thermSw:[setTherm,()=>therm],guideSw:[v=>setGuide(v),()=>!!S.guide],nextSw:[()=>nextTrack(),null]};
+function switches(){for(const k in SWA){const[set,get]=SWA[k],b=S[k],v=swRead(b),p=swPrev[k];swPrev[k]=v;if(v==null||v===p)continue;
+ if(!get){if(p!=null&&(typeof b==='string'||v))set()}else if(typeof b==='string')set(v);else if(v&&p!=null)set(!get())}}  // switch axes set the position whenever they move; buttons toggle; Next track fires on any flip
 
 // ---------- threats: Shahed-136 / Geran-2 (3.5 m, 2.5 m span, MD-550 two-stroke pusher, ~185 km/h) and jet Geran-3 (3.5 m, 3 m span, turbojet on top, 300–370 km/h) ----------
 function shWing(span){const s=new THREE.Shape(),h=span/2;s.moveTo(0,.95);s.lineTo(h,-.95);s.lineTo(h,-1.72);s.lineTo(-h,-1.72);s.lineTo(-h,-.95);s.closePath();return new THREE.ExtrudeGeometry(s,{depth:.06,bevelEnabled:true,bevelThickness:.015,bevelSize:.02,bevelSegments:1}).rotateX(Math.PI/2).translate(0,-.02,0)}
@@ -403,6 +419,18 @@ function fires(dt){for(const f of FIRES)if((f.t-=dt)<=0){f.t=.06;FX.emit(f.p,0xf
 const nearestThreat=p=>{let b=null,bd=1e18;for(const t of TH)if(live(t)){const q=t.p.distanceToSquared(p);if(q<bd){bd=q;b=t}}return b};
 // most urgent track: least time to reach its target
 const urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(live(t)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(tt<bt){bt=tt;b=t}}return b};
+// selected track: the most urgent unless you picked one with Next track (N); tracks cycle in order of urgency
+let pickT=null,gdNow=null;const selT=()=>pickT&&live(pickT)?pickT:urgent();
+function nextTrack(){const L=TH.filter(live).sort((a,b)=>Math.hypot(a.aim.x-a.p.x,a.aim.z-a.p.z)/a.spd-Math.hypot(b.aim.x-b.p.x,b.aim.z-b.p.z)/b.spd);if(!L.length)return;pickT=L[(L.indexOf(selT())+1)%L.length];if(!demo)banner('T'+String(pickT.id).padStart(2,'0'),'',.6)}
+// midcourse guidance: the ground station turns the latest radar plot of the selected track (updated each sweep, dead-reckoned between) into a predicted intercept point
+// 60 m behind the target, solved for your speed (at least cruise), so you arrive in its six. Inside 1.5 km it hands over to terminal: your eyes, the brackets and the pursuit cue.
+const GD={pip:new V3(),tp:new V3(),tv:new V3()};
+function guidance(me){const t=selT();if(!t||!me)return null;const r=t.rb,age=r?r.age:0;
+ if(r)GD.tp.set(r.x+r.vx*age,r.y,r.z+r.vz*age),GD.tv.set(r.vx,0,r.vz);else GD.tp.copy(t.p),GD.tv.copy(t.v);
+ const vh=_tv.copy(GD.tv).normalize(),vi=Math.max(me.v.length(),95),rng=GD.tp.distanceTo(me.p);let tau=rng/vi;
+ for(let i=0;i<6;i++){GD.pip.copy(GD.tp).addScaledVector(GD.tv,tau);if(t.st!=='dive')GD.pip.addScaledVector(vh,-60);tau=Math.min(150,GD.pip.distanceTo(me.p)/vi)}
+ const f=me.v.lengthSq()>100?_tl.copy(me.v).setY(0):fwdH(me.q,_tl),b=Math.atan2(GD.pip.x-me.p.x,-(GD.pip.z-me.p.z)),h=Math.atan2(f.x,-f.z);
+ return{t,ttg:tau,rng,ph:rng>1500?'MIDCOURSE':'TERMINAL',herr:((b-h)*180/Math.PI+540)%360-180,dalt:GD.pip.y-me.p.y}}
 // fuse window: the proximity fuse can't resolve a fast pass, so the effective radius shrinks with closing speed (tail chase = full window, head-on = direct hit only)
 const fuseR=cv=>LETH*cl(1.3-cv/70,.15,1);
 const aspect=(t,p)=>{const c=_ad.subVectors(p,t.p).normalize().dot(_tv.copy(t.v).normalize());return c<-.5?'TAIL':c>.5?'HEAD-ON':'BEAM'};
@@ -411,7 +439,7 @@ const aspect=(t,p)=>{const c=_ad.subVectors(p,t.p).normalize().dot(_tv.copy(t.v)
 let player=null,demo=true,paused=false,menuOpen=true,shake=0,camMode=S.cam|0;
 let wave=0,wstate='brief',wT=0,toSpawn=0,spawnT=0,saved=0,lost=0,spent=0,ws=0,wl=0;
 const deadP=new V3(),deadC=new V3();
-function launch(){if(!player)player=new Drone();player.spawn();TH.forEach(t=>{t.pd=t.dmin=1e9;t.cvm=0});fireWas=true;kbThr=0;kbArm=false;camUp=false;{const v=typeof S.tiltSw==='string'?swRead(S.tiltSw):null;if(v!=null)camUp=v}
+function launch(){if(!player)player=new Drone();player.spawn();TH.forEach(t=>{t.pd=t.dmin=1e9;t.cvm=0});fireWas=true;kbThr=0;kbArm=false;camUp=false;lqS=1;{const v=typeof S.tiltSw==='string'?swRead(S.tiltSw):null;if(v!=null)camUp=v}
  if(!demo)feed(`On the mat at <b>${player.home.n}</b>. Throttle up to take off`)}
 function relaunch(){if(player.dead<=0&&player.p.distanceTo(player.home.mat)>3)spent++;launch()}
 function lose(why){const d=player;if(d.dead>0)return;d.dead=RELT;spent++;deadP.copy(d.p);d.mesh.visible=false;
@@ -437,7 +465,7 @@ function waves(dt){
  if(wstate==='wave'){if(toSpawn>0&&(spawnT-=dt)<=0){toSpawn--;spawnThreat(wave>=3&&Math.random()<Math.min(.4,.1*(wave-2)));spawnT=(7-Math.min(wave,8)*.45)*DIFF[demo?1:S.diff].gap*(.6+Math.random()*.8)}
   if(!toSpawn&&!TH.some(live)){wstate='clear';wT=5;if(!demo){banner(`WAVE ${wave} CLEAR`,'cg',2.6);feed(`Wave ${wave}: <span class="cg">${ws} down</span> · <span class="cr">${wl} hit${wl===1?'':'s'}</span>`)}}return}
  if(wstate==='clear'&&(wT-=dt)<=0)startWave()}
-function resetWorld(){TH.forEach(t=>scene.remove(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
+function resetWorld(){pickT=null;TH.forEach(t=>scene.remove(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
 function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);startWave();toSpawn--;spawnThreat(false);launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
 function startDemo(){demo=true;resetWorld();setWeather(S.wx);if(player)player.mesh.visible=false;startWave();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
 function showMenu(v){menuOpen=v;$('menu').hidden=!v;paused=v&&!demo}
@@ -450,7 +478,7 @@ function updateCam(dt,now){const me=player;camPrev.copy(camera.position);
  else{const fpv=camMode===0;me.mesh.visible=!fpv;
   if(fpv){camera.position.copy(me.p).add(_cp.set(0,.37,-.03).multiplyScalar(MSZ).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camA()*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);setFov(S.fov)}
   else{const f=fwdH(me.q,_f);if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);f.normalize();
-   const nt=urgent(),foc=nt?nt.p:_ip.set(PADP.x,PADY,PADP.z);if(camMode===2&&nt)f.subVectors(foc,me.p).setY(0).normalize();if(f.lengthSq()<.5)f.copy(camFwd);camFwd.lerp(f,1-Math.exp(-dt*5)).normalize();
+   const nt=selT(),foc=nt?nt.p:_ip.set(PADP.x,PADY,PADP.z);if(camMode===2&&nt)f.subVectors(foc,me.p).setY(0).normalize();if(f.lengthSq()<.5)f.copy(camFwd);camFwd.lerp(f,1-Math.exp(-dt*5)).normalize();
    _cp.copy(me.p).addScaledVector(camFwd,-3.4*MSZ).add(_t.set(0,1.1*MSZ,0));_cp.y=Math.max(_cp.y,gh(_cp.x,_cp.z)+.6);
    camPos.lerp(_cp,1-Math.exp(-dt*10));camera.position.copy(camPos);camera.lookAt(camMode===2&&nt?foc:_t.copy(me.p).addScaledVector(camFwd,3*MSZ).setY(me.p.y+.3*MSZ));setFov(100)}}
  if(dt>0)camVel.subVectors(camera.position,camPrev).divideScalar(dt).clampLength(0,200);
@@ -474,39 +502,48 @@ function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:nul
  // sweep
  const s0=sweep;sweep=(sweep+dt*Math.PI)%(Math.PI*2);const g=rc.createConicGradient?rc.createConicGradient(sweep-Math.PI/2-.6,c,c):null;
  if(g){g.addColorStop(0,'rgba(90,255,150,0)');g.addColorStop(.095,'rgba(90,255,150,.18)');g.addColorStop(.0955,'rgba(90,255,150,0)');rc.fillStyle=g;rc.beginPath();rc.arc(c,c,R,0,7);rc.fill()}
- const sel=urgent();rc.font='700 17px "JetBrains Mono",monospace';rc.textAlign='left';
+ const sel=selT();rc.font='700 17px "JetBrains Mono",monospace';rc.textAlign='left';
  for(const t of TH){if(t.st==='dead')continue;const q=P(t.p.x,t.p.z),b=(Math.atan2(q[0]-c,c-q[1])+Math.PI*2)%(Math.PI*2),crossed=s0<=sweep?b>s0&&b<=sweep:b>s0||b<=sweep;
   if(crossed||!t.rb)t.rb={x:t.p.x,z:t.p.z,vx:t.v.x,vz:t.v.z,y:t.p.y,age:0};else t.rb.age+=dt;if(!live(t)&&t.rb.age>1.5)continue;
   const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':t===sel?'255,198,64':t.jet?'255,150,60':'255,77,77';
   rc.globalAlpha=a;rc.strokeStyle=rc.fillStyle=`rgb(${col})`;rc.lineWidth=2.5;rc.beginPath();rc.moveTo(bq[0],bq[1]-7);rc.lineTo(bq[0]+7,bq[1]);rc.lineTo(bq[0],bq[1]+7);rc.lineTo(bq[0]-7,bq[1]);rc.closePath();live(t)?rc.fill():rc.stroke();
   if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();rc.fillText(`T${String(t.id).padStart(2,'0')} ${Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100)}`,bq[0]+10,bq[1]-8)}}
  rc.globalAlpha=1;rc.restore();
+ if(gdNow&&gdNow.ph==='MIDCOURSE'){const q=P(GD.pip.x,GD.pip.z);rc.save();rc.setLineDash([10,8]);rc.strokeStyle='#5fe3ff';rc.lineWidth=2;rc.beginPath();rc.moveTo(c,c);rc.lineTo(q[0],q[1]);rc.stroke();rc.setLineDash([]);rc.beginPath();rc.moveTo(q[0],q[1]-8);rc.lineTo(q[0]+8,q[1]);rc.lineTo(q[0],q[1]+8);rc.lineTo(q[0]-8,q[1]);rc.closePath();rc.stroke();rc.restore()}  // guidance line to the PIP
  // own ship, ring labels, north marker
  rc.fillStyle='#3ddc84';rc.beginPath();rc.moveTo(c,c-10);rc.lineTo(c+7,c+8);rc.lineTo(c-7,c+8);rc.closePath();rc.fill();
  rc.fillStyle='rgba(150,255,190,.75)';rc.font='700 15px "JetBrains Mono",monospace';rc.textAlign='center';for(const k of[1/3,2/3,1])rc.fillText((RR*k/1000).toFixed(RR>3000?0:1),c+R*k*.707+10,c-R*k*.707+4);
  const nq=[c+Math.sin(-hd)*(R-2),c-Math.cos(-hd)*(R-2)];rc.fillStyle='#fff';rc.font='700 18px "JetBrains Mono",monospace';rc.fillText('N',nq[0],nq[1]+6);
  rc.strokeStyle='rgba(150,255,190,.5)';rc.lineWidth=2;rc.beginPath();rc.arc(c,c,R+2,0,7);rc.stroke()}
+// video link quality from the position's ground-station antenna: falls off past ~1.8 km and drops hard when terrain blocks line of sight (fly higher to get it back)
+let lqS=1,lqT=0;
+function linkQ(me,dt){if((lqT-=dt)>0)return lqS;lqT=.1;const h=me.home,ax=h.x-3,ay=h.y+5.5,az=h.z+1,d=Math.hypot(me.p.x-ax,me.p.z-az);let q=1-.8*sm((d-1800)/3400);
+ for(let i=1;i<20;i++){const f=i/20,x=ax+(me.p.x-ax)*f,z=az+(me.p.z-az)*f;if(gh(x,z)>ay+(me.p.y-ay)*f-1.5&&d>60){q*=.35;break}}
+ return lqS+=(q-lqS)*.35}
 const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';let siteHTML='';
 const hdg=v=>String(Math.round((Math.atan2(v.x,-v.z)*180/Math.PI+360)%360)).padStart(3,'0');
 function hud(dt){if(demo)return;const me=player;$('sw').textContent='WAVE '+wave;$('sv').textContent=saved+' DOWN';$('sl').textContent=lost+' HIT'+(lost===1?'':'S');
  const sh=SITES.map(s=>`<span class="${s.hp?'':'dead'}">${s.n} ${'■'.repeat(s.hp)}${'□'.repeat(s.max-s.hp)}</span>`).join('');if(sh!==siteHTML)$('sites').innerHTML=siteHTML=sh;
- const inb=TH.filter(live).length+(wstate==='wave'||wstate==='brief'?toSpawn:0),sel=urgent(),alive=me.dead<=0;
+ const inb=TH.filter(live).length+(wstate==='wave'||wstate==='brief'?toSpawn:0),sel=selT(),alive=me.dead<=0;
  const cv=cellV(me),fl=me.t|0,ws=WIND.length();
  $('osd').innerHTML=`<span><b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE','THREAT CAM'][camMode]} · ${DIFF[S.diff].n.toUpperCase()} · CAM ${camUp?S.tilt+'°':'LVL'}${therm?' · TI WHT':''} · ${WX.n.toUpperCase()} · WIND ${Math.round(ws*3.6)} km/h ${hdg(_t.copy(WIND).negate())}</span>`+
-  (alive?`<span>THR ${String(Math.round(me.thr*100)).padStart(3)}%  ${String(Math.round(me.v.length()*3.6)).padStart(3)} km/h  HDG ${hdg(fwdH(me.q,_f))}</span><span>ALT ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m AGL  ${Math.round(me.p.y)} m MSL  HOME ${me.home.n.slice(4)} ${rng(Math.hypot(me.p.x-me.home.x,me.p.z-me.home.z))}</span>`+
+  (alive?`<span>THR ${String(Math.round(me.thr*100)).padStart(3)}%  ${String(Math.round(me.v.length()*3.6)).padStart(3)} km/h  HDG ${hdg(fwdH(me.q,_f))}</span><span>ALT ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m AGL  ${Math.round(me.p.y)} m MSL  HOME ${me.home.n.slice(4)} ${rng(Math.hypot(me.p.x-me.home.x,me.p.z-me.home.z))}  LQ ${Math.round(lqS*100)}%</span>`+
    `<span class="${cv<3.5?'r':''}">BAT ${(cv*12).toFixed(1)}V 12S  ${String(Math.round(me.mah)).padStart(5)} mAh  ${String(fl/60|0).padStart(2,'0')}:${String(fl%60).padStart(2,'0')}</span>`:`<span class="r">NEXT INTERCEPTOR ${me.dead.toFixed(1)}</span>`)+
   `<span>FUSE ${S.fuse==='auto'?'PROX':'MANUAL'} · INBOUND ${inb} · INTERCEPTORS USED ${spent}</span>`;
  if(sel){const r=_a.subVectors(sel.p,me.p),d=r.length(),c2=-_b.subVectors(sel.v,me.v).dot(r)/d,asp=aspect(sel,me.p),win=fuseR(Math.max(0,c2));
   $('trk').innerHTML=`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${sel.jet?'GERAN-3 JET':'SHAHED-136'}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}<br>${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}<br>${alive?`ASPECT <span class="${asp==='TAIL'?'cg':asp==='HEAD-ON'?'cr':''}">${asp}</span> · CLOSING ${Math.round(c2*3.6)} km/h · FUSE ${win.toFixed(1)} m`:''}`}else $('trk').textContent='NO TRACKS';
- $('warn').textContent=!alive?'':Math.abs(me.p.x)>AW-300||Math.abs(me.p.z)>AW-300?'LEAVING THE AO · TURN BACK':cv<3.5?'BATTERY LOW · LAND':'';
+ const lq=alive?linkQ(me,dt):1;$('warn').textContent=!alive?'':lq<.45?'VIDEO LINK WEAK · CLIMB OR TURN BACK':Math.abs(me.p.x)>AW-300||Math.abs(me.p.z)>AW-300?'LEAVING THE AO · TURN BACK':cv<3.5?'BATTERY LOW · LAND':'';
  $('xh').hidden=camMode!==0||!alive;
  const a=$('arrow');if(!sel||!alive){a.hidden=true}else{_t.copy(sel.p).project(camera);let x=_t.x,y=_t.y;const behind=_t.z>1;if(behind){x=-x;y=-y}
   if(!behind&&Math.abs(x)<.95&&Math.abs(y)<.9)a.hidden=true;else{a.hidden=false;const m=Math.max(Math.abs(x)/.9,Math.abs(y)/.82,1e-3);x/=m;y/=m;
    a.style.transform=`translate(${(x*.5+.5)*innerWidth-13}px,${(-y*.5+.5)*innerHeight-12}px) rotate(${Math.atan2(x,y)}rad)`}}
+  {const g=gdNow=S.guide&&alive?guidance(me):null;let h='';if(g){const id='T'+String(g.t.id).padStart(2,'0');
+   h=g.ph==='MIDCOURSE'?`<b>MIDCOURSE</b> ${id} · PIP ${rng(GD.pip.distanceTo(me.p))} · TTG ${Math.round(g.ttg)} s · ${Math.abs(g.herr)<4?'ON COURSE':(g.herr>0?'► R ':'◄ L ')+Math.round(Math.abs(g.herr))+'°'} · ${Math.abs(g.dalt)<25?'LEVEL':(g.dalt>0?'CLIMB ':'DESCEND ')+Math.round(Math.abs(g.dalt))+' m'}`:`<b>TERMINAL</b> ${id} ${rng(g.rng)} · eyes on, get in its six`}
+   $('gd').innerHTML=h}
  radar(dt)}
 // FPV overlay: Betaflight-style artificial horizon, target brackets (red per track with range, amber on the most urgent with a pursuit cue behind it), site labels
 function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if(demo)return;
- const me=player&&player.dead<=0?player:null,ft=Math.tan(camera.fov*Math.PI/360),sel=urgent(),scr=p=>{_t.copy(p).project(camera);return _t.z<1&&Math.abs(_t.x)<1.1&&Math.abs(_t.y)<1.1?[(_t.x*.5+.5)*W2,(-_t.y*.5+.5)*H2]:null};
+ const me=player&&player.dead<=0?player:null,ft=Math.tan(camera.fov*Math.PI/360),sel=selT(),scr=p=>{_t.copy(p).project(camera);return _t.z<1&&Math.abs(_t.x)<1.1&&Math.abs(_t.y)<1.1?[(_t.x*.5+.5)*W2,(-_t.y*.5+.5)*H2]:null};
  oc.lineWidth=1.6;oc.font='700 11px "JetBrains Mono",monospace';oc.textAlign='center';oc.shadowColor='#000';oc.shadowBlur=3;
  if(me&&camMode===0){const f=_f.set(0,0,-1).applyQuaternion(camera.quaternion).setY(0);if(f.lengthSq()>1e-4){f.normalize();const r=_r.crossVectors(f,UP),c=camera.position,q1=scr(_ip.copy(c).addScaledVector(f,5000).addScaledVector(r,-900)),q2=scr(_tl.copy(c).addScaledVector(f,5000).addScaledVector(r,900));
    if(q1&&q2){const mx=(q1[0]+q2[0])/2,my=(q1[1]+q2[1])/2,dx=q2[0]-q1[0],dy=q2[1]-q1[1],L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;oc.strokeStyle='rgba(255,255,255,.75)';oc.lineWidth=2;oc.beginPath();
@@ -520,6 +557,10 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
   // pursuit cue: a point 40 m behind the target along its track, led by your time to get there; fly through it to end up in its six
   if(L&&t===sel&&me){const vh=_tv.copy(t.v).normalize(),r=_a.subVectors(t.p,me.p).length(),tg=cl(r/Math.max(me.v.length(),40),0,8),cue=_ip.copy(t.p).addScaledVector(t.v,tg*.5).addScaledVector(vh,-40),lp=scr(cue);
    if(lp){oc.beginPath();oc.arc(lp[0],lp[1],7,0,7);oc.moveTo(lp[0]-11,lp[1]);oc.lineTo(lp[0]-4,lp[1]);oc.moveTo(lp[0]+4,lp[1]);oc.lineTo(lp[0]+11,lp[1]);oc.stroke()}}}
+ // midcourse PIP: cyan diamond with time to go, or a chevron on the screen edge pointing to it
+ if(me&&gdNow&&gdNow.ph==='MIDCOURSE'){_t.copy(GD.pip).project(camera);let x=_t.x,y=_t.y;const bh=_t.z>1;if(bh){x=-x;y=-y}oc.strokeStyle=oc.fillStyle='#5fe3ff';oc.lineWidth=2;
+  if(!bh&&Math.abs(x)<.95&&Math.abs(y)<.92){const X=(x*.5+.5)*W2,Y=(-y*.5+.5)*H2;oc.beginPath();oc.moveTo(X,Y-12);oc.lineTo(X+12,Y);oc.lineTo(X,Y+12);oc.lineTo(X-12,Y);oc.closePath();oc.stroke();oc.fillText(`PIP ${Math.round(gdNow.ttg)}s`,X,Y+26)}
+  else{const m=Math.max(Math.abs(x)/.88,Math.abs(y)/.8,1e-3);x/=m;y/=m;const X=(x*.5+.5)*W2,Y=(-y*.5+.5)*H2,a=Math.atan2(-y,x);oc.save();oc.translate(X,Y);oc.rotate(a);oc.beginPath();oc.moveTo(14,0);oc.lineTo(-6,-10);oc.lineTo(-1,0);oc.lineTo(-6,10);oc.closePath();oc.fill();oc.restore();oc.fillText('PIP',X,Y+24)}}
  oc.shadowBlur=0}
 
 // ---------- visuals ----------
@@ -533,18 +574,28 @@ function visuals(dt,now){const me=player;
 // ---------- input events ----------
 function cycleCam(){camMode=(camMode+1)%3;S.cam=camMode;save()}
 function togglePause(){if(demo)return;showMenu(!menuOpen)}
-initInput({menu:()=>menuOpen,pause:togglePause,key:e=>{if(e.code==='KeyC')cycleCam();if(e.code==='KeyL')setCam(!camUp);if(e.code==='KeyH')setTherm(!therm);if(e.code==='KeyV'){S.rr=(S.rr+1)%3;save();syncUI()}if(e.code==='KeyR'&&player&&!demo&&wstate!=='over')relaunch()}});
+initInput({menu:()=>menuOpen,pause:togglePause,key:e=>{if(e.code==='KeyC')cycleCam();if(e.code==='KeyL')setCam(!camUp);if(e.code==='KeyH')setTherm(!therm);if(e.code==='KeyG')setGuide(!S.guide);if(e.code==='KeyN')nextTrack();if(e.code==='KeyV'){S.rr=(S.rr+1)%3;save();syncUI()}if(e.code==='KeyR'&&player&&!demo&&wstate!=='over')relaunch()}});
 const padKeys=e=>{if(e(9))togglePause();if(!menuOpen&&!demo){if(e(4))cycleCam();if(e(3)&&player&&wstate!=='over')relaunch()}};
 // ---------- menu / settings ----------
 const FIELDS=[['diff','Threat level','sel',DIFF.map((d,i)=>[i,d.n])],['wx','Weather','sel',[['random','Random'],...Object.entries(WXS).map(([k,w])=>[k,w.n])]],['fuse','Warhead fuse','sel',[['auto','Proximity (auto)'],['manual','Manual (detonate button)']]],
  ['rr','Radar range','sel',RRS.map((r,i)=>[i,r/1000+' km'])],['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
- ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
+ ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['guide','Midcourse guidance','sel',[[1,'On (PIP cue from ground radar)'],[0,'Off']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
 mountPad($('pilotpad'),{fireLabel:'Detonate',fireNote:'Warhead',flip:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx)});
-{const map=$('map');
-for(const[k,lab,note]of[['tiltSw','Cam tilt','L key'],['thermSw','Thermal','H key']]){const l=document.createElement('label');l.textContent=lab;l.htmlFor='sw_'+k;const s=document.createElement('select');s.id='sw_'+k;s.add(new Option('None',-1));
- for(let b=0;b<16;b++)s.add(new Option('Button '+b,b));for(let a=4;a<8;a++)s.add(new Option('Switch axis '+a,'a'+a));
- s.value=String(S[k]);if(s.selectedIndex<0)s.value='-1';s.onchange=()=>{S[k]=s.value[0]==='a'?s.value:+s.value;delete swPrev[k];save()};const n=document.createElement('span');n.className='note';n.style.margin=0;n.textContent=note;map.append(l,s,n)}
-}
+// switch and button mapping, each with a Learn button: press it, then flip the switch or press the button on the radio/gamepad
+const SWS=[['tiltSw','Cam tilt','L'],['thermSw','Thermal','H'],['guideSw','Guidance','G'],['nextSw','Next track','N']];let learn=null;
+const swName=b=>b===-1||b==null?'None':typeof b==='string'?(b[0]==='-'?`Axis ${b.slice(2)} low`:`Axis ${b.slice(1)} high`):'Button '+b;
+for(const[k,lab,key]of SWS){const l=document.createElement('label');l.textContent=lab;l.htmlFor='sw_'+k;const s=document.createElement('select');s.id='sw_'+k;s.add(new Option('None','-1'));
+ for(let b=0;b<32;b++)s.add(new Option('Button '+b,b));for(let a=0;a<16;a++){s.add(new Option(`Switch axis ${a} high`,'a'+a));s.add(new Option(`Switch axis ${a} low`,'-a'+a))}
+ s.onchange=()=>{const v=s.value;S[k]=/a/.test(v)?v:+v;delete swPrev[k];save()};
+ const w=document.createElement('span');w.style.cssText='display:flex;gap:6px;align-items:center';w.innerHTML=`<button class="sm" id="ln_${k}" style="padding:4px 10px;font-size:12px">Learn</button><span class="note" id="st_${k}" style="margin:0;min-width:5.5em">${key} key</span>`;
+ $('map').append(l,s,w);w.firstChild.onclick=()=>{const g=pad();if(!g){$('st_'+k).textContent='no radio';return}learn={k,ax:[...g.axes],bt:g.buttons.map(x=>x.pressed),t:performance.now()};syncSw()}}
+function syncSw(){for(const[k]of SWS){const s=$('sw_'+k);s.value=String(S[k]);if(s.selectedIndex<0)s.value='-1';$('ln_'+k).textContent=learn?.k===k?'Flip it…':'Learn'}}
+function learnTick(g){if(!learn)return;if(!g||performance.now()-learn.t>10000){learn=null;syncSw();return}const sticks=S.cal.map(c=>c.a);let v=null;
+ g.buttons.forEach((b,i)=>{if(v==null&&b.pressed&&!learn.bt[i])v=i});
+ if(v==null)g.axes.forEach((a,i)=>{if(v==null&&!sticks.includes(i)&&Math.abs(a-(learn.ax[i]??0))>.6)v=(a>(learn.ax[i]??0)?'a':'-a')+i});  // the new position counts as ON
+ if(v!=null){S[learn.k]=v;delete swPrev[learn.k];save();$('st_'+learn.k).textContent=swName(v);learn=null;syncSw();tone(880,880,.08,.08)}}
+syncSw();
+const swTick=()=>{const g=pad();learnTick(g);for(const[k,,key]of SWS){if(learn?.k===k)continue;const v=g?swOn(g,S[k]):null;$('st_'+k).textContent=v==null?key+' key':v?'● ON':'○ off'}}
 syncUI();
 $('play').onclick=startMatch;$('resume').onclick=()=>showMenu(false);$('leave').onclick=startDemo;
 // ---------- mod panel ----------
@@ -564,7 +615,7 @@ function applyTune(){const T=S.mod;G=T.grav;THR=T.thr;TE=T.te;VP=T.vp;MAXV=T.max
   HBP=[[.15,-.36,0],[-.15,-.36,0],[0,-.36,.15],[0,-.36,-.15],[.27,.15,.27],[-.27,.15,.27],[.27,.15,-.27],[-.27,.15,-.27],[0,.4,0]].map(([x,y,z])=>new V3(x,y,z).multiplyScalar(k))}SPOOL=T.spool/1000;GF=T.gfric;TURT=T.turtle*Math.PI/180;WASH=T.wash;DB=T.dbounce;BCAP=T.bcap;
  LETH=T.leth;CRASH=T.crash;RELT=T.relt;TSPD=T.tspd;TCNT=T.tcnt;GSPD=T.speed;SHK=T.shake;bloom.strength=T.bloom*.33;HOV=(G/THR)**(1/TE)}
 $('modbtn').onclick=toggleMod;initModPanel({mods:MODS,presets:PRESETS,migrate,onApply:applyTune});initRates('Drone League Interceptor');
-$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','cam','thrMode','dz','fuse','fireBtn','wx','rr','fpvMix','grain','tiltSw','thermSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
+$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','cam','thrMode','dz','fuse','fireBtn','wx','rr','fpvMix','grain','guide','tiltSw','thermSw','guideSw','nextSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>feed('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 
@@ -574,7 +625,7 @@ function step(dt){const me=player;
  for(const t of TH)threatStep(t,dt);waves(dt);fires(dt)}
 startDemo();
 startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD,paused:()=>paused,menu:()=>menuOpen,draw:(vd,dt,now)=>{
- if(!menuOpen&&!demo)switches();
+ if(!menuOpen&&!demo)switches();if(menuOpen)swTick();
  const fpvOn=!demo&&camMode===0&&player&&player.dead<=0,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
- sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;
+ sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;
  weather(vd,now);visuals(vd,now);updateCam(dt,now);hud(vd);overlay()}});

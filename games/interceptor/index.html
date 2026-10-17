@@ -20,6 +20,7 @@
 #trk{font-size:12px;text-align:right;line-height:1.35}
 #flash{position:absolute;inset:0;background:#fff;opacity:0}
 #arrow{position:absolute;left:0;top:0;width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-bottom:24px solid var(--red);filter:drop-shadow(0 0 6px #ff8080)}
+#gd{position:absolute;top:calc(74px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);font-size:13px;white-space:nowrap;color:#5fe3ff}#gd b{color:#fff}
 #warn{position:absolute;left:0;right:0;top:22%;text-align:center;font-size:20px;color:var(--red)}
 #center{position:absolute;left:0;right:0;top:30%;text-align:center;font-size:clamp(40px,8vw,100px);font-weight:700;font-style:italic;letter-spacing:.02em;text-shadow:0 0 30px currentColor,0 4px 0 rgba(0,0,0,.5)}
 #feed{position:absolute;left:18px;top:calc(14px + env(safe-area-inset-top,0px));display:grid;gap:4px;font-size:14px;max-width:46vw}
@@ -36,6 +37,7 @@ button.go{background:linear-gradient(90deg,#3a6b3a,#6b7d2a 50%,var(--red));borde
   <div id="xh"></div>
   <div id="arrow" hidden></div>
   <div id="flash"></div>
+  <div id="gd" class="osd"></div>
   <div id="warn" class="osd"></div>
   <div id="center"></div>
   <div id="osd" class="osd"></div>
@@ -55,6 +57,8 @@ button.go{background:linear-gradient(90deg,#3a6b3a,#6b7d2a 50%,var(--red));borde
         <kbd>F / click</kbd><span>Detonate. The proximity fuse also fires by itself at closest approach, but only inside its window, and the window shrinks as closing speed goes up: run them down from behind</span>
         <kbd>L</kbd><span>Camera tilt switch: 90° for cruise / level for take-off and hover</span>
         <kbd>H</kbd><span>Thermal camera switch (white-hot)</span>
+        <kbd>G</kbd><span>Midcourse guidance on/off: fly the cyan PIP diamond to end up behind the selected track; inside 1.5 km it hands over to terminal (your eyes)</span>
+        <kbd>N</kbd><span>Next track (otherwise guidance takes the most urgent one)</span>
         <kbd>V</kbd><span>Radar range 2 / 5 / 10 km</span>
         <kbd>C</kbd><span>Camera: FPV → chase → threat cam</span>
         <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
