@@ -1,5 +1,5 @@
 // Flight model: LiftOff-style acro quad (rates, spool, thrust curve, prop inflow, body-axis drag, prop wash, super boost),
-// rounded-box ground contact with turtle-style pivots, the attitude controller (bots + Angle mode) and stick input.
+// rounded-box ground contact with turtle-style pivots (thrust shoving into the ground slides rather than grips), the attitude controller (bots + Angle mode) and stick input.
 // A game hands it the world's collision shape with setWorld(sdf) and its physics sliders with tuneFlight(T).
 import * as THREE from 'three';
 import {V3,QT,cl,UP} from './util.js';
@@ -36,7 +36,7 @@ export class Quad{
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&this.pivot(wt,dt)){this.pw=0;return 0}
   // inverted pendulum: upside down or on its side on the ground, it leans further and further over its edge until it lands on its feet
-  if(gd){const up=_u.set(0,1,0).applyQuaternion(this.q);if(up.y<.9&&(up.y<.2||this.v.lengthSq()<25)){const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
+  if(gd&&(THR*this.ms**TE<G||this.v.x**2+this.v.z**2<9)){const up=_u.set(0,1,0).applyQuaternion(this.q);if(up.y<.9&&(up.y<.2||this.v.lengthSq()<25)){const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
    this.pw=Math.min(9,(this.pw||1.2)+PEND*Math.max(sn,.25)*(this.thr>.3?1.6:1)*dt);if(this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return 0}else this.pw=0}
   this.w.lerp(wt,1-Math.exp(-dt/(gd?.09:TAU)));const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
@@ -63,7 +63,7 @@ export class Quad{
   if(!c)return 0;this.p.addScaledVector(na.normalize(),dm);
   for(let i=0;i<c;i++){const[r,n]=_H[i],vp=_vp.crossVectors(ww,r).add(this.v),vn=vp.dot(n);if(vn>=0)continue;
    const rn=_rn.crossVectors(r,n),den=1+rn.lengthSq()/DI,j=-(1+(-vn>3?DB:0))*vn/den/c*GK;this.v.addScaledVector(n,j);ww.addScaledVector(rn,j*GS/DI);
-   vp.addScaledVector(n,-vn);const tl=vp.length();if(tl>1e-4){vp.divideScalar(tl);const rt=_rn.crossVectors(r,vp),jt=Math.min(GF*j,tl/(1+rt.lengthSq()/DI)/c);this.v.addScaledVector(vp,-jt);ww.addScaledVector(rt,-jt*GT/DI)}
+   vp.addScaledVector(n,-vn);const tl=vp.length();if(tl>1e-4){vp.divideScalar(tl);const rt=_rn.crossVectors(r,vp),jt=Math.min(GF*Math.min(j,G*.05/c),tl/(1+rt.lengthSq()/DI)/c);this.v.addScaledVector(vp,-jt);ww.addScaledVector(rt,-jt*GT/DI)}
    m=Math.max(m,-vn)}
   this.w.copy(ww).applyQuaternion(_qb.copy(this.q).invert());this.gt=.12;return m}}
 
