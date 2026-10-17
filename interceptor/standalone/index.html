@@ -208,18 +208,18 @@ void main(){float bad=1.-lq,row=floor(vUv.y*res.y/2.),fr=floor(t*30.);
  vec2 c0=vUv-.5;vec2 uv=.5+c0*(1.+.13*dot(c0,c0))/1.033;  // barrel distortion
  uv.x+=((h(vec2(row*.13,fr))-.5)*.006*bad*bad+(h(vec2(row*.37,fr))>.994-.05*bad?(h(vec2(fr,row))-.5)*.035:0.))*(.3+gr);  // sync jitter and torn lines
  uv.y+=bad>.6&&h(vec2(fr,7.))>.85?(h(vec2(fr,3.))-.5)*.04*bad:0.;  // frame roll on a bad link
- vec2 ca=c0*.007,p=1.2/res;
+ vec2 ca=c0*.0035,p=1.2/res;
  vec3 c=vec3(texture2D(tDiffuse,uv+ca).r,texture2D(tDiffuse,uv).g,texture2D(tDiffuse,uv-ca).b);  // lateral colour fringing
  vec3 s=(texture2D(tDiffuse,uv+vec2(p.x,0.)).rgb+texture2D(tDiffuse,uv-vec2(p.x,0.)).rgb+texture2D(tDiffuse,uv+vec2(0.,p.y)).rgb+texture2D(tDiffuse,uv-vec2(0.,p.y)).rgb)*.25;
- c=mix(c,s,th>.5?.6:.3);  // small sensor and video compression: soft detail
+ c=mix(c,s,th>.5?.6:.15);  // small sensor and video compression: soft detail
  float l=dot(c,vec3(.299,.587,.114));
  if(th>.5)c=vec3(pow(clamp((l-.06)*1.35,0.,1.),.85));
- else{c=mix(vec3(l),c,.85);c=c*vec3(.97,1.,.95)*.95*ex+.025;c=c/(1.+max(c-.85,0.)*1.5);}  // flat FPV-cam colour, lifted blacks, exposure, soft highlight roll-off
+ else{c=mix(vec3(l),c,1.08)*ex;c=clamp((c-.45)*1.07+.45,0.,1.)+.008;}  // FPV-cam colour: a touch more saturation and contrast, exposure
  float g=gr*(th>.5?1.6:1.),n=h(vUv*res+fract(t*7.13)*91.)-.5;
  c+=n*g*(th>.5?.1+.22*(1.-l):.04+.13*(1.-l));  // sensor noise, strongest in the shadows
  if(th<.5)c+=(vec3(h(vUv*res*.7+fract(t*3.1)*17.),h(vUv*res*.7+fract(t*5.3)*29.),h(vUv*res*.7+fract(t*2.7)*41.))-.5)*g*.03;  // chroma speckle
  c=mix(c,vec3(h(floor(vUv*res/vec2(2.,1.))+fract(t*11.)*73.)),clamp(bad*bad*1.1-.05,0.,.85));  // snow as the link fades
- c*=1.-g*.05*h(vec2(row,fr))-(g*.06+bad*.2)*smoothstep(.0,.08,abs(fract(vUv.y*.7-t*.23)-.5)-.42);  // line flicker and a rolling band
+ c*=1.-g*(th>.5?.05:.012)*h(vec2(row,fr))-(g*(th>.5?.06:.0)+bad*.2)*smoothstep(.0,.08,abs(fract(vUv.y*.7-t*.23)-.5)-.42);  // line flicker and a rolling band
  float d=length(c0*vec2(res.x/res.y,1.));c*=1.-(th>.5?.5:.2)*smoothstep(th>.5?.4:.55,1.15,d);  // lens vignette: light on the colour cam, heavier on the thermal
  gl_FragColor=vec4(c,1.);}`});
 sens.enabled=false;composer.addPass(sens);
@@ -354,7 +354,7 @@ const WXS={clear:{n:'Clear',el:30,az:215,turb:2.2,ray:1.2,fog:[2500,14000],hz:0x
  fog:{n:'Fog',el:18,az:140,turb:6,ray:1,fog:[40,1100],hz:0xb9bfc2,cov:0,wind:2,dim:.45,exp:.6},
  dusk:{n:'Dusk',el:3.5,az:250,turb:6,ray:2.5,fog:[1500,10000],hz:0xc9a585,cov:.4,wind:5,dim:.1,warm:1,exp:.62}};
 let WX=null;const WB=new V3(),WIND=new V3();
-const cloudTex=tex(256,256,g=>{for(let i=0;i<46;i++){const x=128+(Math.random()-.5)*150,y=140+(Math.random()-.5)*70,r=26+Math.random()*44,gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,256,256)}});
+const cloudTex=tex(256,256,g=>{for(let i=0;i<46;i++){const x=128+(Math.random()-.5)*150,y=140+(Math.random()-.5)*70,r=26+Math.random()*44,gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(255,255,255,.75)');gr.addColorStop(.6,'rgba(255,255,255,.35)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,256,256)}});
 const cloudG=new THREE.Group();scene.add(cloudG);
 {const rnd=seeded(9);for(let i=0;i<150;i++){const c=new THREE.Group(),x=(rnd()-.5)*20000,z=(rnd()-.5)*20000,y=1100+rnd()*700,k=180+rnd()*320;c.position.set(x,y,z);
  for(let j=0;j<7;j++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:cloudTex,transparent:true,depthWrite:false,opacity:.9}));s.position.set((rnd()-.5)*k*1.6,(rnd()-.3)*k*.35,(rnd()-.5)*k*1.2);s.scale.set(k*(1+rnd()),k*(.55+rnd()*.4),1);c.add(s)}cloudG.add(c)}}
@@ -379,7 +379,7 @@ function wxLook(th){scene.environment=th||WX.deck?null:envRT.texture;
  scene.fog.color.set(th?0x404040:WX.hz);scene.fog.near=WX.fog[0]*(th?1.6:1);scene.fog.far=WX.fog[1]*(th?1.6:1);renderer.toneMappingExposure=WX.exp;
  const L=WX.dim;sun.intensity=(WX.warm?2.2:3.4)*(1-L);sun.color.set(WX.warm?0xffb27a:0xfff0dc);hemi.intensity=.75+.9*L;hemi.color.set(L>.5?0xc7ccd2:0xdde9ff);hemi.groundColor.set(L>.5?0x4c5440:0x55663f);
  deck.visible=!!WX.deck;sky.visible=!th&&!WX.deck&&WX.id!=='fog';scene.background=sky.visible?null:new THREE.Color(th?0x080808:WX.hz);if(WX.deck){deck.position.y=WX.deck;deck.material.color.setScalar(th?.25:.95-L*.55)}sunDisc.visible=!th&&!WX.deck&&WX.id!=='fog';
- cloudG.children.forEach((c,i)=>{c.visible=!th&&i<WX.cov*cloudG.children.length;c.children.forEach(s=>s.material.color.set(WX.warm?0xffd2b0:L>.3?0xb8bec4:0xffffff))});
+ cloudG.children.forEach((c,i)=>{c.visible=!th&&i<WX.cov*cloudG.children.length;c.children.forEach(s=>s.material.color.set(WX.warm?0xffd2b0:L>.3?0xb8bec4:0xffffff).multiplyScalar(L>.3?1.3:2.3))});  // sunlit cumulus is brighter than the sky behind it
  for(const[m,k]of[[SHEN,7],[MS.hood,.7],[MS.met,.18],[SHJ,.22],...SHM.map(m=>[m,.16])]){m.emissive.setScalar(th?1:0);m.emissiveIntensity=k}
  bloom.strength=S.mod.bloom*(th?.7:.33);rainL.visible=!!WX.rain}
 function weather(dt,now){const t=now*.001;WIND.copy(WB).multiplyScalar(1+.35*Math.sin(t*.7)+.2*Math.sin(t*2.3+1));if(WX.wind>8)WIND.y=Math.sin(t*1.7)*WX.wind*.08;else WIND.y=0;  // gusts
@@ -498,7 +498,7 @@ const MAT={carbon:new THREE.MeshStandardMaterial({color:0x16191f,roughness:.45,m
  band:new THREE.MeshStandardMaterial({color:0xd8b12a,roughness:.5}),led:glow(0xff3030,4)};
 const _q=new QT(),_v=new V3(),_w=new V3(),_u=new V3();
 class Drone{
- constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),tb:new V3(),gu:new V3(),dead:0,mah:0,t:0,home:FOBS[1]});this.build();this.spawn()}
+ constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),vp:0,vc:4.2,tb:new V3(),gu:new V3(),dead:0,mah:0,t:0,home:FOBS[1]});this.build();this.spawn()}
  build(){const g=this.mesh=new THREE.Group();
   const add=(geo,mat,x,y,z,ry=0,par=g)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.y=ry;m.castShadow=true;par.add(m);return m};
   add(GEO.body,MAT.olive,0,0,0);add(GEO.nose,MAT.olive,0,.28,0);add(GEO.tail,MAT.olive,0,-.32,0);add(GEO.band,MAT.band,0,.17,0);  // fuselage, warhead section behind the nose
@@ -510,7 +510,7 @@ class Drone{
  // on the launch mat at the forward position nearest the most urgent track, standing on its fins, nose up, facing the track, motors off
  spawn(){const u=selT(),f=this.home=u?FOBS.reduce((a,b)=>Math.hypot(b.x-u.p.x,b.z-u.p.z)<Math.hypot(a.x-u.p.x,a.z-u.p.z)?b:a):FOBS[1];
   this.p.set(f.mat.x,f.mat.y+(.36+.04)*MSZ+.005,f.mat.z);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);
-  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true}
+  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.vp=0;this.vc=4.2;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true}
  step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT);if(THR*this.ms**TE<G*.5&&_u.set(0,1,0).applyQuaternion(this.q).y>.7)wt.set(0,0,0)}this.t+=dt;  // standing on its fins below half-hover thrust: the sticks can't tip it over
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&_u.y<.7&&this.pivot(wt,dt))return 0;  // only once it has fallen over: standing on its fins it stays put
@@ -520,8 +520,8 @@ class Drone{
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
   this.ms+=(this.thr-this.ms)*(1-Math.exp(-dt/Math.max(1e-3,this.thr>this.ms?SPOOL:SPOOL*1.6)));  // motor spool-up / spin-down
-  this.mah+=(6+220*Math.max(this.ms,0)**1.5)*dt/3.6;  // battery current draw, mAh
-  let acc=THR*this.ms**TE*((4.2-.95*Math.min(1,this.mah/BCAP))/4.2)*(1-.03*this.ms);  // thrust ~ rpm², shaped by the thrust curve; falls as the pack drains and sags under load
+  const I=this.amp=6+220*Math.max(this.ms,0)**1.5;this.mah+=I*dt/3.6;this.vp+=(I*.0011-this.vp)*(1-Math.exp(-dt/(I*.0011>this.vp?.6:2.5)));this.vc=ocv(this.mah/BCAP)-I*.0016-this.vp;  // pack current (A), mAh used, per-cell voltage: IR drop (1.6 mΩ/cell) + polarisation that builds over ~0.6 s and recovers over ~2.5 s
+  let acc=THR*this.ms**TE*Math.min(1.04,(Math.max(this.vc,3)/4.05)**1.6);  // thrust ~ rpm² ~ voltage² at a given throttle: sags with load and as the pack drains (1.0 at a fresh pack in hover)
   acc*=cl(1-va/VP,0,1.15);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
   this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;
   const vr=_vr.subVectors(this.v,AIR),s=vr.length();if(s>1e-4){const bx=_x.set(1,0,0).applyQuaternion(this.q),bz=_z.set(0,0,1).applyQuaternion(this.q),k=DQ*s,vx=vr.dot(bx),vy=vr.dot(up),vz=vr.dot(bz);
@@ -554,9 +554,11 @@ class Drone{
    m=Math.max(m,-vn)}
   this.w.copy(ww).applyQuaternion(_qb.copy(this.q).invert());this.gt=.12;return m}}
 const _H=Array.from({length:16},()=>[new V3(),new V3()]),_pv=new V3();
-const _dw=new V3(),_ag=new V3(),_ax=new V3(),_wk=new V3(),AMAX=220,KW=.0015,KD=.006;const gn=()=>(Math.random()+Math.random()+Math.random()+Math.random()-2)*1.73;  // ≈ unit normal
+const _dw=new V3(),_ag=new V3(),_ax=new V3(),_wk=new V3(),AMAX=140,KW=.003,KD=.01;const gn=()=>(Math.random()+Math.random()+Math.random()+Math.random()-2)*1.73;  // ≈ unit normal
 const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new V3(),_qb=new QT();
-const cellV=d=>4.2-.95*Math.min(1,d.mah/BCAP)-.32*Math.max(d.ms,0);  // per-cell voltage with sag under load
+const cellV=d=>d.vc;  // loaded per-cell voltage (see Drone.step)
+// LiPo resting voltage per cell vs fraction used: 4.2 full, a long 3.8–3.7 plateau, falling off a cliff past ~85%
+function ocv(u){u=cl(u,0,1);return u<.1?4.2-u*2.5:u<.85?3.95-(u-.1)*.4:3.65-(u-.85)*4}
 
 // ---------- attitude controller (Angle mode) ----------
 const _m=new THREE.Matrix4(),_qd=new QT(),_x=new V3(),_z=new V3();
@@ -770,7 +772,7 @@ function hud(dt){if(demo)return;const me=player;$('sw').textContent='WAVE '+wave
  const cv=cellV(me),fl=me.t|0,ws=WIND.length();
  $('osd').innerHTML=`<span><b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE','THREAT CAM'][camMode]} · ${DIFF[S.diff].n.toUpperCase()} · CAM ${camUp?S.tilt+'°':'LVL'}${therm?' · TI WHT':''} · ${WX.n.toUpperCase()} · WIND ${Math.round(ws*3.6)} km/h ${hdg(_t.copy(WIND).negate())}</span>`+
   (alive?`<span>THR ${String(Math.round(me.thr*100)).padStart(3)}%  ${String(Math.round(me.v.length()*3.6)).padStart(3)} km/h  HDG ${hdg(fwdH(me.q,_f))}</span><span>ALT ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m AGL  ${Math.round(me.p.y)} m MSL  HOME ${me.home.n.slice(4)} ${rng(Math.hypot(me.p.x-me.home.x,me.p.z-me.home.z))}  LQ ${Math.round(lqS*100)}%</span>`+
-   `<span class="${cv<3.5?'r':''}">BAT ${(cv*12).toFixed(1)}V 12S  ${String(Math.round(me.mah)).padStart(5)} mAh  ${String(fl/60|0).padStart(2,'0')}:${String(fl%60).padStart(2,'0')}</span>`:`<span class="r">NEXT INTERCEPTOR ${me.dead.toFixed(1)}</span>`)+
+   `<span class="${cv<3.5?'r':''}">BAT ${(cv*12).toFixed(1)}V 12S  ${String(Math.round(me.amp||0)).padStart(3)}A  ${String(Math.round(me.mah)).padStart(5)} mAh  ${String(fl/60|0).padStart(2,'0')}:${String(fl%60).padStart(2,'0')}</span>`:`<span class="r">NEXT INTERCEPTOR ${me.dead.toFixed(1)}</span>`)+
   `<span>FUSE ${S.fuse==='auto'?'PROX':'MANUAL'} · INBOUND ${inb} · INTERCEPTORS USED ${spent}</span>`;
  if(sel){const r=_a.subVectors(sel.p,me.p),d=r.length(),c2=-_b.subVectors(sel.v,me.v).dot(r)/d,asp=aspect(sel,me.p),win=fuseR(Math.max(0,c2));
   $('trk').innerHTML=`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${sel.jet?'GERAN-3 JET':'SHAHED-136'}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}<br>${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}<br>${alive?`ASPECT <span class="${asp==='TAIL'?'cg':asp==='HEAD-ON'?'cr':''}">${asp}</span> · CLOSING ${Math.round(c2*3.6)} km/h · KILL R ${win.toFixed(1)} m`:''}`}else $('trk').textContent='NO TRACKS';
@@ -888,8 +890,8 @@ $('play').onclick=startMatch;$('resume').onclick=()=>showMenu(false);$('leave').
 // ---------- mod panel ----------
 const MODS=[
  ['Interceptor','grav','Gravity',9.81,2,40,.01,'m/s²'],['Interceptor','thr','Thrust',48,20,600,1,'m/s²'],['Interceptor','te','Thrust curve',1.4,1,2.5,.05,'^'],['Interceptor','vp','Prop pitch speed',260,40,500,1,'m/s'],['Interceptor','maxv','Top speed',115,20,300,1,'m/s'],
- ['Interceptor','tau','Stick lag',14,2,60,1,'ms'],['Interceptor','dl','Linear drag',0.02,0,1,.005,''],['Interceptor','dq','Air drag',0.0027,0,.03,.0001,''],['Interceptor','fs','Fin side force',4,.2,12,.1,'×'],
- ['Interceptor','size','Drone size',0.5,.4,2.5,.05,'×'],['Interceptor','dbounce','Wall bounce',0.2,0,1,.05,''],['Interceptor','gfric','Ground grip',0.5,0,1,.02,''],['Interceptor','spool','Motor spool',45,0,150,5,'ms'],['Interceptor','turtle','Turtle rate',260,60,720,10,'°/s'],['Interceptor','wash','Prop wash',1,0,3,.1,'×'],
+ ['Interceptor','tau','Stick lag',26,2,60,1,'ms'],['Interceptor','dl','Linear drag',0.01,0,1,.005,''],['Interceptor','dq','Air drag',0.0027,0,.03,.0001,''],['Interceptor','fs','Fin side force',4,.2,12,.1,'×'],
+ ['Interceptor','size','Drone size',0.5,.4,2.5,.05,'×'],['Interceptor','dbounce','Wall bounce',0.2,0,1,.05,''],['Interceptor','gfric','Ground grip',0.5,0,1,.02,''],['Interceptor','spool','Motor spool',70,0,150,5,'ms'],['Interceptor','turtle','Turtle rate',260,60,720,10,'°/s'],['Interceptor','wash','Prop wash',1,0,3,.1,'×'],
  ['Interceptor','bcap','Battery',16000,2000,40000,500,'mAh'],
  ['Warhead','leth','Fuse radius',4,1,15,.5,'m'],['Warhead','crash','Crash speed',12,3,120,1,'m/s'],['Warhead','relt','Relaunch time',2.5,0,10,.5,'s'],
  ['Threats','tspd','Threat speed',1,.4,2,.05,'×'],['Threats','tcnt','Threats per wave',1,.3,3,.1,'×'],
@@ -899,6 +901,7 @@ const MDEF=Object.fromEntries(MODS.map(m=>[m[1],m[3]]));
 const PRESETS={'Default':{},'League 6S 5-inch':{thr:98,te:1.6,vp:68,maxv:60,dl:.04,dq:.0137,fs:.6,tau:4,spool:20},'Training':{tspd:.6,tcnt:.6,leth:8},'Big warhead':{leth:10}};
 function cleanMod(o){const r={};if(o&&typeof o==='object')for(const[,k,,,mn,mx]of MODS){const v=+o[k];if(k in o&&Number.isFinite(v))r[k]=cl(v,mn,mx)}return r}
 S.mod={...MDEF,...cleanMod(S.mod)};if((S.physV|0)<4){for(const g of['Interceptor','Warhead'])for(const m of MODS)if(m[0]===g)S.mod[m[1]]=m[3];S.physV=4;save()}  // v4: tail-sitter dart aerodynamics
+if((S.physV|0)<5){for(const k of['tau','dl','spool'])S.mod[k]=MODS.find(m=>m[1]===k)[3];S.physV=5;save()}  // v5: heavier feel (Riley found v4's too floaty)
 if(!S.presets||typeof S.presets!=='object')S.presets={};
 function applyTune(){const T=S.mod;G=T.grav;THR=T.thr;TE=T.te;VP=T.vp;MAXV=T.maxv;TAU=T.tau/1000;DL=T.dl;DQ=T.dq;FS=T.fs;DRAD=.8*T.size;MSZ=T.size/.5;{const k=MSZ;HBR=.04*k;DI=.1*k*k;  // collision hull: 4 fin tips (it stands on these), 4 prop tips, the nose; 4 cm spheres
   HBP=[[.15,-.36,0],[-.15,-.36,0],[0,-.36,.15],[0,-.36,-.15],[.27,.15,.27],[-.27,.15,.27],[.27,.15,-.27],[-.27,.15,-.27],[0,.4,0]].map(([x,y,z])=>new V3(x,y,z).multiplyScalar(k))}SPOOL=T.spool/1000;GF=T.gfric;TURT=T.turtle*Math.PI/180;WASH=T.wash;DB=T.dbounce;BCAP=T.bcap;
@@ -987,7 +990,7 @@ function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last
  if(!paused){acc+=dt*GSPD;let n=0;while(acc>=DT&&n++<12){step(DT);acc-=DT}}
  if(!menuOpen&&!demo)switches();
  const fpvOn=!demo&&camMode===0&&player&&player.dead<=0,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
- sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.08-.3*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
+ sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.04-.18*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
  const vd=paused?0:dt*GSPD;weather(vd,now);visuals(vd,now);updateCam(dt,now);hud(vd);overlay();if(menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();composer.render()}
 startDemo();requestAnimationFrame(frame);
 </script>
