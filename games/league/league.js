@@ -13,7 +13,7 @@ import {PILOT_FIELDS,initMenu,syncUI} from '../../engine/menu.js';
 import {mountMod,initModPanel,tune,hostTune,setHostTune,toggleMod,tab,modMsg} from '../../engine/modpanel.js';
 import {getRoom} from '../../engine/net.js';
 import {startLoop} from '../../engine/loop.js';
-import {W,L,H,GW,GH,GD,RC,RF,HW,HL,COL,CSS,TEAM,BR,BG,TB,BBX,BTHR,MAXB,DEMO,PBG,PSM,BB,BD,BM,KICK,GSPD,BOTV,SHK,tuneLeague} from './consts.js';
+import {ARENAS,AI,W,L,H,GW,GH,GD,RC,RF,HW,HL,COL,CSS,TEAM,BR,BG,TB,BBX,BTHR,MAXB,DEMO,PBG,PSM,BB,BD,BM,KICK,GSPD,BOTV,SHK,tuneLeague} from './consts.js';
 import {sun} from './scene.js';
 import {goalG,LOOKS,mapG,mapId,lookBK,snowP,OUT,setMap,BALLS,ballMesh,ballLight,ring,ballTick,setBall} from './arena.js';
 import {dfG,DW,DLEN,DHW,DHL,DCEIL,DBASE,cxR,dfH,OBS,sdDF,DSLOTS,buildDF} from './highlands.js';
@@ -24,8 +24,8 @@ const DIFF=[
  {n:'Pro',kp:1.1,kd:2.6,vmax:48,att:9,rate:8,thr:.84,react:.18,noise:2,slack:1.2},
  {n:'All-Star',kp:1.3,kd:3,vmax:62,att:11,rate:10,thr:.94,react:.12,noise:1,slack:1.08},
  {n:'Legend',kp:1.5,kd:3.4,vmax:76,att:13,rate:12,thr:1,react:.08,noise:.4,slack:1}];
-const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}]};
-loadSettings('droneleague',DEF);if(S.bots!==0)S.bots=1;
+const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,arena:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}]};
+loadSettings('droneleague',DEF);if(S.bots!==0)S.bots=1;if(!ARENAS[S.arena])S.arena=1;
 if(!['arena','meadow','canyon','alpine'].includes(S.map))S.map='arena';if(!['classic','soccer','plasma','beach'].includes(S.ball))S.ball='classic';if(S.game!=='df')S.game='league';
 {const m=new URLSearchParams(location.search).get('mode');if(m==='df'||m==='league')S.game=m}  // the launcher opens Dogfight with ?mode=df
 
@@ -261,10 +261,10 @@ function applySlots(T){const old=new Map(drones.map(d=>[d.key,d])),nd=[];player=
   const mine=net?k===(net.host?'h':myPeer):k==='h';d.bot=isBot(k)&&auth();d.remote=!!net&&!mine&&!d.bot;d.name=nameOf(k,t,i);if(mine)player=d;nd.push(d)}));
  old.forEach(d=>d.dispose());drones=nd;if(!player&&demo)player=drones[0]}
 function buildTeams(){drones.forEach(d=>d.dispose());drones=[];const n=demo?3:S.size;applySlots([0,1].map(t=>Array.from({length:demo||S.bots?n:t?0:1},(_,i)=>!demo&&!t&&!i?'h':'b'+t+i)))}
-function kickoff(){koN++;state='kickoff';stT=3;lastCount=4;ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ball.last=null;ballMesh.visible=!OBSON;drones.forEach(d=>{if(!d.remote)d.spawn()});ORBS.forEach(p=>p.cd=0);predict();assignRoles();
+function kickoff(){koN++;state='kickoff';stT=3;timeScale=1;lastCount=4;ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ball.last=null;ballMesh.visible=!OBSON;drones.forEach(d=>{if(!d.remote)d.spawn()});ORBS.forEach(p=>p.cd=0);predict();assignRoles();
  if(OBSON){TUR.forEach(t=>{t.hp=TUR_HP;t.re=0;t.cd=1+Math.random()});BUL.forEach(b=>b.life=0)}}
 const tag=d=>`<span class="${d.team?'co':'cb'}">${esc(d.name)}</span>`;
-function goalFx(t,lt){shake=1.4;ballMesh.visible=false;emit(ball.p,COL[t],500,45,1.8);emit(ball.p,0xffffff,150,25,1.2);noise(1.4,300,.8*near(ball.p)+.2,.6);tone(880,180,.9,.18,'sawtooth');
+function goalFx(t,lt){ballMesh.visible=false;emit(ball.p,COL[t],500,45,1.8);emit(ball.p,0xffffff,150,25,1.2);noise(1.4,300,.8*near(ball.p)+.2,.6);tone(880,180,.9,.18,'sawtooth');
  if(!demo){const d=drones.find(x=>x.key===lt);banner('GOAL!',t?'co':'cb',2.6);feed(`${d&&d.team===t?tag(d):'Own goal'} scores for ${TEAM[t]}`)}}
 function goal(t){score[t]++;state='goal';stT=3.2;timeScale=net?1:.3;goalSide=t;goalFx(t,ball.last?.key);if(overtime)endPending=true}
 function endFx(){const w=score[0]>score[1]?0:1;banner(`${TEAM[w]} WINS ${score[0]}–${score[1]}`,w?'co':'cb',0);tone(523,1046,.6,.2,'triangle')}
@@ -286,7 +286,7 @@ function setNet(d,a,now,dead,bo,fi,ti){if(!okArr(a,10))return;d.firing=!!fi&&!de
  const was=d.dead>0;d.dead=dead?1:0;d.boostOn=!!bo;d.thr=bo?1:.5;
  if(!d.seen||was&&!dead){d.seen=1;d.p.copy(n.p);d.q.copy(n.q);for(let j=0;j<TN;j++)d.p.toArray(d.tp,j*3)}
  if(!was&&dead){emit(d.p,COL[d.team],160,30,1.2);noise(.6,200,.7*near(d.p))}}
-function onHostState(g,now){if(!g||typeof g!=='object')return;net.sb=g.sb==null?null:!!g.sb;if((g.m==='df')!==OBSON)setGame(g.m);if(g.tu&&typeof g.tu==='object'){const j=JSON.stringify(g.tu);if(j!==net.tuJ){net.tuJ=j;setHostTune(g.tu)}}const sj=JSON.stringify(g.sl);
+function onHostState(g,now){if(!g||typeof g!=='object')return;if(g.ar!=null&&g.ar!==AI&&ARENAS[g.ar]&&!net.rl){net.rl=1;mpMsg('Switching to the host\'s '+ARENAS[g.ar][0]+' arena…');try{sessionStorage.setItem('dlArenaNet',g.ar);sessionStorage.setItem('dlRejoin',net.code)}catch(e){}net.r.leave().catch(()=>{});setTimeout(()=>location.reload(),200);return}net.sb=g.sb==null?null:!!g.sb;if((g.m==='df')!==OBSON)setGame(g.m);if(g.tu&&typeof g.tu==='object'){const j=JSON.stringify(g.tu);if(j!==net.tuJ){net.tuJ=j;setHostTune(g.tu)}}const sj=JSON.stringify(g.sl);
  if(sj!==net.slotsJ&&Array.isArray(g.sl)&&g.sl.length===2&&g.sl.some(a=>Array.isArray(a)&&a.length)&&g.sl.every(a=>Array.isArray(a)&&a.length<=3&&a.every(k=>typeof k==='string'&&k&&k.length<48))){net.slotsJ=sj;net.slots=g.sl;applySlots(g.sl)}
  if(g.ko!==net.ko){net.ko=g.ko;player?.spawn();ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ballMesh.visible=!OBSON;BUL.forEach(b=>b.life=0);lastCount=4;ORBS.forEach(p=>p.cd=0)}
  if(g.st==='goal'&&state!=='goal'){if(okArr(g.bl,3))ball.p.fromArray(g.bl);goalFx(g.gs?1:0,g.lt)}
@@ -311,7 +311,7 @@ function netSync(now){if(!net)return;
 function netSend(now){if(!net||now-net.sendT<33)return;net.sendT=now;const me=player,P={n:nick(),tp:S.tp};
  if(me){P.s=pack(me);P.d=me.dead>0?1:0;P.b=me.boostOn?1:0;if(OBSON){P.f=me.firing?1:0;P.ti=S.tilt}}
  if(net.host){const bots={};for(const d of drones)if(d.bot)bots[d.key]=[...pack(d),d.boostOn?1:0,d.dead>0?1:0,d.firing?1:0];
-  P.g={st:state,t:+stT.toFixed(2),sc:score,ck:+clock.toFixed(1),ot:overtime?1:0,ko:koN,gs:goalSide,sl:net.slots,bl:[...r2(ball.p),...r2(ball.v)],ack:net.ack,bots,lt:ball.last?.key||null,tu:S.mod,m:GM,sb:S.sboost?1:0};
+  P.g={st:state,t:+stT.toFixed(2),sc:score,ck:+clock.toFixed(1),ot:overtime?1:0,ko:koN,gs:goalSide,sl:net.slots,bl:[...r2(ball.p),...r2(ball.v)],ack:net.ack,bots,lt:ball.last?.key||null,tu:S.mod,m:GM,sb:S.sboost?1:0,ar:AI};
   if(OBSON){P.g.hp={};P.g.lf={};for(const d of drones){P.g.hp[d.key]=Math.round(d.hp);P.g.lf[d.key]=d.life}P.g.tg=TUR.map(t=>t.re>0?0:Math.max(1,Math.round(t.hp)));P.g.kf=net.kf}
   if(now-net.lobT>2000){net.lobT=now;room.presence({game:net.code,m:GM,host:nick(),pl:net.slots.flat().filter(k=>!isBot(k)).length,sz:net.slots[0].length}).catch(()=>{})}}
  else{if(net.hit)P.h=net.hit;if(OBSON&&net.hits.length)P.hs=net.hits.slice(-16)}
@@ -331,7 +331,7 @@ function leaveGame(){if(!net)return;const r=net.r;net=null;if(hostTune)setHostTu
 
 function step(dt){const A=auth();
  if(state==='kickoff'){stT-=dt;const n=Math.ceil(stT);if(n!==lastCount){lastCount=n;if(!demo){if(n>0){banner(n,'',.9);tone(660,660,.12,.12,'square')}else{banner('GO!','',.6);tone(990,990,.25,.15,'square')}}}if(A&&stT<=0)state='play'}
- else if(state==='goal'){stT-=dt;if(stT<2.4)timeScale=1;if(A&&stT<=0){if(endPending)endMatch();else kickoff()}}
+ else if(state==='goal'){stT-=dt;if(stT<2.4)timeScale=Math.min(1,timeScale+dt*1.2);if(A&&stT<=0){if(endPending)endMatch();else kickoff()}}
  else if(state==='end'){stT-=dt;if(A&&stT<=0){banner('');if(net){score=[0,0];clock=S.len;overtime=endPending=false;kickoff()}else{startDemo();return}}}
  else if(state==='play'&&!demo&&A){if(!overtime){clock-=dt;if(clock<=0){clock=0;if(score[0]===score[1]){overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else clock+=dt}
  const frozen=state==='kickoff',live=state==='play'||state==='kickoff';
@@ -416,9 +416,9 @@ initInput({menu:()=>menuOpen,pause:togglePause,key:e=>{if(e.code==='KeyC')cycleC
 const padKeys=e=>{if(e(9))togglePause();if(!menuOpen&&!demo){if(e(4))cycleCam();if(e(3)&&player&&player.dead<=0)player.spawn()}};
 
 // ---------- menu / settings ----------
-const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],
+const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['arena','Arena size','sel',ARENAS.map((a,i)=>[i,`${a[0]} (${a[1]}×${a[2]} m)`])],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],
  ...PILOT_FIELDS,['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]]];
-mountPad($('pilotpad'));initMenu(FIELDS,k=>{if(k==='map'&&!OBSON)setMap(S.map);if(k==='ball')setBall(S.ball)});
+mountPad($('pilotpad'));initMenu(FIELDS,k=>{if(k==='map'&&!OBSON)setMap(S.map);if(k==='ball')setBall(S.ball);if(k==='arena'&&S.arena!==AI&&!net){mpMsg('Building the '+ARENAS[S.arena][0]+' arena…');setTimeout(()=>location.reload(),60)}});  // arena geometry is built at load, so a new size reloads the page
 syncUI();
 // online lobby
 function renderGames(peers){const box=$('games');box.textContent='';for(const p of peers){const pr=p.presence;if(!pr?.game||p.sameTab)continue;const code=String(pr.game).replace(/[^a-z0-9]/g,'').slice(0,6);if(!code||net?.code===code)continue;
@@ -458,9 +458,10 @@ $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','
 
 // ---------- main loop ----------
 setGame(GM);startDemo();
-startLoop({pre:now=>{padEdges(padKeys);netSync(now)},step,speed:()=>timeScale*GSPD,paused:()=>paused,menu:()=>menuOpen,
+startLoop({pre:now=>{padEdges(padKeys);netSync(now)},step,speed:()=>timeScale*GSPD,slow:()=>timeScale<1,paused:()=>paused,menu:()=>menuOpen,
  draw:(dt,rdt,now)=>{visuals(dt,now);updateCam(rdt,now);hud()},post:netSend});
 (async()=>{room=await getRoom();
+ {let c=null;try{c=sessionStorage.getItem('dlRejoin');sessionStorage.removeItem('dlRejoin')}catch(e){}if(c)setTimeout(()=>enterGame(c,false),300)}  // back after rebuilding for the host's arena size
  if(room.p2p){$('games').hidden=true;$('mpnote').textContent='Online over the internet: press Host, then send friends this page and the game code. They type the code and press Join.';return}
  $('mpnote').textContent='Host a game, or join one listed here. Bots fill empty slots unless Bots is set to No bots.';
  room.onPeers(ch=>renderGames(ch.peers),e=>{$('mpnote').textContent=`Online play is unavailable here (${e.code}).`;$('host').disabled=$('join').disabled=true})})();

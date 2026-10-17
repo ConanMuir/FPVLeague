@@ -68,8 +68,8 @@ export const neonG=new THREE.Group();scene.add(neonG);
   if(r<.012)col.setRGB(2.2,2.2,2.4);else if(r<.12)col.set(COL[Math.random()<.75?team:1-team]).multiplyScalar(.55+Math.random()*.6);else col.setRGB(.04,.05,.08).multiplyScalar(.6+Math.random());
   im.setColorAt(n++,col)}}
  im.count=n;neonG.add(im);
- for(const[x,z]of[[-1,-1],[1,-1],[1,1],[-1,1]]){const px=x*(HW+52),pz=z*(HL+52);const p=new THREE.Mesh(new THREE.CylinderGeometry(.8,1.2,70,8),new THREE.MeshStandardMaterial({color:0x1a1f2b,metalness:.6,roughness:.5}));p.position.set(px,35,pz);neonG.add(p);
-  const head=new THREE.Mesh(new THREE.BoxGeometry(9,4,1.5),glow(0xeaf2ff,4));head.position.set(px,71,pz);head.lookAt(0,0,0);neonG.add(head)}
+ for(const[x,z]of[[-1,-1],[1,-1],[1,1],[-1,1]]){const px=x*(HW+52),pz=z*(HL+52);const p=new THREE.Mesh(new THREE.CylinderGeometry(.8,1.2,H+6,8),new THREE.MeshStandardMaterial({color:0x1a1f2b,metalness:.6,roughness:.5}));p.position.set(px,(H+6)/2,pz);neonG.add(p);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(9,4,1.5),glow(0xeaf2ff,4));head.position.set(px,H+7,pz);head.lookAt(0,0,0);neonG.add(head)}
  const sp=[];for(let i=0;i<1600;i++){const t=Math.random()*Math.PI*2,u=Math.random()*.9+.08,r=1000;sp.push(Math.cos(t)*r*Math.sqrt(1-u*u),u*r,Math.sin(t)*r*Math.sqrt(1-u*u))}
  const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));neonG.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xbcd0ff,size:1.6,sizeAttenuation:false,fog:false})))}
 
