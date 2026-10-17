@@ -25,7 +25,7 @@ function initView(){const cv=$('gcv'),r=new THREE.WebGLRenderer({canvas:cv,antia
  const floor=new THREE.Mesh(new THREE.CircleGeometry(1.5,64).rotateX(-Math.PI/2),new THREE.MeshStandardMaterial({color:0x111a2e,roughness:.85,metalness:.1}));floor.position.y=-.24;floor.receiveShadow=true;sc.add(floor);
  const ring=new THREE.Mesh(new THREE.RingGeometry(1.08,1.1,96).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x3d95ff,transparent:true,opacity:.5,toneMapped:false}));ring.position.y=-.235;sc.add(ring);
  const cam=new THREE.PerspectiveCamera(30,1,.05,40),pivot=new THREE.Group();sc.add(pivot);
- V={r,sc,cam,pivot,ang:2.4,el:.42,dist:3.3,spin:true,hold:0,props:[],last:0,raf:0,drone:null,wire:null};
+ V={r,sc,cam,pivot,ang:3.75,el:.42,dist:3.3,spin:true,hold:0,props:[],last:0,raf:0,drone:null,wire:null};
  let drag=null;cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};V.spin=false;cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing'});
  cv.addEventListener('pointermove',e=>{if(!drag)return;V.ang-=(e.clientX-drag.x)*.01;V.el=Math.min(1.3,Math.max(-.1,V.el+(e.clientY-drag.y)*.006));drag={x:e.clientX,y:e.clientY}});
  const up=()=>{if(drag){drag=null;V.hold=performance.now()+2500;cv.style.cursor=''}};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);

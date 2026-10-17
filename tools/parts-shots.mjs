@@ -30,12 +30,12 @@ const shot = async (name, sel = '.gview') => { await sleep(SW ? 1500 : 450); con
 const ids = await p.$$eval('#gslots button', l => l.map(b => [b.dataset.s, b.dataset.id]));
 for (const [s, id] of ids) {
   await click('#gstock'); if (id !== 'stock' || s === '0') { await click(`#gslots button[data-s="${s}"][data-id="${id}"]`); }
-  await view(2.35, .45, 3.1);
+  await view(3.75, .45, 3.1);
   await shot(`${['arms', 'chassis', 'power'][s]}-${id}`);
 }
-await click('#gstock'); await click('#ghit'); await view(2.35, .5, 3.1); await shot('stock-hitbox'); await click('#ghit');
+await click('#gstock'); await click('#ghit'); await view(3.75, .5, 3.1); await shot('stock-hitbox'); await click('#ghit');
 for (const [s, id] of [['0', 'deadcat'], ['1', 'brick'], ['2', 'lr']]) await click(`#gslots button[data-s="${s}"][data-id="${id}"]`);
 for (const [n, a, e] of [['front', 0, .25], ['side', Math.PI / 2, .2], ['top', 0.0001, 1.3]]) { await view(a, e, 3.1); await shot('mix-' + n); }
-await click('#gstock'); await view(2.35, .45, 3.1); await shot('garage-screen', '.gbox');
+await click('#gstock'); await view(3.75, .45, 3.1); await shot('garage-screen', '.gbox');
 console.log(errors.length ? 'errors:\n ' + errors.join('\n ') : 'no errors');
 await browser.close(); server.close();
