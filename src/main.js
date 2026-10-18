@@ -4,7 +4,7 @@ import './render/renderer.js';import './world/arena.js';import './world/maps.js'
 import './physics/sdf.js';import './physics/ball.js';import './render/ball.js';import './world/orbs.js';import './render/drone-mesh.js';import './flight/drone.js';
 import './flight/attitude.js';import './input/input.js';import './bots/league.js';import './world/highlands.js';import './modes/dogfight.js';import './modes/guns.js';
 import './bots/dogfight.js';import './state.js';import './modes/match.js';import './net/net.js';import './modes/step.js';import './render/camera.js';import './ui/hud.js';
-import './render/visuals.js';import './ui/menu.js';import './input/calibration.js';import './ui/modpanel.js';import './ui/rates.js';import './ui/sens.js';import './ui/garage.js';import './net/p2p.js';import './modes/registry.js';import './modes/league.js';import './modes/lab.js';import './ui/lab.js';
+import './render/visuals.js';import './ui/menu.js';import './input/calibration.js';import './ui/modpanel.js';import './ui/rates.js';import './ui/sens.js';import './ui/garage.js';import './net/p2p.js';import './modes/registry.js';import './modes/league.js';import './modes/freeplay.js';import './modes/lab.js';import './ui/lab.js';
 import {$,QT,V3} from './config/constants.js';
 import {initPhysics} from './physics/world.js';
 import {S} from './config/settings.js';
