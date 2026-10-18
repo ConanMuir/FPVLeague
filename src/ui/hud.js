@@ -23,12 +23,16 @@ function radar(){const w=110,h=170,sx=GS.OBSON?w/DW:w/(W+8),sz=GS.OBSON?(h-4)/DL
  for(const d of GS.drones){if(d.dead>0)continue;rc.fillStyle=CSS[d.team];if(d===GS.player){const f=_f.set(0,0,-1).applyQuaternion(d.q),a=Math.atan2(f.x,-f.z);rc.save();rc.translate(X(d.p.x),Z(d.p.z));rc.rotate(a);rc.beginPath();rc.moveTo(0,-7);rc.lineTo(5,5);rc.lineTo(-5,5);rc.closePath();rc.fill();rc.strokeStyle='#fff';rc.stroke();rc.restore()}
   else{rc.beginPath();rc.arc(X(d.p.x),Z(d.p.z),3.2,0,7);rc.fill()}}
  if(GS.OBSON)return;rc.fillStyle='#fff';rc.shadowColor='#9fe8ff';rc.shadowBlur=6;rc.beginPath();rc.arc(X(ball.p.x),Z(ball.p.z),3.6,0,7);rc.fill();rc.shadowBlur=0}
+// bottom-right dial (Rocket League's boost meter): boost when Super boost is on, otherwise speed with a throttle arc; Dogfight adds a health ring
+const arc=(el,f)=>el.setAttribute('stroke-dasharray',`${cl(f,0,1)*75} 100`);
+function dial(me){const sb=SB(),hp=GS.OBSON;$('dial').classList.toggle('boost',sb);$('dial').classList.toggle('on',!!me.boostOn);
+ $('dnum').textContent=sb?Math.round(me.boost):Math.round(me.v.length()*3.6*9.81/G);$('dlbl').textContent=sb?'BOOST':'KM/H';$('dsub').textContent=sb?`TOP ${Math.round(BZ*100)}% THR`:`THR ${Math.round(me.thr*100)}%`;arc($('darc'),sb?me.boost/100:me.thr);
+ $('dhp').style.display=$('dhpt').style.display=hp?'':'none';if(hp){arc($('dhp'),me.hp/100);$('dhp').style.stroke=`hsl(${cl(me.hp,0,100)*1.2},85%,58%)`}}
 const fmt=t=>{t=Math.ceil(t);return`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`};
 export function hud(){if(GS.demo)return;const me=GS.player;$('sb').textContent=GS.score[0];$('so').textContent=GS.score[1];$('clock').textContent=(GS.overtime?'+':'')+fmt(GS.clock);
  if(!me){$('osd').textContent=GS.net?'SPECTATING · GAME '+GS.net.code.toUpperCase():'';$('arrow').hidden=true;radar();return}
  $('osd').innerHTML=`<span><b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE',GS.OBSON?'ENEMY CAM':'BALL CAM'][GS.camMode]} · ${GS.net?'ONLINE '+GS.net.code.toUpperCase():DIFF[S.diff].n.toUpperCase()}</span><span>THR ${String(Math.round(me.thr*100)).padStart(3)}%${me.boostOn?' BOOST':''}  ${String(Math.round(me.v.length()*3.6*9.81/G)).padStart(3)} km/h</span><span>ALT ${(me.p.y*9.81/G).toFixed(1)} m  ROLL ${Math.round(rate(0,1)*180/Math.PI)}°/s</span>${GS.OBSON?`<span>HP ${Math.max(0,Math.round(me.hp))}${me.dead>0?` · RESPAWN ${me.dead.toFixed(1)}`:''}</span>`:''}`;
- $('hpw').hidden=!GS.OBSON;if(GS.OBSON){$('hval').textContent=Math.max(0,Math.round(me.hp));$('hpfill').style.width=cl(me.hp,0,100)+'%'}
- $('bsec').hidden=!SB();$('blbl').textContent=`BOOST · TOP ${Math.round(BZ*100)}% THR`;$('bval').textContent=Math.round(me.boost);$('boostfill').style.width=me.boost+'%';$('xh').hidden=GS.camMode!==0||me.dead>0;
+ dial(me);$('xh').hidden=GS.camMode!==0||me.dead>0;
  const a=$('arrow'),foe=GS.OBSON&&nearestFoe(me);_t.copy(GS.OBSON?foe?.p||ball.p:ball.p).project(camera);let x=_t.x,y=_t.y;const behind=_t.z>1;if(behind){x=-x;y=-y}
  if((GS.OBSON?!foe:!ballMesh.visible)||(!behind&&Math.abs(x)<.95&&Math.abs(y)<.9))a.hidden=true;else{a.hidden=false;const m=Math.max(Math.abs(x)/.9,Math.abs(y)/.82,1e-3);x/=m;y/=m;
   a.style.transform=`translate(${(x*.5+.5)*innerWidth-13}px,${(-y*.5+.5)*innerHeight-12}px) rotate(${Math.atan2(x,y)}rad)`}
