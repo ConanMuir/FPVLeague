@@ -68,6 +68,6 @@ addEventListener('keyup',e=>keys[e.code]=false);addEventListener('blur',()=>{for
 addEventListener('mousedown',e=>{if(e.button===0&&!GS.menuOpen&&!e.target.closest?.('#mod,#menu,#lab,#bind,button,input,select,textarea'))mouseFire=true});addEventListener('mouseup',e=>{if(e.button===0)mouseFire=false});
 // gamepad shortcut buttons (Menu pause, LB camera, Y respawn) skip any button bound to flight, fire, flip or boost
 export function padEdges(){const g=pad();if(!g||RADIO.test(g.id))return;const u=new Set();if(padX){for(const c of S.xcal){if(c.a>=100)u.add(c.a-100);if(c.b!=null)u.add(c.b);if(c.nb?.a>=100)u.add(c.nb.a-100)}
-  for(const b of[S.xfire,S.xflip,S.xboost])if(typeof b==='number'&&b>=0)u.add(b)}
+  for(const b of[S.xfire,S.xflip,S.xboost,S.lookBtn])if(typeof b==='number'&&b>=0)u.add(b)}
  const b=g.buttons.map(x=>x.pressed),e=i=>b[i]&&!prevBtn[i]&&!u.has(i);
  if(e(9)&&!calib)togglePause();if(!GS.menuOpen&&!GS.demo){if(e(4))cycleCam();if(e(3)&&GS.player&&GS.player.dead<=0)GS.player.spawn()}prevBtn=b}

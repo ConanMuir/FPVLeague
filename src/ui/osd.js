@@ -8,7 +8,7 @@ import {camera} from '../render/renderer.js';
 import {GS} from '../state.js';
 const cv=$('bfosd'),g=cv.getContext('2d'),_f=new V3(),_r=new V3(),B={d:null,used:0,t:0,clock:0,last:0};
 const pad=(v,n)=>String(v).padStart(n);
-export function osd(me){const on=!!(S.osd&&me&&GS.camMode===0&&me.dead<=0&&!GS.demo);cv.hidden=!on;$('osd').hidden=on;if(!on)return;
+export function osd(me){const on=!!(S.osd&&me&&GS.camMode===0&&!GS.llView&&me.dead<=0&&!GS.demo);cv.hidden=!on;$('osd').hidden=on;if(!on)return;
  const now=performance.now(),dt=Math.min(.1,(now-(B.last||now))/1000);B.last=now;
  const L=me.lo.meshSpec.power.batt.cells,cells=+(/(\d)S/.exec(L)?.[1]||6),cap=+(/(\d+)\s*$/.exec(L)?.[1]||1300);
  if(B.d!==me||GS.clock>B.clock+1){B.d=me;B.used=0;B.t=0}B.clock=GS.clock;  // new match or new quad: fresh pack

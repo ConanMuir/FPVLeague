@@ -65,7 +65,7 @@ let cable=null;
 export function llDraw(){const hv=hoopMode();if(hv&&!HOOPS.length)buildHoops();hoopG.visible=hv;const d=LL.d,on=!!(S.longline&&d&&d.dead<=0);if(cable)cable.visible=on;if(!on)return;
  cmat.color.setHex(COL[d.team]).lerp(new THREE.Color(0xffffff),.6);
  const a=hookOf(d,_h),b=_r.copy(ball.p).addScaledVector(_n.subVectors(a,ball.p).normalize(),BR),dist=a.distanceTo(b),Lr=ropeLen(),sag=dist<Lr?Math.sqrt(Lr*Lr-dist*dist)*.5:0;
- const t0=d===GS.player&&GS.camMode===0?Math.min(.35,4/Math.max(dist,.1)):0;  // in your own FPV view the first 4 m under the lens is skipped and the cable is thinner (it filled the screen)
+ const t0=d===GS.player&&GS.camMode===0&&!GS.llView?Math.min(.35,4/Math.max(dist,.1)):0;  // in your own FPV view the first 4 m under the lens is skipped and the cable is thinner (it filled the screen)
  for(let i=0;i<N;i++){const t=t0+(1-t0)*i/(N-1);PTS[i].set(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t-sag*4*t*(1-t),a.z+(b.z-a.z)*t)}
  const g=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(PTS),N,(t0?.035:.07)*DRAD/.6,5,false);if(cable){cable.geometry.dispose();cable.geometry=g}else{cable=new THREE.Mesh(g,cmat);cable.frustumCulled=false;scene.add(cable)}}
 
@@ -80,8 +80,8 @@ const mkRing=new THREE.Mesh(new THREE.RingGeometry(.86,1,48).rotateX(-Math.PI/2)
 const mkDrop=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,1,6).translate(0,.5,0),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.35,depthWrite:false,toneMapped:false}));mk.add(mkDrop);
 function llHud(d){const box=$('llbox');if(!box)return;const mine=!!d&&d===GS.player,show=S.longline&&!GS.demo&&!GS.net&&!GS.menuOpen;
  const key=!show?'':!d?'loose':mine?'me':d.team+':'+d.name;if(key!==hudKey){hudKey=key;box.hidden=!show||!d;box.classList.toggle('mine',mine);box.style.setProperty('--tc',['#3d95ff','#ff8a2a'][d?.team??0]);
-  $('llhdr').textContent=!d?'':mine?'YOU HAVE THE BALL':`${d.team===GS.player?.team?'TEAMMATE':TEAM[d.team]} · ${d.name.toUpperCase()} HAS IT`;$('llscope').hidden=!(show&&mine)}
- if(show&&mine)scope(d)}
+  $('llhdr').textContent=!d?'':mine?'YOU HAVE THE BALL':`${d.team===GS.player?.team?'TEAMMATE':TEAM[d.team]} · ${d.name.toUpperCase()} HAS IT`}
+ const sc=show&&mine&&!GS.llView;$('llscope').hidden=!sc;if(sc)scope(d)}
 function scope(d){const cv=$('llscope'),g=cv.getContext('2d'),W=cv.width,c=W/2,R=W*.36,L=ropeLen()+BR,tc=['#3d95ff','#ff8a2a'][d.team];
  const f=_f.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<1e-4)f.set(0,0,-1);f.normalize();const rt=_g.set(-f.z,0,f.x);  // heading frame: forward, right
  const dx=ball.p.x-d.p.x,dz=ball.p.z-d.p.z,fw=dx*f.x+dz*f.z,sd=dx*rt.x+dz*rt.z,k=R/L,clampR=(x,y)=>{const m=Math.hypot(x,y),lim=W*.46;return m>lim?[x*lim/m,y*lim/m]:[x,y]};
