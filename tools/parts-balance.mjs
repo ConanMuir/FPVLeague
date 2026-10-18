@@ -5,7 +5,7 @@
 // clearly on at least one stat and loses on at least one (swapped onto a Stock base); each part's listed pros/cons hold;
 // no loadout Pareto-dominates more than a small share of the others; props clear the chassis.
 import {MDEF} from '../src/config/mods.js';
-import {ARMS,CHASSIS,POWER,SCORED,STATS,STOCK,allLoadouts,computeLoadout,statsOf} from '../src/parts/index.js';
+import {ARMS,ATTACH,CHASSIS,POWER,SCORED,STATS,STOCK,allLoadouts,computeLoadout,statsOf} from '../src/parts/index.js';
 
 const ALL = process.argv.includes('--all');
 const rows = allLoadouts().map(ids => { const lo = computeLoadout(ids); return {ids, lo, s: statsOf(lo, MDEF)}; });
@@ -28,13 +28,15 @@ console.log('Stock-Stock-Stock: ' + keys.map(k => `${k} ${fmt(k, base.s[k])}`).j
 console.log('\nper part, swapped onto a Stock base (% vs Stock; ' + SCORED.join(' ') + ' scored, size is a trade):');
 console.log('part'.padEnd(26) + keys.map(k => k.padStart(7)).join('') + '  score');
 const CLEAR = 0.03;  // a "clear" win or loss: 3%
-for (const [slot, list] of [[0, ARMS], [1, CHASSIS], [2, POWER]]) for (const part of list) {
-  const ids = [...STOCK]; ids[slot] = part.id; const r = rows.find(x => name(x.ids) === name(ids));
+// attachments are not in the 125 rows (those use none); each one is computed on a Stock base and compared with none
+const one = ids => { const lo = computeLoadout(ids), s = statsOf(lo, MDEF); return {ids, lo, s, score: SCORED.reduce((a, k) => a + Math.min(1, Math.max(0, bar(k, s[k]))), 0) / SCORED.length}; };
+for (const [slot, list] of [[0, ARMS], [1, CHASSIS], [2, POWER], [3, ATTACH]]) for (const part of list) {
+  const ids = [...STOCK]; ids[slot] = part.id; const r = rows.find(x => name(x.ids) === name(ids)) || one(ids);
   const d = {}; for (const k of keys) d[k] = r.s[k] / base.s[k] - 1;
-  console.log((['arms', 'chassis', 'power'][slot] + ':' + part.name).padEnd(26) + keys.map(k => ((d[k] >= 0 ? '+' : '') + (d[k] * 100).toFixed(0) + '%').padStart(7)).join('') + '  ' + r.score.toFixed(3));
-  if (part.id === 'stock') continue;
+  console.log((['arms', 'chassis', 'power', 'attach'][slot] + ':' + part.name).padEnd(26) + keys.map(k => ((d[k] >= 0 ? '+' : '') + (d[k] * 100).toFixed(0) + '%').padStart(7)).join('') + '  ' + r.score.toFixed(3));
+  if (part.id === 'stock' || part.id === 'none') continue;
   const wins = SCORED.filter(k => d[k] > CLEAR), losses = SCORED.filter(k => d[k] < -CLEAR);
-  if (!wins.length) fail(`${part.name} beats Stock on no stat`);
+  if (!wins.length) fail(`${part.name} beats ${slot === 3 ? 'None' : 'Stock'} on no stat`);
   if (!losses.length && !(d.size > CLEAR)) fail(`${part.name} loses to Stock on no stat`);
   for (const k of part.good || []) if (!(d[k] > CLEAR)) fail(`${part.name}: listed pro "${k}" is not better than Stock (${(d[k] * 100).toFixed(1)}%)`);
   for (const k of part.bad || []) if (!(k === 'size' ? d[k] > CLEAR : d[k] < -CLEAR)) fail(`${part.name}: listed con "${k}" is not worse than Stock (${(d[k] * 100).toFixed(1)}%)`);

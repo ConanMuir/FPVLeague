@@ -250,7 +250,7 @@ const bul = await run('e', () => {
   out.obstacles = res;
   // drones: a kinematic target hovering in the open, shots offset sideways and from above
   const d = new D.Drone(1, 0, false, 'tgt'); GS.drones = [d]; d.p.set(0, 420, 0); d.q.set(0, 0, 0, 1); d.ph = 0; W.physStep(dt, false);
-  out.ext = +d.bound.toFixed(2); out.drone = {}; for (const off of [0, .5, 1, 1.4, 2, 3, +(d.bound + 1.6).toFixed(2), +(d.bound + 2.5).toFixed(2)]) { let h = 0; const N = 16;
+  out.ext = +d.bound.toFixed(2); out.drone = {}; const br = W.bulletR(); out.br = +br.toFixed(2); out.far = +(d.bound + br + .2).toFixed(2); for (const off of [0, .5, 1, +br.toFixed(2), 2, 3, +(d.bound + br + .2).toFixed(2), +(d.bound + 2.5).toFixed(2)]) { let h = 0; const N = 16;
     for (let k = 0; k < N; k++) { const a = k / N * Math.PI * 2, dir = new M.V3(Math.cos(a), k % 4 === 0 ? -.8 : 0, Math.sin(a)).normalize(), side = new M.V3().crossVectors(dir, new M.V3(0, 1, 0)); if (side.lengthSq() < .1) side.set(1, 0, 0); side.normalize();
       const aim = d.p.clone().addScaledVector(side, off), o = fire(aim.clone().addScaledVector(dir, -90), aim.clone().addScaledVector(dir, 10)); if (o.hit?.d === d) { h++; out.drone.tag = o.hit.tag; } }
     out.drone[off] = h / N; }
@@ -258,9 +258,9 @@ const bul = await run('e', () => {
 });
 if (bul) {
   for (const k in bul.obstacles) { const [n, hit, saved, miss] = bul.obstacles[k]; console.log(`  ${k.padEnd(7)} ${n} shots: ${hit} hit before passing the aim point, ${miss} did not; ${saved} of the hits would have tunnelled with v15's end-point test`); }
-  console.log(`  drone target (stock parts, bounding radius ${bul.ext} m), fraction hit by lateral miss distance (sweep: parts + 1.4 m): ` + Object.entries(bul.drone).filter(([k]) => k !== 'tag').sort((a, b) => a[0] - b[0]).map(([k, v]) => `${k} m ${v}`).join(', ') + `; tag reported '${bul.drone.tag}'`);
+  console.log(`  drone target (stock parts, bounding radius ${bul.ext} m), fraction hit by lateral miss distance (sweep: parts + ${bul.br} m): ` + Object.entries(bul.drone).filter(([k]) => k !== 'tag').sort((a, b) => a[0] - b[0]).map(([k, v]) => `${k} m ${v}`).join(', ') + `; tag reported '${bul.drone.tag}'`);
   check(bul.obstacles.tree[3] === 0 && bul.obstacles.spire[3] === 0 && bul.obstacles.bridge[3] === 0, 'no bullet passes through a tree trunk, spire or bridge');
-  check(bul.drone[0] === 1 && bul.drone[1.4] === 1 && bul.drone[(bul.ext + 1.6).toFixed(2) * 1] === 0, 'drone hits: always within the 1.4 m sweep of the centre, never beyond the parts + 1.4 m');
+  check(bul.drone[0] === 1 && bul.drone[bul.br] === 1 && bul.drone[bul.far] === 0, 'drone hits: always within the sweep radius of the centre, never beyond the parts + sweep');
 }
 
 // ---------- (g) bots' predictor and the touch model ----------

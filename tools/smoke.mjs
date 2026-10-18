@@ -106,7 +106,7 @@ async function scenario(label, url) {
         await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`); g.parts++; g.stats.push(await text(p, '#gstats div:first-child span:last-child'));
       }
       await click(p, '#ghit'); await sleep(300); await click(p, '#ghit');
-      for (const [s, id] of [['0', 'stretch'], ['1', 'plank'], ['2', 'punch']]) await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`);
+      for (const [s, id] of [['0', 'stretch'], ['1', 'plank'], ['2', 'punch'], ['3', 'ram']]) await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`);
       g.name = await text(p, '#gname'); g.saved = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').loadout?.join('/'));
       await click(p, '#gok'); g.closed = await hidden(p, '#garage'); g.stats = new Set(g.stats).size; out.garage = g;
     }
@@ -284,8 +284,8 @@ chk(n.demo?.menuOpen && n.demo.moved > 0.5, 'menu demo: bots should be flying be
 chk(n.league && n.league.sim >= 9 && !n.league.nan, 'League: sim should run 10 s without NaN');
 chk(n.league && n.league.ballPath > 1 && n.league.botPathMin > 5, 'League: ball and every bot should move');
 chk(n.menuAfterEsc, 'Esc should open the menu');
-chk(n.garage?.open && n.garage.closed && n.garage.parts === 15 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch', 'garage: opens, cycles all 15 parts, saves the loadout, closes');
-chk(n.league?.player === 'stretch/plank/punch', 'League: the player should fly the garage loadout');
+chk(n.garage?.open && n.garage.closed && n.garage.parts === 20 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch/ram', 'garage: opens, cycles all 20 parts, saves the loadout, closes');
+chk(n.league?.player === 'stretch/plank/punch/ram', 'League: the player should fly the garage loadout');
 chk(n.league?.botLoadouts >= 2, 'League: bots should spawn with varied loadouts');
 chk(n.dogfight && n.dogfight.sim >= 3 && !n.dogfight.nan && n.dogfight.botPathMin > 5 && n.dogfight.title === 'DOGFIGHT', 'Dogfight: should start and bots should fly');
 chk(n.mod?.open && n.mod.sliders === 34 && /^20\.0 /.test(n.mod.changed) && /^34\.5 /.test(n.mod.reset) && n.mod.export === '{}', 'mod panel: 34 sliders, change, reset, export');
@@ -296,7 +296,7 @@ chk(n.gfx === 'auto', 'graphics quality should switch live through Low/Medium/Hi
 if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
 {
   let s = null; try { s = JSON.parse(set.new.saved); } catch {}
-  chk(s && s.loadout?.join('/') === 'stock/stock/stock', 'v15 settings: the loadout should migrate to Stock');
+  chk(s && s.loadout?.join('/') === 'stock/stock/stock/none', 'v15 settings: the loadout should migrate to Stock');
   chk(s && s.physV === 4 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 4 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
     'v15 settings: migrations (physV 4, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
 }

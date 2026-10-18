@@ -5,19 +5,19 @@ import {DRAD,onTune} from '../config/tune.js';
 import {glow,scene,tex} from './renderer.js';
 import {GS} from '../state.js';
 import {buildPartsMesh} from '../parts/mesh.js';
-// carbon fibre: glossy clear-coated plates with a 2x2 twill weave, drawn from object-space position (the part geometry has no UVs)
-function twill(m){m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vCf,vCn;').replace('#include <begin_vertex>','#include <begin_vertex>\nvCf=position;vCn=normal;');
- sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
-varying vec3 vCf,vCn;float wv;
-float weave(){vec3 n=abs(vCn);vec2 q=n.y>max(n.x,n.z)?vCf.xz:n.x>n.z?vCf.zy:vCf.xy;q*=60.;float k=mod(floor(q.x)+floor(q.y),4.);float w=step(2.,k),s=w>.5?fract(q.y):fract(q.x);return w*.5+.5*sin(s*3.1416);}`)
-  .replace('#include <color_fragment>','#include <color_fragment>\nwv=weave();diffuseColor.rgb*=.72+.5*wv;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor*=1.2-.45*wv;')};return m}
-export const MAT={carbon:twill(new THREE.MeshPhysicalMaterial({color:0x1b1e24,roughness:.5,metalness:.15,clearcoat:1,clearcoatRoughness:.18})),metal:new THREE.MeshStandardMaterial({color:0x8a919c,roughness:.3,metalness:.9}),
+export const MAT={carbon:new THREE.MeshPhysicalMaterial({color:0x1b1e24,roughness:.5,metalness:.15,clearcoat:1,clearcoatRoughness:.18})  /* clear-coated plates; weave below */,metal:new THREE.MeshStandardMaterial({color:0x8a919c,roughness:.3,metalness:.9}),
  prop:new THREE.MeshBasicMaterial({color:0xaab4c8,transparent:true,opacity:.14,depthWrite:false}),lens:new THREE.MeshStandardMaterial({color:0x050505,roughness:.05,metalness:1}),
  team:COL.map(c=>new THREE.MeshStandardMaterial({color:c,metalness:.4,roughness:.35,emissive:c,emissiveIntensity:.3})),led:COL.map(c=>glow(c,2)),
  blade:COL.map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.5,transparent:true,opacity:.55})),
  // drone parts (src/parts/mesh.js): battery wraps, labels, bumpers, flight-controller boards
  pack:new THREE.MeshStandardMaterial({color:0x23262d,roughness:.55,metalness:.15}),packLR:new THREE.MeshStandardMaterial({color:0x1d5a6e,roughness:.45,metalness:.2}),
- label:new THREE.MeshStandardMaterial({color:0xffc640,roughness:.5,metalness:.1}),rubber:new THREE.MeshStandardMaterial({color:0x0c0d10,roughness:.9}),board:new THREE.MeshStandardMaterial({color:0x1f3a2a,roughness:.6,metalness:.3})};
+ label:new THREE.MeshStandardMaterial({color:0xffc640,roughness:.5,metalness:.1}),copper:new THREE.MeshStandardMaterial({color:0xb8642e,roughness:.35,metalness:.85}),chip:new THREE.MeshStandardMaterial({color:0x0e0f12,roughness:.4,metalness:.2}),rubber:new THREE.MeshStandardMaterial({color:0x0c0d10,roughness:.9}),board:new THREE.MeshStandardMaterial({color:0x1f3a2a,roughness:.6,metalness:.3})};
+// carbon fibre: a 2x2 twill weave drawn per pixel from the object-space position (triplanar), faded out where it would alias
+MAT.carbon.customProgramCacheKey=()=>'weave';
+MAT.carbon.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;varying vec3 vWN;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=position;vWN=normal;');
+ sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;varying vec3 vWN;float twill(vec2 p){vec2 c=floor(p);float d=mod(c.x+c.y,4.);vec2 f=fract(p);return d<2.?.55+.45*sin(f.x*3.1416):.55+.45*sin(f.y*3.1416);}').replace('#include <color_fragment>',`#include <color_fragment>
+ {vec3 p=vWP*110.,w=abs(normalize(vWN));w/=w.x+w.y+w.z;float t=twill(p.yz)*w.x+twill(p.xz)*w.y+twill(p.xy)*w.z;float fw=fwidth(p.x)+fwidth(p.y)+fwidth(p.z);
+  diffuseColor.rgb*=mix(1.,.55+.95*t,1.-smoothstep(.4,1.2,fw));}`)};
 const markTex=tex(64,64,g=>{g.strokeStyle='#fff';g.lineWidth=7;g.beginPath();g.arc(32,32,22,0,7);g.stroke();g.fillStyle='#fff';g.beginPath();g.arc(32,32,8,0,7);g.fill()});
 export const TN=28;  // trail points
 onTune(T=>GS.drones.forEach(d=>d.mesh.scale.setScalar(.68*T.size)));  // was part of applyTune()

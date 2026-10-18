@@ -39,7 +39,7 @@ function hurt(){const h=$('hurt');h.style.transition='none';h.style.opacity=.5;r
 function boom(o){const p=o.p;emit(p,o.isTurret?0xffc640:COL[o.team],o.isTurret?220:160,30,1.2);emit(p,0xff6a20,90,20,1);GS.shake=Math.max(GS.shake,near(p)*.9);noise(.7,180,.8*near(p))}
 // damage: offline and on the host it applies directly; a joining pilot reports their own hits to the host (sequence-numbered, like ball hits)
 export function hitDrone(d,dmg,by){if(d.lock>performance.now())return;if(by===GS.player)hitMark();if(GS.net&&!GS.net.host){if(by===GS.player)GS.net.hits.push([++GS.net.hseq,d.key,dmg]);return}
- d.hp-=dmg;if(d===GS.player)hurt();if(d.hp<=0)kill(d,by)}
+ d.hp-=dmg*(d.fl?.armor||1);if(d===GS.player)hurt();if(d.hp<=0)kill(d,by)}  // armor plates (parts/attach.js) scale damage where it is owned (the host)
 export function hitTurret(t,dmg,by){if(by===GS.player)hitMark();if(GS.net&&!GS.net.host){if(by===GS.player)GS.net.hits.push([++GS.net.hseq,keyOf(t),dmg]);return}
  if((t.hp-=dmg)<=0){t.re=25;boom(t);scored(by,t)}}
 function kill(d,by){d.hp=100;d.life++;d.lock=performance.now()+800;if(!d.remote){boom(d);d.dead=3;d.mesh.visible=false}scored(by,d)}
