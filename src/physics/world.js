@@ -146,11 +146,13 @@ function buildDF(){const D=dfCollision(),add=(cd,x,y,z,q)=>{cd.setTranslation(x,
   else if(o.s==='hull'){const c=R.ColliderDesc.convexHull(new Float32Array(o.pts));if(c)add(c,...o.p,q)}}}
 
 // ---------- queries ----------
-const BHR=1.4;let bulShape=null;
+// bullet sweep radius: aim forgiveness around a drone's parts. 1.4 m at the old 0.75 drone size; it shrinks as drones grow (their
+// parts already make them bigger targets), so a size-2 stock quad is hit out to ~3 m from its centre instead of ~3.4 m
+export const bulletR=()=>cl(1.4*.6/DRAD,.35,1.4);let bulShape=null;
 /** first thing a bullet hits moving from p0 by dv this tick: {t (0..1), d (drone)|null, tag, p (hit point)} or null. team/by are skipped. */
 export function bulletCast(p0,dv,team,by){const L=dv.length();if(L<1e-6)return null;const dir=_v.copy(dv).divideScalar(L);
  const rh=world.castRay(new R.Ray(p0,dir),L,true,undefined,grp(QRY,GW_));let best=rh?{t:rh.timeOfImpact/L,d:null,tag:'world'}:null;
- bulShape=bulShape||new R.Ball(BHR);
+ const br=bulletR();if(!bulShape||bulShape.radius!==br)bulShape=new R.Ball(br);
  const sh=world.castShape(p0,IDQ,dir,bulShape,0,best?best.t*L:L,true,undefined,grp(QRY,GBUL),undefined,undefined,c=>{const e=C2D.get(c.handle);return!!e&&e.d.team!==team&&e.d!==by&&e.d.dead<=0});
  if(sh){const e=C2D.get(sh.collider.handle);best={t:sh.time_of_impact/L,d:e.d,tag:e.tag}}
  if(best)best.p=new V3().copy(p0).addScaledVector(dv,best.t);return best}
