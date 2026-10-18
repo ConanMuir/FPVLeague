@@ -128,3 +128,5 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
 .blive div{display:grid;grid-template-columns:72px 1fr 38px;gap:6px;align-items:center;padding:1px 3px;border-radius:3px}.blive b{height:8px;background:rgba(0,0,0,.45);border:1px solid var(--edge);border-radius:2px;position:relative;overflow:hidden}
 .blive i{position:absolute;top:0;bottom:0;background:var(--blue)}.blive em{font-style:normal;text-align:right}.blive .cand{background:rgba(255,176,46,.25);color:#fff}.blive .cand i{background:var(--amber)}.blive .noisy{opacity:.4;text-decoration:line-through}.blive .used{opacity:.55}
 .bres{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--dim);margin-top:6px}.bres b{color:var(--ink)}
+/* menu panels still scroll on small screens, but without a visible scroll bar (Windows draws a classic one under and beside the settings) */
+#menu,#home,.scr{scrollbar-width:none;overflow-x:hidden}#menu::-webkit-scrollbar,#home::-webkit-scrollbar,.scr::-webkit-scrollbar{display:none}
