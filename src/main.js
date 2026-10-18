@@ -36,7 +36,7 @@ import {setMap} from './world/maps.js';
 let last=performance.now(),acc=0;const DT=1/120,_ip=[];
 const BODIES=()=>[ball,...GS.drones.filter(d=>!d.remote)];  // remote drones are smoothed by visuals() from network state
 function tick(dt){for(const o of BODIES()){(o._pp||(o._pp=new V3())).copy(o.p);(o._pq||(o._pq=new QT())).copy(o.q)}step(dt)}
-function lerpIn(a){_ip.length=0;for(const o of BODIES()){if(!o._pp||o._pp.distanceToSquared(o.p)>400)continue;_ip.push(o,o.p.clone(),o.q.clone());o.p.lerpVectors(o._pp,o.p,a);o.q.slerpQuaternions(o._pq,o.q,a)}}
+function lerpIn(a){_ip.length=0;for(const o of BODIES()){if(!o._pp||o._pp.distanceToSquared(o.p)>400)continue;const q=o.q.clone();_ip.push(o,o.p.clone(),q);o.p.lerpVectors(o._pp,o.p,a);o.q.slerpQuaternions(o._pq,q,a)}}  // slerpQuaternions(a,b) copies a into itself first, so b must not be o.q (that froze the rendered attitude a tick behind)
 function lerpOut(){for(let i=0;i<_ip.length;i+=3){_ip[i].p.copy(_ip[i+1]);_ip[i].q.copy(_ip[i+2])}_ip.length=0}
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);
  if(!GS.paused){if(GS.timeScale<1){let r=Math.min(dt,.05)*GS.timeScale*GSPD;while(r>1e-6){const h=Math.min(DT,r);tick(h);r-=h}acc=0}else{acc+=dt*GS.timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){tick(DT);acc-=DT}}}  // slow-mo steps every frame by a smaller dt, so nothing stutters
