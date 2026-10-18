@@ -17,10 +17,11 @@ import {OUT,setMap} from '../world/maps.js';
 const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['arena','Arena size','sel',ARENAS.map((a,i)=>[i,`${a[0]} (${a[1]}×${a[2]} m)`])],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],['gfx','Graphics quality','sel',[['auto','Auto'],['high','High'],['med','Medium'],['low','Low (integrated GPUs)']]],
  ['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
  ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['assist','Flight assist','rng',0,1,.05],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]]];
+// settings tab for each field (the rest go on Match); Controls and Keys tabs hold the controller block and the key list
+const FTAB={mode:'flight',thrMode:'flight',dz:'flight',assist:'flight',map:'video',ball:'video',gfx:'video',tilt:'video',fov:'video'};
 // builds the settings and controller-mapping rows and wires the menu buttons (v15 ran this at load)
 export function initMenu(){
-const setEl=$('set');
-for(const[k,lab,type,...o]of FIELDS){const l=document.createElement('label');l.textContent=lab;l.htmlFor='f_'+k;setEl.append(l);let inp;
+for(const[k,lab,type,...o]of FIELDS){const setEl=FTAB[k]?$('set_'+FTAB[k]):$('set');const l=document.createElement('label');l.textContent=lab;l.htmlFor='f_'+k;setEl.append(l);let inp;
  if(type==='sel'){inp=document.createElement('select');for(const[v,t]of o[0])inp.add(new Option(t,JSON.stringify(v)))}else{inp=document.createElement('input');inp.type='range';[inp.min,inp.max,inp.step]=o}
  inp.id='f_'+k;const out=document.createElement('output');out.id='o_'+k;setEl.append(inp,out);
  inp.addEventListener('input',()=>{S[k]=type==='sel'?JSON.parse(inp.value):+inp.value;save();syncUI();if(k==='map'&&!GS.OBSON)setMap(S.map);if(k==='ball')setBall(S.ball);if(k==='gfx')setQuality(S.gfx);if(k==='arena'&&S.arena!==AI&&!GS.net){mpMsg('Building the '+ARENAS[S.arena][0]+' arena…');setTimeout(()=>location.reload(),60)}})}  // arena geometry is built at load, so a new size reloads the page
@@ -38,7 +39,8 @@ syncUI();
 addEventListener('gamepadconnected',e=>{if(RADIO.test(e.gamepad.id)&&S.thrMode!=='full'){S.thrMode='full';save();syncUI();feed('Radio detected: throttle set to full range. Open the menu and press Calibrate radio.')}});
 $('nick').value=S.name||'';$('nick').oninput=e=>{S.name=e.target.value.slice(0,16);save()};$('tpref').value=S.tp;$('tpref').onchange=e=>{S.tp=e.target.value;save()};
 $('host').onclick=()=>{exitLab();enterGame(Math.random().toString(36).slice(2,6),true)};$('join').onclick=()=>{exitLab();enterGame($('code').value,false)};$('code').onkeydown=e=>{if(e.key==='Enter'){exitLab();enterGame($('code').value,false)}};
-// sub-screens (Play online, Settings): open over the menu, Back or Esc returns to the main list
+for(const b of $('stabs').children)b.onclick=()=>{for(const x of $('stabs').children)x.classList.toggle('on',x===b);for(const p of document.querySelectorAll('#scr-settings .tabp'))p.hidden=p.dataset.tab!==b.dataset.tab};
+ // sub-screens (Play online, Settings): open over the menu, Back or Esc returns to the main list
  for(const b of document.querySelectorAll('#home [data-scr]'))b.onclick=()=>menuScreen(b.dataset.scr);for(const b of document.querySelectorAll('#menu .back'))b.onclick=()=>menuScreen(null);
  addEventListener('keydown',e=>{if(e.code==='Escape'&&GS.menuOpen&&document.querySelector('#menu .scr:not([hidden])')){menuScreen(null);e.stopImmediatePropagation()}},true);
  for(const M of modeList()){const b=document.createElement('button');b.className='sm';b.id='m_'+M.id;b.dataset.m=M.id;b.textContent=M.name;b.onclick=()=>pickGame(M.id);$('modes').append(b)}  // one button per registered mode (modes/registry.js)

@@ -44,35 +44,30 @@
       <div id="games"></div>
       <p class="note" id="mpnote">Connecting…</p>
   </section>
-  <section class="scr wide" id="scr-settings" hidden aria-label="Settings">
+  <section class="scr set-scr" id="scr-settings" hidden aria-label="Settings">
     <div class="shead"><button class="sm back">Back</button><h2>Settings</h2></div>
-    <div class="cols">
-      <div>
-        <h2>Match &amp; flight</h2>
-      <div class="set" id="set"></div><div class="mp"><button class="sm" id="sensbtn">Easy sensitivity setup…</button><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div>
-        <h2 style="margin-top:20px">Keys</h2>
-        <div class="keys">
-        <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
-        <kbd>A / D</kbd><span>Yaw</span>
-        <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
-        <kbd>Boost</kbd><span>Off by default (Super boost setting). When on: top 5% of the throttle stick = super boost (Shift / Space on keyboard), and gold orbs refill it</span>
-        <kbd>F / click</kbd><span>Fire (Dogfight). Guns follow the FPV camera; auto-fire shoots when the crosshair is on a target</span>
-        <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
-        <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
-        <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
-        <kbd>E</kbd><span>Flip back over now (upside down on the ground it also rolls back onto its feet by itself)</span>
-        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped below</span>
-      </div>
-      </div>
-      <div>
-        <h2 style="margin-top:20px">Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
-      <div class="axes" id="axes"></div><div class="btns" id="btns"></div>
-      <div class="chans" id="chans"></div>
-      <div class="mp"><button class="sm" id="calbtn">Choose your controls</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
-      <div class="map" id="map"></div>
-      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Choose your controls and move or press whatever you want for each function. Xbox controller: works straight away (left stick throttle, centre = hover); choose your controls to put any function on any stick, trigger, bumper, d-pad or button. It keeps its own setup, separate from your radio. Gamepad shortcut buttons are ignored for radios so switches don't trigger them.</p>
-      </div>
-    </div>
+    <div class="tabs stabs" id="stabs" role="tablist" aria-label="Settings sections"><button class="sm on" data-tab="match">Match</button><button class="sm" data-tab="flight">Flight</button><button class="sm" data-tab="video">Camera &amp; video</button><button class="sm" data-tab="controls">Controls</button><button class="sm" data-tab="keys">Keys</button></div>
+    <div class="tabp" data-tab="match"><div class="set" id="set"></div></div>
+    <div class="tabp" data-tab="flight" hidden><div class="set" id="set_flight"></div><div class="mp"><button class="sm" id="sensbtn">Easy sensitivity setup…</button><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div></div>
+    <div class="tabp" data-tab="video" hidden><div class="set" id="set_video"></div></div>
+    <div class="tabp" data-tab="controls" hidden><h2>Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
+      <div class="axes" id="axes"></div><div class="btns" id="btns"></div>
+      <div class="chans" id="chans"></div>
+      <div class="mp"><button class="sm" id="calbtn">Choose your controls</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
+      <div class="map" id="map"></div>
+      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Choose your controls and move or press whatever you want for each function. Xbox controller: works straight away (left stick throttle, centre = hover); choose your controls to put any function on any stick, trigger, bumper, d-pad or button. It keeps its own setup, separate from your radio. Gamepad shortcut buttons are ignored for radios so switches don't trigger them.</p></div>
+    <div class="tabp" data-tab="keys" hidden><div class="keys">
+        <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
+        <kbd>A / D</kbd><span>Yaw</span>
+        <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
+        <kbd>Boost</kbd><span>Off by default (Super boost setting). When on: top 5% of the throttle stick = super boost (Shift / Space on keyboard), and gold orbs refill it</span>
+        <kbd>F / click</kbd><span>Fire (Dogfight). Guns follow the FPV camera; auto-fire shoots when the crosshair is on a target</span>
+        <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
+        <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
+        <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
+        <kbd>E</kbd><span>Flip back over now (upside down on the ground it also rolls back onto its feet by itself)</span>
+        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped in the Controls tab</span>
+      </div></div>
   </section>
 </div>
 
