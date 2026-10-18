@@ -50,6 +50,13 @@ export const dfHt=(x,z)=>{if(!grid)return dfH(x,z);const T=grid,fx=cl((x+T.w/2)/
  return u+v<1?h[i]+u*(h[i+1]-h[i])+v*(h[i+n1]-h[i]):h[i+n1+1]+(1-u)*(h[i+n1]-h[i+n1+1])+(1-v)*(h[i+1]-h[i+n1+1])};
 export const sdDFt=(x,y,z)=>Math.max(y-DCEIL,Math.abs(x)-DHW,Math.abs(z)-DHL,(dfHt(x,z)-y)*.75),sdDF=(x,y,z)=>Math.max(sdDFt(x,y,z),-sdObs(x,y,z));  // sdDFt: without obstacles
 export const DSLOTS=[[0,12,DBASE],[-26,12,DBASE+16],[26,12,DBASE+16]];
+// respawn points spread over the whole valley (built on first use): open air 30 m over the ground, nothing within sdObs's 10 m range
+let DSPAWN=null;
+function spawnPoints(){if(DSPAWN)return DSPAWN;DSPAWN=[];for(let x=-DHW+140;x<=DHW-140;x+=120)for(let z=-DHL+150;z<=DHL-150;z+=130){const y=dfH(x,z)+30;
+ if(y<DCEIL-40&&sdDFt(x,y,z)<-15&&sdObs(x,y,z)>9.9&&sdObs(x,y+15,z)>9.9)DSPAWN.push([x,y,z])}return DSPAWN}
+/** a Dogfight respawn point far from everyone alive (others: [{p}] world positions), picked at random among the best three: [x,y,z,yaw facing the valley centre] */
+export function dfSpawnPoint(others){const P=spawnPoints(),sc=P.map(p=>{let m=1e9;for(const o of others)m=Math.min(m,Math.hypot(o.p.x-p[0],o.p.y-p[1],o.p.z-p[2]));return[m,p]}).sort((a,b)=>b[0]-a[0]);
+ const p=sc[Math.floor(Math.random()*Math.min(3,sc.length))]?.[1]||[0,60,0];return[...p,Math.atan2(p[0],p[2])]}
 const DFC={sky:['#3b6fb0','#79a6d8','#c5dbee','#e6eef2','#9fb38f','#4d6340'],sun:[-.45,.55,-.7],fog:0xc9d9e6};
 LOOKS.df={bg:null,fog:new THREE.Fog(DFC.fog,380,1750),hemi:[0xdde9ff,0x55663f,1.05],sun:[0xfff0dc,3],sp:new V3(...DFC.sun).normalize().multiplyScalar(300),sc:[170,170,800],exp:1,bk:.6,th:1.25,br:.3};
 scene.add(sun.target);

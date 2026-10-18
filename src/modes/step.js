@@ -26,7 +26,7 @@ export function step(dt){if(LAB.on){labStep(dt);physStep(dt,false);return}const 
  else if(GS.state==='end'){GS.stT-=dt;if(A&&GS.stT<=0){banner('');if(GS.net){GS.score=[0,0];GS.clock=S.len;GS.overtime=GS.endPending=false;kickoff()}else{startDemo();return}}}
  else if(GS.state==='play'&&!GS.demo&&A&&!MODES[GS.GM]?.free){if(!GS.overtime){GS.clock-=dt;if(GS.clock<=0){GS.clock=0;if(GS.score[0]===GS.score[1]){GS.overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else GS.clock+=dt}
  const frozen=GS.state==='kickoff',live=GS.state==='play'||GS.state==='kickoff';
- for(const d of GS.drones){if(d.remote)continue;if(d.dead>0){if((d.dead-=dt)<=0)d.spawn();continue}
+ for(const d of GS.drones){if(d.remote)continue;if(d.dead>0){if((d.dead-=dt)<=0)d.spawn(true);continue}
   if(d.bot)(GS.OBSON?dfBot:botControl)(d,dt);else{humanControl(d,dt);if(GS.OBSON)d.firing=!GS.menuOpen&&GS.state==='play'&&fireIn(d)}if(frozen)continue;d.step(dt)}
  const simBall=!frozen&&live&&!GS.OBSON;if(simBall)ballPre(ball.v,dt);
  physStep(dt,simBall);  // moves every drone and the ball, resolves their contact with the map
