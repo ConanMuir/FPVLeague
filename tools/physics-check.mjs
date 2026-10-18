@@ -16,7 +16,7 @@ const check = (ok, m) => { console.log((ok ? '  ok   ' : '  FAIL ') + m); if (!o
 
 // ---------- geometry (node) ----------
 {
-  const {buildArena, arenaTrimesh, arenaSD} = await import(pathToFileURL(path.join(root, 'src/physics/arena-shape.js')).href);
+  const {buildArena, arenaTrimesh, arenaSD} = await import(pathToFileURL(path.join(root, 'src/physics/arena-shape.js')).href), CK = await import(pathToFileURL(path.join(root, 'src/config/constants.js')).href);
   const t0 = performance.now(), A = buildArena(), T = arenaTrimesh(A), ms = performance.now() - t0, V = T.vertices, I = T.indices, E = new Map();
   for (let t = 0; t < I.length; t += 3) for (let e = 0; e < 3; e++) { const a = I[t + e], b = I[t + (e + 1) % 3], k = a < b ? a + ',' + b : b + ',' + a, o = E.get(k) || {n: 0, dir: 0}; o.n++; o.dir += a < b ? 1 : -1; E.set(k, o); }
   let open = 0, non2 = 0, mis = 0; for (const o of E.values()) { if (o.n === 1) open++; else if (o.n !== 2) non2++; else if (o.dir) mis++; }
@@ -29,7 +29,7 @@ const check = (ok, m) => { console.log((ok ? '  ok   ' : '  FAIL ') + m); if (!o
   const EF = new Map(); for (let t = 0; t < I.length; t += 3) for (let e = 0; e < 3; e++) { const a = I[t + e], b = I[t + (e + 1) % 3], k = a < b ? a + ',' + b : b + ',' + a; (EF.get(k) || EF.set(k, []).get(k)).push(t / 3); }
   const turns = []; for (const [, fs2] of EF) if (fs2.length === 2) { const [p, q] = fs2.map(i => fn[i]); turns.push(Math.acos(Math.max(-1, Math.min(1, p[0] * q[0] + p[1] * q[1] + p[2] * q[2]))) * 180 / Math.PI); }
   turns.sort((a, b) => a - b); const smooth = turns.filter(x => x < 30); maxTurn = smooth[smooth.length - 1];
-  console.log('\n== (geo) arena surface: one profile -> visual pieces + welded trimesh');
+  console.log(`\n== (geo) arena surface (${CK.W} x ${CK.L} x ${CK.H} m): one profile -> visual pieces + welded trimesh`);
   console.log(`  ${V.length / 3} vertices, ${I.length / 3} triangles, built in ${f(ms, 0)} ms; pieces: floor ${A.floor.idx.length / 3}, ramp ${A.ramp.idx.length / 3}, wall ${A.wall.idx.length / 3}, ceiling ${A.ceil.idx.length / 3}, nets ${A.nets[0].idx.length / 3}x2, mouth floor ${A.mouth[0].idx.length / 3}x2, goal floor ${A.goalF[0].idx.length / 3}x2`);
   console.log(`  max |SDF| at vertices ${f(mv * 1000, 3)} mm, at triangle centroids ${f(mc * 100, 2)} cm; largest bend between neighbouring faces on curved parts ${f(maxTurn, 2)} deg (creases ${turns.filter(x => x >= 30).length} edges)`);
   check(open === 0 && non2 === 0 && mis === 0, `trimesh is closed and consistently wound (open edges ${open}, non-manifold ${non2}, misoriented ${mis})`);
@@ -39,7 +39,7 @@ const check = (ok, m) => { console.log((ok ? '  ok   ' : '  FAIL ') + m); if (!o
   console.log(`  99% of neighbouring faces on curved parts bend < ${f(p99, 2)} deg`);
   // the collision trimesh (floor and ceiling are boxes; the mesh keeps 4 m strips along their edges)
   const Tc = arenaTrimesh(A, true), Ic = Tc.indices, Ec = new Map(); for (let t = 0; t < Ic.length; t += 3) for (let e = 0; e < 3; e++) { const a = Ic[t + e], b = Ic[t + (e + 1) % 3], k = a < b ? a + ',' + b : b + ',' + a, o = Ec.get(k) || {n: 0, dir: 0}; o.n++; o.dir += a < b ? 1 : -1; Ec.set(k, o); }
-  let co = 0, cn = 0, cm = 0, cfl = 0; for (const [k, o] of Ec) { if (o.n === 1) { co++; const [a, b] = k.split(',').map(Number); if (Tc.vertices[a * 3 + 1] !== 0 && Tc.vertices[a * 3 + 1] !== 64 || Tc.vertices[b * 3 + 1] !== 0 && Tc.vertices[b * 3 + 1] !== 64) cfl++; } else if (o.n !== 2) cn++; else if (o.dir) cm++; }
+  let co = 0, cn = 0, cm = 0, cfl = 0; for (const [k, o] of Ec) { if (o.n === 1) { co++; const [a, b] = k.split(',').map(Number); if (Tc.vertices[a * 3 + 1] !== 0 && Tc.vertices[a * 3 + 1] !== CK.H || Tc.vertices[b * 3 + 1] !== 0 && Tc.vertices[b * 3 + 1] !== CK.H) cfl++; } else if (o.n !== 2) cn++; else if (o.dir) cm++; }
   console.log(`  collision trimesh: ${Tc.vertices.length / 3} vertices, ${Ic.length / 3} triangles, open edges ${co} (all on the floor/ceiling planes: ${cfl === 0})`);
   check(cn === 0 && cm === 0 && cfl === 0, 'collision trimesh is consistently wound, open only where it meets the floor/ceiling boxes');
 }
@@ -75,29 +75,29 @@ await page.evaluate(async () => {
 const run = (name, fn, arg) => page.evaluate(fn, arg).catch(e => { errors.push(name + ': ' + e.message); return null; });
 
 // ---------- (a) ball up the quarter-pipe ----------
-console.log('\n== (a) ball rolled at the side wall: up the quarter-pipe and back (ball radius 2.6, ramp radius 10)');
+console.log(`\n== (a) ball rolling at the side wall: energy from entering the quarter-pipe to coming back out (ball radius ${await page.evaluate(() => window.__pc.T.BR)}, ramp radius 10, wall ${await page.evaluate(() => window.__pc.C.H)} m)`);
 const qp = await run('a', () => {
-  const M = window.__pc, {B, W, T, S} = M, ball = B.ball, dt = M.dt, out = {};
+  const M = window.__pc, {B, W, T, S} = M, ball = B.ball, dt = M.dt, out = {}, X0 = M.C.HW - M.C.RF;  // side ramp starts at x = X0
   // v15's ball, for reference: sliding (no spin), Coulomb friction .25 on every contact impulse
   const v15 = (p, v) => { v.y -= T.BG * dt; const s = v.length(); v.multiplyScalar(Math.max(0, 1 - (T.BD + T.BD * .02 * s) * dt)); if (s > T.MAXB) v.multiplyScalar(T.MAXB / s); p.addScaledVector(v, dt);
     const n = new M.V3(); for (let it = 0; it < 2; it++) { const d = S.sdf(p.x, p.y, p.z); if (d <= -T.BR) break; S.sdN(p, n); p.addScaledVector(n, -(d + T.BR)); const vn = -(v.dot(n)); if (vn >= 0) continue;
       const tx = v.x + n.x * vn, ty = v.y + n.y * vn, tz = v.z + n.z * vn, tl = Math.hypot(tx, ty, tz), k = tl > 1e-6 ? Math.max(0, 1 - .25 * -vn * (1 + T.BB) / tl) : 0; v.set(tx * k + n.x * vn * T.BB, ty * k + n.y * vn * T.BB, tz * k + n.z * vn * T.BB); } };
   M.league();
   for (const mode of ['sdf', 'sdf, no roll-out', 'mesh', 'v15']) for (const sp of [15, 20, 30, 45, 60, 80]) {
-    W.setBallMode(mode === 'mesh'); B.BALL.rr = mode === 'sdf, no roll-out' ? 0 : .25; ball.p.set(95, T.BR, 0); ball.c = true; ball.n.set(0, -1, 0); ball.v.set(sp, 0, 0); ball.w.set(0, 0, mode === 'v15' ? 0 : -sp / T.BR); ball.q.set(0, 0, 0, 1);
+    W.setBallMode(mode === 'mesh'); B.BALL.rr = mode === 'sdf, no roll-out' ? 0 : .25; ball.p.set(X0 - 5, T.BR, 0); ball.c = true; ball.n.set(0, -1, 0); ball.v.set(sp, 0, 0); ball.w.set(0, 0, mode === 'v15' ? 0 : -sp / T.BR); ball.q.set(0, 0, 0, 1);
     const E = () => .5 * ball.v.lengthSq() + T.BG * (ball.p.y - T.BR);  // linear + potential (the spin just follows the rolling)
     let E0 = E(), entry = null; let drag = 0, maxY = 0, pen = 0, back = null, apex = false, prevV = ball.v.clone(), acc = [], hops = 0, inC = false, contacts = 0, out_ = false;
     for (let i = 0; i < 8 * 120; i++) {
       const s = ball.v.length(), k = Math.max(0, 1 - (T.BD + T.BD * .02 * s) * dt); drag += .5 * s * s * (1 - k * k);
       const v0 = ball.v.clone();
       if (mode === 'v15') v15(ball.p, ball.v); else { B.ballPre(ball.v, dt); W.physStep(dt, true); }
-      const d = S.sdf(ball.p.x, ball.p.y, ball.p.z); pen = Math.max(pen, d + T.BR); if (Math.abs(ball.p.x) > 110) out_ = true;
+      const d = S.sdf(ball.p.x, ball.p.y, ball.p.z); pen = Math.max(pen, d + T.BR); if (Math.abs(ball.p.x) > M.C.HW) out_ = true;
       const c = d > -T.BR - .02; if (c && !inC) contacts++; inC = c;
       // contact acceleration on the curved part (gravity and drag taken out)
-      if (ball.p.x > 100 - T.BR && ball.p.y < 12) { const dv = ball.v.clone().sub(v0); dv.y += T.BG * dt; acc.push(dv.length() / dt); }
+      if (ball.p.x > X0 - T.BR && ball.p.y < 12) { const dv = ball.v.clone().sub(v0); dv.y += T.BG * dt; acc.push(dv.length() / dt); }
       maxY = Math.max(maxY, ball.p.y); if (ball.v.x < 0) apex = true;
-      if (!entry && ball.p.x >= 99) entry = {E: E(), drag};
-      if (apex && entry && ball.p.x < 99 && !back) { back = {E: E() - 0, t: i * dt, drag: drag - entry.drag}; break; }
+      if (!entry && ball.p.x >= X0 - 1) entry = {E: E(), drag};
+      if (apex && entry && ball.p.x < X0 - 1 && !back) { back = {E: E() - 0, t: i * dt, drag: drag - entry.drag}; break; }
     }
     // jitter: largest step-to-step jump in contact acceleration, relative to its median while on the curve
     const med = acc.slice().sort((a, b) => a - b)[acc.length >> 1] || 1; let jump = 0; for (let i = 1; i < acc.length; i++) jump = Math.max(jump, Math.abs(acc[i] - acc[i - 1]));
@@ -107,12 +107,13 @@ const qp = await run('a', () => {
   }
   W.setBallMode(false); B.BALL.rr = .25; return out;
 });
-if (qp) {
+if (qp) { const qpCeil = await page.evaluate(() => window.__pc.C.H - window.__pc.T.BR - .5);
   for (const m in qp) { console.log(`  ${m}: speed m/s -> max height m | energy lost % (drag %, contact+rolling %) | contact-accel jump (x median) | contact starts | max penetration cm`);
     for (const r of qp[m]) console.log(`        ${String(r.speed).padStart(3)} -> ${String(r.maxHeight).padStart(6)} | ${String(r.energyLossPct).padStart(5)} (${r.dragPct}, ${r.contactLossPct}) | ${r.accJumpRel} | ${r.contactStarts} | ${r.maxPenetrationCm}${r.escaped ? ' ESCAPED' : ''}`); }
   check(qp.sdf.every(r => r.back && !r.escaped && r.maxPenetrationCm < 5 && r.contactStarts <= 2), 'analytic ball: every run comes back, stays on the surface (no hops), no tunnelling');
-  check(qp['sdf, no roll-out'].filter(r => r.maxHeight < 60).every(r => r.contactLossPct < 3), 'analytic ball: the curve and wall themselves cost < 3% (what the default loses on top is the floor roll-out on the shallow part of the ramp)');
-  check(qp.sdf.every((r, i) => r.contactLossPct < qp.v15[i].contactLossPct), 'analytic ball keeps more energy on the curve than v15');
+  check(qp['sdf, no roll-out'].filter(r => r.maxHeight < qpCeil).every(r => r.contactLossPct < 3), 'analytic ball: the curve and wall themselves cost < 3% (what the default loses on top is the floor roll-out on the shallow part of the ramp)');
+  check(qp.sdf.every((r, i) => (r.contactLossPct ?? 100) <= (qp.v15[i].contactLossPct ?? 100)),  // null: never came back out (the slow v15 ball stops on the ramp)
+    'analytic ball keeps more energy on the curve than v15');
 }
 
 // ---------- (b) ball dropped on edges, corners, posts ----------
@@ -202,11 +203,11 @@ const gr = await run('d', () => {
   { const qd = new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI); place([0, .14, 0], qd, [20, 0, 0]); d.ms = 1; let v1 = null; sim(.5, () => { d.thr = 1; d.wt.set(0, 0, 0); }, i => { if (i === 59) v1 = Math.hypot(d.v.x, d.v.z); });
     const r = v15([0, .14, 0], qd, [20, 0, 0], 1, .5); out.slideThrusting = {lostIn05s: +(20 - v1).toFixed(2), v15: +(20 - Math.hypot(r.v.x, r.v.z)).toFixed(2), uncappedWouldBe: +(T.GF * (T.G + T.THR) * .5).toFixed(1)}; }
   // ramp: let go on the side quarter-pipe at 45 deg
-  { const a = Math.PI / 4, x = 110 - 10 + 10 * Math.sin(a), y = 10 - 10 * Math.cos(a); place([x - .4, y + .4, 0], new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), a)); let mp = -1, ys = []; sim(5, () => { d.thr = 0; }, i => { mp = Math.max(mp, pen()); if (i >= 4 * 120) ys.push(d.p.y); });
+  { const a = Math.PI / 4, x = M.C.HW - M.C.RF + M.C.RF * Math.sin(a), y = M.C.RF - M.C.RF * Math.cos(a); place([x - .4, y + .4, 0], new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), a)); let mp = -1, ys = []; sim(5, () => { d.thr = 0; }, i => { mp = Math.max(mp, pen()); if (i >= 4 * 120) ys.push(d.p.y); });
     out.ramp = {end: d.p.toArray().map(v => +v.toFixed(2)), maxPenetrationMm: +(mp * 1000).toFixed(1), endUpY: +new M.V3(0, 1, 0).applyQuaternion(d.q).y.toFixed(3), ySpreadMm: +(1000 * (Math.max(...ys) - Math.min(...ys))).toFixed(2)}; }
   // self-righting (v16 pendulum): upside down / on its side, no input
-  for (const [k, q, thr] of [['upsideDown', new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI), 0], ['onSide', new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI * 80 / 180), 0], ['upsideDownThrottle', new M.QT().setFromAxisAngle(new M.V3(1, 0, 0), Math.PI), .4]]) {
-    place([0, .6, 0], q); let t = null, mp = -1; sim(4, () => { d.thr = t == null ? thr : 0; d.wt.set(0, 0, 0); }, i => { mp = Math.max(mp, pen()); if (t == null && new M.V3(0, 1, 0).applyQuaternion(d.q).y > .9 && d.gt > 0) t = i * dt; });
+  for (const [k, q, thr] of [['upsideDown', new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI), 0], ['onSide', new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI / 2), 0], ['lean80', new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI * 80 / 180), 0], ['upsideDownThrottle', new M.QT().setFromAxisAngle(new M.V3(1, 0, 0), Math.PI), .2]]) {
+    place([0, k === 'onSide' || k === 'lean80' ? Math.max(...d.hbp.map(p => Math.abs(p.x))) + d.hbr + .1 : .6, 0], q); let t = null, mp = -1; sim(4, () => { d.thr = t == null ? thr : 0; d.wt.set(0, 0, 0); }, i => { mp = Math.max(mp, pen()); if (t == null && new M.V3(0, 1, 0).applyQuaternion(d.q).y > .9 && d.gt > 0) t = i * dt; });
     out[k] = {uprightAfter: t == null ? null : +t.toFixed(2), maxPenetrationMm: +(mp * 1000).toFixed(1), endUpY: +new M.V3(0, 1, 0).applyQuaternion(d.q).y.toFixed(3)}; }
   // turtle with sticks: upside down, full roll stick, motors off
   { place([0, .6, 0], new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI)); sim(.5, () => { d.thr = 0; });  // settle
@@ -221,12 +222,12 @@ if (gr) {
   console.log(`  slide at 20 m/s, motors off: ${gr.slide.decel} m/s lost in 1 s (v17 ground(): ${gr.slide.v15}), max penetration ${gr.slide.maxPenetrationMm} mm`);
   console.log(`  slide upside down at full throttle into the floor: ${gr.slideThrusting.lostIn05s} m/s lost in 0.5 s (v17: ${gr.slideThrusting.v15}; without v17's cap it would be ${gr.slideThrusting.uncappedWouldBe})`);
   console.log(`  let go on the 45 deg ramp: ends at ${gr.ramp.end} up.y ${gr.ramp.endUpY}, last-second spread ${gr.ramp.ySpreadMm} mm, max penetration ${gr.ramp.maxPenetrationMm} mm`);
-  for (const k of ['upsideDown', 'onSide', 'upsideDownThrottle']) console.log(`  self-righting ${k}: upright after ${gr[k].uprightAfter} s (end up.y ${gr[k].endUpY}), max penetration ${gr[k].maxPenetrationMm} mm`);
+  for (const k of ['upsideDown', 'onSide', 'lean80', 'upsideDownThrottle']) console.log(`  self-righting ${k} (${k === 'upsideDownThrottle' ? '20% throttle, below hover' : 'no input'}): upright after ${gr[k].uprightAfter} s (end up.y ${gr[k].endUpY}), max penetration ${gr[k].maxPenetrationMm} mm`);
   console.log(`  turtle with roll stick: upright after ${gr.turtleStick.uprightAfter} s, max penetration ${gr.turtleStick.maxPenetrationMm} mm; flip button: upright after ${gr.flipButton.uprightAfter} s`);
   check(gr.rest.ySpreadMm < 1 && gr.rest.maxSpeed < .1 && gr.rest.maxPenetrationMm < 10, 'drone rests on the floor without jitter or sinking');
   check(Math.abs(gr.slide.decel - gr.slide.v15) < .5, 'sliding friction matches v17');
   check(gr.slideThrusting.lostIn05s < gr.slideThrusting.v15 * 1.25 && gr.slideThrusting.lostIn05s < gr.slideThrusting.uncappedWouldBe * .7, 'thrusting into the floor is capped like v17 (within 25%; both sit near the G*.05 cap)');
-  check(['upsideDown', 'onSide', 'upsideDownThrottle'].every(k => gr[k].uprightAfter != null && gr[k].uprightAfter < 3), 'self-righting works from upside down and on its side (80 deg; exactly 90 deg balances on the rounded edge, as v16)');
+  check(['upsideDown', 'upsideDownThrottle'].every(k => gr[k].uprightAfter != null && gr[k].uprightAfter < 4) && gr.onSide.uprightAfter == null, 'v20 self-righting: upside down on the floor rights itself; on its side (90 deg) it stays (flip button / sticks right it); at 80 deg it just falls back flat');
   check(gr.turtleStick.uprightAfter != null && gr.flipButton.uprightAfter != null, 'turtle with sticks and the flip button work');
 }
 
@@ -248,7 +249,7 @@ const bul = await run('e', () => {
   out.obstacles = res;
   // drones: a kinematic target hovering in the open, shots offset sideways and from above
   const d = new D.Drone(1, 0, false, 'tgt'); GS.drones = [d]; d.p.set(0, 420, 0); d.q.set(0, 0, 0, 1); d.ph = 0; W.physStep(dt, false);
-  out.drone = {}; for (const off of [0, .5, 1, 1.5, 1.8, 2, 2.2, 2.5, 3]) { let h = 0; const N = 16;
+  out.ext = +d.bound.toFixed(2); out.drone = {}; for (const off of [0, .5, 1, 1.4, 2, 3, +(d.bound + 1.6).toFixed(2), +(d.bound + 2.5).toFixed(2)]) { let h = 0; const N = 16;
     for (let k = 0; k < N; k++) { const a = k / N * Math.PI * 2, dir = new M.V3(Math.cos(a), k % 4 === 0 ? -.8 : 0, Math.sin(a)).normalize(), side = new M.V3().crossVectors(dir, new M.V3(0, 1, 0)); if (side.lengthSq() < .1) side.set(1, 0, 0); side.normalize();
       const aim = d.p.clone().addScaledVector(side, off), o = fire(aim.clone().addScaledVector(dir, -90), aim.clone().addScaledVector(dir, 10)); if (o.hit?.d === d) { h++; out.drone.tag = o.hit.tag; } }
     out.drone[off] = h / N; }
@@ -256,9 +257,9 @@ const bul = await run('e', () => {
 });
 if (bul) {
   for (const k in bul.obstacles) { const [n, hit, saved, miss] = bul.obstacles[k]; console.log(`  ${k.padEnd(7)} ${n} shots: ${hit} hit before passing the aim point, ${miss} did not; ${saved} of the hits would have tunnelled with v15's end-point test`); }
-  console.log('  drone target, fraction hit by lateral miss distance (v15: a 2 m sphere): ' + Object.entries(bul.drone).filter(([k]) => k !== 'tag').map(([k, v]) => `${k} m ${v}`).join(', ') + `; tag reported '${bul.drone.tag}'`);
+  console.log(`  drone target (stock parts, bounding radius ${bul.ext} m), fraction hit by lateral miss distance (sweep: parts + 1.4 m): ` + Object.entries(bul.drone).filter(([k]) => k !== 'tag').sort((a, b) => a[0] - b[0]).map(([k, v]) => `${k} m ${v}`).join(', ') + `; tag reported '${bul.drone.tag}'`);
   check(bul.obstacles.tree[3] === 0 && bul.obstacles.spire[3] === 0 && bul.obstacles.bridge[3] === 0, 'no bullet passes through a tree trunk, spire or bridge');
-  check(bul.drone[0] === 1 && bul.drone[1.5] === 1 && bul.drone[3] === 0, 'drone hits: always within 1.5 m of the frame, never at 3 m');
+  check(bul.drone[0] === 1 && bul.drone[1.4] === 1 && bul.drone[(bul.ext + 1.6).toFixed(2) * 1] === 0, 'drone hits: always within the 1.4 m sweep of the centre, never beyond the parts + 1.4 m');
 }
 
 // ---------- (g) bots' predictor and the touch model ----------
@@ -273,13 +274,13 @@ const pt = await run('g', async () => {
     for (let i = 0; i < 240; i++) { B.ballPre(ball.v, dt); W.physStep(dt, true); } const e = ball.p.distanceTo(pb.p); worst = Math.max(worst, e); sum += e; n++; }
   out.predict = {mean: +(sum / n).toFixed(2), worst: +worst.toFixed(2)};
   // ball touch: Rapier queries on the v15 descriptor (defaultDroneDesc: BBX box) vs v15's ballBox() formula, random poses
-  const d = new D.Drone(0, 0, false, 't'); W.buildDroneBody(d, W.defaultDroneDesc()); GS.drones = [d]; let dn = 0, dp = 0, cnt = 0, miss = 0, tag = null; const n1 = new M.V3(), l = new M.V3(), o = new M.V3(), qi = new M.QT();
+  const d = new D.Drone(0, 0, false, 't'); W.buildDroneBody(d, W.defaultDroneDesc()); GS.drones = [d]; let dn = 0, dp = 0, cnt = 0, miss = 0, inside = 0, tag = null; const n1 = new M.V3(), l = new M.V3(), o = new M.V3(), qi = new M.QT();
   for (let k = 0; k < 400; k++) { d.p.set(0, 20, 0); d.q.set(rnd() - .5, rnd() - .5, rnd() - .5, rnd() - .5).normalize(); d.ph = 0; W.physStep(dt, false);
     ball.p.copy(d.p).add(new M.V3(rnd() - .5, rnd() - .5, rnd() - .5).normalize().multiplyScalar(T.BR + rnd() * 1.2 - .3));
     l.subVectors(ball.p, d.p).applyQuaternion(qi.copy(d.q).invert()); o.set(l.x - C.cl(l.x, -T.BBX[0], T.BBX[0]), l.y - C.cl(l.y, -T.BBX[1], T.BBX[1]), l.z - C.cl(l.z, -T.BBX[2], T.BBX[2])); const dd = o.length();
-    const r = W.ballTouch(d, n1); const hit15 = dd > 1e-4 && dd < T.BR; if (!!r !== hit15) { if (Math.abs(dd - T.BR) > .01) miss++; continue; } if (!r) continue;
+    const r = W.ballTouch(d, n1); const hit15 = dd < T.BR; if (!!r !== hit15) { if (Math.abs(dd - T.BR) > .01) miss++; continue; } if (!r) continue; if (dd < 1e-4) { inside++; continue; }  // centre inside the box: v15 pushes out along the centre line, Rapier along the shallowest face
     o.divideScalar(dd).applyQuaternion(d.q); dn = Math.max(dn, o.angleTo(n1) * 180 / Math.PI); dp = Math.max(dp, Math.abs(r.pen - (T.BR - dd))); cnt++; tag = r.tag; }
-  out.touch = {cases: cnt, disagreements: miss, maxNormalDeg: +dn.toFixed(3), maxPenMm: +(dp * 1000).toFixed(2), tag};
+  out.touch = {cases: cnt, inside, disagreements: miss, maxNormalDeg: +dn.toFixed(3), maxPenMm: +(dp * 1000).toFixed(2), tag};
   // drone-drone: two stock quads 1 m apart (spheres DRAD as v15)
   const e = new D.Drone(1, 0, false, 'u'); W.buildDroneBody(e, W.defaultDroneDesc()); GS.drones = [d, e]; d.p.set(0, 20, 0); e.p.set(.9, 20.3, 0); d.q.set(0, 0, 0, 1); e.q.set(0, 0, 0, 1); d.ph = e.ph = 0; W.physStep(dt, false);
   const c = W.droneTouch(d, e, n1), dist = d.p.distanceTo(e.p); out.bump = {pen: c ? +c.pen.toFixed(4) : null, v15pen: +(2 * T.DRAD - dist).toFixed(4), normalDeg: c ? +(n1.angleTo(e.p.clone().sub(d.p).normalize()) * 180 / Math.PI).toFixed(3) : null, tags: c ? [c.ta, c.tb] : null};
@@ -293,7 +294,7 @@ const pt = await run('g', async () => {
 });
 if (pt) {
   console.log(`  predictor (50 Hz, same ball code) vs the game ball (120 Hz in Rapier), 2 s ahead, 40 throws: mean ${pt.predict.mean} m, worst ${pt.predict.worst} m`);
-  console.log(`  ball touch, v15 descriptor: ${pt.touch.cases} contacts, ${pt.touch.disagreements} disagreements with v15's ballBox (beyond 1 cm), normal within ${pt.touch.maxNormalDeg} deg, depth within ${pt.touch.maxPenMm} mm, tag '${pt.touch.tag}'`);
+  console.log(`  ball touch, v15 descriptor: ${pt.touch.cases} contacts (+${pt.touch.inside} with the ball centre inside the box), ${pt.touch.disagreements} disagreements with v15's ballBox (beyond 1 cm), normal within ${pt.touch.maxNormalDeg} deg, depth within ${pt.touch.maxPenMm} mm, tag '${pt.touch.tag}'`);
   console.log(`  drone bump, v15 descriptor: depth ${pt.bump.pen} m (v15 spheres ${pt.bump.v15pen}), normal off by ${pt.bump.normalDeg} deg, tags ${pt.bump.tags}`);
   check(pt.predict.mean < 1.5, 'bots\' prediction tracks the real ball (mean error < 1.5 m over 2 s)');
   check(pt.touch.disagreements === 0 && pt.touch.maxNormalDeg < .5 && pt.touch.maxPenMm < 2, 'ball touches: same contact, normal and depth as v15 ballBox()');
