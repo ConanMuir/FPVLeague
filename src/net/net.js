@@ -1,5 +1,6 @@
 // ---------- online play (room capability: host simulates ball + bots, each pilot owns their drone) ----------
 import {AC,audioInit,near,noise} from '../audio/audio.js';
+import {camTilt} from '../render/camera.js';
 import {$,AI,ARENAS,COL,QT,V3,cl} from '../config/constants.js';
 import {MDEF,cleanMod} from '../config/mods.js';
 import {S} from '../config/settings.js';
@@ -55,7 +56,7 @@ export function netSync(now){if(!GS.net)return;
  const gone=GS.net.hostPeer?!GS.net.peers.some(p=>p.peer===GS.net.hostPeer):now-GS.net.t0>8000;
  if(!gone)GS.net.gone=0;else if(!GS.net.gone)GS.net.gone=now;else if(now-GS.net.gone>3000){mpMsg(GS.net.hostPeer?'The host left the game.':'No game found with that code.');leaveGame();startDemo()}}
 export function netSend(now){if(!GS.net||now-GS.net.sendT<33)return;GS.net.sendT=now;const me=GS.player,P={n:nick(),tp:S.tp};
- if(me){P.s=pack(me);P.d=me.dead>0?1:0;P.b=me.boostOn?1:0;P.lo=me.lo.ids;if(GS.OBSON){P.f=me.firing?1:0;P.ti=S.tilt}}
+ if(me){P.s=pack(me);P.d=me.dead>0?1:0;P.b=me.boostOn?1:0;P.lo=me.lo.ids;if(GS.OBSON){P.f=me.firing?1:0;P.ti=camTilt()}}
  if(GS.net.host){const bots={};for(const d of GS.drones)if(d.bot)bots[d.key]=[...pack(d),d.boostOn?1:0,d.dead>0?1:0,d.firing?1:0,d.lo.ids];
   P.g={st:GS.state,t:+GS.stT.toFixed(2),sc:GS.score,ck:+GS.clock.toFixed(1),ot:GS.overtime?1:0,ko:GS.koN,gs:GS.goalSide,sl:GS.net.slots,bl:[...r2(ball.p),...r2(ball.v)],ack:GS.net.ack,bots,lt:ball.last?.key||null,tu:S.mod,m:GS.GM,sb:S.sboost?1:0,ar:AI};
   if(GS.OBSON){P.g.hp={};P.g.lf={};for(const d of GS.drones){P.g.hp[d.key]=Math.round(d.hp);P.g.lf[d.key]=d.life}P.g.tg=TUR.map(t=>t.re>0?0:Math.max(1,Math.round(t.hp)));P.g.kf=GS.net.kf}

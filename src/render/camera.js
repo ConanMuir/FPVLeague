@@ -1,6 +1,7 @@
 // ---------- camera ----------
 import {GD,H,HL,HW,L,QT,V3,W,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
+import {pad} from '../input/input.js';
 import {DRAD,SHK} from '../config/tune.js';
 import {nearestFoe} from '../modes/dogfight.js';
 import {ball} from '../physics/ball.js';
@@ -11,11 +12,15 @@ import {DCEIL,DHL,DHW,dfH} from '../world/highlands.js';
 import {LOOKS} from '../world/maps.js';
 const camPos=new V3(0,20,60),camFwd=new V3(0,0,-1),tiltQ=new QT(),_cp=new V3();let curFov=0,bfov=0;  // bfov: boost FOV stretch
 function setFov(h,horizontal=true){const v=horizontal?2*Math.atan(Math.tan(h*Math.PI/360)/camera.aspect)*180/Math.PI:h;if(Math.abs(v-curFov)>.05){curFov=camera.fov=v;camera.updateProjectionMatrix()}}
+// FPV camera angle: the fixed "Camera uptilt", or live from a stick/knob/slider axis ("Camera tilt axis") mapped from its -1..1 travel
+// onto "Tilt at axis min".."Tilt at axis max" (swap the two to reverse it), lightly smoothed against axis jitter
+let tiltNow=null;export function camTilt(dt=0){if(S.tiltAx<0)return tiltNow=S.tilt;const v=pad()?.axes?.[S.tiltAx];if(v==null)return tiltNow??S.tilt;
+ const t=S.tiltMin+(S.tiltMax-S.tiltMin)*(Math.max(-1,Math.min(1,v))+1)/2;tiltNow=tiltNow==null?t:tiltNow+(t-tiltNow)*Math.min(1,dt*20);return tiltNow}
 export function updateCam(dt,now){const me=GS.player;bfov+=((me?.boostOn?14:0)-bfov)*Math.min(1,dt*(me?.boostOn?10:4));
  if(GS.menuOpen&&GS.demo&&GS.OBSON||!me&&GS.OBSON){const t=now*3e-5;camPos.set(Math.sin(t)*300,150+Math.sin(t*1.7)*25,Math.cos(t)*400);camera.position.copy(camPos);camera.lookAt(0,20,0);setFov(55,false);return}
  if(GS.menuOpen&&GS.demo||!me){const t=now*4e-5;camPos.set(Math.sin(t)*W*.85,45+Math.sin(t*1.7)*10,Math.cos(t)*L*.75);camera.position.copy(camPos);camera.lookAt(ball.p.x*.5,6,ball.p.z*.5);setFov(55,false);return}
  const fpv=GS.camMode===0&&me.dead<=0;me.mesh.visible=!fpv&&me.dead<=0;me.mark.visible=!fpv;
- if(fpv){camera.position.copy(me.p).add(_cp.set(0,.25,-.38).multiplyScalar(DRAD/.6).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),S.tilt*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);setFov(S.fov+bfov)}
+ if(fpv){camera.position.copy(me.p).add(_cp.set(0,.25,-.38).multiplyScalar(DRAD/.6).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camTilt(dt)*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);setFov(S.fov+bfov)}
  else{const f=_f.set(0,0,-1).applyQuaternion(me.q);f.y=0;if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);f.normalize();
   const foc=GS.OBSON?nearestFoe(me)?.p||_ip.set(0,10,0):ball.p;if(GS.camMode===2||me.dead>0)f.subVectors(foc,me.p).setY(0).normalize();if(f.lengthSq()<.5)f.copy(camFwd);camFwd.lerp(f,1-Math.exp(-dt*5)).normalize();
   const ck=1+.35*(DRAD/.6-1);_cp.copy(me.p).addScaledVector(camFwd,-10*ck).add(_t.set(0,3.6*ck,0));  // chase cam backs off for a bigger quad

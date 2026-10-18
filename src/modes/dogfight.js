@@ -1,6 +1,7 @@
 // ---------- Dogfight mode: turrets, damage, kills and scoring, fire input, mode switch (setGame), joiner state ----------
 // ground targets: 6 turrets per team on its own half; they need line of sight and reach 200 m
 import * as THREE from 'three';
+import {camTilt} from '../render/camera.js';
 import {near,noise,tone} from '../audio/audio.js';
 import {$,COL,TEAM,V3} from '../config/constants.js';
 import {S} from '../config/settings.js';
@@ -49,7 +50,7 @@ function scored(by,v){const bt=by?.isTurret?by.t:by?.team;if(GS.state==='play'&&
 export function applyHit(k,dmg,by){const o=objOf(k);if(!o||!by||o.team===by.team)return;if(o.isTurret){if(o.re<=0)hitTurret(o,dmg,by)}else if(o.dead<=0)hitDrone(o,dmg,by)}
 export const aimOk=(d,p,f,deg,r=260)=>{_gq.subVectors(p,d.p);const l=_gq.length();return l<r&&_gq.dot(f)/l>Math.cos(deg*Math.PI/180)};
 export function fireIn(d){if(keys.KeyF||mouseFire)return true;const v=btnOn(pad(),padX?S.xfire:S.fireBtn);if(v!=null&&v!==!!S.fireInv)return true;  // invert: fire with the switch/button in the other position
- if(!S.afire)return false;const f=gunDir(d,S.tilt*Math.PI/180,_gd);return GS.drones.some(e=>e.dead<=0&&e.team!==d.team&&aimOk(d,e.p,f,3.5))||TUR.some(t=>t.re<=0&&t.t!==d.team&&aimOk(d,t.p,f,4))}
+ if(!S.afire)return false;const f=gunDir(d,camTilt()*Math.PI/180,_gd);return GS.drones.some(e=>e.dead<=0&&e.team!==d.team&&aimOk(d,e.p,f,3.5))||TUR.some(t=>t.re<=0&&t.t!==d.team&&aimOk(d,t.p,f,4))}
 registerMode('df',{name:'Dogfight',title:'DOGFIGHT',world:'highlands',order:1,
  sub:'Acro quad dogfighting over the Highlands: a 1.4 km valley with a river canyon, mesas, spire fields, hangars to fly through and forests to hide in. Guns on the FPV camera axis, enemy turrets on the ground, bots in the air. Most points wins.'});
 // switch game mode (any registered mode): sets the world up for it and updates the menu heading and mode buttons

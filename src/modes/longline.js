@@ -12,7 +12,7 @@ import {BM,BR,DRAD,G,MAXB} from '../config/tune.js';
 const BG_=()=>G;  // your quad's weight per unit mass
 import {noise,tone} from '../audio/audio.js';
 import {ball} from '../physics/ball.js';
-import {camera,glow,renderer,scene} from '../render/renderer.js';
+import {glow,scene} from '../render/renderer.js';
 import {$,TEAM} from '../config/constants.js';
 import {GS} from '../state.js';
 import {feed} from '../ui/hud.js';
@@ -65,23 +65,36 @@ let cable=null;
 export function llDraw(){const hv=hoopMode();if(hv&&!HOOPS.length)buildHoops();hoopG.visible=hv;const d=LL.d,on=!!(S.longline&&d&&d.dead<=0);if(cable)cable.visible=on;if(!on)return;
  cmat.color.setHex(COL[d.team]).lerp(new THREE.Color(0xffffff),.6);
  const a=hookOf(d,_h),b=_r.copy(ball.p).addScaledVector(_n.subVectors(a,ball.p).normalize(),BR),dist=a.distanceTo(b),Lr=ropeLen(),sag=dist<Lr?Math.sqrt(Lr*Lr-dist*dist)*.5:0;
- for(let i=0;i<N;i++){const t=i/(N-1);PTS[i].set(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t-sag*4*t*(1-t),a.z+(b.z-a.z)*t)}
- const g=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(PTS),N,.07*DRAD/.6,5,false);if(cable){cable.geometry.dispose();cable.geometry=g}else{cable=new THREE.Mesh(g,cmat);cable.frustumCulled=false;scene.add(cable)}}
+ const t0=d===GS.player&&GS.camMode===0?Math.min(.35,4/Math.max(dist,.1)):0;  // in your own FPV view the first 4 m under the lens is skipped and the cable is thinner (it filled the screen)
+ for(let i=0;i<N;i++){const t=t0+(1-t0)*i/(N-1);PTS[i].set(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t-sag*4*t*(1-t),a.z+(b.z-a.z)*t)}
+ const g=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(PTS),N,(t0?.035:.07)*DRAD/.6,5,false);if(cable){cable.geometry.dispose();cable.geometry=g}else{cable=new THREE.Mesh(g,cmat);cable.frustumCulled=false;scene.add(cable)}}
 
-// ---------- line cam (picture in picture under the scoreboard) and the "on the line" badge ----------
-// The cam is bolted to your quad's belly looking straight down (body -Y), nose at the top of the frame, with a crosshair, a nose mark and your frame's arms and prop discs drawn in the corners (they sit outside a downward lens). Drawn straight to the
-// canvas after the main frame, in the box's screen rectangle, reusing this frame's shadow map.
-const pipCam=new THREE.PerspectiveCamera(95,1.5,.03,900),DOWN=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-Math.PI/2),_f=new THREE.Vector3();let pipOn=false,hudKey='';
+// ---------- reference for where the ball is: the "who has it" badge, a load gauge, and a marker on the ground under the ball ----------
+// Load gauge (above the speed dial, only while you hold the line): a top-down scope centred on your quad with your nose up. The ring is the
+// cable length; the dot is the ball (inside = slack, on the ring = hanging taut); the tick from the dot is where it is swinging; the
+// numbers are how far below you it hangs and the cable load (x your quad's weight). The ground marker is a ring under the ball and
+// a drop line to it, so from any camera angle you can see where it is over the pitch.
+let hudKey='';const _f=new THREE.Vector3(),_g=new THREE.Vector3();
+const mk=new THREE.Group();mk.visible=false;scene.add(mk);
+const mkRing=new THREE.Mesh(new THREE.RingGeometry(.86,1,48).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.6,depthWrite:false,toneMapped:false}));mk.add(mkRing);
+const mkDrop=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,1,6).translate(0,.5,0),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.35,depthWrite:false,toneMapped:false}));mk.add(mkDrop);
 function llHud(d){const box=$('llbox');if(!box)return;const mine=!!d&&d===GS.player,show=S.longline&&!GS.demo&&!GS.net&&!GS.menuOpen;
  const key=!show?'':!d?'loose':mine?'me':d.team+':'+d.name;if(key!==hudKey){hudKey=key;box.hidden=!show||!d;box.classList.toggle('mine',mine);box.style.setProperty('--tc',['#3d95ff','#ff8a2a'][d?.team??0]);
-  $('llhdr').textContent=!d?'':mine?'YOU HAVE THE BALL':`${d.team===GS.player?.team?'TEAMMATE':TEAM[d.team]} · ${d.name.toUpperCase()} HAS IT`;$('llpip').hidden=!mine||!S.llPip}
- if(mine)$('lltens').style.width=Math.min(100,LL.load*100).toFixed(0)+'%'}
-export function llPipCam(){const d=LL.d;pipOn=!!(S.longline&&S.llPip&&d&&d===GS.player&&d.dead<=0&&!GS.menuOpen&&!GS.demo);llHud(S.longline?d:null);if(!pipOn)return;
- // hard-mounted under the belly, looking straight down the quad's own -Y axis, nose at the top of the frame: it tilts and turns with
- // the quad, and your arms and props stay in frame at the edges as reference
- pipCam.position.copy(_f.set(0,(d.lo?.hy?.[0]??-.1)-.02,0).applyQuaternion(d.q).add(d.p));pipCam.quaternion.copy(d.q).multiply(DOWN)}
-export function llPip(){if(!pipOn)return;const el=$('llpip');if(!el||el.hidden)return;const r=el.getBoundingClientRect(),cr=renderer.domElement.getBoundingClientRect();if(r.width<4)return;
- const x=r.left-cr.left,y=cr.height-(r.bottom-cr.top),w=r.width,hh=r.height;pipCam.aspect=w/hh;pipCam.updateProjectionMatrix();
- const me=GS.player,mv=me.mesh.visible,mk=me.mark.visible;me.mesh.visible=true;me.mark.visible=false;const au=renderer.autoClear,sh=renderer.shadowMap.autoUpdate;renderer.setRenderTarget(null);renderer.autoClear=false;renderer.shadowMap.autoUpdate=false;
- renderer.setScissorTest(true);renderer.setScissor(x,y,w,hh);renderer.setViewport(x,y,w,hh);renderer.clear(true,true,false);renderer.render(scene,pipCam);
- renderer.setScissorTest(false);renderer.setViewport(0,0,cr.width,cr.height);renderer.autoClear=au;renderer.shadowMap.autoUpdate=sh;me.mesh.visible=mv;me.mark.visible=mk}  // your own quad shows in the line cam even in FPV
+  $('llhdr').textContent=!d?'':mine?'YOU HAVE THE BALL':`${d.team===GS.player?.team?'TEAMMATE':TEAM[d.team]} · ${d.name.toUpperCase()} HAS IT`;$('llscope').hidden=!(show&&mine)}
+ if(show&&mine)scope(d)}
+function scope(d){const cv=$('llscope'),g=cv.getContext('2d'),W=cv.width,c=W/2,R=W*.36,L=ropeLen()+BR,tc=['#3d95ff','#ff8a2a'][d.team];
+ const f=_f.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<1e-4)f.set(0,0,-1);f.normalize();const rt=_g.set(-f.z,0,f.x);  // heading frame: forward, right
+ const dx=ball.p.x-d.p.x,dz=ball.p.z-d.p.z,fw=dx*f.x+dz*f.z,sd=dx*rt.x+dz*rt.z,k=R/L,clampR=(x,y)=>{const m=Math.hypot(x,y),lim=W*.46;return m>lim?[x*lim/m,y*lim/m]:[x,y]};
+ const[bx,by]=clampR(sd*k,-fw*k),rvx=ball.v.x-d.v.x,rvz=ball.v.z-d.v.z,vf=rvx*f.x+rvz*f.z,vs=rvx*rt.x+rvz*rt.z;
+ g.clearRect(0,0,W,W);g.fillStyle='rgba(5,8,16,.55)';g.beginPath();g.arc(c,c,W*.48,0,7);g.fill();
+ g.strokeStyle='rgba(255,255,255,.18)';g.lineWidth=1;g.beginPath();g.moveTo(c,c-W*.46);g.lineTo(c,c+W*.46);g.moveTo(c-W*.46,c);g.lineTo(c+W*.46,c);g.stroke();
+ g.strokeStyle='rgba(255,255,255,.12)';g.beginPath();g.arc(c,c,R*.5,0,7);g.stroke();g.strokeStyle=tc;g.lineWidth=2;g.beginPath();g.arc(c,c,R,0,7);g.stroke();
+ g.fillStyle='#fff';g.beginPath();g.moveTo(c,c-9);g.lineTo(c-6,c+6);g.lineTo(c,c+3);g.lineTo(c+6,c+6);g.closePath();g.fill();  // you, nose up
+ g.strokeStyle='rgba(255,255,255,.55)';g.setLineDash([3,3]);g.beginPath();g.moveTo(c,c);g.lineTo(c+bx,c+by);g.stroke();g.setLineDash([]);
+ g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(c+bx,c+by);g.lineTo(c+bx+vs*k*.35,c+by-vf*k*.35);g.stroke();  // where it is swinging (0.35 s ahead)
+ g.fillStyle=tc;g.strokeStyle='#fff';g.beginPath();g.arc(c+bx,c+by,6,0,7);g.fill();g.stroke();
+ const below=d.p.y-ball.p.y;g.font='700 11px "JetBrains Mono",monospace';g.textAlign='center';g.fillStyle='#fff';g.fillText((below>=0?'↓':'↑')+Math.abs(below).toFixed(0)+' m',c,W-6);
+ g.fillStyle=LL.load>1.2?'#ff6b5a':'#cfe3ff';g.fillText('LOAD '+LL.load.toFixed(1)+'×',c,13)}
+export function llHudFrame(){const d=LL.d;llHud(S.longline?d:null);
+ mk.visible=!!(S.longline&&!GS.OBSON&&ball.p&&!GS.demo);if(!mk.visible)return;const s=BR*1.15;mkRing.scale.setScalar(s);mkRing.position.set(ball.p.x,.06,ball.p.z);
+ mkRing.material.color.setHex(d?COL[d.team]:0xffffff);mkDrop.position.set(ball.p.x,0,ball.p.z);mkDrop.scale.set(1,Math.max(.01,ball.p.y-BR),1);mkDrop.material.color.copy(mkRing.material.color)}

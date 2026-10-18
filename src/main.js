@@ -1,6 +1,6 @@
 // Drone League entry point: loads the modules in v15's section order (so the scene is built in the same order), boots, runs the loop.
 import './config/constants.js';import './scratch.js';import './config/settings.js';import './config/tune.js';import './flight/rates.js';
-import {llDraw,llPip,llPipCam} from './modes/longline.js';
+import {llDraw,llHudFrame} from './modes/longline.js';
 import './render/renderer.js';import './world/arena.js';import './world/maps.js';import './render/particles.js';import './audio/audio.js';
 import './physics/sdf.js';import './physics/ball.js';import './render/ball.js';import './world/orbs.js';import './render/drone-mesh.js';import './flight/drone.js';
 import './flight/attitude.js';import './input/input.js';import './bots/league.js';import './world/highlands.js';import './modes/dogfight.js';import './modes/guns.js';
@@ -41,8 +41,8 @@ function lerpIn(a){_ip.length=0;for(const o of BODIES()){if(!o._pp||o._pp.distan
 function lerpOut(){for(let i=0;i<_ip.length;i+=3){_ip[i].p.copy(_ip[i+1]);_ip[i].q.copy(_ip[i+2])}_ip.length=0}
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);
  if(!GS.paused){if(GS.timeScale<1){let r=Math.min(dt,.05)*GS.timeScale*GSPD;while(r>1e-6){const h=Math.min(DT,r);tick(h);r-=h}acc=0}else{acc+=dt*GS.timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){tick(DT);acc-=DT}}}  // slow-mo steps every frame by a smaller dt, so nothing stutters
- lerpIn(GS.timeScale<1?1:Math.min(1,acc/DT));visuals(GS.paused?0:dt*GS.timeScale*GSPD,now);llDraw();updateCam(dt,now);hud();llPipCam();lerpOut();labFrame(now);
- if(GS.menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);draw();llPip()}
+ lerpIn(GS.timeScale<1?1:Math.min(1,acc/DT));visuals(GS.paused?0:dt*GS.timeScale*GSPD,now);llDraw();updateCam(dt,now);hud();llHudFrame();lerpOut();labFrame(now);
+ if(GS.menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);draw()}
 // boot, in v15's order (Rapier's WASM is inlined; it initialises before the first drone is built)
 initPhysics().then(()=>{
 initMenu();initCalib();initModPanel();

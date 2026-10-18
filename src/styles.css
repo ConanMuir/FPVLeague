@@ -143,15 +143,9 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
 .bres{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--dim);margin-top:6px}.bres b{color:var(--ink)}
 /* menu panels still scroll on small screens, but without a visible scroll bar (Windows draws a classic one under and beside the settings) */
 #menu,#home,.scr{scrollbar-width:none;overflow-x:hidden}#menu::-webkit-scrollbar,#home::-webkit-scrollbar,.scr::-webkit-scrollbar{display:none}
-/* long line: who has the ball, and your line cam under the scoreboard */
+/* long line: who has the ball (under the scoreboard) and the load gauge (above the speed dial) */
 #llbox{position:absolute;left:50%;top:calc(66px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:grid;justify-items:center;gap:4px;pointer-events:none}
 #llhdr{font:700 13px var(--disp);letter-spacing:.12em;padding:3px 10px;border-radius:3px;background:rgba(5,8,16,.7);color:var(--tc);border:1px solid var(--tc)}
 #llbox.mine #llhdr{background:var(--tc);color:#08101c;animation:llpulse 1.6s ease-in-out infinite}
 @keyframes llpulse{50%{box-shadow:0 0 18px var(--tc)}}
-#llpip{position:relative;width:clamp(180px,22vw,300px);aspect-ratio:3/2;border:2px solid var(--tc);border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.5);overflow:hidden}
-#llpip::after{content:'LINE CAM';position:absolute;left:6px;top:4px;font:700 10px var(--mono);color:#fff;text-shadow:0 1px 2px #000}
-#lltens{position:absolute;left:0;bottom:0;height:4px;width:0;background:var(--tc)}
-#llpip .llx{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;background:linear-gradient(#fff,#fff) center/2px 100% no-repeat,linear-gradient(#fff,#fff) center/100% 2px no-repeat;opacity:.7;filter:drop-shadow(0 0 2px #000)}
-#llpip .llnose{position:absolute;left:50%;top:4px;transform:translateX(-50%);font:700 10px var(--mono);color:#fff;text-shadow:0 1px 2px #000}
-#llpip .llfr{position:absolute;inset:0;width:100%;height:100%}#llpip .llfr path{stroke:#0b0d12;stroke-width:14;stroke-linecap:round;fill:none}
-#llpip .llfr circle{fill:rgba(170,180,200,.16);stroke:rgba(10,12,18,.55);stroke-width:3}
+#llscope{position:absolute;right:22px;bottom:calc(180px + env(safe-area-inset-bottom,0px));width:150px;height:150px;pointer-events:none}  /* above the speed dial, clear of the view */
