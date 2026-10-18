@@ -96,15 +96,17 @@
 <div id="bind" class="modal" hidden><div class="sbox wide"><div class="mhead"><b id="bstep"></b><span class="note" id="bdev" style="margin:0"></span><button class="sm" id="bx" aria-label="Cancel">✕</button></div>
   <h3 id="bq"></h3><p class="note" id="bmsg"></p><div id="blive" class="blive"></div><div id="bres" class="bres"></div>
   <div class="mp"><button class="sm" id="bredo">Redo step</button><button class="sm" id="bskip">Skip</button><button class="go sm" id="bsave" hidden>Save</button></div></div></div>
-<div id="garage" hidden role="dialog" aria-label="Garage"><div class="gbox">
-  <div class="mhead"><h2 style="margin:0">Garage</h2><span class="note" id="gname" style="margin:0"></span><button class="sm" id="gx" aria-label="Close garage">✕</button></div>
-  <div class="ggrid">
-    <div class="gview"><canvas id="gcv" aria-label="Drone preview (drag to turn)"></canvas><label class="gtog"><input type="checkbox" id="ghit"> Hitbox</label><div class="gauw osd" id="gauw"></div></div>
-    <div class="gside"><div id="gslots"></div><div id="gstats" class="gstats"></div></div>
-  </div>
-  <div id="gdesc" class="gdesc"></div>
-  <div class="mp"><button class="sm" id="gstock">Back to Stock</button><button class="sm" id="grand">Random</button><span class="note" style="margin:0;align-self:center;flex:1">Bars: this loadout against all 125. The white tick is Stock. Measured with the default physics settings.</span><button class="sm go" id="gok">Done</button></div>
-</div></div>
+<div id="garage" hidden role="dialog" aria-label="Garage">
+  <canvas id="gcv" aria-label="Drone preview: drag to turn, scroll to zoom"></canvas>
+  <div class="ghead"><h2>Garage</h2><div id="gname"></div><div class="gauw osd" id="gauw"></div></div>
+  <div class="gstats" id="gstats"></div>
+  <aside class="gside">
+    <div class="gtabs" id="gtabs" role="tablist" aria-label="Part category"></div>
+    <div id="gslots"></div>
+    <div id="gdesc" class="gdesc"></div>
+  </aside>
+  <div class="gbar"><button class="sm" id="gok">Back</button><label class="gtog"><input type="checkbox" id="ghit"> Show hitbox</label><button class="sm" id="grand">Random</button><button class="sm" id="gstock">Reset to stock</button><button class="sm" id="gx" hidden aria-label="Close garage">✕</button></div>
+</div>
 <aside id="mod" hidden aria-label="Mod panel">
   <div class="mhead"><h2 style="margin:0">Mod panel</h2><span class="note" style="margin:0">T toggles · changes apply live</span><button class="sm" id="mclose" aria-label="Close mod panel">✕</button></div>
   <div class="tabs" role="tablist"><button class="sm on" id="tabr" role="tab" aria-selected="true">Rates</button><button class="sm" id="tabp" role="tab" aria-selected="false">Physics</button></div>
