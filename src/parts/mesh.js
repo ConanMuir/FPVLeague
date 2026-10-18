@@ -38,7 +38,10 @@ function bellGeo(r,h){const P=[[0,0],[r*.9,0],[r*.9,h*.18],[r*.97,h*.2],[r,h*.26
  return new THREE.LatheGeometry(P.map(([x,y])=>new THREE.Vector2(x,y)),28)}
 function motors(K,sp,a){const{r,h}=sp.power.motor,y0=a.arm.t/2,bell=tint('metal',sp.power.look?.bell);
  for(const[x,z]of sp.motors){K.add(bell,bellGeo(r,h),[x,y0,z],[0,0,0],[1,1,1],.9);K.add('carbon',cyl(r*.93,r*.93,h*.2,24),[x,y0+h*.1,z]);
-  K.add('team',cyl(r*1.012,r*1.012,h*.14,28),[x,y0+h*.58,z]);K.add('metal',cyl(.017,.02,.022,12),[x,y0+h+.02,z])}}
+  K.add('team',cyl(r*1.012,r*1.012,h*.14,28),[x,y0+h*.58,z]);K.add('metal',cyl(.017,.02,.022,12),[x,y0+h+.02,z]);
+  K.add('copper',cyl(r*.95,r*.95,h*.07,24),[x,y0+h*.235,z]);  // stator windings showing under the bell
+  for(let i=0;i<6;i++){const v=i*PI/3+PI/6;K.add('chip',rbox(.005,h*.26,r*.36,.002,1),[x+Math.cos(v)*r*.995,y0+h*.4,z+Math.sin(v)*r*.995],[0,-v,0])}  // cooling vents
+  const L=Math.hypot(x,z),px=z/L*.007,pz=-x/L*.007,wy=y0+.005;for(const s of[-1,1])K.add('rubber',cyl(.0045,.0045,L*.62,6).rotateX(PI/2),[x*.5+s*px,wy,z*.5+s*pz],[0,Math.atan2(x,z),0])}}  // motor wires along the arm
 
 // ---------- props: a twisted, tapered, cambered blade lofted along the span; mirrored for the other spin direction ----------
 const tint=(base,hex)=>hex==null?base:base+'#'+hex.toString(16).padStart(6,'0');  // material key: a tinted copy of a shared material
@@ -63,17 +66,21 @@ function camera(K,c){const y=c.y+c.cam[0],z=c.cam[1]+.05,tilt=.35;
  for(const sx of[-1,1])K.add('carbon',rbox(.012,.11,.11,.004,2),[sx*.062,y-.01,z+.005])}
 function antenna(K,y,z){const a=.5,dy=Math.cos(a),dz=Math.sin(a);K.add('carbon',cyl(.007,.007,.2,8),[0,y+.1*dy,z+.1*dz],[a,0,0]);K.add('team',cyl(.016,.016,.05,12),[0,y+.2*dy,z+.2*dz],[a,0,0])}  // VTX antenna leaning back
 function tail(K,c,sp,y){const z=c.half[2];K.add('led',rbox(Math.max(.1,c.half[0]*1.3),.026,.02,.008,2),[0,y,z+.008]);antenna(K,y+.02,z-.03)}
+// flight-controller stack detail: processor, gyro, capacitor and screw heads on the top board
+function fc(K,y,z,s=1){K.add('chip',rbox(.034*s,.007,.034*s,.002,1),[0,y,z]);K.add('chip',rbox(.014*s,.006,.014*s,.002,1),[.03*s,y,z-.03*s]);
+ K.add('metal',cyl(.011,.011,.028,12),[-.034*s,y+.012,z+.03*s]);for(const sx of[-1,1])for(const sz of[-1,1])K.add('metal',cyl(.006,.006,.006,10),[sx*.045*s,y,z+sz*.045*s])}
 const CHASSIS={
  box(K,c,sp){const[hx,hy,hz]=c.half,top=c.y+hy,bot=-sp.arms.arm.t/2-.006;  // two carbon plates, team-anodised standoffs, an exposed stack
   K.add('carbon',slab(rrect(2*hx,2*hz,.05),.012),[0,bot,0],[0,0,0],[1,1,1],.7);K.add('carbon',slab(rrect(2*hx*.92,2*hz*.95,.045),.012),[0,top-.006,0],[0,0,0],[1,1,1],.7);
   for(const sx of[-1,1])for(const sz of[-1,1])K.add('team',cyl(.011,.011,top-bot,10),[sx*(hx-.03),(top+bot)/2,sz*(hz-.04)]);
-  K.add('board',rbox(hx*1.25,.05,hx*1.25,.006,2),[0,(top+bot)/2,.02]);K.add('board',rbox(hx*1.1,.022,hx*1.1,.006,2),[0,(top+bot)/2+.045,.02]);
+  K.add('board',rbox(hx*1.25,.05,hx*1.25,.006,2),[0,(top+bot)/2,.02]);K.add('board',rbox(hx*1.1,.022,hx*1.1,.006,2),[0,(top+bot)/2+.045,.02]);fc(K,(top+bot)/2+.06,.02,hx/.16);
+  for(const sx of[-1,1])for(const sz of[-1,1])K.add('metal',cyl(.009,.009,.006,12),[sx*(hx-.03),top+.003,sz*(hz-.04)]);  // plate screws
   camera(K,c);tail(K,c,sp,c.y)},
  slim(K,c,sp){const[hx,hy,hz]=c.half;  // narrow fuselage with a pointed nose and a low bubble canopy
   const s=new THREE.Shape();s.moveTo(0,-hz-.05);s.quadraticCurveTo(hx*1.1,-hz*.7,hx,-hz*.25);s.lineTo(hx,hz-.03);s.quadraticCurveTo(hx,hz,hx-.03,hz);s.lineTo(-hx+.03,hz);s.quadraticCurveTo(-hx,hz,-hx,hz-.03);s.lineTo(-hx,-hz*.25);s.quadraticCurveTo(-hx*1.1,-hz*.7,0,-hz-.05);
   K.add('carbon',slab(s,hy*1.1,.012,20),[0,c.y-hy*.35,0],[0,0,0],[1,1,1],.7);
   K.add('team',new THREE.SphereGeometry(1,28,14,0,PI*2,0,PI/2),[0,c.y+hy*.2,.03],[0,0,0],[hx*.9,hy*1.5,hz*.78]);
-  K.add('board',rbox(hx*1.4,.03,hz*.9,.008,2),[0,c.y,.06]);camera(K,c);tail(K,c,sp,c.y+hy*.3)},
+  K.add('board',rbox(hx*1.4,.03,hz*.9,.008,2),[0,c.y,.06]);fc(K,c.y+.018,.06,.8);camera(K,c);tail(K,c,sp,c.y+hy*.3)},
  brick(K,c,sp){const[hx,hy,hz]=c.half;  // armoured block slung under the arms: team armour panels, rubber bumpers, skid plate
   K.add('carbon',rbox(2*hx,2*hy,2*hz,.05,4),[0,c.y,0]);
   for(const sx of[-1,1])K.add('team',rbox(.02,hy*1.45,hz*1.6,.009,2),[sx*(hx+.006),c.y-hy*.05,0]);
@@ -84,7 +91,7 @@ const CHASSIS={
   const s=new THREE.Shape(),cx=hx*.55,cz=hz*.4;s.moveTo(-hx+cx,-hz);s.lineTo(hx-cx,-hz);s.lineTo(hx,-hz+cz);s.lineTo(hx,hz-cz);s.lineTo(hx-cx,hz);s.lineTo(-hx+cx,hz);s.lineTo(-hx,hz-cz);s.lineTo(-hx,-hz+cz);s.lineTo(-hx+cx,-hz);
   for(const sx of[-1,1])s.holes.push(slot(sx*hx*.55,.05,hx*.18,hz*.3));
   K.add('carbon',slab(s,2*hy,.01),[0,c.y,0],[0,0,0],[1,1,1],.7);K.add('team',slab(s,.012,.004),[0,c.y+hy+.002,0],[0,0,0],[1.03,1,1.03],.7);
-  K.add('board',rbox(.17,.03,.2,.01,2),[0,c.y+hy+.02,.04]);camera(K,c);tail(K,c,sp,c.y+hy*.5)},
+  K.add('board',rbox(.17,.03,.2,.01,2),[0,c.y+hy+.02,.04]);fc(K,c.y+hy+.038,.04);camera(K,c);tail(K,c,sp,c.y+hy*.5)},
  pod(K,c,sp){const[r,,hz]=c.half;  // capsule shell in team colour, dark visor over the camera, the pack slotted into the top
   K.add('team',new THREE.CapsuleGeometry(r,2*(hz-r),10,28),[0,c.y,0],[PI/2,0,0],[1,1,1]);
   K.add('lens',new THREE.SphereGeometry(r*1.02,28,14,0,PI*2,0,PI*.32),[0,c.y,-(hz-r)],[-PI/2,0,0],[1,.92,1]);

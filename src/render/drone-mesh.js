@@ -11,7 +11,13 @@ export const MAT={carbon:new THREE.MeshStandardMaterial({color:0x16191f,roughnes
  blade:COL.map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.5,transparent:true,opacity:.55})),
  // drone parts (src/parts/mesh.js): battery wraps, labels, bumpers, flight-controller boards
  pack:new THREE.MeshStandardMaterial({color:0x23262d,roughness:.55,metalness:.15}),packLR:new THREE.MeshStandardMaterial({color:0x1d5a6e,roughness:.45,metalness:.2}),
- label:new THREE.MeshStandardMaterial({color:0xffc640,roughness:.5,metalness:.1}),rubber:new THREE.MeshStandardMaterial({color:0x0c0d10,roughness:.9}),board:new THREE.MeshStandardMaterial({color:0x1f3a2a,roughness:.6,metalness:.3})};
+ label:new THREE.MeshStandardMaterial({color:0xffc640,roughness:.5,metalness:.1}),copper:new THREE.MeshStandardMaterial({color:0xb8642e,roughness:.35,metalness:.85}),chip:new THREE.MeshStandardMaterial({color:0x0e0f12,roughness:.4,metalness:.2}),rubber:new THREE.MeshStandardMaterial({color:0x0c0d10,roughness:.9}),board:new THREE.MeshStandardMaterial({color:0x1f3a2a,roughness:.6,metalness:.3})};
+// carbon fibre: a 2x2 twill weave drawn per pixel from the object-space position (triplanar), faded out where it would alias
+MAT.carbon.customProgramCacheKey=()=>'weave';
+MAT.carbon.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;varying vec3 vWN;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=position;vWN=normal;');
+ sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;varying vec3 vWN;float twill(vec2 p){vec2 c=floor(p);float d=mod(c.x+c.y,4.);vec2 f=fract(p);return d<2.?.55+.45*sin(f.x*3.1416):.55+.45*sin(f.y*3.1416);}').replace('#include <color_fragment>',`#include <color_fragment>
+ {vec3 p=vWP*110.,w=abs(normalize(vWN));w/=w.x+w.y+w.z;float t=twill(p.yz)*w.x+twill(p.xz)*w.y+twill(p.xy)*w.z;float fw=fwidth(p.x)+fwidth(p.y)+fwidth(p.z);
+  diffuseColor.rgb*=mix(1.,.55+.95*t,1.-smoothstep(.4,1.2,fw));}`)};
 const markTex=tex(64,64,g=>{g.strokeStyle='#fff';g.lineWidth=7;g.beginPath();g.arc(32,32,22,0,7);g.stroke();g.fillStyle='#fff';g.beginPath();g.arc(32,32,8,0,7);g.fill()});
 export const TN=28;  // trail points
 onTune(T=>GS.drones.forEach(d=>d.mesh.scale.setScalar(.68*T.size)));  // was part of applyTune()
