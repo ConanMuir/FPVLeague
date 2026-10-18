@@ -25,7 +25,9 @@ const PEN=.9;  // Stock's authority relative to nominal (on top of its own heavi
 const DRAG_PEN=1.06;  // Stock's drag area relative to nominal
 
 // ---------- geometry and mass properties (grams, metres at size 1) ----------
-function build(ids){const[a,c,p]=ids.map((id,s)=>partOf(s,id));const M=motorsOf(a),r=a.prop.r;
+// fly: a part's flight-only geometry (arms: motor spread, prop size, mass; power: battery block) when its look was reshaped but its handling kept
+const flyOf=x=>x.fly?{...x,...x.fly,prop:{...x.prop,...x.fly.prop},batt:{...x.batt,...x.fly.batt}}:x;
+function build(ids){const[av,c,pv]=ids.map((id,s)=>partOf(s,id)),a=flyOf(av),p=flyOf(pv);const M=motorsOf(a),r=a.prop.r;
  const propM=4.5*(r/R0)**2,rodM=(a.mass-4*propM)/4,motM=p.motor.mass+propM;
  const motorY=a.arm.t/2+p.motor.h/2,propY=a.arm.t/2+p.motor.h+.014;
  const cTop=c.y+c.half[1],battY=cTop+p.batt.half[1]*(1-2*(c.bay||0))+.004,auw=a.mass+c.mass+4*p.motor.mass+p.batt.mass;
@@ -50,25 +52,26 @@ function build(ids){const[a,c,p]=ids.map((id,s)=>partOf(s,id));const M=motorsOf(
   4*hx*hz*c.cd+4*bx*bz+4*Math.PI*r*r*.25,
   4*hx*hy*c.cd*(c.shape==='pod'?.8:1)+4*bx*by+M.reduce((s,[x])=>s+ad*Math.abs(x),0)+bell+4*2*r*.02];
  const grip=c.flat**.6*(4*hx*hz/.18)**.35;
- return {a,c,p,M,r,motorY,propY,cTop,battY,auw,I:[Ix,Iy,Iz],cy,cz,Tm,alpha,area,grip}}
+ const vb=cTop+pv.batt.half[1]*(1-2*(c.bay||0))+.004;  // what you see: the reshaped arms and pack
+ return {a:av,c,p:pv,M:motorsOf(av),r:av.prop.r,rf:r,motorY:av.arm.t/2+p.motor.h/2,propY:av.arm.t/2+p.motor.h+.014,cTop,battY:vb,auw,I:[Ix,Iy,Iz],cy,cz,Tm,alpha,area,grip}}
 const yExt=B=>Math.max(B.battY+B.p.batt.half[1],B.propY,-(B.c.y-B.c.half[1])),REF=build(STOCK),REF_ALPHA=REF.alpha.map(v=>v/PEN),REF_AREA=REF.area.map(v=>v/DRAG_PEN),REF_IM=(REF.I[0]+REF.I[1]+REF.I[2])/REF.auw;
 const r3=v=>+v.toFixed(3),r4=v=>+v.toFixed(4),cl=(v,a,b)=>v<a?a:v>b?b:v;
 
 // ---------- the loadout ----------
 // k: drone size scale (tune "Drone size" / 0.75); colliders, hull and box come out in world metres at that size
-export function computeLoadout(ids,k=1){ids=cleanLoadout(ids)||[...STOCK];const B=build(ids),{a,c,p,M,r}=B,mass=B.auw/REF_G;
+export function computeLoadout(ids,k=1){ids=cleanLoadout(ids)||[...STOCK];const B=build(ids),{a,c,p,M,r,rf}=B,mass=B.auw/REF_G;
  const auth=B.alpha.map((v,i)=>cl(v/REF_ALPHA[i],.5,1.8)),rateMul=auth.map(v=>cl(v**.4,.7,1.3)),snapMul=auth.map(v=>cl(v**-.8,.55,1.8));
- const dq=B.area.map((v,i)=>v/REF_AREA[i]/mass),vp=p.kv.vp*(R0/r)**.6,tw=4*B.Tm/B.auw;
+ const dq=B.area.map((v,i)=>v/REF_AREA[i]/mass),vp=p.kv.vp*(R0/rf)**.6,tw=4*B.Tm/B.auw;
  const flight={
   thr:tw/TW0,                       // x THR (thrust-to-weight)
   te:p.kv.te,                       // x TE (thrust curve)
   vp,maxv:cl(vp,.85,1.25)**.5,      // x VP (prop pitch speed), x MAXV
-  spool:p.kv.spool*(r/R0)**1.5,     // x SPOOL (bigger props spin up slower)
+  spool:p.kv.spool*(rf/R0)**1.5,     // x SPOOL (bigger props spin up slower)
   dl:(dq[0]+dq[1]+dq[2])/3,dq,      // x DL, x the body-axis DQ factors (side, disc, front)
   rmax:RATE0.map((v,i)=>v*rateMul[i]*Math.PI/180),  // achievable body rate (rad/s): pitch, yaw, roll
   snap:SNAP0.map((v,i)=>v*snapMul[i]),  // time from rest to rmax (s); acc = rmax/snap is the airframe's angular acceleration (torque / inertia)
   acc:SNAP0.map((v,i)=>RATE0[i]*rateMul[i]*Math.PI/180/(v*snapMul[i])),  // rad/s²: pitch, yaw, roll
-  boost:1/mass,drain:p.drain*(R0/r)**1.5,  // x BOOST (a fixed shove, so heavier quads get less), x DRAIN (pack capacity; big props are more efficient)
+  boost:1/mass,drain:p.drain*(R0/rf)**1.5,  // x BOOST (a fixed shove, so heavier quads get less), x DRAIN (pack capacity; big props are more efficient)
   mass,grip:B.grip,kick:c.kick};    // ball touches: drone mass (1 = nominal), dribble grip, added touch restitution
  // collider descriptors (track B / Rapier): box size = half-extents; capsule, cylinder = [halfHeight, radius]; sphere = [radius]
  const S=v=>r4(v*k),q0=[0,0,0,1],qy=ang=>[0,r4(Math.sin(ang/2)),0,r4(Math.cos(ang/2))],cols=[];
