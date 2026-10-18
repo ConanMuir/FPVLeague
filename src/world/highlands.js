@@ -6,27 +6,25 @@ import {dot} from '../render/particles.js';
 import {glow,scene,sun} from '../render/renderer.js';
 import {LOOKS,skyTex} from './maps.js';
 import {fbm,sm,vnoise} from './noise.js';
+import {CANY,DBASE,DCEIL,DHL,DHW,DLEN,DW,cxR,dfGrid,dfH,dfHt} from './terrain.js';
+import {CAVE,SEAM,buildCaves,clipIndexed,inCave,sdCave} from './caves.js';
+export {CAVE,inCave,sdCave};
 export const dfG=new THREE.Group();dfG.visible=false;scene.add(dfG);
 export const seeded=s=>()=>(s=s*16807%2147483647)/2147483647;
 // Highlands: the dogfight map. 1.1 x 1.4 km of hills, a river canyon and mountain walls, with mesas, spire fields, hangars you can fly through, bridges, rock arches and forests for cover.
 // Everything is seeded and point-mirrored through the centre, so every client builds the same map and both teams get the same lines.
-export const DW=1100,DLEN=1400,DHW=DW/2,DHL=DLEN/2,DCEIL=520,DBASE=DHL-230,CANY=-40;
-export const cxR=z=>150*Math.sin(z/230)+55*Math.sin(z/83);  // canyon centre line (odd in z, so the canyon is point-symmetric too)
-const dfH0=(x,z)=>(fbm(x/240+11,z/240-4)-.42)*185+Math.pow(1-Math.abs(2*vnoise(x/150+3,z/150+7)-1),2)*80;
-export function dfH(x,z){let y=Math.max(-30,(dfH0(x,z)+dfH0(-x,-z))*.5);
- y=CANY+sm((Math.abs(x-cxR(z))-22)/50)*(y-CANY);  // carve the canyon
- const e=Math.max(Math.abs(x)-(DHW-170),Math.abs(z)-(DHL-170),0);y+=sm(e/170)*430*(.7+.15*(vnoise(x/60,z/60)+vnoise(-x/60,-z/60)));  // mountain walls at the edge
- const r=Math.hypot(x,Math.abs(z)-DBASE);return y+(8-y)*(1-sm((r-70)/60))}  // flat team bases at z = ±DBASE
+export {CANY,DBASE,DCEIL,DHL,DHW,DLEN,DW,cxR,dfGrid,dfH,dfHt} from './terrain.js';
 export const OBS=[],OGRID=new Map(),OC=40;
 {const rnd=seeded(21),R=(a,b)=>a+rnd()*(b-a),placed=[];
  const free=(x,z,r,canyon)=>Math.abs(x)<DHW-200&&Math.abs(z)<DHL-200&&Math.hypot(x,Math.abs(z)-DBASE)>130+r&&(canyon||Math.abs(x-cxR(z))>r+40)&&placed.every(p=>Math.hypot(p[0]-x,p[1]-z)>p[2]+r+14&&Math.hypot(p[0]+x,p[1]+z)>p[2]+r+14);
  const spot=(r,canyon,tries=80)=>{for(let i=0;i<tries;i++){const x=R(-DHW+200,DHW-200),z=R(0,DHL-200);if(free(x,z,r,canyon))return[x,z]}return null};
  const gmin=(x,z,r)=>Math.min(dfH(x,z),dfH(x+r,z),dfH(x-r,z),dfH(x,z+r),dfH(x,z-r));
- const add=(o,big=true)=>{if(big)placed.push([o.x,o.z,o.rb]);OBS.push(o,{...o,x:-o.x,z:-o.z,mir:1})};
+ const clear=(x,z,r)=>{const h=dfH(x,z);return sdCave(x,h-3,z)>r+10&&sdCave(x,h+12,z)>r+10};  // nothing stands in a cave mouth
+ const add=(o,big=true)=>{if(!clear(o.x,o.z,o.rb||4))return;if(big)placed.push([o.x,o.z,o.rb]);OBS.push(o,{...o,x:-o.x,z:-o.z,mir:1})};
  for(let k=0;k<7;k++){const c=spot(55);if(!c)continue;placed.push([c[0],c[1],55]);for(let i=0;i<34;i++){const a=rnd()*6.3,d=Math.sqrt(rnd())*55,x=c[0]+Math.cos(a)*d,z=c[1]+Math.sin(a)*d,h=R(14,26);
   if(Math.abs(x-cxR(z))<40)continue;add({t:'tree',x,y0:dfH(x,z)-.5,z,h,cr:h*.24,rb:h*.24},false)}}  // forests
  for(let i=0;i<13;i++){const r=R(14,36),s=spot(r);if(!s)continue;const y0=gmin(s[0],s[1],r)-6;add({t:'cyl',x:s[0],z:s[1],r,y0,y1:y0+R(90,330),rb:r})}  // mesas
- for(let k=0;k<2;k++){const c=spot(70);if(!c)continue;placed.push([c[0],c[1],70]);for(let i=0;i<9;i++){const x=c[0]+R(-60,60),z=c[1]+R(-60,60),r=R(3.5,8),y0=gmin(x,z,r)-3;const o={t:'cyl',x,z,r,y0,y1:y0+R(55,180),rb:r};OBS.push(o,{...o,x:-x,z:-z,mir:1})}}  // spire fields
+ for(let k=0;k<2;k++){const c=spot(70);if(!c)continue;placed.push([c[0],c[1],70]);for(let i=0;i<9;i++){const x=c[0]+R(-60,60),z=c[1]+R(-60,60),r=R(3.5,8),y0=gmin(x,z,r)-3;const o={t:'cyl',x,z,r,y0,y1:y0+R(55,180),rb:r};if(clear(x,z,r))OBS.push(o,{...o,x:-x,z:-z,mir:1})}}  // spire fields
  for(let i=0;i<5;i++){const s=spot(34);if(!s)continue;const ax=rnd()<.5,hx=ax?30:14,hz=ax?14:30,hy=10,g=gmin(s[0],s[1],20),y=g+hy-1.5;add({t:'hang',x:s[0],y,z:s[1],hx,hy,hz,ix:ax?hx+2:hx-1.5,iy:hy-1.5,iz:ax?hz-1.5:hz+2,rb:34})}  // hangars, open at both ends
  for(let i=0;i<7;i++){const w=R(5,9),s=spot(w*1.5);if(!s)continue;const hy=R(20,65),g=gmin(s[0],s[1],w);add({t:'box',x:s[0],y:g+hy-2,z:s[1],hx:w,hy,hz:w,rb:w*1.5})}  // ruined towers
  for(const z of[90,330]){const x=cxR(z);add({t:'box',x,y:-6,z,hx:70,hy:2.2,hz:7,rb:0},false)}  // bridges over the canyon
@@ -45,10 +43,7 @@ function sdObs(x,y,z){const L=OGRID.get(Math.floor((x+DHW)/OC)*1000+Math.floor((
   else if(o.t==='ring'){const a=o.ax?lz:lx,b=o.ax?lx:lz;d=Math.hypot(Math.hypot(a,y-o.y)-o.R,b)-o.r}
   else if(o.t==='tree')d=Math.min(sdCyl(lx,y,lz,.5,o.y0,o.y0+o.h*.4),sdCyl(lx,y,lz,o.cr*.75,o.y0+o.h*.28,o.y0+o.h));
   else d=Math.hypot(lx,y-o.y,lz)-o.r;if(d<m)m=d}return m}
-// terrain height: once the map is built, the mesh triangles (= the Rapier heightfield, cells split (x1,z0)-(x0,z1)); before that dfH()
-export const dfHt=(x,z)=>{if(!grid)return dfH(x,z);const T=grid,fx=cl((x+T.w/2)/T.w*T.nx,0,T.nx-1e-9),fz=cl((z+T.l/2)/T.l*T.nz,0,T.nz-1e-9),ix=fx|0,iz=fz|0,u=fx-ix,v=fz-iz,n1=T.nx+1,i=iz*n1+ix,h=T.h;
- return u+v<1?h[i]+u*(h[i+1]-h[i])+v*(h[i+n1]-h[i]):h[i+n1+1]+(1-u)*(h[i+n1]-h[i+n1+1])+(1-v)*(h[i+1]-h[i+n1+1])};
-export const sdDFt=(x,y,z)=>Math.max(y-DCEIL,Math.abs(x)-DHW,Math.abs(z)-DHL,(dfHt(x,z)-y)*.75),sdDF=(x,y,z)=>Math.max(sdDFt(x,y,z),-sdObs(x,y,z));  // sdDFt: without obstacles
+export const sdDFt=(x,y,z)=>Math.max(y-DCEIL,Math.abs(x)-DHW,Math.abs(z)-DHL,Math.min((dfHt(x,z)-y)*.75,sdCave(x,y,z))),sdDF=(x,y,z)=>Math.max(sdDFt(x,y,z),-sdObs(x,y,z));  // sdDFt: without obstacles
 export const DSLOTS=[[0,12,DBASE],[-26,12,DBASE+16],[26,12,DBASE+16]];
 // respawn points spread over the whole valley (built on first use): open air 30 m over the ground, nothing within sdObs's 10 m range
 let DSPAWN=null;
@@ -57,16 +52,17 @@ function spawnPoints(){if(DSPAWN)return DSPAWN;DSPAWN=[];for(let x=-DHW+140;x<=D
 /** a Dogfight respawn point far from everyone alive (others: [{p}] world positions), picked at random among the best three: [x,y,z,yaw facing the valley centre] */
 export function dfSpawnPoint(others){const P=spawnPoints(),sc=P.map(p=>{let m=1e9;for(const o of others)m=Math.min(m,Math.hypot(o.p.x-p[0],o.p.y-p[1],o.p.z-p[2]));return[m,p]}).sort((a,b)=>b[0]-a[0]);
  const p=sc[Math.floor(Math.random()*Math.min(3,sc.length))]?.[1]||[0,60,0];return[...p,Math.atan2(p[0],p[2])]}
+// underground the fog closes in and darkens (called every frame in Dogfight)
+const FOGD=new THREE.Color(0x07090c),FOGS=new THREE.Color();let ug=0;
+export function dfAtmos(cam,dt){const F=LOOKS.df.fog,u=cam.position.y<dfHt(cam.position.x,cam.position.z)-2&&sdCave(cam.position.x,cam.position.y,cam.position.z)<2?1:0;ug+=(u-ug)*Math.min(1,dt*3);
+ F.color.copy(FOGS.set(DFC.fog)).lerp(FOGD,ug);F.near=380-360*ug;F.far=1750-1450*ug}
 const DFC={sky:['#3b6fb0','#79a6d8','#c5dbee','#e6eef2','#9fb38f','#4d6340'],sun:[-.45,.55,-.7],fog:0xc9d9e6};
 LOOKS.df={bg:null,fog:new THREE.Fog(DFC.fog,380,1750),hemi:[0xdde9ff,0x55663f,1.05],sun:[0xfff0dc,3],sp:new V3(...DFC.sun).normalize().multiplyScalar(300),sc:[170,170,800],exp:1,bk:.6,th:1.25,br:.3};
 scene.add(sun.target);
-// terrain heights on the mesh's grid (2 km x 2.3 km, ~7 m cells): the terrain mesh and Rapier's heightfield use these same samples
-let grid=null;export function dfGrid(){if(grid)return grid;const nx=280,nz=350,w=DW+900,l=DLEN+900,h=new Float32Array((nx+1)*(nz+1));
- for(let iz=0;iz<=nz;iz++)for(let ix=0;ix<=nx;ix++)h[iz*(nx+1)+ix]=dfH(-w/2+ix*w/nx,-l/2+iz*l/nz);return grid={nx,nz,w,l,h}}
 // collision for physics/world.js: the heightfield (column-major, rows along z) and one collider per obstacle part, taken from the meshes below
 const DFOBS=[],ROCK=new THREE.DodecahedronGeometry(1,0);
-export function dfCollision(){buildDF();const T=dfGrid(),n1=T.nx+1,hz=new Float32Array(T.h.length);for(let z=0;z<=T.nz;z++)for(let x=0;x<=T.nx;x++)hz[z+x*(T.nz+1)]=T.h[z*n1+x];
- return{hf:{nx:T.nx,nz:T.nz,w:T.w,l:T.l,heights:hz},obs:DFOBS}}
+let TERR=null,CAVES=null;const tri=M=>({vertices:new Float32Array(M.p),indices:new Uint32Array(M.i)});
+export function dfCollision(){buildDF();return{terrain:tri(TERR),caves:tri(CAVES.walls),obs:DFOBS}}  // the drawn triangles: terrain cut open at the cave mouths, and the cave walls
 // the map's meshes are built the first time Dogfight is opened
 let dfBuilt=false;
 export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC);const c3=new THREE.Color(),rnd=seeded(3);
@@ -75,8 +71,19 @@ export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC)
   const nm=g.attributes.normal,col=[],grass=new THREE.Color(),rock=new THREE.Color().setRGB(.42,.39,.35,THREE.SRGBColorSpace),sand=new THREE.Color().setRGB(.72,.64,.48,THREE.SRGBColorSpace),snow=new THREE.Color(.95,.97,1);
   for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),n=fbm(x/40,z/40);grass.setHSL(.24+n*.06,.42,.2+n*.1,THREE.SRGBColorSpace);c3.copy(grass);
    c3.lerp(rock,cl((.86-nm.getY(i))*5,0,1));if(y<CANY+9)c3.lerp(sand,sm((CANY+9-y)/8));if(y>150)c3.lerp(snow,cl((y-150)/40,0,1)*cl((nm.getY(i)-.6)*4,0,1));c3.multiplyScalar(.85+n*.3);col.push(c3.r,c3.g,c3.b)}
-  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));m.receiveShadow=true;dfG.add(m)}
- {const w=new THREE.Mesh(new THREE.PlaneGeometry(DW+900,DLEN+900),new THREE.MeshStandardMaterial({color:0x2f6f8a,roughness:.15,metalness:.2,transparent:true,opacity:.82}));w.rotation.x=-Math.PI/2;w.position.y=CANY+.6;dfG.add(w)}
+  // cut the terrain open where the caves come up (clipped exactly along the cave walls); the same triangles are the collision mesh
+  const C=clipIndexed(Array.from(p.array),Array.from(g.index.array),[{a:Array.from(nm.array),n:3},{a:col,n:3}],(x,y,z)=>sdCave(x,y,z)+SEAM),tg=new THREE.BufferGeometry();
+  tg.setAttribute('position',new THREE.Float32BufferAttribute(C.p,3));tg.setAttribute('normal',new THREE.Float32BufferAttribute(C.attrs[0].a,3));tg.setAttribute('color',new THREE.Float32BufferAttribute(C.attrs[1].a,3));tg.setIndex(C.idx);TERR={p:C.p,i:C.idx};
+  const m=new THREE.Mesh(tg,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));m.receiveShadow=true;dfG.add(m)}
+ // the caves: unlit rock with its light baked in (the sun can't reach), team-coloured guide strips, and beacons over each entrance
+ {CAVES=buildCaves();const geo=M=>{const q=new THREE.BufferGeometry();q.setAttribute('position',new THREE.Float32BufferAttribute(M.p,3));q.setAttribute('color',new THREE.Float32BufferAttribute(M.c,3));q.setIndex(M.i);return q};
+  dfG.add(new THREE.Mesh(geo(CAVES.walls),new THREE.MeshBasicMaterial({vertexColors:true})),new THREE.Mesh(geo(CAVES.strips),new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,side:THREE.DoubleSide})));
+  const ring=new THREE.TorusGeometry(1,.035,6,48),beam=new THREE.CylinderGeometry(1.2,1.2,1,8,1,true).translate(0,.5,0),bm=new THREE.MeshBasicMaterial({color:new THREE.Color(0xffd36a).multiplyScalar(1.4),transparent:true,opacity:.18,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false});
+  for(const e of CAVE.entrances){const r=new THREE.Mesh(ring,glow(0xffd36a,1.6)),d=new V3(...e.d);r.scale.setScalar(e.r+1.5);r.position.set(...e.p);r.quaternion.setFromUnitVectors(new V3(0,0,1),d);dfG.add(r);
+   const b=new THREE.Mesh(beam,bm);b.position.set(e.p[0],e.p[1],e.p[2]);b.scale.set(1,140,1);dfG.add(b)}}
+ {const T=dfGrid(),n1=T.nx+1,y=CANY+.6,P=[],I=[];for(let z=0;z<T.nz;z++)for(let x=0;x<T.nx;x++){const i=z*n1+x;if(Math.min(T.h[i],T.h[i+1],T.h[i+n1],T.h[i+n1+1])>y)continue;const b=P.length/3,x0=-T.w/2+x*T.w/T.nx,z0=-T.l/2+z*T.l/T.nz,x1=x0+T.w/T.nx,z1=z0+T.l/T.nz;
+  P.push(x0,y,z0,x1,y,z0,x1,y,z1,x0,y,z1);I.push(b,b+2,b+1,b,b+3,b+2)}const WC=clipIndexed(P,I,[],(x,y,z)=>sdCave(x,y,z)),wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(WC.p,3));wg.setIndex(WC.idx);wg.computeVertexNormals();
+  dfG.add(new THREE.Mesh(wg,new THREE.MeshStandardMaterial({color:0x2f6f8a,roughness:.15,metalness:.2,transparent:true,opacity:.82})))}  // the river: only the grid cells that dip below it (an infinite plane showed up inside the cave entrances)
  for(const t of[0,1]){const s=t?-1:1,pad=new THREE.Mesh(new THREE.CylinderGeometry(60,62,1,96),new THREE.MeshStandardMaterial({color:0x2b3038,roughness:.8,emissive:COL[t],emissiveIntensity:.08}));pad.position.set(0,7.6,s*DBASE);pad.receiveShadow=true;dfG.add(pad);DFOBS.push({s:'cyl',hh:.5,r:62,p:[0,7.6,s*DBASE]});
   const ring=new THREE.Mesh(new THREE.TorusGeometry(60,.5,10,192),glow(COL[t],1.6));ring.rotation.x=Math.PI/2;ring.position.set(0,8.2,s*DBASE);dfG.add(ring)}
  const mRock=new THREE.MeshStandardMaterial({color:0x7a6450,roughness:.95,flatShading:true}),mCon=new THREE.MeshStandardMaterial({color:0x7a7f86,roughness:.9,envMapIntensity:.6}),mMet=new THREE.MeshStandardMaterial({color:0x6a737c,roughness:.5,metalness:.5}),
