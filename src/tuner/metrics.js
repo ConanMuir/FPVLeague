@@ -32,19 +32,11 @@ export function trackMetrics(s,dz=0){if(!s||s.length<10)return null;const T=s[s.
   return{rms,bias:mv.length?mean(mv.map(o=>o.e[i]*sg(o.tv[i])))/(rms||1):0,zc:crossings(e,.5)/T,jit:crossings(s.map(o=>o.x[i]),.06)/T,
    stall:s.filter(o=>Math.abs(o.e[i])>1.5&&Math.abs(o.r[i])>.003&&Math.abs(o.r[i])<=dz).length/s.length,use:pctl(s.map(o=>Math.abs(o.x[i])),.5)}})}
 
-// ---- dodge: one incoming projectile ----
-// ev: {t0 (warning shown), hit, s:[{t, x:[roll,pitch] sticks, tilt:[roll,pitch] °}]}
-// react s (warning to a deliberate roll/pitch input), peak stick, over ° (tilt past level the other way after the dodge), hit
-export function dodgeMetrics(ev){const s=ev.s;if(!s||s.length<4)return null;let react=null,peak=0;
- for(const o of s){const m=Math.max(Math.abs(o.x[0]),Math.abs(o.x[1]));if(react==null&&m>.3)react=o.t-ev.t0;peak=Math.max(peak,m)}
- let ax=0,ip=0,pv=0;s.forEach((o,i)=>{for(const k of[0,1])if(Math.abs(o.tilt[k])>pv){pv=Math.abs(o.tilt[k]);ax=k;ip=i}});
- const dsg=sg(s[ip].tilt[ax]);let over=0;for(let i=ip;i<s.length&&s[i].t-s[ip].t<1.5;i++)over=Math.max(over,-dsg*s[i].tilt[ax]);
- return{react,peak,over,tilt:pv,hit:!!ev.hit}}
-
-// ---- altitude gates: one step of the height band ----
-// ev: {lo, hi, s:[{t, y, vy, thr (stick 0..1), m (motor 0..1)}]}
-// tEnter s, over (furthest outside the band after first entering, × half-height), exits, inBand share, hover (mean motor while
-// steady in the band, or null), sat (share of the approach with the throttle at an end)
+// holding a height for ~1.5 s: bounce (crossings of the window mean per second and peak-to-peak), drift (mean climb/sink with the
+// throttle stick held steady), stick pinned at an end, share of time inside the band [lo,hi]
+export function holdMetrics(s,lo,hi){if(!s||s.length<30)return null;const T=s[s.length-1].t-s[0].t||1,ys=s.map(o=>o.y),my=mean(ys),thr=s.map(o=>o.thr),mt=mean(thr);
+ return{bounce:crossings(ys.map(y=>y-my),.15)/T,amp:pctl(ys,.95)-pctl(ys,.05),drift:mean(s.map(o=>o.vy)),steady:Math.sqrt(mean(thr.map(v=>(v-mt)**2)))<.05,
+  sat:s.filter(o=>o.thr<.03||o.thr>.97).length/s.length,inb:s.filter(o=>o.y>=lo&&o.y<=hi).length/s.length,motor:mean(s.map(o=>o.m)),y:my,lo,hi}}
 export function altMetrics(ev){const{lo,hi,s}=ev;if(!s||s.length<4)return null;const half=(hi-lo)/2||1,inb=y=>y>=lo&&y<=hi;let iE=s.findIndex(o=>inb(o.y));
  let over=0,exits=0,was=true;if(iE>=0)for(let i=iE;i<s.length;i++){const y=s[i].y,d=y>hi?y-hi:y<lo?lo-y:0;over=Math.max(over,d/half);const n=inb(y);if(was&&!n)exits++;was=n}
  const st=iE>=0?s.slice(iE).filter(o=>inb(o.y)&&Math.abs(o.vy)<1.5):[],ap=s.slice(0,iE>=0?iE+1:s.length);
