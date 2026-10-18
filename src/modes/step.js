@@ -13,6 +13,7 @@ import {bullets,droneFire} from './guns.js';
 import {demolish,endMatch,goal,kickoff,startDemo} from './match.js';
 import {r2} from '../net/net.js';
 import {ball,ballPre} from '../physics/ball.js';
+import {llGoal,llStep,llTouch} from './longline.js';
 import {ballTouch,droneTouch,emitHit,physStep} from '../physics/world.js';
 import {emit} from '../render/particles.js';
 import {_ip,_lat,_t,_v,_w} from '../scratch.js';
@@ -28,6 +29,7 @@ export function step(dt){if(LAB.on){labStep(dt);physStep(dt,false);return}const 
  for(const d of GS.drones){if(d.remote)continue;if(d.dead>0){if((d.dead-=dt)<=0)d.spawn();continue}
   if(d.bot)(GS.OBSON?dfBot:botControl)(d,dt);else{humanControl(d,dt);if(GS.OBSON)d.firing=!GS.menuOpen&&GS.state==='play'&&fireIn(d)}if(frozen)continue;d.step(dt)}
  const simBall=!frozen&&live&&!GS.OBSON;if(simBall)ballPre(ball.v,dt);
+ if(S.longline&&simBall&&!GS.net)llStep(dt);  // the long line pulls ball and quad (offline only for now)
  physStep(dt,simBall);  // moves every drone and the ball, resolves their contact with the map
  for(const d of GS.drones){if(d.remote||d.dead>0||frozen)continue;if(d===GS.player&&d.hit>10)noise(.16,280,cl(d.hit/90,0,.25),.7);if(GS.OBSON)droneFire(d,dt,A||d===GS.player);
   if(SB())for(const p of ORBS)if(p.cd<=0&&d.boost<100&&d.p.distanceTo(p.p)<(p.big?2.6:1.8)+DRAD+1){d.boost=Math.min(100,d.boost+(p.big?PBG:PSM));p.cd=p.big?10:4;emit(p.p,0xffc640,p.big?60:24,p.big?14:9,.6);if(d===GS.player)tone(700,1400,.15,.08)}}
@@ -36,11 +38,11 @@ export function step(dt){if(LAB.on){labStep(dt);physStep(dt,false);return}const 
  if(simBall&&ball.hit>4)noise(.1,900,cl(ball.hit/50,0,.3)*near(ball.p));
  if(!frozen)for(let i=0;i<GS.drones.length;i++){const a=GS.drones[i];if(a.dead>0)continue;
   let tb;if(live&&!a.remote&&!GS.OBSON&&(tb=ballTouch(a,_v))){const n=_v,pen=tb.pen,ib=1/BM,id=1/a.fl.mass;ball.p.addScaledVector(n,pen*ib/(ib+id));a.p.addScaledVector(n,-pen*id/(ib+id));
-   const rv=_w.subVectors(ball.v,a.v).dot(n);if(rv<0){const hk=cl((-rv-6)/30,0,1),j=-(1+TB+(.6-TB)*hk+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);
+   const rv=_w.subVectors(ball.v,a.v).dot(n);if(rv<0){const hk=cl((-rv-6)/30,0,1),j=-(1+TB+(.6-TB)*hk+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);if(S.longline&&!GS.net)llTouch(a);
     // Rocket League-style extra push along drone->ball (vertical softened), leaning toward where the quad is flying
-    const aim=_ip.subVectors(ball.p,a.p);aim.y*=.35;aim.normalize();const fw=_lat.set(0,0,-1).applyQuaternion(a.q);aim.addScaledVector(fw,-.35*aim.dot(fw)).normalize();
+    if(!S.longline||GS.net){const aim=_ip.subVectors(ball.p,a.p);aim.y*=.35;aim.normalize();const fw=_lat.set(0,0,-1).applyQuaternion(a.q);aim.addScaledVector(fw,-.35*aim.dot(fw)).normalize();
     const u=BR/.93,rel=Math.min(_t.subVectors(a.v,ball.v).length(),46*u),sc=rel<=5*u?.65:rel<=23*u?.65-.1*(rel-5*u)/(18*u):.55-.25*(rel-23*u)/(23*u);ball.v.addScaledVector(aim,rel*sc*hk*KICK);  // RL: 0.65 up to 500 uu/s, 0.55 at 2300, 0.30 at 4600 (uu scaled to this ball)
-    const gr=(1-hk)*.35*Math.min(2,a.fl.grip);_t.subVectors(ball.v,a.v);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr);ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv});  // parts: grip, flat wide bodies carry the ball
+    const gr=(1-hk)*.35*Math.min(2,a.fl.grip);_t.subVectors(ball.v,a.v);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr);}ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv});  // parts: grip, flat wide bodies carry the ball
     if(GS.net&&!GS.net.host&&a===GS.player){GS.net.hit={s:++GS.net.seq,p:r2(ball.p),v:r2(ball.v)};GS.net.hitT=performance.now()}
     if(-rv>6){noise(.18,700+(-rv)*15,cl(-rv/35,0,.7)*near(ball.p));tone(240,90,.12,cl(-rv/120,0,.25)*near(ball.p));emit(ball.p.clone().addScaledVector(n,-BR),0x9fe8ff,cl(-rv,4,30)|0,10,.5)}}}
   for(let k=i+1;k<GS.drones.length;k++){const b=GS.drones[k];if(b.dead>0||a.remote&&b.remote)continue;const c=droneTouch(a,b,_v);if(!c)continue;const n=_v;  // the drones' part colliders (physics/world.js BUMP skin)
@@ -48,5 +50,5 @@ export function step(dt){if(LAB.on){labStep(dt);physStep(dt,false);return}const 
    emitHit({type:'drone',d:a,tag:c.ta,other:b,otherTag:c.tb,speed:-rv});
    if(-rv>DEMO&&a.team!==b.team&&live&&!GS.OBSON){const as=a.v.dot(n),bs=-b.v.dot(n),[vic,by]=as>bs?[b,a]:[a,b];if(!vic.remote)demolish(vic,by)}
    else{const ma=a.fl.mass,mb=b.fl.mass,j=-1.5*rv/(1/ma+1/mb);if(!a.remote)a.v.addScaledVector(n,-j/ma);if(!b.remote)b.v.addScaledVector(n,j/mb)}}}  // parts: mass-weighted bump
- if(A&&GS.state==='play'&&!GS.OBSON){if(ball.p.z<-(HL+BR))goal(0);else if(ball.p.z>HL+BR)goal(1)}
+ if(A&&GS.state==='play'&&!GS.OBSON){if(S.longline&&!GS.net){const g=llGoal();if(g>=0)goal(g)}else if(ball.p.z<-(HL+BR))goal(0);else if(ball.p.z>HL+BR)goal(1)}  // long line: only a ball towed across the line scores
  if(A&&!GS.OBSON){if(++GS.stepN%4===0)predict();if(GS.stepN%45===0)assignRoles()}}
