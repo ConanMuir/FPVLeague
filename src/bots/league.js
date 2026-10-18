@@ -1,6 +1,6 @@
 // ---------- bots (League): ball prediction, intercept, roles, cascaded controller into attitude() ----------
 import {DIFF,GD,GH,GW,H,HL,HW,UP,V3,cl} from '../config/constants.js';
-import {LL,ropeLen} from '../modes/longline.js';
+import {LL,hoopMode,hoops,ropeLen} from '../modes/longline.js';
 import {S} from '../config/settings.js';
 import {BOOST,BOTV,BR,BTHR,DL,DQ,G,TE,THR} from '../config/tune.js';
 import {attitude} from '../flight/attitude.js';
@@ -36,7 +36,10 @@ function think(d,D){const ai=d.ai,was=ai.strike;ai.strike=false;const s=d.team?1
   if(best){ai.tg.copy(best.p);ai.tv.set(0,0,0);ai.look.copy(best.p)}}
  const inMouth=Math.abs(ai.tg.x)<GW/2-2&&ai.tg.y<GH-2;ai.tg.x=cl(ai.tg.x,-HW+2.5,HW-2.5);ai.tg.y=cl(ai.tg.y,1.6,H-3);ai.tg.z=cl(ai.tg.z,-(inMouth?HL+GD-2:HL-2.5),inMouth?HL+GD-2:HL-2.5);const sd=sdf(ai.tg.x,ai.tg.y,ai.tg.z);if(sd>-3){sdN(ai.tg,_lat);ai.tg.addScaledVector(_lat,-(sd+3))}}
 export function botControl(d,dt){const D=DIFF[S.diff],ai=d.ai;if((ai.t-=dt)<=0){ai.t=D.react*(.7+Math.random()*.6);think(d,D)}
- if(LL.d===d){const s=d.team?1:-1;ai.strike=false;ai.tv.set(0,0,0);ai.tg.set(cl(ball.p.x*.3,-GW/3,GW/3),Math.min(GH-2,BR+ropeLen()+1.5),s*(HL+GD*.6));ai.look.copy(ai.tg)}  // on the long line: tow it low through the goal mouth
+ if(LL.d===d){const s=d.team?1:-1;ai.strike=false;ai.tv.set(0,0,0);
+  if(hoopMode()){const hs=hoops().filter(o=>o.c.z*s>0);let o=hs[0];for(const q of hs)if(q.c.distanceToSquared(ball.p)<o.c.distanceToSquared(ball.p))o=q;  // nearest of their rings
+   const lead=(o.c.z-ball.p.z)*s;ai.tg.set(o.c.x,Math.min(H-4,o.c.y+ropeLen()+BR+(lead>40?6:0)),o.c.z+s*(lead>25?-8:25))}  // line up in front, then fly through so the ball trails through the ring
+  else ai.tg.set(cl(ball.p.x*.3,-GW/3,GW/3),Math.min(GH-2,BR+ropeLen()+1.5),s*(HL+GD*.6));ai.look.copy(ai.tg).setY(d.p.y)}  // goals: tow it low through the goal mouth
  else if(LL.d&&LL.d.team===d.team){const s=d.team?1:-1;ai.strike=false;ai.tv.copy(LL.d.v).multiplyScalar(.5);ai.tg.set(LL.d.p.x+(d.i%2?14:-14),LL.d.p.y,LL.d.p.z-s*10);ai.look.set(0,0,s*HL)}  // a teammate has it: fly escort beside and behind
  const vd=ai.strike?_b.copy(ball.p).addScaledVector(ball.v,.1).add(ai.tv).sub(d.p).setLength(D.vmax*BOTV*.8):_b.subVectors(ai.tg,d.p).multiplyScalar(D.kp).add(ai.tv).clampLength(0,D.vmax*BOTV),a=_a.subVectors(vd,d.v).multiplyScalar(D.kd);
  if(d.p.y<1.6&&d.v.y<0)a.y+=-d.v.y*2+(1.6-d.p.y)*8;if(d.p.y>H-4&&d.v.y>0)a.y-=d.v.y*2;
