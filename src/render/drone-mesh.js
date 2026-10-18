@@ -5,7 +5,13 @@ import {DRAD,onTune} from '../config/tune.js';
 import {glow,scene,tex} from './renderer.js';
 import {GS} from '../state.js';
 import {buildPartsMesh} from '../parts/mesh.js';
-export const MAT={carbon:new THREE.MeshStandardMaterial({color:0x16191f,roughness:.45,metalness:.7}),metal:new THREE.MeshStandardMaterial({color:0x8a919c,roughness:.3,metalness:.9}),
+// carbon fibre: glossy clear-coated plates with a 2x2 twill weave, drawn from object-space position (the part geometry has no UVs)
+function twill(m){m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vCf,vCn;').replace('#include <begin_vertex>','#include <begin_vertex>\nvCf=position;vCn=normal;');
+ sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
+varying vec3 vCf,vCn;float wv;
+float weave(){vec3 n=abs(vCn);vec2 q=n.y>max(n.x,n.z)?vCf.xz:n.x>n.z?vCf.zy:vCf.xy;q*=60.;float k=mod(floor(q.x)+floor(q.y),4.);float w=step(2.,k),s=w>.5?fract(q.y):fract(q.x);return w*.5+.5*sin(s*3.1416);}`)
+  .replace('#include <color_fragment>','#include <color_fragment>\nwv=weave();diffuseColor.rgb*=.72+.5*wv;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor*=1.2-.45*wv;')};return m}
+export const MAT={carbon:twill(new THREE.MeshPhysicalMaterial({color:0x1b1e24,roughness:.5,metalness:.15,clearcoat:1,clearcoatRoughness:.18})),metal:new THREE.MeshStandardMaterial({color:0x8a919c,roughness:.3,metalness:.9}),
  prop:new THREE.MeshBasicMaterial({color:0xaab4c8,transparent:true,opacity:.14,depthWrite:false}),lens:new THREE.MeshStandardMaterial({color:0x050505,roughness:.05,metalness:1}),
  team:COL.map(c=>new THREE.MeshStandardMaterial({color:c,metalness:.4,roughness:.35,emissive:c,emissiveIntensity:.3})),led:COL.map(c=>glow(c,2)),
  blade:COL.map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.5,transparent:true,opacity:.55})),

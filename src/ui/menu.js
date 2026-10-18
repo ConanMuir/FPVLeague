@@ -16,9 +16,9 @@ import {tab} from './rates.js';
 import {OUT,setMap} from '../world/maps.js';
 const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['arena','Arena size','sel',ARENAS.map((a,i)=>[i,`${a[0]} (${a[1]}×${a[2]} m)`])],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],['gfx','Graphics quality','sel',[['auto','Auto'],['high','High'],['med','Medium'],['low','Low (integrated GPUs)']]],
  ['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
- ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['assist','Flight assist','rng',0,1,.05],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]]];
+ ['tilt','Camera uptilt','rng',0,60,1,'°'],['osd','FPV OSD (Betaflight style, O key)','sel',[[false,'Off'],[true,'On']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['assist','Flight assist','rng',0,1,.05],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]]];
 // settings tab for each field (the rest go on Match); Controls and Keys tabs hold the controller block and the key list
-const FTAB={mode:'flight',thrMode:'flight',dz:'flight',assist:'flight',map:'video',ball:'video',gfx:'video',tilt:'video',fov:'video'};
+const FTAB={mode:'flight',thrMode:'flight',dz:'flight',assist:'flight',map:'video',ball:'video',gfx:'video',tilt:'video',fov:'video',osd:'video'};
 // builds the settings and controller-mapping rows and wires the menu buttons (v15 ran this at load)
 export function initMenu(){
 for(const[k,lab,type,...o]of FIELDS){const setEl=FTAB[k]?$('set_'+FTAB[k]):$('set');const l=document.createElement('label');l.textContent=lab;l.htmlFor='f_'+k;setEl.append(l);let inp;

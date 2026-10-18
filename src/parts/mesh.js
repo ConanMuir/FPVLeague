@@ -29,7 +29,10 @@ function armShape(L,w0,w1,pr){const s=new THREE.Shape(),r0=-.05;
  s.moveTo(r0,-w0/2);s.lineTo(L-pr*1.7,-w1/2);s.quadraticCurveTo(L-pr*.9,-pr,L,-pr);s.absarc(L,0,pr,-PI/2,PI/2,false);s.quadraticCurveTo(L-pr*.9,pr,L-pr*1.7,w1/2);s.lineTo(r0,w0/2);s.lineTo(r0,-w0/2);
  if(L>.3)s.holes.push(slot(L*.45,0,L*.16,Math.min(w0,w1)*.17));return s}
 const ARM={
- x(K,a,sp,pr){for(const[x,z]of sp.motors){const[rx,rz]=rootOf(a,x,z),L=Math.hypot(x-rx,z-rz);K.add('carbon',slab(armShape(L,a.arm.w0,a.arm.w1,pr),a.arm.t,.007),[rx,0,rz],[0,Math.atan2(rz-z,x-rx),0],[1,1,1],.7)}},
+ x(K,a,sp,pr){for(const[x,z]of sp.motors){const[rx,rz]=rootOf(a,x,z),L=Math.hypot(x-rx,z-rz),ang=Math.atan2(rz-z,x-rx);K.add('carbon',slab(armShape(L,a.arm.w0,a.arm.w1,pr),a.arm.t,.007),[rx,0,rz],[0,ang,0],[1,1,1],.7);
+  K.add('led',rbox(L*.42,.008,.016,.004,2),[rx+(x-rx)*.5,-a.arm.t/2-.005,rz+(z-rz)*.5],[0,ang,0])}  // LED strip under the arm
+  if(a.plate){const[w,f,r]=a.plate,s=new THREE.Shape();s.moveTo(-w*.7,-f);s.lineTo(w*.7,-f);s.lineTo(w,-f+.06);s.lineTo(w,r-.04);s.lineTo(w*.8,r);s.lineTo(-w*.8,r);s.lineTo(-w,r-.04);s.lineTo(-w,-f+.06);s.lineTo(-w*.7,-f);
+   for(const zc of[-f*.55,-f*.2,r*.2,r*.55])s.holes.push(slot(0,zc,w*.4,.035));K.add('carbon',slab(s,.014,.004),[0,-a.arm.t/2-.007,0],[0,0,0],[1,1,1],.7)}},  // dead-cat: long unibody bottom plate
  h(K,a,sp,pr){const xm=a.front[0],zf=a.front[1],zr=a.rear[1],w=a.arm.w1;
   for(const sx of[-1,1]){const s=new THREE.Shape();s.moveTo(-zf,-w/2);s.lineTo(zr,-w/2);s.absarc(zr,0,pr,-PI/2,PI/2,false);s.lineTo(-zf,w/2);s.absarc(-zf,0,pr,PI/2,PI*1.5,false);
    s.holes.push(slot((zr-zf)/2-.1,0,.1,w*.17),slot((zr-zf)/2+.13,0,.07,w*.17));K.add('carbon',slab(s,a.arm.t,.007),[sx*xm,0,0],[0,-PI/2,0],[1,1,1],.7)}
@@ -40,13 +43,13 @@ function bellGeo(r,h){const P=[[0,0],[r*.9,0],[r*.9,h*.18],[r*.97,h*.2],[r,h*.26
  return new THREE.LatheGeometry(P.map(([x,y])=>new THREE.Vector2(x,y)),28)}
 function motors(K,sp,a){const{r,h}=sp.power.motor,y0=a.arm.t/2,bell=tint('metal',sp.power.look?.bell);
  for(const[x,z]of sp.motors){K.add(bell,bellGeo(r,h),[x,y0,z],[0,0,0],[1,1,1],.9);K.add('carbon',cyl(r*.93,r*.93,h*.2,24),[x,y0+h*.1,z]);
-  K.add('team',cyl(r*1.012,r*1.012,h*.14,28),[x,y0+h*.58,z]);K.add('metal',cyl(.017,.02,.022,12),[x,y0+h+.02,z])}}
+  K.add('team',cyl(r*1.012,r*1.012,h*.14,28),[x,y0+h*.58,z]);K.add('led',cyl(r*1.15,r*1.15,.008,24),[x,-y0-.004,z]);K.add('metal',cyl(.017,.02,.022,12),[x,y0+h+.02,z])}}
 
 // ---------- props: a twisted, tapered, cambered blade lofted along the span; mirrored for the other spin direction ----------
 const tint=(base,hex)=>hex==null?base:base+'#'+hex.toString(16).padStart(6,'0');  // material key: a tinted copy of a shared material
 const _blades=new Map();
-function bladeGeo(R,twist,dir){const k=R+'/'+twist+'/'+dir;if(_blades.has(k))return _blades.get(k);
- const N=12,rh=.034,cmax=R*.21,th=.007,sec=[[-.5,0],[-.32,.75],[-.05,1],[.25,.6],[.5,0],[.25,-.15],[-.05,-.25],[-.32,-.2]],m=sec.length,pos=[],idx=[];
+function bladeGeo(R,twist,dir,ch=.21){const k=R+'/'+twist+'/'+dir+'/'+ch;if(_blades.has(k))return _blades.get(k);
+ const N=12,rh=.034,cmax=R*ch,th=.007,sec=[[-.5,0],[-.32,.75],[-.05,1],[.25,.6],[.5,0],[.25,-.15],[-.05,-.25],[-.32,-.2]],m=sec.length,pos=[],idx=[];
  for(let i=0;i<=N;i++){const s=i/N,rr=rh+(R-rh)*s,c=cmax*(s<.28?.5+1.8*s:1-.62*((s-.28)/.72)**1.5)*(i===N?.55:1),tw=twist*(1-.6*s),sw=.18*cmax*s*s;
   for(const[u,v]of sec){const z=u*c+sw,y=v*th*(1-.4*s),y2=y*Math.cos(tw)-z*Math.sin(tw),z2=z*Math.cos(tw)+y*Math.sin(tw);pos.push(rr,y2,z2*dir)}}
  const q=(a,b,c)=>dir>0?idx.push(a,b,c):idx.push(a,c,b);
@@ -109,7 +112,7 @@ function geometryOf(sp){const key=[sp.arms.id,sp.chassis.id,sp.power.id].join('/
  const K=new Kit(),a=sp.arms,pr=sp.power.motor.r+.014;
  ARM[a.arm.style](K,a,sp,pr);motors(K,sp,a);CHASSIS[sp.chassis.shape](K,sp.chassis,sp);
  BATT[sp.power.batt.style](K,sp.power.batt,sp.battY,sp.power.look);
- const o={frame:K.merged(),props:sp.motors.map((m,i)=>({blade:bladeGeo(a.prop.r,a.prop.twist,i===1||i===2?1:-1),disc:disc(a.prop.r),pos:[m[0],sp.propY,m[1]]}))};
+ const o={frame:K.merged(),props:sp.motors.map((m,i)=>({blade:bladeGeo(a.prop.r,a.prop.twist,i===1||i===2?1:-1,a.prop.chord),disc:disc(a.prop.r),pos:[m[0],sp.propY,m[1]]}))};
  _cache.set(key,o);return o}
 const _tints=new Map();
 // M: material set {carbon, metal, lens, prop, team[t], led[t], blade[t], pack, packLR, label, strap, rubber, board}

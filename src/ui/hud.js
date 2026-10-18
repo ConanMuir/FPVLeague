@@ -10,6 +10,7 @@ import {camera} from '../render/renderer.js';
 import {_f,_t} from '../scratch.js';
 import {GS,SB,esc} from '../state.js';
 import {DHL,DHW,DLEN,DW,OBS,cxR} from '../world/highlands.js';
+import {osd} from './osd.js';
 export function banner(txt,cls='',dur=1.2){const c=$('center');c.textContent=txt;c.className=cls;clearTimeout(banner.t);if(dur)banner.t=setTimeout(()=>c.textContent='',dur*1000)}
 export function feed(html){const e=document.createElement('div');e.innerHTML=html;$('feed').prepend(e);setTimeout(()=>e.remove(),4500);while($('feed').children.length>4)$('feed').lastChild.remove()}
 export const tag=d=>`<span class="${d.team?'co':'cb'}">${esc(d.name)}</span>`;
@@ -30,7 +31,7 @@ function dial(me){const sb=SB(),hp=GS.OBSON;$('dial').classList.toggle('boost',s
  $('dhp').style.display=$('dhpt').style.display=hp?'':'none';if(hp){arc($('dhp'),me.hp/100);$('dhp').style.stroke=`hsl(${cl(me.hp,0,100)*1.2},85%,58%)`}}
 const fmt=t=>{t=Math.ceil(t);return`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`};
 export function hud(){if(GS.demo)return;const me=GS.player;$('sb').textContent=GS.score[0];$('so').textContent=GS.score[1];$('clock').textContent=(GS.overtime?'+':'')+fmt(GS.clock);
- if(!me){$('osd').textContent=GS.net?'SPECTATING · GAME '+GS.net.code.toUpperCase():'';$('arrow').hidden=true;radar();return}
+ osd(me);if(!me){$('osd').textContent=GS.net?'SPECTATING · GAME '+GS.net.code.toUpperCase():'';$('arrow').hidden=true;radar();return}
  $('osd').innerHTML=`<span><b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE',GS.OBSON?'ENEMY CAM':'BALL CAM'][GS.camMode]} · ${GS.net?'ONLINE '+GS.net.code.toUpperCase():DIFF[S.diff].n.toUpperCase()}</span><span>THR ${String(Math.round(me.thr*100)).padStart(3)}%${me.boostOn?' BOOST':''}  ${String(Math.round(me.v.length()*3.6*9.81/G)).padStart(3)} km/h</span><span>ALT ${(me.p.y*9.81/G).toFixed(1)} m  ROLL ${Math.round(rate(0,1)*180/Math.PI)}°/s</span>${GS.OBSON?`<span>HP ${Math.max(0,Math.round(me.hp))}${me.dead>0?` · RESPAWN ${me.dead.toFixed(1)}`:''}</span>`:''}`;
  dial(me);$('xh').hidden=GS.camMode!==0||me.dead>0;
  const a=$('arrow'),foe=GS.OBSON&&nearestFoe(me);_t.copy(GS.OBSON?foe?.p||ball.p:ball.p).project(camera);let x=_t.x,y=_t.y;const behind=_t.z>1;if(behind){x=-x;y=-y}
