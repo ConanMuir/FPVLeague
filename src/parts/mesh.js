@@ -101,12 +101,25 @@ const BATT={
   K.add('label',rbox(.05,.03,.035,.006,2),[0,y,z+.045]);
   K.add('carbon',cyl(.006,.006,.08,8),[0,y+h+.04,z*.6]);K.add('carbon',cyl(.045,.045,.016,24),[0,y+h+.085,z*.6]);K.add(tint('label',L?.label),cyl(.03,.03,.018,20),[0,y+h+.087,z*.6])}};
 
+// ---------- attachments (parts/attach.js) ----------
+const ATT={none:()=>{},
+ ram:(K,sp)=>{const c=sp.chassis,z=-(c.half[2]+.07);K.add('carbon',rbox(.42,.07,.05,.018),[0,c.y,z]);K.add('team',rbox(.34,.018,.052,.006),[0,c.y+.036,z]);
+  for(const x of[-.1,.1])K.add('rubber',cyl(.013,.013,.07,12),[x,c.y,z+.035],[PI/2,0,0])},
+ cage:(K,sp)=>{const c=sp.chassis,y=sp.cTop,hx=c.half[0]+.02,hz=Math.max(.16,c.half[2]*.8);
+  for(const z of[-hz*.55,0,hz*.55])K.add('metal',new THREE.TorusGeometry(hx,.01,8,36,PI),[0,y,z],[0,0,0],[1,.8,1]);
+  K.add('metal',new THREE.TorusGeometry(hz,.01,8,40,PI),[0,y,0],[0,PI/2,0],[1,.7,1]);K.add('team',new THREE.TorusGeometry(.03,.006,8,20),[0,y+.7*hz+.004,0],[PI/2,0,0])},
+ ducts:(K,sp)=>{const R=sp.arms.prop.r+.025;for(const[x,z]of sp.motors){K.add('carbon',new THREE.TorusGeometry(R,.011,10,48),[x,sp.propY-.016,z],[PI/2,0,0]);
+  K.add('team',new THREE.TorusGeometry(R,.007,8,48),[x,sp.propY+.012,z],[PI/2,0,0]);for(let i=0;i<4;i++){const a=i*PI/2+PI/4;K.add('carbon',rbox(.012,.03,.012,.004),[x+Math.cos(a)*R,sp.propY-.002,z+Math.sin(a)*R])}}},
+ armor:(K,sp)=>{const c=sp.chassis,a=sp.arms;for(const s of[-1,1])K.add('metal',rbox(.014,c.half[1]*1.7,c.half[2]*1.5,.006),[s*(c.half[0]+.009),c.y,0]);
+  K.add('team',rbox(c.half[0]*1.5,.012,.03,.004),[0,c.y,-(c.half[2]+.01)]);
+  for(const[x,z]of sp.motors){const L=Math.hypot(x,z);K.add('metal',rbox(.05,.012,L*.35,.005),[x*.55,a.arm.t/2+.007,z*.55],[0,Math.atan2(x,z),0])}}};
+
 // ---------- whole quad ----------
 const _cache=new Map();
-function geometryOf(sp){const key=[sp.arms.id,sp.chassis.id,sp.power.id].join('/');if(_cache.has(key))return _cache.get(key);
+function geometryOf(sp){const key=[sp.arms.id,sp.chassis.id,sp.power.id,sp.attach?.id||'none'].join('/');if(_cache.has(key))return _cache.get(key);
  const K=new Kit(),a=sp.arms,pr=sp.power.motor.r+.014;
  ARM[a.arm.style](K,a,sp,pr);motors(K,sp,a);CHASSIS[sp.chassis.shape](K,sp.chassis,sp);
- BATT[sp.power.batt.style](K,sp.power.batt,sp.battY,sp.power.look);
+ BATT[sp.power.batt.style](K,sp.power.batt,sp.battY,sp.power.look);(ATT[sp.attach?.id]||ATT.none)(K,sp);
  const o={frame:K.merged(),props:sp.motors.map((m,i)=>({blade:bladeGeo(a.prop.r,a.prop.twist,i===1||i===2?1:-1),disc:disc(a.prop.r),pos:[m[0],sp.propY,m[1]]}))};
  _cache.set(key,o);return o}
 const _tints=new Map();
