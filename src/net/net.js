@@ -8,6 +8,7 @@ import {TUR,applyHit,dfState,setGame} from '../modes/dogfight.js';
 import {BUL} from '../modes/guns.js';
 import {applySlots,endFx,goalFx,kickoff,nameOf,showMenu,startDemo} from '../modes/match.js';
 import {p2p} from './p2p.js';
+import {modeId} from '../modes/registry.js';
 import {ball} from '../physics/ball.js';
 import {ballMesh} from '../render/ball.js';
 import {TN} from '../render/drone-mesh.js';
@@ -31,7 +32,7 @@ function setNet(d,a,now,dead,bo,fi,ti,lo){if(!okArr(a,10))return;const L=lo&&cle
  const was=d.dead>0;d.dead=dead?1:0;d.boostOn=!!bo;d.thr=bo?1:.5;
  if(!d.seen||was&&!dead){d.seen=1;d.p.copy(n.p);d.q.copy(n.q);for(let j=0;j<TN;j++)d.p.toArray(d.tp,j*3)}
  if(!was&&dead){emit(d.p,COL[d.team],160,30,1.2);noise(.6,200,.7*near(d.p))}}
-function onHostState(g,now){if(!g||typeof g!=='object')return;if(g.ar!=null&&g.ar!==AI&&ARENAS[g.ar]&&!GS.net.rl){GS.net.rl=1;mpMsg('Switching to the host\'s '+ARENAS[g.ar][0]+' arena…');try{sessionStorage.setItem('dlArenaNet',g.ar);sessionStorage.setItem('dlRejoin',GS.net.code)}catch(e){}GS.net.r.leave().catch(()=>{});setTimeout(()=>location.reload(),200);return}GS.net.sb=g.sb==null?null:!!g.sb;if((g.m==='df')!==GS.OBSON)setGame(g.m);if(g.tu&&typeof g.tu==='object'){const j=JSON.stringify(g.tu);if(j!==GS.net.tuJ){GS.net.tuJ=j;GS.hostTune={...MDEF,...cleanMod(g.tu)};applyTune();syncMod()}}const sj=JSON.stringify(g.sl);
+function onHostState(g,now){if(!g||typeof g!=='object')return;if(g.ar!=null&&g.ar!==AI&&ARENAS[g.ar]&&!GS.net.rl){GS.net.rl=1;mpMsg('Switching to the host\'s '+ARENAS[g.ar][0]+' arena…');try{sessionStorage.setItem('dlArenaNet',g.ar);sessionStorage.setItem('dlRejoin',GS.net.code)}catch(e){}GS.net.r.leave().catch(()=>{});setTimeout(()=>location.reload(),200);return}GS.net.sb=g.sb==null?null:!!g.sb;if(modeId(g.m)!==GS.GM)setGame(g.m);if(g.tu&&typeof g.tu==='object'){const j=JSON.stringify(g.tu);if(j!==GS.net.tuJ){GS.net.tuJ=j;GS.hostTune={...MDEF,...cleanMod(g.tu)};applyTune();syncMod()}}const sj=JSON.stringify(g.sl);
  if(sj!==GS.net.slotsJ&&Array.isArray(g.sl)&&g.sl.length===2&&g.sl.some(a=>Array.isArray(a)&&a.length)&&g.sl.every(a=>Array.isArray(a)&&a.length<=3&&a.every(k=>typeof k==='string'&&k&&k.length<48))){GS.net.slotsJ=sj;GS.net.slots=g.sl;applySlots(g.sl)}
  if(g.ko!==GS.net.ko){GS.net.ko=g.ko;GS.player?.spawn();ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ballMesh.visible=!GS.OBSON;BUL.forEach(b=>b.life=0);GS.lastCount=4;ORBS.forEach(p=>p.cd=0)}
  if(g.st==='goal'&&GS.state!=='goal'){if(okArr(g.bl,3))ball.p.fromArray(g.bl);goalFx(g.gs?1:0,g.lt)}

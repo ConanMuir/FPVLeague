@@ -4,6 +4,7 @@ import {S,save} from '../config/settings.js';
 import {BTN,CAL,PAIR,RADIO,axv,pad,padBlocked,padX} from '../input/input.js';
 import {setGame} from '../modes/dogfight.js';
 import {LAB,exitLab} from '../modes/lab.js';
+import {MODES,modeId,modeList} from '../modes/registry.js';
 import {showMenu,startDemo,startMatch} from '../modes/match.js';
 import {enterGame,leaveGame,mpMsg} from '../net/net.js';
 import {BALLS,setBall} from '../render/ball.js';
@@ -37,7 +38,7 @@ syncUI();
 addEventListener('gamepadconnected',e=>{if(RADIO.test(e.gamepad.id)&&S.thrMode!=='full'){S.thrMode='full';save();syncUI();feed('Radio detected: throttle set to full range. Open the menu and press Calibrate radio.')}});
 $('nick').value=S.name||'';$('nick').oninput=e=>{S.name=e.target.value.slice(0,16);save()};$('tpref').value=S.tp;$('tpref').onchange=e=>{S.tp=e.target.value;save()};
 $('host').onclick=()=>{exitLab();enterGame(Math.random().toString(36).slice(2,6),true)};$('join').onclick=()=>{exitLab();enterGame($('code').value,false)};$('code').onkeydown=e=>{if(e.key==='Enter'){exitLab();enterGame($('code').value,false)}};
-$('m_league').onclick=()=>pickGame('league');$('m_df').onclick=()=>pickGame('df');
+for(const M of modeList()){const b=document.createElement('button');b.className='sm';b.id='m_'+M.id;b.dataset.m=M.id;b.textContent=M.name;b.onclick=()=>pickGame(M.id);$('modes').append(b)}  // one button per registered mode (modes/registry.js)
 $('play').onclick=()=>{exitLab();startMatch()};$('resume').onclick=()=>showMenu(false);$('leave').onclick=()=>{exitLab();leaveGame();startDemo()};
 $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi','assist','dzy','xboost','boostBtn','loadout'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
@@ -56,4 +57,4 @@ export function menuPad(){const g=pad();if(padX!==menuPad.lx){menuPad.lx=padX;sy
  }
 // online lobby
 export function renderGames(peers){const box=$('games');box.textContent='';for(const p of peers){const pr=p.presence;if(!pr?.game||p.sameTab)continue;const code=String(pr.game).replace(/[^a-z0-9]/g,'').slice(0,6);if(!code||GS.net?.code===code)continue;
- const b=document.createElement('button');b.className='sm';b.textContent=`Join ${String(pr.host||'Pilot').slice(0,16)} · ${pr.m==='df'?'Dogfight':'League'} · ${code.toUpperCase()} · ${Math.min(6,pr.pl|0)} pilot${(pr.pl|0)===1?'':'s'}`;b.onclick=()=>enterGame(code,false);box.append(b)}}
+ const b=document.createElement('button');b.className='sm';b.textContent=`Join ${String(pr.host||'Pilot').slice(0,16)} · ${MODES[modeId(pr.m)].name} · ${code.toUpperCase()} · ${Math.min(6,pr.pl|0)} pilot${(pr.pl|0)===1?'':'s'}`;b.onclick=()=>enterGame(code,false);box.append(b)}}
