@@ -7,7 +7,7 @@ import {glow,scene,sun} from '../render/renderer.js';
 import {LOOKS,skyTex} from './maps.js';
 import {fbm,sm,vnoise} from './noise.js';
 import {CANY,DBASE,DCEIL,DHL,DHW,DLEN,DW,cxR,dfGrid,dfH,dfHt} from './terrain.js';
-import {CAVE,buildCaves,clipIndexed,inCave,sdCave} from './caves.js';
+import {CAVE,SEAM,buildCaves,clipIndexed,inCave,sdCave} from './caves.js';
 export {CAVE,inCave,sdCave};
 export const dfG=new THREE.Group();dfG.visible=false;scene.add(dfG);
 export const seeded=s=>()=>(s=s*16807%2147483647)/2147483647;
@@ -72,7 +72,7 @@ export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC)
   for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),n=fbm(x/40,z/40);grass.setHSL(.24+n*.06,.42,.2+n*.1,THREE.SRGBColorSpace);c3.copy(grass);
    c3.lerp(rock,cl((.86-nm.getY(i))*5,0,1));if(y<CANY+9)c3.lerp(sand,sm((CANY+9-y)/8));if(y>150)c3.lerp(snow,cl((y-150)/40,0,1)*cl((nm.getY(i)-.6)*4,0,1));c3.multiplyScalar(.85+n*.3);col.push(c3.r,c3.g,c3.b)}
   // cut the terrain open where the caves come up (clipped exactly along the cave walls); the same triangles are the collision mesh
-  const C=clipIndexed(Array.from(p.array),Array.from(g.index.array),[{a:Array.from(nm.array),n:3},{a:col,n:3}],(x,y,z)=>sdCave(x,y,z)),tg=new THREE.BufferGeometry();
+  const C=clipIndexed(Array.from(p.array),Array.from(g.index.array),[{a:Array.from(nm.array),n:3},{a:col,n:3}],(x,y,z)=>sdCave(x,y,z)+SEAM),tg=new THREE.BufferGeometry();
   tg.setAttribute('position',new THREE.Float32BufferAttribute(C.p,3));tg.setAttribute('normal',new THREE.Float32BufferAttribute(C.attrs[0].a,3));tg.setAttribute('color',new THREE.Float32BufferAttribute(C.attrs[1].a,3));tg.setIndex(C.idx);TERR={p:C.p,i:C.idx};
   const m=new THREE.Mesh(tg,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));m.receiveShadow=true;dfG.add(m)}
  // the caves: unlit rock with its light baked in (the sun can't reach), team-coloured guide strips, and beacons over each entrance

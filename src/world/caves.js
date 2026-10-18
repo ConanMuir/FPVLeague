@@ -30,6 +30,9 @@ export function sdPiece(o,x,y,z){if(o.k==='c'){const px=x-o.a[0],py=y-o.a[1],pz=
 // the whole network, capped at 60 m (pieces whose box is farther than the best so far are skipped)
 export function sdCave(x,y,z,skip){let m=60;for(const o of CAVE.pieces){if(o===skip)continue;const dx=Math.max(o.lo[0]-x,x-o.hi[0],0),dy=Math.max(o.lo[1]-y,y-o.hi[1],0),dz=Math.max(o.lo[2]-z,z-o.hi[2],0);
   if(dx*dx+dy*dy+dz*dz>=m*m)continue;const d=sdPiece(o,x,y,z);if(d<m)m=d}return m}
+// seams overlap: every surface is kept 0.35 m past where it meets the next one (more than the worst chord error, ~0.27 m), so
+// neighbouring pieces and the terrain overlap a little instead of meeting edge to edge with hairline cracks a round could slip through
+export const SEAM=.35;
 export const inCave=(x,y,z)=>y<dfHt(x,z)&&sdCave(x,y,z)<0;  // underground and inside a cave
 
 // ---------- bots: a route through the network ----------
@@ -64,11 +67,11 @@ export function buildCaves(){dfGrid();const W={p:[],c:[],i:[]},S={p:[],c:[],i:[]
  const orient=(M,inward)=>{for(let t=0;t<M.i.length;t+=3){const[a,b,c]=[M.i[t],M.i[t+1],M.i[t+2]].map(i=>M.p.slice(i*3,i*3+3)),u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[c[0]-a[0],c[1]-a[1],c[2]-a[2]];
   const f=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],m=[(a[0]+b[0]+c[0])/3,(a[1]+b[1]+c[1])/3,(a[2]+b[2]+c[2])/3],n=inward(m);
   if(f[0]*n[0]+f[1]*n[1]+f[2]*n[2]<0){const x=M.i[t+1];M.i[t+1]=M.i[t+2];M.i[t+2]=x}}};
- const out=(M,O,g)=>{const R=clipIndexed(M.p,M.i,[{a:M.c,n:3}],g),b=O.p.length/3;O.p.push(...R.p);O.c.push(...R.attrs[0].a);for(const i of R.idx)O.i.push(i+b)};
+ const out=(M,O,g)=>{const R=clipIndexed(M.p,M.i,[{a:M.c,n:3}],g),re=new Map();for(const i of R.idx){let j=re.get(i);if(j==null){j=O.p.length/3;re.set(i,j);O.p.push(R.p[i*3],R.p[i*3+1],R.p[i*3+2]);O.c.push(R.attrs[0].a[i*3],R.attrs[0].a[i*3+1],R.attrs[0].a[i*3+2])}O.i.push(j)}};  // only the vertices still in use
  const rockSD=(x,y,z)=>dfHt(x,z)-y;
- for(const o of CAVE.pieces){const M={p:[],c:[],i:[]},T={p:[],c:[],i:[]},g=(x,y,z)=>Math.min(sdCave(x,y,z,o),rockSD(x,y,z));
+ for(const o of CAVE.pieces){const M={p:[],c:[],i:[]},T={p:[],c:[],i:[]},g=(x,y,z)=>Math.min(sdCave(x,y,z,o),rockSD(x,y,z))+SEAM;
   if(o.k==='e'){const[rx,ry,rz]=o.r,lat=Array.from({length:25},(_,i)=>i/24*Math.PI),lon=Array.from({length:72},(_,i)=>i/72*Math.PI*2);
-   grid(M,lat,lon,(f,t)=>{const p=[o.c[0]+rx*Math.sin(f)*Math.cos(t),o.c[1]+ry*Math.cos(f),o.c[2]+rz*Math.sin(f)*Math.sin(t)],q=[(p[0]-o.c[0])/rx/rx,(p[1]-o.c[1])/ry/ry,(p[2]-o.c[2])/rz/rz],l=Math.hypot(...q)||1;
+   grid(M,lat,lon,(f,t)=>{const sf=f===0||f===Math.PI?0:Math.sin(f),p=[o.c[0]+rx*sf*Math.cos(t),o.c[1]+ry*Math.cos(f),o.c[2]+rz*sf*Math.sin(t)],q=[(p[0]-o.c[0])/rx/rx,(p[1]-o.c[1])/ry/ry,(p[2]-o.c[2])/rz/rz],l=Math.hypot(...q)||1;
     return[p,rockShade([-q[0]/l,-q[1]/l,-q[2]/l],.05,p[2],p)]},true);
    orient(M,m=>{const q=[(o.c[0]-m[0])/rx/rx,(o.c[1]-m[1])/ry/ry,(o.c[2]-m[2])/rz/rz];return q});
    // a glowing band round the cavern a third of the way up, and a ring of light on its floor
@@ -79,7 +82,7 @@ export function buildCaves(){dfGrid();const W={p:[],c:[],i:[]},S={p:[],c:[],i:[]
     e2=[e1[1]*d[2]-e1[2]*d[1],e1[2]*d[0]-e1[0]*d[2],e1[0]*d[1]-e1[1]*d[0]],nb=Math.max(1,Math.ceil(L/8)),rows=[];
    for(let k=0;k<6;k++)rows.push([-1,Math.PI/2*(1-k/6)]);for(let k=0;k<=nb;k++)rows.push([0,L*k/nb]);for(let k=1;k<=6;k++)rows.push([1,Math.PI/2*k/6]);
    const NS=48,th=Array.from({length:NS},(_,i)=>i/NS*Math.PI*2),ax=(row)=>{const[s,v]=row;if(s===0)return{c:a.map((q,j)=>q+d[j]*v),rad:r};
-    const c0=s<0?a:b,sg=s<0?-1:1;return{c:c0.map((q,j)=>q+sg*d[j]*r*Math.sin(v)),rad:r*Math.cos(v),sc:c0}};
+    const c0=s<0?a:b,sg=s<0?-1:1;return{c:c0.map((q,j)=>q+sg*d[j]*r*Math.sin(v)),rad:v===Math.PI/2?0:r*Math.cos(v),sc:c0}};  // poles exact, so their fans weld
    grid(M,rows,th,(row,t)=>{const{c,rad,sc}=ax(row),dir=[0,1,2].map(j=>Math.cos(t)*e1[j]+Math.sin(t)*e2[j]),p=c.map((q,j)=>q+dir[j]*rad);
     const n=sc?[0,1,2].map(j=>(sc[j]-p[j])/r):dir.map(v=>-v),gl=.32*(Math.max(0,Math.cos(t-Math.PI/2))**14+Math.max(0,Math.cos(t+Math.PI/2))**14);return[p,rockShade(n,gl,p[2],p)]},true);
    orient(M,m=>{let t=(m[0]-a[0])*d[0]+(m[1]-a[1])*d[1]+(m[2]-a[2])*d[2];t=Math.max(0,Math.min(L,t));return[a[0]+d[0]*t-m[0],a[1]+d[1]*t-m[1],a[2]+d[2]*t-m[2]]});

@@ -19,7 +19,7 @@ export function dfBot(d,dt){const D=DIFF[S.diff],ai=d.ai;
   ai.vis=!!best&&vis(best);  // the third bot on a team leans toward ground targets
   ai.tgt=best;ai.nz.lerp(_t.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize(),.5);
   ai.wp=best&&!ai.vis&&(inCave(d.p.x,d.p.y,d.p.z)||inCave(best.p.x,best.p.y,best.p.z))?caveRoute(d.p,best.p,los):null}  // caves: no sight of the target, so follow the tunnels (farthest visible node on the shortest route)
- const e=ai.tgt&&(e2=>e2.isTurret?e2.re<=0:e2.dead<=0)(ai.tgt)?ai.tgt:null,aim=_ip,ug=d.p.y<dfHt(d.p.x,d.p.z);let dist=1e9;  // ug: underground
+ const e=ai.tgt&&(e2=>e2.isTurret?e2.re<=0:e2.dead<=0)(ai.tgt)?ai.tgt:null,aim=_ip,ug=d.p.y<dfHt(d.p.x,d.p.z)||!!e&&inCave(e.p.x,e.p.y,e.p.z);let dist=1e9;  // ug: underground, or chasing something that is
  if(e){dist=e.p.distanceTo(d.p);aim.copy(e.p).addScaledVector(ai.nz,dist*(.014+.007*D.noise));if(!e.isTurret)aim.addScaledVector(_t.subVectors(e.v,d.v),dist/BSPD);const to=_dir.subVectors(aim,d.p).normalize();
   ai.tg.copy(aim).addScaledVector(to,-(e.isTurret?55:40));if(!ug)ai.tg.y=Math.max(ai.tg.y,e.isTurret?e.p.y+22:6);ai.look.copy(aim)}
  else{ai.tg.set(0,60,(d.team?1:-1)*DBASE);ai.look.copy(ai.tg)}

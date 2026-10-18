@@ -56,7 +56,7 @@ const benign = t => /fonts\.(googleapis|gstatic)\.com|favicon\.ico/i.test(t);
 async function open(browser, url, errors) {
   const p = await browser.newPage();
   await p.setViewport({width: 960, height: 540});
-  p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e)));
+  p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e) + (e?.stack ? ' @ ' + String(e.stack).split(String.fromCharCode(10)).slice(1, 4).map(t => t.trim()).join(' < ') : '')));
   p.on('console', m => { if (m.type() === 'error' && !benign(m.text() + ' ' + (m.location()?.url || ''))) errors.push('console.error: ' + m.text()); });
   p.on('requestfailed', q => { if (!benign(q.url())) errors.push('request failed: ' + q.url() + ' ' + (q.failure()?.errorText || '')); });
   await p.goto(url, {waitUntil: 'domcontentloaded'});
@@ -203,7 +203,7 @@ function pilot() {
     else if (L.drill === 'dodge') { const p = L.proj.find(q => q.st !== 'gone'); s[0] = p ? (Math.sin(now / 300) > 0 ? .9 : -.9) : cl(-L.tilt / 20); }
     set([0, 0, s[0], -s[1], -1, -1]); yaw(s[2]);
     if (L.drill === 'still') set([null, L.t < 5 ? 0 : -cl((8 - L.y) * .12)]);
-    if (L.drill === 'alt') thr((L.band[0] + L.band[1]) / 2);
+    if (L.drill === 'alt' && L.band) thr((L.band[0] + L.band[1]) / 2);  // the band is null for a moment as the drill starts
   }, 8);
 }
 async function labScenario(url) {
@@ -211,7 +211,7 @@ async function labScenario(url) {
   try {
     const p = await browser.newPage();
     await p.setViewport({width: 960, height: 540});
-    p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e)));
+    p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e) + (e?.stack ? ' @ ' + String(e.stack).split(String.fromCharCode(10)).slice(1, 4).map(t => t.trim()).join(' < ') : '')));
     p.on('console', m => { if (m.type() === 'error' && !benign(m.text() + ' ' + (m.location()?.url || ''))) errors.push('console.error: ' + m.text()); });
     await p.evaluateOnNewDocument(fakePad);
     await p.goto(url, {waitUntil: 'domcontentloaded'});

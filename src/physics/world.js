@@ -20,7 +20,7 @@ import {ball,ballContact,ballRoll} from './ball.js';
 import {dfCollision,sdDFt} from '../world/highlands.js';
 import {bodyOf} from '../parts/index.js';
 export let R=null,world=null;
-export const PHYS={ballMesh:false,net:true,stats:{escapes:0,steps:0,ms:0}};  // net: the escape safety net (checks switch it off for free flight)
+export const PHYS={ballMesh:false,net:true,ccd:'soft',stats:{escapes:0,steps:0,ms:0}};  // net: the escape safety net (checks switch it off for free flight); ccd 'soft': above 25 m/s predictive contacts 1.5 ticks of travel ahead instead of swept CCD (sweeping fast drones through the 250k-triangle Highlands meshes cost 4.6 ms a tick); slower, full CCD (it also keeps a resting quad still)
 // collision groups: membership<<16 | filter. QRY is only ever a query's membership, so query-only colliders never form solver pairs.
 export const GW_=1,GB_=2,GHULL=4,GDRONE=8,GBALL=16,GBUL=32,QRY=0x8000,grp=(m,f)=>(m<<16)|f;
 const USE={world:GHULL,ball:GBALL,drone:GDRONE,bullet:GBUL};
@@ -107,7 +107,7 @@ function setMode(b,o,m){if(o.bodyMode===m)return;if(m==='off'){b.setEnabled(fals
 // the ball's velocity already has gravity/drag (ballPre). simBall: the ball moves this tick.
 export function physStep(dt,simBall){const t0=performance.now();world.timestep=dt;setMap(!!GS.OBSON);  // timestep: goal slow-mo steps by less than 1/120 s
  for(const d of GS.drones){const b=d.rb;if(!b)continue;const m=d.dead>0?'off':d.ph?'dyn':'kin';setMode(b,d,m);
-  if(m==='dyn'){b.setTranslation(d.p,true);b.setRotation(vec4(d.q),true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
+  if(m==='dyn'){if(PHYS.ccd==='soft'){const sp=d.v.length(),fast=sp>25;if(fast!==d.ccdFast){d.ccdFast=fast;b.enableCcd(!fast)}b.setSoftCcdPrediction(fast?Math.min(6,sp*dt*1.5):0)}b.setTranslation(d.p,true);b.setRotation(vec4(d.q),true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
   else if(m==='kin'){b.setNextKinematicTranslation(d.p);b.setNextKinematicRotation(vec4(d.q))}}
  {const m=GS.OBSON?'off':simBall?'dyn':'kin';setMode(ballBody,ball,m);
   if(m==='dyn'){ball.v0.copy(ball.v);ballBody.setTranslation(ball.p,true);ballBody.setRotation(vec4(ball.q),true);ballBody.setLinvel(ball.v,true);ballBody.setAngvel(ball.w,true)}
