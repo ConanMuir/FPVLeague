@@ -38,7 +38,10 @@ syncUI();
 addEventListener('gamepadconnected',e=>{if(RADIO.test(e.gamepad.id)&&S.thrMode!=='full'){S.thrMode='full';save();syncUI();feed('Radio detected: throttle set to full range. Open the menu and press Calibrate radio.')}});
 $('nick').value=S.name||'';$('nick').oninput=e=>{S.name=e.target.value.slice(0,16);save()};$('tpref').value=S.tp;$('tpref').onchange=e=>{S.tp=e.target.value;save()};
 $('host').onclick=()=>{exitLab();enterGame(Math.random().toString(36).slice(2,6),true)};$('join').onclick=()=>{exitLab();enterGame($('code').value,false)};$('code').onkeydown=e=>{if(e.key==='Enter'){exitLab();enterGame($('code').value,false)}};
-for(const M of modeList()){const b=document.createElement('button');b.className='sm';b.id='m_'+M.id;b.dataset.m=M.id;b.textContent=M.name;b.onclick=()=>pickGame(M.id);$('modes').append(b)}  // one button per registered mode (modes/registry.js)
+// sub-screens (Play online, Settings): open over the menu, Back or Esc returns to the main list
+ for(const b of document.querySelectorAll('#home [data-scr]'))b.onclick=()=>menuScreen(b.dataset.scr);for(const b of document.querySelectorAll('#menu .back'))b.onclick=()=>menuScreen(null);
+ addEventListener('keydown',e=>{if(e.code==='Escape'&&GS.menuOpen&&document.querySelector('#menu .scr:not([hidden])')){menuScreen(null);e.stopImmediatePropagation()}},true);
+ for(const M of modeList()){const b=document.createElement('button');b.className='sm';b.id='m_'+M.id;b.dataset.m=M.id;b.textContent=M.name;b.onclick=()=>pickGame(M.id);$('modes').append(b)}  // one button per registered mode (modes/registry.js)
 $('play').onclick=()=>{exitLab();startMatch()};$('resume').onclick=()=>showMenu(false);$('leave').onclick=()=>{exitLab();leaveGame();startDemo()};
 $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi','assist','dzy','xboost','boostBtn','loadout'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
@@ -49,6 +52,7 @@ export function syncUI(){for(const[k,,type]of FIELDS){const inp=$('f_'+k);inp.va
  $('o_'+k).textContent=type==='rng'?(k==='tilt'||k==='fov'?S[k]+'°':(+S[k]).toFixed(2)):''}
  for(let i=0;i<4;i++){$('ax'+i).value=CAL()[i].a;$('inv'+i).checked=CAL()[i].s<0}$('fireb').value=String(padX?S.xfire:S.fireBtn);$('flipb').value=String(padX?S.xflip:S.flipBtn)}
 function pickGame(m){if(GS.net){mpMsg('Leave the online game to switch modes.');return}const lab=LAB.on;exitLab();S.game=m;save();setGame(m);if(GS.demo||lab)startDemo();else startMatch()}
+export function menuScreen(id){for(const s of document.querySelectorAll('#menu .scr'))s.hidden=s.id!=='scr-'+id;$('home').hidden=!!id;(id?document.querySelector('#scr-'+id+' .back'):$(GS.demo?'play':'resume'))?.focus({preventScroll:true})}
 export function menuPad(){const g=pad();if(padX!==menuPad.lx){menuPad.lx=padX;syncUI()}$('gpname').textContent=padBlocked?'· blocked in this view':g?'· '+g.id.slice(0,40)+(RADIO.test(g.id)?' (radio)':padX?' (Xbox layout)':''):'· none yet (move a stick or press a button)';
  for(let i=0;i<8;i++){const v=g?.axes[i]??0,b=$('ab'+i);b.style.height=Math.abs(v)*50+'%';b.style.bottom=v<0?(50-Math.abs(v)*50)+'%':'50%'}
  for(let i=0;i<4;i++){const v=g?axv(g,i):0,b=$('ch'+i);b.style.left=(v<0?50+v*50:50)+'%';b.style.width=Math.abs(v)*50+'%'}

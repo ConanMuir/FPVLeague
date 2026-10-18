@@ -22,41 +22,58 @@
 </div>
 
 <div id="menu">
-  <div id="panel">
-    <div>
-      <div class="modes" id="modes" role="group" aria-label="Game mode"></div>
-      <h1><span class="b">DRONE</span><br><span class="o" id="h1o">LEAGUE</span></h1>
+  <div id="home">
+    <div class="modes" id="modes" role="group" aria-label="Game mode"></div>
+      <h1><span class="b">DRONE</span><br><span class="o" id="h1o">LEAGUE</span></h1>
       <p class="sub" id="sub">Rocket-powered soccer for 5-inch acro quads. Betaflight-style rates, FPV uptilt, boost orbs and bots that read the ball.</p>
-      <div class="btns"><button class="go" id="play">Play vs bots</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Leave game</button><button id="garbtn">Garage</button><button id="modbtn">Mod panel</button><button id="labbtn">Calibration Lab</button></div>
-      <h2 style="margin-top:22px">Online match</h2>
-      <div class="mp"><input id="nick" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><select id="tpref" aria-label="Team preference"><option value="auto">Any team</option><option value="0">Blue</option><option value="1">Orange</option></select><button class="sm" id="host">Host</button></div>
-      <div class="mp"><input id="code" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="join">Join</button></div>
-      <div id="games"></div>
+    <nav class="nav" aria-label="Main menu">
+      <button class="go" id="resume" hidden>Resume</button>
+      <button class="go" id="play">Play vs bots</button>
+      <button id="onlbtn" data-scr="online">Play online</button>
+      <button id="garbtn">Garage</button>
+      <button id="labbtn">Training<small>Calibration Lab</small></button>
+      <button id="setbtn" data-scr="settings">Settings</button>
+      <button id="modbtn">Mod panel</button>
+      <button class="quit" id="leave" hidden>Leave game</button>
+    </nav>
+  </div>
+  <section class="scr" id="scr-online" hidden aria-label="Online match">
+    <div class="shead"><button class="sm back">Back</button><h2>Online match</h2></div>
+    <div class="mp"><input id="nick" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><select id="tpref" aria-label="Team preference"><option value="auto">Any team</option><option value="0">Blue</option><option value="1">Orange</option></select><button class="sm" id="host">Host</button></div>
+      <div class="mp"><input id="code" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="join">Join</button></div>
+      <div id="games"></div>
       <p class="note" id="mpnote">Connecting…</p>
-      <div class="keys">
-        <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
-        <kbd>A / D</kbd><span>Yaw</span>
-        <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
-        <kbd>Boost</kbd><span>Off by default (Super boost setting). When on: top 5% of the throttle stick = super boost (Shift / Space on keyboard), and gold orbs refill it</span>
-        <kbd>F / click</kbd><span>Fire (Dogfight). Guns follow the FPV camera; auto-fire shoots when the crosshair is on a target</span>
-        <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
-        <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
-        <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
-        <kbd>E</kbd><span>Flip back over now (upside down on the ground it also rolls back onto its feet by itself)</span>
-        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped below</span>
+  </section>
+  <section class="scr wide" id="scr-settings" hidden aria-label="Settings">
+    <div class="shead"><button class="sm back">Back</button><h2>Settings</h2></div>
+    <div class="cols">
+      <div>
+        <h2>Match &amp; flight</h2>
+      <div class="set" id="set"></div><div class="mp"><button class="sm" id="sensbtn">Easy sensitivity setup…</button><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div>
+        <h2 style="margin-top:20px">Keys</h2>
+        <div class="keys">
+        <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
+        <kbd>A / D</kbd><span>Yaw</span>
+        <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
+        <kbd>Boost</kbd><span>Off by default (Super boost setting). When on: top 5% of the throttle stick = super boost (Shift / Space on keyboard), and gold orbs refill it</span>
+        <kbd>F / click</kbd><span>Fire (Dogfight). Guns follow the FPV camera; auto-fire shoots when the crosshair is on a target</span>
+        <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
+        <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
+        <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
+        <kbd>E</kbd><span>Flip back over now (upside down on the ground it also rolls back onto its feet by itself)</span>
+        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped below</span>
+      </div>
+      </div>
+      <div>
+        <h2 style="margin-top:20px">Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
+      <div class="axes" id="axes"></div><div class="btns" id="btns"></div>
+      <div class="chans" id="chans"></div>
+      <div class="mp"><button class="sm" id="calbtn">Choose your controls</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
+      <div class="map" id="map"></div>
+      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Choose your controls and move or press whatever you want for each function. Xbox controller: works straight away (left stick throttle, centre = hover); choose your controls to put any function on any stick, trigger, bumper, d-pad or button. It keeps its own setup, separate from your radio. Gamepad shortcut buttons are ignored for radios so switches don't trigger them.</p>
       </div>
     </div>
-    <div>
-      <h2>Match &amp; flight</h2>
-      <div class="set" id="set"></div><div class="mp"><button class="sm" id="sensbtn">Easy sensitivity setup…</button><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div>
-      <h2 style="margin-top:20px">Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
-      <div class="axes" id="axes"></div><div class="btns" id="btns"></div>
-      <div class="chans" id="chans"></div>
-      <div class="mp"><button class="sm" id="calbtn">Choose your controls</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
-      <div class="map" id="map"></div>
-      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Choose your controls and move or press whatever you want for each function. Xbox controller: works straight away (left stick throttle, centre = hover); choose your controls to put any function on any stick, trigger, bumper, d-pad or button. It keeps its own setup, separate from your radio. Gamepad shortcut buttons are ignored for radios so switches don't trigger them.</p>
-    </div>
-  </div>
+  </section>
 </div>
 
 <div id="sens" hidden><div class="sbox"><div class="mhead"><b id="sstep">Step 1 of 4</b><span class="note" style="margin:0">Easy sensitivity setup</span><button class="sm" id="sx">✕</button></div>

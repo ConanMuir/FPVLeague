@@ -29,9 +29,25 @@ canvas#gl{position:fixed;inset:0;display:block;width:100%;height:100%}
 #feed{position:absolute;left:18px;top:calc(14px + env(safe-area-inset-top,0px));display:grid;gap:4px;font-size:14px}
 #feed div{background:var(--panel);padding:4px 10px;border-radius:4px;border-left:3px solid var(--edge)}
 .cb{color:var(--blue)}.co{color:var(--orange)}
-#menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(ellipse at center,rgba(5,7,13,.25),rgba(5,7,13,.8));overflow:auto}
-#panel{width:min(900px,100%);max-height:100%;overflow:auto;background:var(--panel);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(8px);display:grid;grid-template-columns:1fr 1.15fr;gap:28px;padding:26px;box-sizing:border-box}
-@media (max-width:760px){#panel{grid-template-columns:1fr;padding:18px}}
+/* main menu, Rocket League style: a left column of slanted buttons over the live arena, sub-screens as panels, a compact pause list */
+#menu{position:fixed;inset:0;display:flex;align-items:center;gap:28px;padding:16px clamp(16px,5vw,72px);box-sizing:border-box;background:linear-gradient(90deg,rgba(5,7,13,.92) 0%,rgba(5,7,13,.7) 34%,rgba(5,7,13,.12) 70%);overflow:auto}
+#home{width:min(400px,100%);flex:none;max-height:100%;overflow:auto;padding:6px 10px 6px 4px}
+.nav{display:flex;flex-direction:column;gap:7px;margin-top:6px}
+.nav button{position:relative;display:flex;align-items:baseline;justify-content:space-between;gap:10px;text-align:left;font-size:22px;font-style:italic;padding:12px 22px 12px 26px;border-radius:2px;border:0;border-left:4px solid transparent;
+ background:linear-gradient(90deg,rgba(22,30,50,.92),rgba(10,14,26,.78));box-shadow:inset 0 1px 0 rgba(255,255,255,.07);transform:skewX(-10deg);transition:transform .12s,background .12s,border-color .12s}
+.nav button>*,.nav button{text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.nav button small{font:500 12px var(--disp);letter-spacing:.06em;color:var(--dim);font-style:normal}
+.nav button:hover,.nav button:focus-visible{transform:skewX(-10deg) translateX(8px);border-left-color:var(--orange);background:linear-gradient(90deg,rgba(120,62,22,.95),rgba(40,22,12,.82));filter:none;outline:none}
+.nav button.go{background:linear-gradient(90deg,var(--blue),#6a5cff 55%,var(--orange));border-left-color:#fff;font-size:26px;padding:15px 22px 15px 26px}
+.nav button.go:hover,.nav button.go:focus-visible{background:linear-gradient(90deg,#5aa6ff,#7d71ff 55%,#ff9c45)}
+.nav button.quit:hover,.nav button.quit:focus-visible{border-left-color:#ff4d4d;background:linear-gradient(90deg,rgba(255,77,77,.25),rgba(255,77,77,.03))}
+.scr{width:min(520px,100%);max-height:100%;overflow:auto;box-sizing:border-box;padding:20px 22px;background:var(--panel);border:1px solid var(--edge);border-left:3px solid var(--orange);border-radius:4px;backdrop-filter:blur(8px)}
+.scr.wide{width:min(980px,100%)}.scr .cols{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.shead{display:flex;align-items:center;gap:14px;margin-bottom:14px}.shead h2{margin:0;font-size:20px;letter-spacing:.08em;color:var(--ink);font-style:italic}
+#menu:has(.scr:not([hidden])) #home{display:none}
+#menu.pause{justify-content:center;background:rgba(5,7,13,.62)}
+#menu.pause #home{width:min(340px,100%)}#menu.pause .sub,#menu.pause .modes{display:none}#menu.pause h1{font-size:34px;margin-bottom:10px}
+@media (max-width:760px){#menu{align-items:flex-start;background:rgba(5,7,13,.8)}.scr .cols{grid-template-columns:1fr}.nav button{font-size:19px}.nav button.go{font-size:22px}}
 h1{margin:0;font-size:clamp(38px,6vw,58px);line-height:.9;font-style:italic;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
 h1 .b{color:var(--blue)}h1 .o{color:var(--orange)}
 .sub{color:var(--dim);margin:.6em 0 1.2em;font-size:15px}
