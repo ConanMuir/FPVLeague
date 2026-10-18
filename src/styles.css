@@ -143,3 +143,11 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
 .bres{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--dim);margin-top:6px}.bres b{color:var(--ink)}
 /* menu panels still scroll on small screens, but without a visible scroll bar (Windows draws a classic one under and beside the settings) */
 #menu,#home,.scr{scrollbar-width:none;overflow-x:hidden}#menu::-webkit-scrollbar,#home::-webkit-scrollbar,.scr::-webkit-scrollbar{display:none}
+/* long line: who has the ball, and your line cam under the scoreboard */
+#llbox{position:absolute;left:50%;top:calc(66px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:grid;justify-items:center;gap:4px;pointer-events:none}
+#llhdr{font:700 13px var(--disp);letter-spacing:.12em;padding:3px 10px;border-radius:3px;background:rgba(5,8,16,.7);color:var(--tc);border:1px solid var(--tc)}
+#llbox.mine #llhdr{background:var(--tc);color:#08101c;animation:llpulse 1.6s ease-in-out infinite}
+@keyframes llpulse{50%{box-shadow:0 0 18px var(--tc)}}
+#llpip{position:relative;width:clamp(180px,22vw,300px);aspect-ratio:3/2;border:2px solid var(--tc);border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.5);overflow:hidden}
+#llpip::after{content:'LINE CAM';position:absolute;left:6px;top:4px;font:700 10px var(--mono);color:#fff;text-shadow:0 1px 2px #000}
+#lltens{position:absolute;left:0;bottom:0;height:4px;width:0;background:var(--tc)}

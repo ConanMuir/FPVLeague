@@ -20,7 +20,7 @@ export const OUT={
  alpine:{name:'Alpine (snow)',sky:['#2f62a0','#6f9fd2','#c8dcee','#eef4f8','#dfe7ef','#b4c2d0'],sun:[.3,.45,.8],sc:0xfff6ee,si:2.6,hemi:[0xe8f0ff,0x9aa8b8,1.05],fog:0xdde8f2,
   turf:[98,18,34,12,25,10],tile:['#7f9bb8',210,18,52,12],line:'rgba(255,255,255,.92)',wall:0x1c64d8,wo:.3,exp:.9,lo:[.9,.93,.97],hi:[.42,.44,.48],hiY:[260,420],hill:70,mtn:360,steep:1,props:['snowpine'],n:1000,clouds:38,ct:0xffffff,snow:1}};
 function hgt(c,x,z){const e=edgeD(x,z);let y=sm(e/90)*(fbm(x/140,z/140)*c.hill+e*.05)+cl((e-380)/220,0,1)*fbm(x/90+7,z/90)*c.mtn;
- if(c.mesa)y+=sm(e/50)*cl((fbm(x/170+3,z/170-2)-.5)*14,0,1)*c.mesa*(.7+.3*vnoise(x/40,z/40));return y-.06}
+ if(c.mesa)y+=sm(e/50)*cl((fbm(x/170+3,z/170-2)-.5)*14,0,1)*c.mesa*(.7+.3*vnoise(x/40,z/40));return y-.06-1.4*(1-sm(e/40))}  // sunk 1.5 m under the pitch and stands (the turf sat 6 cm above it and z-fought far away), back to ground level 40 m out
 export function skyTex(c){const d=new V3(...c.sun).normalize(),t=tex(1024,512,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);[0,.3,.46,.5,.53,1].forEach((s,i)=>gr.addColorStop(s,c.sky[i]));g.fillStyle=gr;g.fillRect(0,0,w,h);
  const u=(Math.atan2(d.z,d.x)/(2*Math.PI)+.5)*w,v=(.5-Math.asin(d.y)/Math.PI)*h,r=g.createRadialGradient(u,v,0,u,v,h*.4);r.addColorStop(0,'rgba(255,248,225,.9)');r.addColorStop(.12,'rgba(255,240,205,.4)');r.addColorStop(1,'rgba(255,240,205,0)');g.fillStyle=r;g.fillRect(0,0,w,h)});
  t.mapping=THREE.EquirectangularReflectionMapping;return t}

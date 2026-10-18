@@ -6,15 +6,17 @@
 // Scoring ("Long line scoring"): Hoops (default) = Quidditch-style rings on posts at each end, tow the ball through one of the other
 // team's rings toward their end wall; Goals = drag the ball across the goal line. Only a ball on a line scores either way.
 import * as THREE from 'three';
-import {COL,H,HL} from '../config/constants.js';
+import {COL,H,HL,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
-import {BM,BR,DRAD,MAXB} from '../config/tune.js';
+import {BM,BR,DRAD,G,MAXB} from '../config/tune.js';
+const BG_=()=>G;  // your quad's weight per unit mass
 import {noise,tone} from '../audio/audio.js';
 import {ball} from '../physics/ball.js';
-import {glow,scene} from '../render/renderer.js';
+import {camera,glow,renderer,scene} from '../render/renderer.js';
+import {$,TEAM} from '../config/constants.js';
 import {GS} from '../state.js';
 import {feed} from '../ui/hud.js';
-export const LL={d:null,cd:0,z:0,j:0};  // d: the drone holding the line; cd: no steal until this runs out; z: ball z last tick (scoring); j: last tug (m/s)
+export const LL={d:null,cd:0,z:0,j:0,load:0};  // load: cable tension / your quad's weight, smoothed (the badge's bar)  // d: the drone holding the line; cd: no steal until this runs out; z: ball z last tick (scoring); j: last tug (m/s)
 const _n=new THREE.Vector3(),_h=new THREE.Vector3(),_u=new THREE.Vector3(),_r=new THREE.Vector3(),_q=new THREE.Quaternion();
 export const ropeLen=()=>S.llLen;  // hook to the top of the ball (m)
 const STIFF={stiff:30,normal:16,bungee:7};  // cable stretch: natural frequency of the stretch (rad/s)
@@ -26,13 +28,13 @@ export function llDrop(){LL.d=null;LL.cd=0;LL.z=ball.p.z}
 export function llTouch(d){if(!S.longline||LL.d===d||LL.cd>0||d.dead>0||LL.d&&LL.d.team===d.team)return;const stole=!!LL.d;LL.d=d;LL.cd=.6;
  if(!GS.demo)feed(stole?`${who(d)} stole the line`:`${who(d)} hooked the ball`);if(d===GS.player||stole)tone(stole?520:380,stole?260:760,.18,.12,'triangle')}
 // one tick, after the flight model and before the Rapier step (so both bodies move with the cable's impulse this tick)
-export function llStep(dt){LL.cd-=dt;LL.j=0;if(hoopMode())hoopHit();const d=LL.d;if(!d)return;if(d.dead>0||!GS.drones.includes(d)){LL.d=null;return}
+export function llStep(dt){LL.cd-=dt;LL.j=0;LL.load*=.97;if(hoopMode())hoopHit();const d=LL.d;if(!d)return;if(d.dead>0||!GS.drones.includes(d)){LL.d=null;return}
  const h=hookOf(d,_h),n=_n.subVectors(ball.p,h),dist=n.length(),L=ropeLen()+BR;if(dist<1e-4)return;n.divideScalar(dist);
  const ext=dist-L;if(ext<=0)return;  // slack: the cable just hangs
  const ib=1/(BM*S.llW),id=1/d.fl.mass,vr=_r.subVectors(ball.v,d.v).dot(n),me=1/(ib+id),W=STIFF[S.llStr]||16,cap=L*.15;
  // spring-damper on the stretch, never past "no separating" (no overshoot), and a hard stop past 15% stretch
  const soft=me*dt*(W*W*ext+2*.7*W*vr),hard=me*(vr+(ext-cap)/dt),j=Math.min(Math.max(0,ext>cap?Math.max(soft,hard):Math.min(soft,me*(vr+ext/dt))),4/id);if(j<=0)return;  // at most 4 m/s of tug on the quad per tick: a snatch spreads over a few ticks instead of teleporting the camera
- ball.v.addScaledVector(n,-j*ib);d.v.addScaledVector(n,j*id);LL.j=j*id;const bs=ball.v.length();if(bs>MAXB)ball.v.multiplyScalar(MAXB/bs);
+ ball.v.addScaledVector(n,-j*ib);d.v.addScaledVector(n,j*id);LL.j=j*id;LL.load+=(j*id/dt/(BG_()||1)-LL.load)*.08;const bs=ball.v.length();if(bs>MAXB)ball.v.multiplyScalar(MAXB/bs);
  // the hook sits below the centre of mass: the pull also tips the quad toward the load (body-frame rates, the flight controller fights it)
  _q.copy(d.q).invert();const nb=_u.copy(n).applyQuaternion(_q),hb=-.3*DRAD/.6;d.w.x+=hb*nb.z*j*id*2.2;d.w.z-=hb*nb.x*j*id*2.2;  // r x F with r = (0,hb,0)
  if(j*id>.25&&d===GS.player)noise(.08,140,Math.min(.22,j*id/8))}  // a creak when it snatches
@@ -65,3 +67,20 @@ export function llDraw(){const hv=hoopMode();if(hv&&!HOOPS.length)buildHoops();h
  const a=hookOf(d,_h),b=_r.copy(ball.p).addScaledVector(_n.subVectors(a,ball.p).normalize(),BR),dist=a.distanceTo(b),Lr=ropeLen(),sag=dist<Lr?Math.sqrt(Lr*Lr-dist*dist)*.5:0;
  for(let i=0;i<N;i++){const t=i/(N-1);PTS[i].set(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t-sag*4*t*(1-t),a.z+(b.z-a.z)*t)}
  const g=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(PTS),N,.07*DRAD/.6,5,false);if(cable){cable.geometry.dispose();cable.geometry=g}else{cable=new THREE.Mesh(g,cmat);cable.frustumCulled=false;scene.add(cable)}}
+
+// ---------- line cam (picture in picture under the scoreboard) and the "on the line" badge ----------
+// The cam hangs at your hook looking down the cable at the ball, with your quad's nose at the top of the frame. Drawn straight to the
+// canvas after the main frame, in the box's screen rectangle, reusing this frame's shadow map.
+const pipCam=new THREE.PerspectiveCamera(62,1.5,.3,900),_f=new THREE.Vector3();let pipOn=false,hudKey='';
+function llHud(d){const box=$('llbox');if(!box)return;const mine=!!d&&d===GS.player,show=S.longline&&!GS.demo&&!GS.net&&!GS.menuOpen;
+ const key=!show?'':!d?'loose':mine?'me':d.team+':'+d.name;if(key!==hudKey){hudKey=key;box.hidden=!show||!d;box.classList.toggle('mine',mine);box.style.setProperty('--tc',['#3d95ff','#ff8a2a'][d?.team??0]);
+  $('llhdr').textContent=!d?'':mine?'YOU HAVE THE BALL':`${d.team===GS.player?.team?'TEAMMATE':TEAM[d.team]} · ${d.name.toUpperCase()} HAS IT`;$('llpip').hidden=!mine||!S.llPip}
+ if(mine)$('lltens').style.width=Math.min(100,LL.load*100).toFixed(0)+'%'}
+export function llPipCam(){const d=LL.d;pipOn=!!(S.longline&&S.llPip&&d&&d===GS.player&&d.dead<=0&&!GS.menuOpen&&!GS.demo);llHud(S.longline?d:null);if(!pipOn)return;
+ const h=hookOf(d,_h);pipCam.position.copy(h);pipCam.up.copy(_f.set(0,0,-1).applyQuaternion(d.q));pipCam.lookAt(ball.p);
+ const dist=h.distanceTo(ball.p);pipCam.fov=cl(2*Math.atan((BR*5)/Math.max(dist,1))*180/Math.PI,55,100);pipCam.updateProjectionMatrix()}
+export function llPip(){if(!pipOn)return;const el=$('llpip');if(!el||el.hidden)return;const r=el.getBoundingClientRect(),cr=renderer.domElement.getBoundingClientRect();if(r.width<4)return;
+ const x=r.left-cr.left,y=cr.height-(r.bottom-cr.top),w=r.width,hh=r.height;pipCam.aspect=w/hh;pipCam.updateProjectionMatrix();
+ const au=renderer.autoClear,sh=renderer.shadowMap.autoUpdate;renderer.setRenderTarget(null);renderer.autoClear=false;renderer.shadowMap.autoUpdate=false;
+ renderer.setScissorTest(true);renderer.setScissor(x,y,w,hh);renderer.setViewport(x,y,w,hh);renderer.clear(true,true,false);renderer.render(scene,pipCam);
+ renderer.setScissorTest(false);renderer.setViewport(0,0,cr.width,cr.height);renderer.autoClear=au;renderer.shadowMap.autoUpdate=sh}
