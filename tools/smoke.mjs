@@ -238,7 +238,7 @@ async function labScenario(url) {
     await click(p, '#lpre [data-p=pro]'); await click(p, '#lgo');
     await p.evaluate(pilot);
     out.drills = [];
-    for (const [id, secs] of [['still', 7], ['roll', 9], ['pitch', 5], ['yaw', 5], ['track', 9], ['dodge', 7], ['alt', 7]]) {
+    for (const [id, secs] of [['still', 7], ['roll', 9], ['pitch', 5], ['yaw', 5], ['track', 9], ['alt', 7]]) {
       const L0 = await p.waitForFunction(i => { const L = window.__dl.lab(); return L.drill === i && L.st === 'drill'; }, {timeout: 20000}, id).then(() => true, () => false);
       await sleep(secs * 1000);
       const L = await p.evaluate(() => window.__dl.lab()), s = await snap(p);
@@ -313,7 +313,7 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(x[2]?.a === 3 && x[2].s < 0 && x[3]?.a === 2 && x[3].s > 0, 'binding: pitch and roll on the right stick');
   chk(L.bound?.xfire === 7, 'binding: fire on RT reported as an analog button');
   chk(L.bound?.xflip === 'a5', 'binding: flip on RT reported as an axis that reads 0 until its first press');
-  chk(L.introOpen && L.drills?.length === 7 && L.drills.every(d => d.started && d.finite && d.t > 2), 'Lab: every drill should start and run with finite state');
+  chk(L.introOpen && L.drills?.length === 6 && L.drills.every(d => d.started && d.finite && d.t > 2), 'Lab: every drill should start and run with finite state');
   chk(L.drills?.reduce((a, d) => Math.max(a, d.reps), 0) > 0 && L.drills.at(-1).changes > 0, 'Lab: reps should be measured and the tuner should change something');
   chk(L.sumOpen && L.working?.type === 'ACTUAL', 'Lab: summary should open; Pro tunes in Actual rates');
   chk(L.saved && L.saved.rpi === 2 && eq(L.saved.rprof[2], L.working) && L.saved.assist === 0 && eq(L.saved.rprof.slice(0, 2), L.before.rprof.slice(0, 2)), 'Lab: Save should write the tuned profile into slot 3 only, Pro assist 0');

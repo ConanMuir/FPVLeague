@@ -49,7 +49,7 @@ export function setTo(T,k,target,maxF,why){const q=T.p[k],to=cl(cl(target,q.v-ma
  if(Math.abs(to-q.v)<(q.hi-q.lo)*.004)return null;const c={k,from:q.v,to,why,txt:`${why} → ${q.lab} ${fmt(q,q.v)}→${fmt(q,to)}`,rep:T.reps};q.v=to;T.log.push(c);T.changes++;return c}
 // one rep of drill group grp scored `loss` (0 = on target): judge pending changes, then say whether a new change may be made
 function verdict(T,grp,loss){T.loss[grp]=ema(T.loss[grp],loss,.5);let ok=true;
- for(const c of T.pend.filter(c=>c.grp===grp)){c.after.push(loss);if(c.after.length<2){ok=false;continue}T.pend.splice(T.pend.indexOf(c),1);const a=mean(c.after);
+ for(const c of T.pend.filter(c=>c.grp===grp)){c.after.push(loss);T.pend.splice(T.pend.indexOf(c),1);const a=mean(c.after);  // judged after one more rep, so the tune keeps moving while you fly
   if(a>c.before*1.3+.25){const q=T.p[c.k];q.v=c.from;q.g=Math.max(q.g*.5,T.P.g0*.15);q.sg=0;ok=false;
    T.log.push({k:c.k,from:c.to,to:c.from,back:1,txt:`Worse after that change (score ${c.before.toFixed(2)}→${a.toFixed(2)}) → backing off ${q.lab} to ${fmt(q,c.from)}`})}}
  return ok}
@@ -81,15 +81,18 @@ export function onTrack(T,Ms,dzNow){if(!Ms)return[];T.reps++;const tg=T.P.tg,pro
  if(!pro&&jit>1.5&&!out.length){const c=nudge(T,'as',1,.4,`jittery sticks (${jit.toFixed(1)} reversals/s)`);if(c)out.push(c)}
  return out}
 
-// ---- dodge: over-correcting past level -> assist (Default) or less max rate; full stick in time and still hit -> more max rate
-export function onDodge(T,M){if(!M)return[];T.reps++;const E=stats(T,'d',{...M,hit:M.hit?1:0,react:M.react??1.5},['hit','react','peak','over']),tg=T.P.tg,pro=T.pid==='pro';
- if(!verdict(T,'d',rel(E.over,tg.over)+E.hit+.5*rel(E.react,tg.react)))return[];const out=[],n=(k,s,m,why)=>{const c=track(T,'d',nudge(T,k,s,m,why));if(c)out.push(c)};
- if(E.over>tg.over){const w=`over-corrects ${p0(E.over)}° past level after a dodge (target ≤ ${tg.over}°)`;if(!pro&&T.p.as.v<T.p.as.hi-.01)n('as',1,rel(E.over,tg.over),w);else{n('m0',-1,rel(E.over,tg.over),w);n('m1',-1,rel(E.over,tg.over),w)}}
- else if(E.hit>.4&&E.peak>.8&&E.react<=tg.react){const w=`full stick in ${E.react.toFixed(2)} s and still hit ${p0(E.hit*100)}% of the time`;n('m0',1,E.hit,w);n('m1',1,E.hit,w)}
- else if(!pro&&T.p.as.v>T.p.as.lo&&E.over<tg.over*.5&&E.hit<.3)n('as',-1,.5,'dodging cleanly');
+// ---- holding a height (live, every ~1.5 s in the hover and altitude drills): can you hold the throttle?
+// bouncing through the band -> softer throttle around hover (more expo); sinking or climbing with the stick held still -> throttle mid
+// follows the motor you actually need; stick pinned at an end and still outside the band -> less expo (more authority)
+export function onHold(T,M){if(!M)return[];T.reps++;const out=[],tg=T.P.tg,band=(M.hi-M.lo)||2.4;
+ if(M.steady&&Math.abs(M.drift)>.6){const c=setTo(T,'tm',M.motor*100,.06,`${M.drift<0?'sinks':'climbs'} ${Math.abs(M.drift).toFixed(1)} m/s with the throttle held still`);if(c)out.push(c)}
+ const loss=Math.max(0,M.amp/band-.5)+.4*Math.max(0,M.bounce-.5)+(1-M.inb);if(!verdict(T,'h',loss))return out;const n=(k,s,m,why)=>{const c=track(T,'h',nudge(T,k,s,m,why));if(c)out.push(c)};
+ if(M.bounce>.6&&M.amp>band*.45)n('te',1,Math.min(1,M.amp/band),`can't hold the height: bouncing ${M.amp.toFixed(1)} m at ${M.bounce.toFixed(1)}/s`);
+ else if(M.sat>.35&&M.inb<.5)n('te',-1,M.sat,`throttle at the end of its travel ${Math.round(M.sat*100)}% of the time and still outside the band`);
  return out}
 
 // ---- altitude gates: throttle mid follows the measured hover; bouncing through the band -> more throttle expo; slow with the stick at an end -> less
+// (the altitude drill also scores each 5 s band)
 export function onAlt(T,M){if(!M)return[];T.reps++;const out=[],tg=T.P.tg;if(M.hover!=null){T.hov=ema(T.hov,M.hover,.5);const c=setTo(T,'tm',T.hov*100,.15,`hovers at ${p0(T.hov*100)}% motor`);if(c)out.push(c)}
  const E=stats(T,'a',{...M,tEnter:M.tEnter??6},['over','exits','tEnter','sat']);
  if(!verdict(T,'a',rel(E.over,tg.alt)+.3*Math.max(0,E.exits-1)+.3*rel(E.tEnter,2.5)))return out;const n=(k,s,m,why)=>{const c=track(T,'a',nudge(T,k,s,m,why));if(c)out.push(c)};
