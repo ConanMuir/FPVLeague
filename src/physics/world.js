@@ -137,7 +137,8 @@ function groundContacts(d,dt){let touch=false,jn=0,hit=0;const DI=d.di||DI0,im=1
 function setMap(df){if(df===mapDF)return;mapDF=df;if(df&&!dfCols)buildDF();arenaCol.forEach(c=>c.setEnabled(!df));dfCols?.forEach(c=>c.setEnabled(df))}
 function buildDF(){const D=dfCollision(),add=(cd,x,y,z,q)=>{cd.setTranslation(x,y,z).setCollisionGroups(grp(GW_,GHULL|GB_|QRY)).setFriction(1).setFrictionCombineRule(R.CoefficientCombineRule.Min).setRestitution(0).setRestitutionCombineRule(R.CoefficientCombineRule.Max);
   if(q)cd.setRotation(q);dfCols.push(world.createCollider(cd))};dfCols=[];
- const h=D.hf;add(R.ColliderDesc.heightfield(h.nz,h.nx,h.heights,{x:h.w,y:1,z:h.l},R.HeightFieldFlags.FIX_INTERNAL_EDGES),0,0,0);
+ add(R.ColliderDesc.trimesh(D.terrain.vertices,D.terrain.indices,R.TriMeshFlags.FIX_INTERNAL_EDGES),0,0,0);PHYS.dfTerrain=dfCols[dfCols.length-1];  // terrain (cut open at the cave mouths; a heightfield can't have holes)
+ add(R.ColliderDesc.trimesh(D.caves.vertices,D.caves.indices,R.TriMeshFlags.FIX_INTERNAL_EDGES),0,0,0);PHYS.dfCaves=dfCols[dfCols.length-1];  // cave walls, facing inward
  for(const o of D.obs){const q=o.q?{x:o.q[0],y:o.q[1],z:o.q[2],w:o.q[3]}:null;
   if(o.s==='box')add(R.ColliderDesc.cuboid(o.h[0],o.h[1],o.h[2]),...o.p,q);
   else if(o.s==='cyl')add(R.ColliderDesc.cylinder(o.hh,o.r),...o.p,q);
