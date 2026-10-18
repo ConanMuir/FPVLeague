@@ -3,7 +3,7 @@
 // Stats come from the geometry: motor positions and part masses give the inertia tensor; thrust x lever arm / inertia gives
 // roll and pitch authority; prop drag torque / yaw inertia gives yaw authority; prop size sets thrust, pitch speed and spool;
 // part areas / mass give drag; chassis top area x flatness gives ball grip. No module outside parts/ needs to know a part exists.
-import {ARMS,motorsOf} from './arms.js';
+import {ARMS,motorsOf,rootOf} from './arms.js';
 import {CHASSIS} from './chassis.js';
 import {POWER} from './power.js';
 export {ARMS,CHASSIS,POWER,motorsOf};
@@ -35,7 +35,7 @@ function build(ids){const[a,c,p]=ids.map((id,s)=>partOf(s,id));const M=motorsOf(
  const box=(m,hx,hy,hz,x,y,z)=>{Ix+=m*(hy*hy+hz*hz)/3;Iy+=m*(hx*hx+hz*hz)/3;Iz+=m*(hx*hx+hy*hy)/3;pt(m,x,y,z)};
  for(const[x,z]of M)pt(motM,x,motorY,z);
  if(a.arm.style==='h'){const zl=a.front[1]+a.rear[1],zc=(a.rear[1]-a.front[1])/2;for(const s of[-1,1])box(rodM*1.5,a.arm.w1/2,a.arm.t/2,zl/2,s*a.front[0],0,zc);box(rodM,a.front[0],a.arm.t/2,a.arm.w0/2,0,0,0)}
- else for(const[x,z]of M){Ix+=rodM*z*z/3;Iy+=rodM*(x*x+z*z)/3;Iz+=rodM*x*x/3;my+=0;mz+=rodM*z/2}  // a rod from the centre to the motor
+ else for(const[x,z]of M){const[rx,rz]=rootOf(a,x,z),dx=x-rx,dz=z-rz;Ix+=rodM*(rz*rz+rz*dz+dz*dz/3);Iy+=rodM*(rx*rx+rx*dx+dx*dx/3+rz*rz+rz*dz+dz*dz/3);Iz+=rodM*(rx*rx+rx*dx+dx*dx/3);mz+=rodM*(rz+dz/2)}  // a rod from the arm root to the motor
  const shell=c.shape==='pod'?.8:1;box(c.mass,c.half[0]*shell,c.half[1]*shell,c.half[2]*shell,0,c.y,0);
  box(p.batt.mass,...p.batt.half,0,battY,0);
  const cy=my/auw,cz=mz/auw;Ix-=auw*(cy*cy+cz*cz);Iy-=auw*cz*cz;Iz-=auw*cy*cy;
@@ -78,7 +78,7 @@ export function computeLoadout(ids,k=1){ids=cleanLoadout(ids)||[...STOCK];const 
  cols.push({shape:'box',size:[S(.055),S(.05),S(.045)],pos:[0,S(c.y+c.cam[0]-.02),S(c.cam[1]+.045)],rot:q0,tag:'camera'});
  if(a.arm.style==='h'){const zl=a.front[1]+a.rear[1],zc=(a.rear[1]-a.front[1])/2;for(const s of[1,-1])cols.push({shape:'box',size:[S(a.arm.w1/2),S(a.arm.t/2),S(zl/2)],pos:[S(s*a.front[0]),0,S(zc)],rot:q0,tag:'arm'});
   cols.push({shape:'box',size:[S(a.front[0]),S(a.arm.t/2),S(a.arm.w0/2)],pos:[0,0,0],rot:q0,tag:'arm'})}
- else for(const[x,z]of M){const L=Math.hypot(x,z)*.85;cols.push({shape:'box',size:[S(a.arm.w0/2),S(a.arm.t/2),S(L/2)],pos:[S(x*.575),0,S(z*.575)],rot:qy(Math.atan2(x,z)),tag:'arm'})}
+ else for(const[x,z]of M){const[rx,rz]=rootOf(a,x,z),dx=x-rx,dz=z-rz,L=Math.hypot(dx,dz)*.85;cols.push({shape:'box',size:[S(a.arm.w0/2),S(a.arm.t/2),S(L/2)],pos:[S(rx+dx*.575),0,S(rz+dz*.575)],rot:qy(Math.atan2(dx,dz)),tag:'arm'})}
  for(const[x,z]of M)cols.push({shape:'cylinder',size:[S(.02),S(r)],pos:[S(x),S(B.propY),S(z)],rot:q0,tag:'prop'});
  // legacy collision inputs until the Rapier body lands: ground hull outline (HBP/HBR), ball box (BBX), ground inertia (DI)
  const ext=(i,f)=>Math.max(...M.map(m=>Math.abs(m[i])+f*r)),stack=yExt(B)/yExt(REF);  // vertical extent vs Stock
@@ -86,9 +86,10 @@ export function computeLoadout(ids,k=1){ids=cleanLoadout(ids)||[...STOCK];const 
  const hbp=[];for(const[sx,sz]of[[1,1],[-1,1],[-1,-1],[1,-1]])for(let i=0;i<4;i++){const t=i/3*Math.PI/2,x0=ax-hbr,z0=az-hbr,c0=Math.max(.02,cr-hbr);hbp.push([r4(sx*(x0-c0+c0*Math.cos(t))),0,r4(sz*(z0-c0+c0*Math.sin(t)))])}
  const bbx=[r3(ext(0,.5)*k),r3(.28*k*stack),r3(Math.max(ext(1,.5),c.half[2]+.08)*k)];
  const di=.22*k*k*((B.I[0]+B.I[1]+B.I[2])/B.auw)/REF_IM;
+ const hy=[r4(Math.min(-a.arm.t/2-.012,c.y-c.half[1])*k),r4(Math.max(B.propY+.02,B.cTop)*k)];  // ground hull height: belly to the props (the pack is its own box on top)
  const size=REF_AREA_C?Math.sqrt(areaOf(cols)/k/k/REF_AREA_C):1;  // effective size vs Stock (1 = Stock): mean projected collider area
  return {ids,name:[a,c,p].map(x=>x.name).join(' · '),auw:Math.round(B.auw),mass:r3(mass),inertia:B.I.map(v=>r4(v/REF_G*k*k)),colliders:cols,flight,
-  hbp,hbr:r4(hbr),bbx,di:r4(di),size:r3(size),hitR:r3(2*size),  // hitR: Dogfight bullet radius (2 m for Stock, scales with the hitbox)
+  hbp,hbr:r4(hbr),hy,bbx,di:r4(di),size:r3(size),hitR:r3(2*size),  // hitR: Dogfight bullet radius (2 m for Stock, scales with the hitbox)
   meshSpec:{arms:a,chassis:c,power:p,motors:M,motorY:B.motorY,propY:B.propY,battY:B.battY,cTop:B.cTop}}}
 // mean projected area of the colliders over the three body axes (overlaps counted twice; it is a size index, not exact)
 function areaOf(cols){let A=0;for(const c of cols){const s=c.size;

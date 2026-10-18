@@ -3,6 +3,7 @@
 //  front/rear: [lateral x, longitudinal z] of the front and rear motors (mirrored left/right)
 //  prop: r = prop radius (sets thrust, pitch speed, spool and the prop hitbox), twist = blade pitch angle at the root (rad)
 //  arm: style 'x' (one tapered arm per motor) or 'h' (side rails plus a cross brace), w0/w1 root/tip width, t thickness
+//  root: optional {front, rear} [x, z] where the x arms bolt to the body (mirrored like the motors); default the centre
 //  mass: grams for the four arms plus props; stiff: how much of the motor's torque reaches the frame (flexy arms waste it)
 //  drag: frontal-area factor of the arms themselves
 //  good/bad: stat keys this part beats / loses to Stock on (checked by tools/parts-balance.mjs); pros/cons: garage text
@@ -20,7 +21,7 @@ export const ARMS=[
   good:['roll','resp'],bad:['pitch','yaw','boost'],
   pros:['Narrow motor spread: the fastest roll of any arms','Small props spool up quickly'],cons:['Long wheelbase: slower pitch and yaw','Small props work harder: shorter boost']},
  {id:'deadcat',name:'Dead-Cat',sub:'wide front, narrow rear · 5.5" props out of view',
-  front:[.55,.6],rear:[.34,.58],prop:{r:.32,twist:.36,blades:3},arm:{style:'x',w0:.11,w1:.075,t:.04},mass:84,stiff:.95,drag:1.02,
+  front:[.62,.44],rear:[.34,.66],root:{front:[.1,.2],rear:[.07,.18]},prop:{r:.32,twist:.36,blades:3},arm:{style:'x',w0:.11,w1:.075,t:.04},mass:84,stiff:.95,drag:1.02,
   good:['punch','boost','ball'],bad:['yaw','pitch','resp'],
   pros:['5.5" props: big punch and the most efficient boost','Wide front arms: a broad nose that carries the ball'],cons:['Motors far forward and back: the slowest yaw of any arms','Heavy props: slower pitch and spool','Bigger target']},
  {id:'squash',name:'Squash-H',sub:'wide, short H-frame · 4.6" props',
@@ -29,4 +30,6 @@ export const ARMS=[
   pros:['Short wheelbase: the snappiest pitch','Small props spool up instantly','Compact: the smallest hitbox'],cons:['Wide stance: slow roll','Small props: less punch and a shorter boost']},
 ];
 // motor positions [x,z] in mixer order RR, LR, RF, LF: diagonal pairs spin the same way (Betaflight props-in)
+// where motor [x,z]'s arm meets the body
+export const rootOf=(a,x,z)=>{const r=a.root&&a.root[z<0?'front':'rear'];return r?[Math.sign(x)*r[0],Math.sign(z)*r[1]]:[0,0]};
 export const motorsOf=a=>[[a.rear[0],a.rear[1]],[-a.rear[0],a.rear[1]],[a.front[0],-a.front[1]],[-a.front[0],-a.front[1]]];

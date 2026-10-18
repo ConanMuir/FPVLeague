@@ -56,12 +56,18 @@ export function setBallMode(mesh){PHYS.ballMesh=mesh;ballCol.setCollisionGroups(
  * normal when a flat face slides on the floor, which turns sliding speed into a small bounce.
  */
 // a parts loadout (src/parts) as a body: its colliders (chassis, battery, camera, arms, props; tags reported) take ball touches,
-// drone bumps and bullets; contact with the map is a rounded box fitted to the loadout's ground hull outline (lo.hbp/hbr), so the
-// ground feel stays v15's and scales with the parts; mass from the parts, inertia = v15's soft contact inertia (di/.45 per unit mass)
-// split over the axes like the parts' real inertia
-export function loadoutDesc(lo){const b=bodyOf(lo),r=lo.hbr,hx=Math.max(...lo.hbp.map(p=>Math.abs(p[0])))+r,hz=Math.max(...lo.hbp.map(p=>Math.abs(p[2])))+r,im=(b.inertia[0]+b.inertia[1]+b.inertia[2])/3;
- return{mass:b.mass,inertia:b.inertia.map(v=>b.mass*lo.di/.45*v/im),pivot:lo.hbp.map(p=>({p,r})),colliders:[
-  {shape:'box',size:[hx,r+.001,hz],round:r,pos:[0,0,0],rot:[0,0,0,1],tag:'chassis',use:['world']},...b.colliders.map(c=>({...c,use:['ball','drone','bullet']}))]}}
+// drone bumps and bullets; contact with the map is the real quad's outline: a rounded box from the belly up to the props, as wide
+// as the prop tips (the loadout's ground hull outline lo.hbp stretched to them), plus the battery as its own box on top. The belly
+// sits on the floor and the props and pack touch the floor and walls where you see them (it was a slab around the arms that floated
+// the belly and let the pack and prop tips sink in); turtle / self-righting pivot on those boxes' corners; mass from the parts,
+// inertia = v15's soft contact inertia (di/.45 per unit mass) split over the axes like the parts' real inertia
+export function loadoutDesc(lo){const b=bodyOf(lo),[y0,y1]=lo.hy,h=(y1-y0)/2,r=Math.min(lo.hbr,h*.95,-y0*.9),im=(b.inertia[0]+b.inertia[1]+b.inertia[2])/3,P=b.colliders.filter(c=>c.tag==='prop');
+ const ext=i=>Math.max(Math.max(...lo.hbp.map(p=>Math.abs(p[i])))+lo.hbr,...P.map(c=>Math.abs(c.pos[i])+c.size[1])),hx=ext(0),hz=ext(2);
+ const bat=b.colliders.find(c=>c.tag==='other'),br=Math.min(r,...bat.size)*.6;
+ return{mass:b.mass,inertia:b.inertia.map(v=>b.mass*lo.di/.45*v/im),colliders:[
+  {shape:'box',size:[hx,h,hz],round:r,pos:[0,(y0+y1)/2,0],rot:[0,0,0,1],tag:'chassis',use:['world']},
+  {...bat,use:['world','ball','drone','bullet']},
+  ...b.colliders.filter(c=>c!==bat).map(c=>({...c,use:['ball','drone','bullet']}))]}}
 export function defaultDroneDesc(){const k=HBR/.13;
  return{mass:1,inertia:[DI0/.45,DI0/.45,DI0/.45],pivot:HBP.map(p=>({p:[p.x,0,p.z],r:HBR})),colliders:[
   {shape:'box',size:[.55*k,HBR+.001,.6*k],round:HBR,pos:[0,0,0],rot:[0,0,0,1],tag:'chassis',use:['world']},  // v15 ground hull: 1.1 x 0.26 x 1.2 m, 0.13 m round edges (x size)

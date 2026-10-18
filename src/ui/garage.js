@@ -7,6 +7,7 @@ import {MDEF} from '../config/mods.js';
 import {S,save} from '../config/settings.js';
 import {PARTS,SLOTS,SLOT_NAMES,STATS,STOCK,allLoadouts,computeLoadout,partOf,statsOf} from '../parts/index.js';
 import {buildPartsMesh,colliderWire} from '../parts/mesh.js';
+import {loadoutDesc} from '../physics/world.js';
 import {MAT} from '../render/drone-mesh.js';
 import {GS,esc} from '../state.js';
 
@@ -35,7 +36,7 @@ function frame(now){if($('garage').hidden){V.raf=0;return}V.raf=requestAnimation
  if(!V.spin&&V.hold&&now>V.hold){V.spin=true;V.hold=0}if(V.spin)V.ang+=dt*.35;V.props.forEach((p,i)=>p.rotation.y+=(i%3?1:-1)*dt*9);
  V.cam.position.set(Math.sin(V.ang)*Math.cos(V.el),Math.sin(V.el),Math.cos(V.ang)*Math.cos(V.el)).multiplyScalar(V.dist);V.cam.lookAt(0,-.02,0);V.r.render(V.sc,V.cam)}
 function showDrone(lo){if(V.drone)V.pivot.remove(V.drone);if(V.wire)V.pivot.remove(V.wire);const{group,props}=buildPartsMesh(lo.meshSpec,team(),MAT);
- V.drone=group;V.props=props;V.pivot.add(group);V.wire=colliderWire(lo.colliders);V.wire.visible=$('ghit').checked;V.pivot.add(V.wire)}
+ V.drone=group;V.props=props;V.pivot.add(group);V.wire=colliderWire(loadoutDesc(lo).colliders.map((c,i)=>i?c:{...c,tag:'hull'}));V.wire.visible=$('ghit').checked;V.pivot.add(V.wire)}
 
 // ---------- UI ----------
 const fmt={speed:s=>`${Math.round(s.speed)} km/h`,punch:s=>`${s.punch.toFixed(1)}:1 T/W`,pitch:s=>`${s.raw.rmax[0]}°/s in ${s.raw.snap[0]}ms`,yaw:s=>`${s.raw.rmax[1]}°/s in ${s.raw.snap[1]}ms`,roll:s=>`${s.raw.rmax[2]}°/s in ${s.raw.snap[2]}ms`,

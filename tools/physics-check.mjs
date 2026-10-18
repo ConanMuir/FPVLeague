@@ -48,9 +48,9 @@ if (args.has('--geo')) process.exit(failed ? 1 : 0);
 // ---------- browser ----------
 const {createServer} = await import('vite');
 const puppeteer = (await import('puppeteer-core')).default;
-const server = await createServer({root, logLevel: 'error', server: {port: 0, host: '127.0.0.1'}});
+const server = await createServer({root, logLevel: 'error', server: {port: 0, host: '127.0.0.1', open: false}});
 await server.listen();
-const url = `http://127.0.0.1:${server.httpServer.address().port}/`;
+const url = `http://127.0.0.1:${server.httpServer.address().port}/app.html`;  // the root index.html is the games launcher
 const EDGE = [process.env.EDGE_PATH, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find(p => p && fs.existsSync(p));
 const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
 const browser = await puppeteer.launch({executablePath: EDGE, headless: true, env, protocolTimeout: 900000, args: ['--window-size=1280,720', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader']});
@@ -190,35 +190,36 @@ const gr = await run('d', () => {
         w.copy(ww).applyQuaternion(q.clone().invert()); w.multiplyScalar(Math.exp(-dt / .09)); }  // (ground rate damping, as the flight model with sticks centred)
       rec?.(i, p, v, q); } return {p, v, q}; };
   const pen = () => { let m = -1; for (const c of d.pts) { const p = c.p.clone().applyQuaternion(d.q).add(d.p); m = Math.max(m, S.sdf(p.x, p.y, p.z) + c.r); } return m; };
+  const top = Math.max(...d.pts.map(c => c.p.y + c.r)), side = Math.max(...d.pts.map(c => Math.abs(c.p.x) + c.r));  // hull reach above the centre (battery top) and to the side (prop tips)
   const place = (p, q, v) => { d.p.set(...p); d.q.copy(q || new M.QT()); d.v.set(...(v || [0, 0, 0])); d.w.set(0, 0, 0); d.wt.set(0, 0, 0); d.thr = d.ms = 0; d.gt = 0; d.flipT = 0; d.pw = 0; };
   const sim = (secs, ctl, rec) => { for (let i = 0; i < secs * 120; i++) { ctl?.(i); d.step(dt); W.physStep(dt, false); rec?.(i); } };
   // rest: dropped flat from 1 m
   { place([0, 1, 0]); let ys = [], vs = [], ws = [], mp = -1, mi = -1; sim(4, () => { d.thr = 0; }, i => { mi = Math.max(mi, pen()); if (i >= 3 * 120) { mp = Math.max(mp, pen()); ys.push(d.p.y); vs.push(d.v.length()); ws.push(d.w.length()); } });
-    const my = ys.reduce((a, b) => a + b) / ys.length; out.rest = {height: +my.toFixed(4), expected: +T.HBR.toFixed(3), ySpreadMm: +(1000 * Math.sqrt(ys.reduce((a, b) => a + (b - my) ** 2, 0) / ys.length)).toFixed(3), maxSpeed: +Math.max(...vs).toFixed(4), maxRate: +Math.max(...ws).toFixed(4), maxPenetrationMm: +(mp * 1000).toFixed(1), landingPenetrationMm: +(mi * 1000).toFixed(1)};
+    const my = ys.reduce((a, b) => a + b) / ys.length; out.rest = {height: +my.toFixed(4), expected: +(-d.lo.hy[0]).toFixed(3), hbr: +T.HBR.toFixed(3), ySpreadMm: +(1000 * Math.sqrt(ys.reduce((a, b) => a + (b - my) ** 2, 0) / ys.length)).toFixed(3), maxSpeed: +Math.max(...vs).toFixed(4), maxRate: +Math.max(...ws).toFixed(4), maxPenetrationMm: +(mp * 1000).toFixed(1), landingPenetrationMm: +(mi * 1000).toFixed(1)};
     const ys2 = []; v15([0, 1, 0], new M.QT(), [0, 0, 0], 0, 4, (i, p) => { if (i >= 360) ys2.push(p.y); }); const m2 = ys2.reduce((a, b) => a + b) / ys2.length; out.rest.v15 = {height: +m2.toFixed(4), ySpreadMm: +(1000 * Math.sqrt(ys2.reduce((a, b) => a + (b - m2) ** 2, 0) / ys2.length)).toFixed(3)}; }
   // slide: 20 m/s along the floor, motors off: decel should be Ground grip x G
-  { place([0, T.HBR + .01, 0], null, [20, 0, 0]); let v1 = null, mp = -1; sim(1, () => { d.thr = 0; }, i => { mp = Math.max(mp, pen()); if (i === 119) v1 = d.v.length(); });
+  { place([0, -d.lo.hy[0] + .01, 0], null, [20, 0, 0]); let v1 = null, mp = -1; sim(1, () => { d.thr = 0; }, i => { mp = Math.max(mp, pen()); if (i === 119) v1 = d.v.length(); });
     out.slide = {decel: +(20 - v1).toFixed(2), v15: +(20 - v15([0, T.HBR + .01, 0], new M.QT(), [20, 0, 0], 0, 1).v.length()).toFixed(2), maxPenetrationMm: +(mp * 1000).toFixed(1)}; }
   // slide upside down at full throttle into the floor: v17 caps the grip, so it still slides
-  { const qd = new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI); place([0, .14, 0], qd, [20, 0, 0]); d.ms = 1; let v1 = null; sim(.5, () => { d.thr = 1; d.wt.set(0, 0, 0); }, i => { if (i === 59) v1 = Math.hypot(d.v.x, d.v.z); });
+  { const qd = new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI); place([0, top + .01, 0], qd, [20, 0, 0]); d.ms = 1; let v1 = null; sim(.5, () => { d.thr = 1; d.wt.set(0, 0, 0); }, i => { if (i === 59) v1 = Math.hypot(d.v.x, d.v.z); });
     const r = v15([0, .14, 0], qd, [20, 0, 0], 1, .5); out.slideThrusting = {lostIn05s: +(20 - v1).toFixed(2), v15: +(20 - Math.hypot(r.v.x, r.v.z)).toFixed(2), uncappedWouldBe: +(T.GF * (T.G + T.THR) * .5).toFixed(1)}; }
   // ramp: let go on the side quarter-pipe at 45 deg
   { const a = Math.PI / 4, x = M.C.HW - M.C.RF + M.C.RF * Math.sin(a), y = M.C.RF - M.C.RF * Math.cos(a); place([x - .4, y + .4, 0], new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), a)); let mp = -1, ys = []; sim(5, () => { d.thr = 0; }, i => { mp = Math.max(mp, pen()); if (i >= 4 * 120) ys.push(d.p.y); });
     out.ramp = {end: d.p.toArray().map(v => +v.toFixed(2)), maxPenetrationMm: +(mp * 1000).toFixed(1), endUpY: +new M.V3(0, 1, 0).applyQuaternion(d.q).y.toFixed(3), ySpreadMm: +(1000 * (Math.max(...ys) - Math.min(...ys))).toFixed(2)}; }
   // self-righting (v16 pendulum): upside down / on its side, no input
   for (const [k, q, thr] of [['upsideDown', new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI), 0], ['onSide', new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI / 2), 0], ['lean80', new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI * 80 / 180), 0], ['upsideDownThrottle', new M.QT().setFromAxisAngle(new M.V3(1, 0, 0), Math.PI), .2]]) {
-    place([0, k === 'onSide' || k === 'lean80' ? Math.max(...d.hbp.map(p => Math.abs(p.x))) + d.hbr + .1 : .6, 0], q); let t = null, mp = -1; sim(4, () => { d.thr = t == null ? thr : 0; d.wt.set(0, 0, 0); }, i => { mp = Math.max(mp, pen()); if (t == null && new M.V3(0, 1, 0).applyQuaternion(d.q).y > .9 && d.gt > 0) t = i * dt; });
+    place([0, k === 'onSide' || k === 'lean80' ? side + .1 : top + .1, 0], q); let t = null, mp = -1; sim(4, () => { d.thr = t == null ? thr : 0; d.wt.set(0, 0, 0); }, i => { mp = Math.max(mp, pen()); if (t == null && new M.V3(0, 1, 0).applyQuaternion(d.q).y > .9 && d.gt > 0) t = i * dt; });
     out[k] = {uprightAfter: t == null ? null : +t.toFixed(2), maxPenetrationMm: +(mp * 1000).toFixed(1), endUpY: +new M.V3(0, 1, 0).applyQuaternion(d.q).y.toFixed(3)}; }
   // turtle with sticks: upside down, full roll stick, motors off
-  { place([0, .6, 0], new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI)); sim(.5, () => { d.thr = 0; });  // settle
+  { place([0, top + .1, 0], new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI)); sim(.5, () => { d.thr = 0; });  // settle
     let t = null, mp = -1; sim(4, () => { d.thr = 0; d.wt.set(0, 0, 6); }, i => { mp = Math.max(mp, pen()); if (t == null && new M.V3(0, 1, 0).applyQuaternion(d.q).y > .9) t = i * dt; });
     out.turtleStick = {uprightAfter: t == null ? null : +t.toFixed(2), maxPenetrationMm: +(mp * 1000).toFixed(1)}; }
   // flip button (E / Xbox B)
-  { place([0, .6, 0], new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI)); sim(.5); d.flipUp(); let t = null; sim(2, () => { d.thr = 0; }, i => { if (t == null && new M.V3(0, 1, 0).applyQuaternion(d.q).y > .9) t = i * dt; }); out.flipButton = {uprightAfter: t == null ? null : +t.toFixed(2)}; }
+  { place([0, top + .1, 0], new M.QT().setFromAxisAngle(new M.V3(0, 0, 1), Math.PI)); sim(.5); d.flipUp(); let t = null; sim(2, () => { d.thr = 0; }, i => { if (t == null && new M.V3(0, 1, 0).applyQuaternion(d.q).y > .9) t = i * dt; }); out.flipButton = {uprightAfter: t == null ? null : +t.toFixed(2)}; }
   d.dispose(); GS.drones = []; return out;
 });
 if (gr) {
-  console.log(`  at rest on the floor (dropped from 1 m): centre height ${gr.rest.height} m (hull edge radius ${gr.rest.expected}; v17: ${gr.rest.v15.height}), spread ${gr.rest.ySpreadMm} mm (v17: ${gr.rest.v15.ySpreadMm}), max speed ${gr.rest.maxSpeed} m/s, max rate ${gr.rest.maxRate} rad/s, max penetration at rest ${gr.rest.maxPenetrationMm} mm (landing ${gr.rest.landingPenetrationMm} mm)`);
+  console.log(`  at rest on the floor (dropped from 1 m): centre height ${gr.rest.height} m (belly ${gr.rest.expected}; v17's hull, edge radius ${gr.rest.hbr}: ${gr.rest.v15.height}), spread ${gr.rest.ySpreadMm} mm (v17: ${gr.rest.v15.ySpreadMm}), max speed ${gr.rest.maxSpeed} m/s, max rate ${gr.rest.maxRate} rad/s, max penetration at rest ${gr.rest.maxPenetrationMm} mm (landing ${gr.rest.landingPenetrationMm} mm)`);
   console.log(`  slide at 20 m/s, motors off: ${gr.slide.decel} m/s lost in 1 s (v17 ground(): ${gr.slide.v15}), max penetration ${gr.slide.maxPenetrationMm} mm`);
   console.log(`  slide upside down at full throttle into the floor: ${gr.slideThrusting.lostIn05s} m/s lost in 0.5 s (v17: ${gr.slideThrusting.v15}; without v17's cap it would be ${gr.slideThrusting.uncappedWouldBe})`);
   console.log(`  let go on the 45 deg ramp: ends at ${gr.ramp.end} up.y ${gr.ramp.endUpY}, last-second spread ${gr.ramp.ySpreadMm} mm, max penetration ${gr.ramp.maxPenetrationMm} mm`);
@@ -227,7 +228,7 @@ if (gr) {
   check(gr.rest.ySpreadMm < 1 && gr.rest.maxSpeed < .1 && gr.rest.maxPenetrationMm < 10, 'drone rests on the floor without jitter or sinking');
   check(Math.abs(gr.slide.decel - gr.slide.v15) < .5, 'sliding friction matches v17');
   check(gr.slideThrusting.lostIn05s < gr.slideThrusting.v15 * 1.25 && gr.slideThrusting.lostIn05s < gr.slideThrusting.uncappedWouldBe * .7, 'thrusting into the floor is capped like v17 (within 25%; both sit near the G*.05 cap)');
-  check(['upsideDown', 'upsideDownThrottle'].every(k => gr[k].uprightAfter != null && gr[k].uprightAfter < 4) && gr.onSide.uprightAfter == null, 'v20 self-righting: upside down on the floor rights itself; on its side (90 deg) it stays (flip button / sticks right it); at 80 deg it just falls back flat');
+  check(['upsideDown', 'upsideDownThrottle'].every(k => gr[k].uprightAfter != null && gr[k].uprightAfter < 4) && gr.onSide.endUpY > .9 && gr.lean80.endUpY > .9, 'self-righting: upside down on the floor rights itself (v20 pendulum); on its side (90 deg) or at 80 deg it rolls back onto its belly (the ground hull is the whole quad now, battery included, so it can no longer balance on its side)');
   check(gr.turtleStick.uprightAfter != null && gr.flipButton.uprightAfter != null, 'turtle with sticks and the flip button work');
 }
 
@@ -289,7 +290,7 @@ const pt = await run('g', async () => {
   const P = await import('/src/parts/index.js'); const LS = P.allLoadouts(); let ok = 0, lo = 9, hi = 0, bad = [];
   for (const ids of LS) { const q = new D.Drone(0, 0, false, 'p'); q.setLoadout(ids); GS.drones = [q]; q.p.set(0, .6, 0); q.q.set(0, 0, 0, 1); q.v.set(0, 0, 0); q.w.set(0, 0, 0); q.thr = q.ms = 0;
     for (let i = 0; i < 240; i++) { q.thr = 0; q.wt.set(0, 0, 0); q.step(dt); W.physStep(dt, false); } const y = q.p.y, sp = q.v.length();
-    if (Number.isFinite(y) && Math.abs(y - q.hbr) < .02 && sp < .1) ok++; else bad.push(ids.join('/') + ' y' + y.toFixed(3) + ' v' + sp.toFixed(2)); lo = Math.min(lo, q.rb.numColliders()); hi = Math.max(hi, q.rb.numColliders()); q.dispose(); }
+    if (Number.isFinite(y) && Math.abs(y + q.lo.hy[0]) < .02 && sp < .1) ok++; else bad.push(ids.join('/') + ' y' + y.toFixed(3) + ' v' + sp.toFixed(2)); lo = Math.min(lo, q.rb.numColliders()); hi = Math.max(hi, q.rb.numColliders()); q.dispose(); }
   out.loadouts = {n: LS.length, ok, colliders: [lo, hi], bad: bad.slice(0, 4)}; GS.drones = []; return out;
 });
 if (pt) {
