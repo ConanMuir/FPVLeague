@@ -5,7 +5,7 @@ import {near,noise} from '../audio/audio.js';
 import {COL,DIFF,QT,V3,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {TUR,hitDrone,hitTurret} from './dogfight.js';
-import {sdf} from '../physics/sdf.js';
+import {bulletCast,emitHit} from '../physics/world.js';
 import {emit} from '../render/particles.js';
 import {camera,scene} from '../render/renderer.js';
 import {_gd,_gp,_gq,_v} from '../scratch.js';
@@ -22,11 +22,15 @@ export function droneFire(d,dt,real){d.fcd-=dt;if(!d.firing||d.dead>0||d.fcd>0)r
  // twin guns under the frame, alternating left/right, converging on the crosshair 150 m out (keeps the muzzle out of the FPV view)
  d.gs=-(d.gs||1);const mz=_gp.set(d.gs*.4,-.55,-.3).applyQuaternion(d.q).add(d.p),aimP=_gq.copy(d.p).addScaledVector(dir,150);dir.subVectors(aimP,mz).normalize();
  shoot(mz,dir,d.v,d.team,real,d,8,d.bot?DIFF[S.diff].noise*.012+.006:.006,BSPD);const k=near(d.p);if(k>.05)noise(.05,1800,.1*k,2)}
-function segHit(a,b,c,r){_gq.subVectors(b,a);const l2=_gq.lengthSq(),t=l2?cl(_gq.dot(_v.subVectors(c,a))/l2,0,1):0;return _v.copy(a).addScaledVector(_gq,t).distanceToSquared(c)<r*r}
-export function bullets(dt){for(const b of BUL){if(b.life<=0)continue;b.life-=dt;b.dist+=b.v.length()*dt;const p0=_gp.copy(b.p);b.p.addScaledVector(b.v,dt);
- for(const d of GS.drones){if(d.dead>0||d.team===b.team||d===b.by)continue;if(segHit(p0,b.p,d.p,d.hitR||2)){b.life=0;emit(b.p,COL[d.team],10,8,.4);if(b.real)hitDrone(d,b.dmg,b.by);break}}
- if(b.life>0)for(const t of TUR){if(t.re>0||t.t===b.team)continue;if(segHit(p0,b.p,t.p,2.6)){b.life=0;emit(b.p,0xffc640,10,8,.4);if(b.real)hitTurret(t,b.dmg,b.by);break}}
- if(b.life>0&&sdf(b.p.x,b.p.y,b.p.z)>0){emit(b.p,0xffd0a0,4,6,.3);b.life=0}}}
+// hits: a Rapier ray against the map and a 1.4 m sphere cast against the drones' 'bullet' colliders, from where the round was
+// to where it is now (rounds at 400 m/s plus the shooter's speed move 3-6 m a tick, so nothing thin can be skipped); turrets are
+// 2.6 m spheres along the same segment. The nearest hit along the path wins.
+function segT(a,b,c,r){_gq.subVectors(b,a);const l2=_gq.lengthSq(),t=l2?cl(_gq.dot(_v.subVectors(c,a))/l2,0,1):0;return _v.copy(a).addScaledVector(_gq,t).distanceToSquared(c)<r*r?t:null}
+const _bd=new V3();
+export function bullets(dt){for(const b of BUL){if(b.life<=0)continue;b.life-=dt;b.dist+=b.v.length()*dt;const p0=_gp.copy(b.p);_bd.copy(b.v).multiplyScalar(dt);b.p.add(_bd);
+ const h=bulletCast(p0,_bd,b.team,b.by);let tt=h?h.t:2,tur=null;for(const t of TUR){if(t.re>0||t.t===b.team)continue;const s=segT(p0,b.p,t.p,2.6);if(s!=null&&s<tt){tt=s;tur=t}}
+ if(tur){b.life=0;b.p.copy(p0).addScaledVector(_bd,tt);emit(b.p,0xffc640,10,8,.4);if(b.real)hitTurret(tur,b.dmg,b.by)}
+ else if(h){b.life=0;b.p.copy(h.p);if(h.d){emit(b.p,COL[h.d.team],10,8,.4);emitHit({type:'bullet',d:h.d,tag:h.tag,other:b.by});if(b.real)hitDrone(h.d,b.dmg,b.by)}else emit(b.p,0xffd0a0,4,6,.3)}}}
 const _bc=new THREE.Color(),_bm4=new THREE.Matrix4(),_bq=new QT(),_bz=new V3(0,0,1),_bs=new V3();
 export function dfDraw(now){for(const t of TUR){t.head.visible=t.re<=0;t.g.scale.y=t.re>0?.45:1;if(t.re<=0){t.head.rotation.y=Math.atan2(-t.aim.x,-t.aim.z);t.br.rotation.x=Math.asin(cl(t.aim.y,-1,1))}}
  let ns=0;const m4=_bm4,q=_bq;for(const b of BUL){if(b.life<=0)continue;_gd.copy(b.v).normalize();const w=Math.max(.06,b.p.distanceTo(camera.position)*.005),L2=Math.min(b.col===2?5:10,b.dist);

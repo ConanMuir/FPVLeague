@@ -18,7 +18,7 @@ export function visuals(dt,now){for(const d of GS.drones){
   if(d.dead<=0){d.tp.copyWithin(3,0,(TN-1)*3);d.p.toArray(d.tp,0);d.trail.geometry.attributes.position.needsUpdate=true}
   d.trail.material.opacity=d.dead>0?0:cl((d.v.length()-45)/20,0,.85);
   if(d.boostOn&&d.dead<=0&&GS.state!=='kickoff'){const dn=_v.set(0,-1,0).applyQuaternion(d.q);_w.copy(d.v).multiplyScalar(.4).addScaledVector(dn,22);emit(_t.copy(d.p).addScaledVector(dn,.4),Math.random()<.5?0xffc640:COL[d.team],2,4,.35,_w)}}
- ballMesh.position.copy(ball.p);const hv=Math.hypot(ball.v.x,ball.v.z);if(hv>.01){_q.setFromAxisAngle(_v.set(ball.v.z/hv,0,-ball.v.x/hv),hv*dt/BR);ballMesh.quaternion.premultiply(_q)}
+ ballMesh.position.copy(ball.p);ballMesh.quaternion.copy(ball.q);  // the ball really spins now (physics/ball.js)
  ballLight.position.copy(ball.p);ballLight.intensity=ballMesh.visible?40:0;ring.position.set(ball.p.x,.04,ball.p.z);ring.material.opacity=ballMesh.visible?cl(1-ball.p.y/30,.08,.9):0;
  for(const o of ORBS){const on=o.cd<=0;o.g.visible=SB();if(o.beam)o.beam.visible=SB()&&!GS.OBSON;o.core.material=on?orbOn:orbOff;o.halo.visible=on;o.g.scale.setScalar(on?1:.35+.35*(1-o.cd/(o.big?10:4)));o.g.position.y=o.p.y+Math.sin(now*.002+o.p.x+o.p.z)*.35;o.core.rotation.y=now*.002;if(o.wire){o.wire.visible=on;o.wire.rotation.set(now*7e-4,now*1e-3,0)}}
  ballTick?.(now);const og=mapG[mapId];if(og)og.userData.clouds.rotation.y+=dt*.004;

@@ -8,8 +8,9 @@ import {sdN,sdf} from '../physics/sdf.js';
 import {_T,_a,_b,_dir,_f,_ip,_lat,_t,_u} from '../scratch.js';
 import {GS,SB} from '../state.js';
 import {ORBS} from '../world/orbs.js';
-const PDT=1/50,PRED=Array.from({length:200},()=>new V3()),_bp=new V3(),_bv=new V3();
-export function predict(){_bp.copy(ball.p);_bv.copy(ball.v);for(const P of PRED){ballPhys(_bp,_bv,PDT);P.copy(_bp)}}
+// the ball 4 s ahead: the same ball model as the game (physics/ball.js, spin included) without Rapier, at 50 Hz
+const PDT=1/50,PRED=Array.from({length:200},()=>new V3()),_pb={p:new V3(),v:new V3(),w:new V3(),c:false,n:new V3()};
+export function predict(){_pb.p.copy(ball.p);_pb.v.copy(ball.v);_pb.w.copy(ball.w);_pb.c=ball.c;_pb.n.copy(ball.n);for(const P of PRED){ballPhys(_pb,PDT);P.copy(_pb.p)}}
 const _aim=new V3();
 function intercept(d,D){const acc=BTHR*D.thr*.6,vm=D.vmax*BOTV;
  for(let i=0;i<PRED.length;i+=2){const P=PRED[i],t=(i+1)*PDT;_a.subVectors(P,d.p);const dist=_a.length(),v0=dist>0?d.v.dot(_a)/dist:0;
