@@ -69,18 +69,19 @@ export function llDraw(){const hv=hoopMode();if(hv&&!HOOPS.length)buildHoops();h
  const g=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(PTS),N,.07*DRAD/.6,5,false);if(cable){cable.geometry.dispose();cable.geometry=g}else{cable=new THREE.Mesh(g,cmat);cable.frustumCulled=false;scene.add(cable)}}
 
 // ---------- line cam (picture in picture under the scoreboard) and the "on the line" badge ----------
-// The cam hangs at your hook looking down the cable at the ball, with your quad's nose at the top of the frame. Drawn straight to the
+// The cam is bolted to your quad's belly looking straight down (body -Y), nose at the top of the frame, with a crosshair, a nose mark and your frame's arms and prop discs drawn in the corners (they sit outside a downward lens). Drawn straight to the
 // canvas after the main frame, in the box's screen rectangle, reusing this frame's shadow map.
-const pipCam=new THREE.PerspectiveCamera(62,1.5,.3,900),_f=new THREE.Vector3();let pipOn=false,hudKey='';
+const pipCam=new THREE.PerspectiveCamera(95,1.5,.03,900),DOWN=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-Math.PI/2),_f=new THREE.Vector3();let pipOn=false,hudKey='';
 function llHud(d){const box=$('llbox');if(!box)return;const mine=!!d&&d===GS.player,show=S.longline&&!GS.demo&&!GS.net&&!GS.menuOpen;
  const key=!show?'':!d?'loose':mine?'me':d.team+':'+d.name;if(key!==hudKey){hudKey=key;box.hidden=!show||!d;box.classList.toggle('mine',mine);box.style.setProperty('--tc',['#3d95ff','#ff8a2a'][d?.team??0]);
   $('llhdr').textContent=!d?'':mine?'YOU HAVE THE BALL':`${d.team===GS.player?.team?'TEAMMATE':TEAM[d.team]} · ${d.name.toUpperCase()} HAS IT`;$('llpip').hidden=!mine||!S.llPip}
  if(mine)$('lltens').style.width=Math.min(100,LL.load*100).toFixed(0)+'%'}
 export function llPipCam(){const d=LL.d;pipOn=!!(S.longline&&S.llPip&&d&&d===GS.player&&d.dead<=0&&!GS.menuOpen&&!GS.demo);llHud(S.longline?d:null);if(!pipOn)return;
- const h=hookOf(d,_h);pipCam.position.copy(h);pipCam.up.copy(_f.set(0,0,-1).applyQuaternion(d.q));pipCam.lookAt(ball.p);
- const dist=h.distanceTo(ball.p);pipCam.fov=cl(2*Math.atan((BR*5)/Math.max(dist,1))*180/Math.PI,55,100);pipCam.updateProjectionMatrix()}
+ // hard-mounted under the belly, looking straight down the quad's own -Y axis, nose at the top of the frame: it tilts and turns with
+ // the quad, and your arms and props stay in frame at the edges as reference
+ pipCam.position.copy(_f.set(0,(d.lo?.hy?.[0]??-.1)-.02,0).applyQuaternion(d.q).add(d.p));pipCam.quaternion.copy(d.q).multiply(DOWN)}
 export function llPip(){if(!pipOn)return;const el=$('llpip');if(!el||el.hidden)return;const r=el.getBoundingClientRect(),cr=renderer.domElement.getBoundingClientRect();if(r.width<4)return;
  const x=r.left-cr.left,y=cr.height-(r.bottom-cr.top),w=r.width,hh=r.height;pipCam.aspect=w/hh;pipCam.updateProjectionMatrix();
- const au=renderer.autoClear,sh=renderer.shadowMap.autoUpdate;renderer.setRenderTarget(null);renderer.autoClear=false;renderer.shadowMap.autoUpdate=false;
+ const me=GS.player,mv=me.mesh.visible,mk=me.mark.visible;me.mesh.visible=true;me.mark.visible=false;const au=renderer.autoClear,sh=renderer.shadowMap.autoUpdate;renderer.setRenderTarget(null);renderer.autoClear=false;renderer.shadowMap.autoUpdate=false;
  renderer.setScissorTest(true);renderer.setScissor(x,y,w,hh);renderer.setViewport(x,y,w,hh);renderer.clear(true,true,false);renderer.render(scene,pipCam);
- renderer.setScissorTest(false);renderer.setViewport(0,0,cr.width,cr.height);renderer.autoClear=au;renderer.shadowMap.autoUpdate=sh}
+ renderer.setScissorTest(false);renderer.setViewport(0,0,cr.width,cr.height);renderer.autoClear=au;renderer.shadowMap.autoUpdate=sh;me.mesh.visible=mv;me.mark.visible=mk}  // your own quad shows in the line cam even in FPV
