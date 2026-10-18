@@ -1,6 +1,6 @@
 // ---------- online play (room capability: host simulates ball + bots, each pilot owns their drone) ----------
 import {AC,audioInit,near,noise} from '../audio/audio.js';
-import {$,COL,QT,V3,cl} from '../config/constants.js';
+import {$,AI,ARENAS,COL,QT,V3,cl} from '../config/constants.js';
 import {MDEF,cleanMod} from '../config/mods.js';
 import {S} from '../config/settings.js';
 import {BR,MAXB,applyTune} from '../config/tune.js';
@@ -31,7 +31,7 @@ function setNet(d,a,now,dead,bo,fi,ti,lo){if(!okArr(a,10))return;const L=lo&&cle
  const was=d.dead>0;d.dead=dead?1:0;d.boostOn=!!bo;d.thr=bo?1:.5;
  if(!d.seen||was&&!dead){d.seen=1;d.p.copy(n.p);d.q.copy(n.q);for(let j=0;j<TN;j++)d.p.toArray(d.tp,j*3)}
  if(!was&&dead){emit(d.p,COL[d.team],160,30,1.2);noise(.6,200,.7*near(d.p))}}
-function onHostState(g,now){if(!g||typeof g!=='object')return;GS.net.sb=g.sb==null?null:!!g.sb;if((g.m==='df')!==GS.OBSON)setGame(g.m);if(g.tu&&typeof g.tu==='object'){const j=JSON.stringify(g.tu);if(j!==GS.net.tuJ){GS.net.tuJ=j;GS.hostTune={...MDEF,...cleanMod(g.tu)};applyTune();syncMod()}}const sj=JSON.stringify(g.sl);
+function onHostState(g,now){if(!g||typeof g!=='object')return;if(g.ar!=null&&g.ar!==AI&&ARENAS[g.ar]&&!GS.net.rl){GS.net.rl=1;mpMsg('Switching to the host\'s '+ARENAS[g.ar][0]+' arena…');try{sessionStorage.setItem('dlArenaNet',g.ar);sessionStorage.setItem('dlRejoin',GS.net.code)}catch(e){}GS.net.r.leave().catch(()=>{});setTimeout(()=>location.reload(),200);return}GS.net.sb=g.sb==null?null:!!g.sb;if((g.m==='df')!==GS.OBSON)setGame(g.m);if(g.tu&&typeof g.tu==='object'){const j=JSON.stringify(g.tu);if(j!==GS.net.tuJ){GS.net.tuJ=j;GS.hostTune={...MDEF,...cleanMod(g.tu)};applyTune();syncMod()}}const sj=JSON.stringify(g.sl);
  if(sj!==GS.net.slotsJ&&Array.isArray(g.sl)&&g.sl.length===2&&g.sl.some(a=>Array.isArray(a)&&a.length)&&g.sl.every(a=>Array.isArray(a)&&a.length<=3&&a.every(k=>typeof k==='string'&&k&&k.length<48))){GS.net.slotsJ=sj;GS.net.slots=g.sl;applySlots(g.sl)}
  if(g.ko!==GS.net.ko){GS.net.ko=g.ko;GS.player?.spawn();ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ballMesh.visible=!GS.OBSON;BUL.forEach(b=>b.life=0);GS.lastCount=4;ORBS.forEach(p=>p.cd=0)}
  if(g.st==='goal'&&GS.state!=='goal'){if(okArr(g.bl,3))ball.p.fromArray(g.bl);goalFx(g.gs?1:0,g.lt)}
@@ -56,7 +56,7 @@ export function netSync(now){if(!GS.net)return;
 export function netSend(now){if(!GS.net||now-GS.net.sendT<33)return;GS.net.sendT=now;const me=GS.player,P={n:nick(),tp:S.tp};
  if(me){P.s=pack(me);P.d=me.dead>0?1:0;P.b=me.boostOn?1:0;P.lo=me.lo.ids;if(GS.OBSON){P.f=me.firing?1:0;P.ti=S.tilt}}
  if(GS.net.host){const bots={};for(const d of GS.drones)if(d.bot)bots[d.key]=[...pack(d),d.boostOn?1:0,d.dead>0?1:0,d.firing?1:0,d.lo.ids];
-  P.g={st:GS.state,t:+GS.stT.toFixed(2),sc:GS.score,ck:+GS.clock.toFixed(1),ot:GS.overtime?1:0,ko:GS.koN,gs:GS.goalSide,sl:GS.net.slots,bl:[...r2(ball.p),...r2(ball.v)],ack:GS.net.ack,bots,lt:ball.last?.key||null,tu:S.mod,m:GS.GM,sb:S.sboost?1:0};
+  P.g={st:GS.state,t:+GS.stT.toFixed(2),sc:GS.score,ck:+GS.clock.toFixed(1),ot:GS.overtime?1:0,ko:GS.koN,gs:GS.goalSide,sl:GS.net.slots,bl:[...r2(ball.p),...r2(ball.v)],ack:GS.net.ack,bots,lt:ball.last?.key||null,tu:S.mod,m:GS.GM,sb:S.sboost?1:0,ar:AI};
   if(GS.OBSON){P.g.hp={};P.g.lf={};for(const d of GS.drones){P.g.hp[d.key]=Math.round(d.hp);P.g.lf[d.key]=d.life}P.g.tg=TUR.map(t=>t.re>0?0:Math.max(1,Math.round(t.hp)));P.g.kf=GS.net.kf}
   if(now-GS.net.lobT>2000){GS.net.lobT=now;GS.room.presence({game:GS.net.code,m:GS.GM,host:nick(),pl:GS.net.slots.flat().filter(k=>!isBot(k)).length,sz:GS.net.slots[0].length}).catch(()=>{})}}
  else{if(GS.net.hit)P.h=GS.net.hit;if(GS.OBSON&&GS.net.hits.length)P.hs=GS.net.hits.slice(-16)}
@@ -76,6 +76,7 @@ export function leaveGame(){if(!GS.net)return;const r=GS.net.r;GS.net=null;if(GS
 
 // connect to the claude.ai room channel, or fall back to PeerJS (p2p) outside claude.ai
 export async function connectRoom(){try{GS.room=await window.claude?.use?.('room')}catch(e){GS.room=null}
+ {let c=null;try{c=sessionStorage.getItem('dlRejoin');sessionStorage.removeItem('dlRejoin')}catch(e){}if(c)setTimeout(()=>enterGame(c,false),300)}  // back after rebuilding for the host's arena size
  if(!GS.room){GS.room=p2p;$('games').hidden=true;$('mpnote').textContent='Online over the internet: press Host, then send friends this page and the game code. They type the code and press Join.';return}
  $('mpnote').textContent='Host a game, or join one listed here. Bots fill empty slots unless Bots is set to No bots.';
  GS.room.onPeers(ch=>renderGames(ch.peers),e=>{$('mpnote').textContent=`Online play is unavailable here (${e.code}).`;$('host').disabled=$('join').disabled=true})}

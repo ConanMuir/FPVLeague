@@ -9,6 +9,7 @@ import {scene} from '../render/renderer.js';
 import {_q,_qb,_u,_v,_x,_z} from '../scratch.js';
 import {GS,isBot} from '../state.js';
 import {DSLOTS} from '../world/highlands.js';
+import {sm} from '../world/noise.js';
 export const NAMES=[['Nova','Ace','Vortex'],['Blaze','Rotor','Kestrel']],SLOTS=[[0,4,HL*.72],[-34,4,HL*.82],[34,4,HL*.82]];
 export class Drone{
  constructor(team,i,bot,key){Object.assign(this,{team,i,bot,key,remote:false,net:null,seen:0,name:NAMES[team][i],p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:HOV,ms:HOV,gt:0,wn:new V3(),boost:33,boostOn:false,boosting:false,dead:0,role:'attack',hp:100,life:0,fcd:0,firing:false,
@@ -27,9 +28,12 @@ export class Drone{
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   const F=this.fl;  // parts: this drone's multipliers (src/parts)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*F.thr*this.ms**(TE*F.te)*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&this.pivot(wt,dt)){this.pw=0;return}
-  // inverted pendulum: upside down or on its side on the ground, it leans further and further over its edge until it lands on its feet
-  if(gd&&(THR*F.thr*this.ms**(TE*F.te)<G||this.v.x**2+this.v.z**2<9)){const up=_u.set(0,1,0).applyQuaternion(this.q);if(up.y<.9&&(up.y<.2||this.v.lengthSq()<25)){const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
-   this.pw=Math.min(9,(this.pw||1.2)+PEND*Math.max(sn,.25)*(this.thr>.3?1.6:1)*dt);if(this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return}else this.pw=0}
+  // inverted pendulum: resting fully upside down on the floor, it eases itself over onto its feet. The roll rate glides up from zero,
+  // peaks while it is on its back and eases off as it comes upright. Once started it carries through; walls, ceiling, sides and sliding never trigger it.
+  const cn=this.cn||(this.cn=new V3(0,1,0)),vt=this.v.lengthSq()-this.v.dot(cn)**2,uy=_u.set(0,1,0).applyQuaternion(this.q).y;
+  if(gd&&uy<.93&&(this.pr?vt<9+(this.pw*DRAD*1.6)**2:cn.y>.6&&uy<-.6&&vt<9)){const up=_u;this.pr=1;const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
+   const tg=PEND*(.5+.5*sm((1-up.y)/2))*(this.thr>.3?1.3:1);this.pw=(this.pw||0)+(tg-(this.pw||0))*(1-Math.exp(-dt/.35));
+   if(this.pw>.15&&this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return}else this.pw=this.pr=0
   if(gd)this.w.lerp(wt,1-Math.exp(-dt/.09));else{const r=F.rmax,a=F.acc,k=1-Math.exp(-dt/TAU);  // parts: the airframe tops out at rmax and its torque/inertia caps angular acceleration (pitch, yaw, roll)
    this.w.x+=cl((cl(wt.x,-r[0],r[0])-this.w.x)*k,-a[0]*dt,a[0]*dt);this.w.y+=cl((cl(wt.y,-r[1],r[1])-this.w.y)*k,-a[1]*dt,a[1]*dt);this.w.z+=cl((cl(wt.z,-r[2],r[2])-this.w.z)*k,-a[2]*dt,a[2]*dt)}const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
@@ -53,13 +57,13 @@ export class Drone{
  ground(){let m=0,c=0,dm=0;const HBR=this.hbr,DI=this.di,ww=_ww.copy(this.w).applyQuaternion(this.q),na=_gw.set(0,0,0);
   for(const C of this.hbp){const r=_br.copy(C).applyQuaternion(this.q),P=_bp2.copy(this.p).add(r),d=sdf(P.x,P.y,P.z)+HBR;if(d<=0)continue;
    const h=_H[c++];sdN(P,h[1]).negate();h[0].copy(r).addScaledVector(h[1],-HBR);na.add(h[1]);dm=Math.max(dm,d)}
-  if(!c)return 0;this.p.addScaledVector(na.normalize(),dm);
+  if(!c)return 0;this.p.addScaledVector(na.normalize(),dm);(this.cn||(this.cn=new V3())).copy(na);  // contact normal: floor up, wall sideways, ceiling down
   for(let i=0;i<c;i++){const[r,n]=_H[i],vp=_vp.crossVectors(ww,r).add(this.v),vn=vp.dot(n);if(vn>=0)continue;
    const rn=_rn.crossVectors(r,n),den=1+rn.lengthSq()/DI,j=-(1+(-vn>3?DB:0))*vn/den/c*1.15;this.v.addScaledVector(n,j);ww.addScaledVector(rn,j*.45/DI);  // softened: less overshoot, less tumble off a bump
    vp.addScaledVector(n,-vn);const tl=vp.length();if(tl>1e-4){vp.divideScalar(tl);const rt=_rn.crossVectors(r,vp),jt=Math.min(GF*Math.min(j,G*.05/c),tl/(1+rt.lengthSq()/DI)/c);this.v.addScaledVector(vp,-jt);ww.addScaledVector(rt,-jt*.2/DI)}
    m=Math.max(m,-vn)}
   this.w.copy(ww).applyQuaternion(_qb.copy(this.q).invert());this.gt=.12;return m}}
-const _H=Array.from({length:16},()=>[new V3(),new V3()]),_pv=new V3(),_pa=new V3(),_pw=new V3(),PEND=14;
+const _H=Array.from({length:16},()=>[new V3(),new V3()]),_pv=new V3(),_pa=new V3(),_pw=new V3(),PEND=3.6;
 export const _rf=new V3(),_qr=new QT(),wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
 function rightUp(d,k){const f=_rf.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,1,0).applyQuaternion(d.q);f.y=0}_qr.setFromAxisAngle(UP,f.lengthSq()>1e-4?Math.atan2(-f.x,-f.z):0);d.q.slerp(_qr,k)}  // level, keeping the heading
 const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new V3();

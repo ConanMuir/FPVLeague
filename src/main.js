@@ -32,7 +32,7 @@ import {setMap} from './world/maps.js';
 // ---------- main loop ----------
 let last=performance.now(),acc=0;const DT=1/120;
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);
- if(!GS.paused){acc+=dt*GS.timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){step(DT);acc-=DT}}
+ if(!GS.paused){if(GS.timeScale<1){let r=Math.min(dt,.05)*GS.timeScale*GSPD;while(r>1e-6){const h=Math.min(DT,r);step(h);r-=h}acc=0}else{acc+=dt*GS.timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){step(DT);acc-=DT}}}  // slow-mo steps every frame by a smaller dt, so nothing stutters
  visuals(GS.paused?0:dt*GS.timeScale*GSPD,now);updateCam(dt,now);hud();labFrame(now);if(GS.menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);draw()}
 // boot, in v15's order
 initMenu();initCalib();initModPanel();

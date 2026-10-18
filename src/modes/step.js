@@ -19,7 +19,7 @@ import {banner} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
 export function step(dt){if(LAB.on){labStep(dt);return}const A=auth();
  if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);tone(660,660,.12,.12,'square')}else{banner('GO!','',.6);tone(990,990,.25,.15,'square')}}}if(A&&GS.stT<=0)GS.state='play'}
- else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=1;if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
+ else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
  else if(GS.state==='end'){GS.stT-=dt;if(A&&GS.stT<=0){banner('');if(GS.net){GS.score=[0,0];GS.clock=S.len;GS.overtime=GS.endPending=false;kickoff()}else{startDemo();return}}}
  else if(GS.state==='play'&&!GS.demo&&A){if(!GS.overtime){GS.clock-=dt;if(GS.clock<=0){GS.clock=0;if(GS.score[0]===GS.score[1]){GS.overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else GS.clock+=dt}
  const frozen=GS.state==='kickoff',live=GS.state==='play'||GS.state==='kickoff';
@@ -33,7 +33,8 @@ export function step(dt){if(LAB.on){labStep(dt);return}const A=auth();
   if(live&&!a.remote&&!GS.OBSON&&ballBox(a,_v)){const n=_v,pen=ballBox.pen,ib=1/BM,id=1/a.fl.mass;ball.p.addScaledVector(n,pen*ib/(ib+id));a.p.addScaledVector(n,-pen*id/(ib+id));  // parts: id = 1/drone mass, heavier quads hit harder
    const rv=_w.subVectors(ball.v,a.v).dot(n);if(rv<0){const hk=cl((-rv-6)/30,0,1),j=-(1+TB+(.6-TB)*hk+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);
     // Rocket League-style extra push along drone->ball (vertical softened), leaning toward where the quad is flying
-    const aim=_ip.subVectors(ball.p,a.p);aim.y*=.7;aim.normalize();const sp=a.v.length();if(sp>3)aim.addScaledVector(_lat.copy(a.v).divideScalar(sp),.5).normalize();ball.v.addScaledVector(aim,Math.min(14,-rv*.3)*hk*KICK);
+    const aim=_ip.subVectors(ball.p,a.p);aim.y*=.35;aim.normalize();const fw=_lat.set(0,0,-1).applyQuaternion(a.q);aim.addScaledVector(fw,-.35*aim.dot(fw)).normalize();
+    const u=BR/.93,rel=Math.min(_t.subVectors(a.v,ball.v).length(),46*u),sc=rel<=5*u?.65:rel<=23*u?.65-.1*(rel-5*u)/(18*u):.55-.25*(rel-23*u)/(23*u);ball.v.addScaledVector(aim,rel*sc*hk*KICK);  // RL: 0.65 up to 500 uu/s, 0.55 at 2300, 0.30 at 4600 (uu scaled to this ball)
     const gr=(1-hk)*.35*Math.min(2,a.fl.grip);_t.subVectors(ball.v,a.v);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr);ball.last=a;  // parts: grip, flat wide bodies carry the ball
     if(GS.net&&!GS.net.host&&a===GS.player){GS.net.hit={s:++GS.net.seq,p:r2(ball.p),v:r2(ball.v)};GS.net.hitT=performance.now()}
     if(-rv>6){noise(.18,700+(-rv)*15,cl(-rv/35,0,.7)*near(ball.p));tone(240,90,.12,cl(-rv/120,0,.25)*near(ball.p));emit(ball.p.clone().addScaledVector(n,-BR),0x9fe8ff,cl(-rv,4,30)|0,10,.5)}}}

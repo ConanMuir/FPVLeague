@@ -1,13 +1,13 @@
 // Settings S: defaults (DEF), load from localStorage 'droneleague', and every migration, in the order v15 ran them.
 // S is a live `export let`, assigned only here; everyone else mutates its properties and calls save().
-import {cl} from './constants.js';
+import {ARENAS,cl} from './constants.js';
 import {MDEF,cleanMod} from './mods.js';
 import {RTYPES} from './ratetypes.js';
 import {STOCK,cleanLoadout} from '../parts/index.js';
-const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}],gfx:'auto',assist:0};
+const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,arena:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}],gfx:'auto',assist:0};
 export let S;try{S={...DEF,...JSON.parse(localStorage.getItem('droneleague')||'{}')}}catch(e){S={...DEF}}
 if(!Array.isArray(S.cal)||S.cal.length!==4||!S.cal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.cal=DEF.cal.map(c=>({...c}));
-if(!Array.isArray(S.xcal)||S.xcal.length!==4||!S.xcal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.xcal=DEF.xcal.map(c=>({...c}));if(S.bots!==0)S.bots=1;
+if(!Array.isArray(S.xcal)||S.xcal.length!==4||!S.xcal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.xcal=DEF.xcal.map(c=>({...c}));if(S.bots!==0)S.bots=1;if(!ARENAS[S.arena])S.arena=1;
 S.loadout=cleanLoadout(S.loadout)||[...STOCK];  // drone parts [arms, chassis, power]; older saves get Stock
 if(!['arena','meadow','canyon','alpine'].includes(S.map))S.map='arena';if(!['classic','soccer','plasma','beach'].includes(S.ball))S.ball='classic';if(S.game!=='df')S.game='league';
 if(!['auto','high','med','low'].includes(S.gfx))S.gfx='auto';  // graphics quality (added after v15; older saves get Auto)
@@ -15,6 +15,7 @@ export const save=()=>{try{localStorage.setItem('droneleague',JSON.stringify(S))
 // physics mod values (v15 ran these when the mod panel was built)
 S.mod={...MDEF,...cleanMod(S.mod)};if((S.physV|0)<2){const O={thr:124,maxv:111,dl:.14,dq:.0065,spool:30};for(const k in O)if(Math.abs(S.mod[k]-O[k])<1e-9)S.mod[k]=MDEF[k];S.physV=2;save()}  // v2 flight model: move untouched old defaults to the 6S defaults
 if((S.physV|0)<3){const O={dbounce:.2,wash:1,boost:140,bgrav:5};for(const k in O)if(Math.abs(S.mod[k]-O[k])<1e-9)S.mod[k]=MDEF[k];S.physV=3;save()}  // v3: Riley's mode is the default
+if((S.physV|0)<4){const O={bgrav:19.5,bbounce:.68,bmax:85,bmass:.7,size:.75};for(const k in O)if(Math.abs(S.mod[k]-O[k])<1e-9)S.mod[k]=MDEF[k];S.physV=4;save()}  // v4: Rocket League ball and car-to-ball scale
 if(!S.presets||typeof S.presets!=='object')S.presets={};
 // rate profiles (v15 ran this when the rates panel was built)
 {const ok=r=>r&&RTYPES[r.type]&&Array.isArray(r.ax)&&r.ax.length===3&&r.ax.every(a=>Array.isArray(a)&&a.length===3&&a.every(Number.isFinite));
