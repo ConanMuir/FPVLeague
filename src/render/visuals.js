@@ -12,6 +12,7 @@ import {_q,_t,_v,_w} from '../scratch.js';
 import {GS,SB} from '../state.js';
 import {mapG,mapId,snowP} from '../world/maps.js';
 import {arenaTick} from '../world/arena.js';
+import {popTick} from './popfx.js';
 import {ORBS,orbOff,orbOn} from '../world/orbs.js';
 export function visuals(dt,now){for(const d of GS.drones){
   if(d.remote&&d.net){const k=1-Math.exp(-dt*18),age=Math.min((now-d.net.at)/1000,.25);d.p.lerp(_t.copy(d.net.p).addScaledVector(d.net.v,age),k);d.q.slerp(d.net.q,k);d.v.copy(d.net.v);d.mesh.visible=d.dead<=0}
@@ -22,7 +23,7 @@ export function visuals(dt,now){for(const d of GS.drones){
  ballMesh.position.copy(ball.p);ballMesh.quaternion.copy(ball.q);  // the ball really spins now (physics/ball.js)
  ballLight.position.copy(ball.p);ballLight.intensity=ballMesh.visible?40:0;ring.position.set(ball.p.x,.04,ball.p.z);ring.material.opacity=ballMesh.visible?cl(1-ball.p.y/30,.08,.9):0;
  for(const o of ORBS){const on=o.cd<=0;o.g.visible=SB();if(o.beam)o.beam.visible=SB()&&!GS.OBSON;o.core.material=on?orbOn:orbOff;o.halo.visible=on;o.g.scale.setScalar(on?1:.35+.35*(1-o.cd/(o.big?10:4)));o.g.position.y=o.p.y+Math.sin(now*.002+o.p.x+o.p.z)*.35;o.core.rotation.y=now*.002;if(o.wire){o.wire.visible=on;o.wire.rotation.set(now*7e-4,now*1e-3,0)}}
- ballTick?.(now);arenaTick(dt);const og=mapG[mapId];if(og)og.userData.clouds.rotation.y+=dt*.004;
+ ballTick?.(now);arenaTick(dt);popTick(dt);const og=mapG[mapId];if(og)og.userData.clouds.rotation.y+=dt*.004;
  // snow lives in world space (so you fly through it) and wraps inside a 160 m box around the camera
  if(snowP.visible){const a=snowP.geometry.attributes.position,A=a.array,t=now*.001,c=camera.position,wr=(v,o)=>o+((v-o+80)%160+160)%160-80;
   for(let i=0;i<A.length;i+=3){A[i+1]-=dt*(3+(i%7));A[i]+=Math.sin(t+i)*dt*.6;A[i]=wr(A[i],c.x);A[i+1]=wr(A[i+1],c.y);A[i+2]=wr(A[i+2],c.z)}a.needsUpdate=true}

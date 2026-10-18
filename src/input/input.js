@@ -54,7 +54,7 @@ export function humanControl(d,dt,acro){const g=pad(),bz=SB()?BZ:0;let thr=null,
  else{const f=heading(d);
   const ch=Math.atan2(-f.x,-f.z);if(d.hd==null||Math.abs(wrapA(d.hd-ch))>1.2)d.hd=ch;d.hd=wrapA(d.hd-rate(2,yaw)*.7*dt);f.set(-Math.sin(d.hd),0,-Math.cos(d.hd));  // heading follows the yaw stick only
   const r=_r.crossVectors(f,UP),T=1.5;const u=_v.copy(UP).addScaledVector(f,pit*T).addScaledVector(r,rol*T).normalize();attitude(d,u,f,16,18,1);d.wt.y-=rate(2,yaw)*.7}
- const fl=flipIn();if(fl&&!flipPrev)d.flipUp();flipPrev=fl}
+ const fl=flipIn();if(fl&&!flipPrev&&!d.tryPop(stk))d.flipUp();flipPrev=fl}  // flip button: spend a pop if one is held and a direction is in, else flip back over
 // the quad's heading as a level unit vector (_f)
 function heading(d){const f=_f.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,-1,0).applyQuaternion(d.q);f.y=0}if(f.lengthSq()<1e-4)f.set(0,0,-1);return f.normalize()}
 let flipPrev=false;const flipIn=()=>{if(keys.KeyE)return true;const g=pad();return!!btnOn(g,padX?S.xflip:S.flipBtn)};

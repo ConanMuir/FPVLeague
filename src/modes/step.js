@@ -3,7 +3,9 @@
 import {near,noise,tone} from '../audio/audio.js';
 import {dfBot} from '../bots/dogfight.js';
 import {assignRoles,botControl,predict} from '../bots/league.js';
-import {HL,cl} from '../config/constants.js';
+import {HL,V3,cl} from '../config/constants.js';
+import {POP_T} from '../flight/drone.js';
+import {popFx} from '../render/popfx.js';
 import {S} from '../config/settings.js';
 import {BM,BR,DEMO,DRAD,KICK,PBG,PSM,TB} from '../config/tune.js';
 import {humanControl} from '../input/input.js';
@@ -20,6 +22,7 @@ import {GS,SB,auth} from '../state.js';
 import {banner} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
 import {MODES} from './registry.js';
+const _pu=new V3(),_pc=new V3(),_pw2=new V3(),_pr=new V3();
 export function step(dt){if(LAB.on){labStep(dt);physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state, Rapier moves it
  if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);tone(660,660,.12,.12,'square')}else{banner('GO!','',.6);tone(990,990,.25,.15,'square')}}}if(A&&GS.stT<=0)GS.state='play'}
  else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
@@ -37,11 +40,15 @@ export function step(dt){if(LAB.on){labStep(dt);physStep(dt,false);return}const 
  if(simBall&&ball.hit>4)noise(.1,900,cl(ball.hit/50,0,.3)*near(ball.p));
  if(!frozen)for(let i=0;i<GS.drones.length;i++){const a=GS.drones[i];if(a.dead>0)continue;
   let tb;if(live&&!a.remote&&!GS.OBSON&&(tb=ballTouch(a,_v))){const n=_v,pen=tb.pen,ib=1/BM,id=1/a.fl.mass;ball.p.addScaledVector(n,pen*ib/(ib+id));a.p.addScaledVector(n,-pen*id/(ib+id));
-   const rv=_w.subVectors(ball.v,a.v).dot(n);if(rv<0){const hk=cl((-rv-6)/30,0,1),j=-(1+TB+(.6-TB)*hk+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);
+   // pop: the ball on the top of the quad, inside its four motors, earns (or refreshes) a pop; the faint ring shows when a new one is earned
+   if(!a.bot&&!(a.popT>0)&&n.dot(_pu.set(0,1,0).applyQuaternion(a.q))>.75&&a.popZone(_pc.copy(ball.p).addScaledVector(n,-BR))){if(!(a.popC>0)){popFx(_pc,n,BR*.75);if(a===GS.player)tone(1500,2200,.08,.05)}a.popC=POP_T}
+   // during a pop the spinning frame's own speed at the contact point counts, so where the ball meets the turning quad decides the pop
+   const av=a.popT>0?_pw2.copy(a.w).applyQuaternion(a.q).cross(_pr.copy(ball.p).addScaledVector(n,-BR).sub(a.p)).add(a.v):a.v;
+   const rv=_w.subVectors(ball.v,av).dot(n);if(rv<0){const hk=cl((-rv-6)/30,0,1),j=-(1+TB+(.6-TB)*hk+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);
     // Rocket League-style extra push along drone->ball (vertical softened), leaning toward where the quad is flying
     const aim=_ip.subVectors(ball.p,a.p);aim.y*=.35;aim.normalize();const fw=_lat.set(0,0,-1).applyQuaternion(a.q);aim.addScaledVector(fw,-.35*aim.dot(fw)).normalize();
-    const u=BR/.93,rel=Math.min(_t.subVectors(a.v,ball.v).length(),46*u),sc=rel<=5*u?.65:rel<=23*u?.65-.1*(rel-5*u)/(18*u):.55-.25*(rel-23*u)/(23*u);ball.v.addScaledVector(aim,rel*sc*hk*KICK);  // RL: 0.65 up to 500 uu/s, 0.55 at 2300, 0.30 at 4600 (uu scaled to this ball)
-    const gr=(1-hk)*.35*Math.min(2,a.fl.grip);_t.subVectors(ball.v,a.v);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr);ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv});  // parts: grip, flat wide bodies carry the ball
+    const u=BR/.93,rel=Math.min(_t.subVectors(av,ball.v).length(),46*u),sc=rel<=5*u?.65:rel<=23*u?.65-.1*(rel-5*u)/(18*u):.55-.25*(rel-23*u)/(23*u);ball.v.addScaledVector(aim,rel*sc*hk*KICK);  // RL: 0.65 up to 500 uu/s, 0.55 at 2300, 0.30 at 4600 (uu scaled to this ball)
+    const gr=(1-hk)*.35*Math.min(2,a.fl.grip);_t.subVectors(ball.v,av);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr);ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv});  // parts: grip, flat wide bodies carry the ball
     if(GS.net&&!GS.net.host&&a===GS.player){GS.net.hit={s:++GS.net.seq,p:r2(ball.p),v:r2(ball.v)};GS.net.hitT=performance.now()}
     if(-rv>6){noise(.18,700+(-rv)*15,cl(-rv/35,0,.7)*near(ball.p));tone(240,90,.12,cl(-rv/120,0,.25)*near(ball.p));emit(ball.p.clone().addScaledVector(n,-BR),0x9fe8ff,cl(-rv,4,30)|0,10,.5)}}}
   for(let k=i+1;k<GS.drones.length;k++){const b=GS.drones[k];if(b.dead>0||a.remote&&b.remote)continue;const c=droneTouch(a,b,_v);if(!c)continue;const n=_v;  // the drones' part colliders (physics/world.js BUMP skin)
