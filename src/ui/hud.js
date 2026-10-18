@@ -18,7 +18,7 @@ export const tag=d=>`<span class="${d.team?'co':'cb'}">${esc(d.name)}</span>`;
 // bottom-right dial (Rocket League's boost meter): boost when Super boost is on, otherwise speed with a throttle arc; Dogfight adds a health ring
 const arc=(el,f)=>el.setAttribute('stroke-dasharray',`${cl(f,0,1)*75} 100`);
 function dial(me){const sb=SB(),hp=GS.OBSON;$('dial').classList.toggle('boost',sb);$('dial').classList.toggle('on',!!me.boostOn);
- $('dnum').textContent=sb?Math.round(me.boost):Math.round(me.v.length()*3.6*9.81/G);$('dlbl').textContent=sb?'BOOST':'KM/H';$('dsub').textContent=sb?`TOP ${Math.round(BZ*100)}% THR`:`THR ${Math.round(me.thr*100)}%`;arc($('darc'),sb?me.boost/100:me.thr);
+ $('dnum').textContent=sb?Math.round(me.boost):Math.round(me.v.length()*3.6*9.81/G);$('dlbl').textContent=sb?'BOOST':'KM/H';$('dial').classList.toggle('pop',me.popC>0);$('dsub').textContent=me.popC>0?`POP ${me.popC.toFixed(1)}s`:sb?`TOP ${Math.round(BZ*100)}% THR`:`THR ${Math.round(me.thr*100)}%`;arc($('darc'),sb?me.boost/100:me.thr);
  $('dhp').style.display=$('dhpt').style.display=hp?'':'none';if(hp){arc($('dhp'),me.hp/100);$('dhp').style.stroke=`hsl(${cl(me.hp,0,100)*1.2},85%,58%)`}}
 const fmt=t=>{t=Math.ceil(t);return`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`};
 export function hud(){if(GS.demo)return;const me=GS.player;$('sb').textContent=GS.score[0];$('so').textContent=GS.score[1];$('clock').textContent=MODES[GS.GM]?.free?'FREEPLAY':(GS.overtime?'+':'')+fmt(GS.clock);

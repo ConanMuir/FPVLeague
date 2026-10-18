@@ -163,8 +163,9 @@ export function los(a,b){const d=_v.subVectors(b,a),L=d.length();if(L<4)return t
 let tbShape=null,tbR=0;
 /** ball vs drone d's 'ball' colliders: n (unit, drone -> ball) and pen like v15's ballBox, plus the tag touched */
 export function ballTouch(d,n){if(!d.rb||d.p.distanceToSquared(ball.p)>(BR+d.bound+.5)**2)return null;if(!tbShape||tbR!==BR){tbShape=new R.Ball(BR);tbR=BR}let best=null;
- for(const e of d.cols){if(!e.use.includes('ball'))continue;const c=e.c.contactShape(tbShape,ball.p,IDQ,0);if(c&&c.distance<0&&(!best||c.distance<best.distance))best={distance:c.distance,n:c.normal2,tag:e.tag}}
- if(!best)return null;n.set(-best.n.x,-best.n.y,-best.n.z);if(n.lengthSq()<.5)n.subVectors(ball.p,d.p).normalize();return{pen:-best.distance,tag:best.tag}}
+ let sx=0,sy=0,sz=0;for(const e of d.cols){if(!e.use.includes('ball'))continue;const c=e.c.contactShape(tbShape,ball.p,IDQ,0);if(!c||c.distance>=0)continue;const w=-c.distance;sx-=c.normal2.x*w;sy-=c.normal2.y*w;sz-=c.normal2.z*w;
+  if(!best||c.distance<best.distance)best={distance:c.distance,tag:e.tag}}
+ if(!best)return null;n.set(sx,sy,sz);if(n.lengthSq()<1e-10)n.subVectors(ball.p,d.p);n.normalize();return{pen:-best.distance,tag:best.tag}}  // normal: every overlapping part, weighted by depth, so mirror-image parts don't pick a side
 /** drone a vs drone b ('drone' colliders, with the BUMP skin): n (unit, a -> b), pen, tags */
 export const BUMP=.4;  // drone-drone contact skin (m): parts within this distance bump (v15's 1.2 m spheres were generous; thin frames need some)
 export function droneTouch(a,b,n){if(!a.rb||!b.rb||a.p.distanceToSquared(b.p)>(a.bound+b.bound+BUMP+.2)**2)return null;let best=null;
