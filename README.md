@@ -3,7 +3,7 @@ Rocket league but with drones
 
 ## How to play
 
-The launcher (`index.html`) lists every game: **Drone League**, **Dogfight** and **Interceptor**. Pick whichever way is easiest:
+The launcher (`index.html`) lists every game: **Drone League**, **Dogfight**, **Interceptor** and **Drone League (Jared's build)**. Pick whichever way is easiest:
 
 1. **Windows:** double-click `Play Drone League.bat`. It starts a small local web server and opens the launcher in its own Edge window. Close the black server window when you're done.
 2. **Online:** turn on GitHub Pages for this repo (Settings > Pages > deploy from the main branch), then open the site link. Nothing to install.
@@ -42,6 +42,23 @@ games/league/           Drone League + Dogfight (one game, two modes: ?mode=leag
   consts.js arena.js highlands.js scene.js   arena + maps + ball styles, the Highlands, lights
 games/interceptor/      Interceptor: the tail-sitter dart keeps its own flight model (interceptor.js); everything else is the engine
 Drone League/           the original single-file Drone League (claude.ai artifact version), kept as is
+games/jared-league/     Jared's build of Drone League (built file, made by `npm run build` from src/)
+app.html src/           Jared's Vite source for it (see below)
 ```
 
 A new game imports the engine, builds its world, calls `setWorld(sdf)` with its collision shape, extends `Quad` for its drone, and hands `startLoop()` its step and draw functions. See `games/league/league.js`.
+
+## Jared's build (Vite, `src/`)
+A second modular version of Drone League by Jared: Rapier physics, garage with drone parts, Calibration Lab auto-tuner,
+choose-your-controls binding, game-mode registry and a Rocket League-style menu and HUD. It lives beside the engine above and
+shares no code with it. The launcher's "Drone League (Jared's build)" card opens the built file, so playing it needs no Node.
+
+To change it you need Node 20+:
+```
+npm ci
+npm run dev      # live dev server, opens http://localhost:5173/app.html
+npm run build    # dist/index.html: the whole game in one HTML file; also updates games/jared-league/index.html
+                 # and writes dist/drone-league.artifact.html (the claude.ai artifact form)
+npm run smoke    # headless Microsoft Edge smoke test, plus a comparison run of the frozen v15 file (needs internet)
+```
+The entry page is `app.html`; source is in `src/` (ES modules). See `docs/jared-build-notes.md` for the layout and `docs/PLAN.md` for the plan.
