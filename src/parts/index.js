@@ -86,7 +86,7 @@ export function computeLoadout(ids,k=1){ids=cleanLoadout(ids)||[...STOCK];const 
  const hbp=[];for(const[sx,sz]of[[1,1],[-1,1],[-1,-1],[1,-1]])for(let i=0;i<4;i++){const t=i/3*Math.PI/2,x0=ax-hbr,z0=az-hbr,c0=Math.max(.02,cr-hbr);hbp.push([r4(sx*(x0-c0+c0*Math.cos(t))),0,r4(sz*(z0-c0+c0*Math.sin(t)))])}
  const bbx=[r3(ext(0,.5)*k),r3(.28*k*stack),r3(Math.max(ext(1,.5),c.half[2]+.08)*k)];
  const di=.22*k*k*((B.I[0]+B.I[1]+B.I[2])/B.auw)/REF_IM;
- const hy=[r4(Math.min(-a.arm.t/2-.012,c.y-c.half[1])*k),r4(Math.max(B.propY+.02,B.cTop)*k)];  // ground hull height: belly to the props (the pack is its own box on top)
+ const hy=[r4(Math.min(-a.arm.t/2-.012,c.y-c.half[1])*k),r4(Math.max(B.battY+p.batt.half[1],B.propY+.02,B.cTop)*k)];  // ground hull height: belly to battery top
  const size=REF_AREA_C?Math.sqrt(areaOf(cols)/k/k/REF_AREA_C):1;  // effective size vs Stock (1 = Stock): mean projected collider area
  return {ids,name:[a,c,p].map(x=>x.name).join(' · '),auw:Math.round(B.auw),mass:r3(mass),inertia:B.I.map(v=>r4(v/REF_G*k*k)),colliders:cols,flight,
   hbp,hbr:r4(hbr),hy,bbx,di:r4(di),size:r3(size),hitR:r3(2*size),  // hitR: Dogfight bullet radius (2 m for Stock, scales with the hitbox)
