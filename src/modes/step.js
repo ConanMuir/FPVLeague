@@ -19,11 +19,12 @@ import {_ip,_lat,_t,_v,_w} from '../scratch.js';
 import {GS,SB,auth} from '../state.js';
 import {banner} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
+import {MODES} from './registry.js';
 export function step(dt){if(LAB.on){labStep(dt);physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state, Rapier moves it
  if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);tone(660,660,.12,.12,'square')}else{banner('GO!','',.6);tone(990,990,.25,.15,'square')}}}if(A&&GS.stT<=0)GS.state='play'}
  else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
  else if(GS.state==='end'){GS.stT-=dt;if(A&&GS.stT<=0){banner('');if(GS.net){GS.score=[0,0];GS.clock=S.len;GS.overtime=GS.endPending=false;kickoff()}else{startDemo();return}}}
- else if(GS.state==='play'&&!GS.demo&&A){if(!GS.overtime){GS.clock-=dt;if(GS.clock<=0){GS.clock=0;if(GS.score[0]===GS.score[1]){GS.overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else GS.clock+=dt}
+ else if(GS.state==='play'&&!GS.demo&&A&&!MODES[GS.GM]?.free){if(!GS.overtime){GS.clock-=dt;if(GS.clock<=0){GS.clock=0;if(GS.score[0]===GS.score[1]){GS.overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else GS.clock+=dt}
  const frozen=GS.state==='kickoff',live=GS.state==='play'||GS.state==='kickoff';
  for(const d of GS.drones){if(d.remote)continue;if(d.dead>0){if((d.dead-=dt)<=0)d.spawn();continue}
   if(d.bot)(GS.OBSON?dfBot:botControl)(d,dt);else{humanControl(d,dt);if(GS.OBSON)d.firing=!GS.menuOpen&&GS.state==='play'&&fireIn(d)}if(frozen)continue;d.step(dt)}
