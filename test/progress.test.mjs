@@ -70,7 +70,10 @@ test('match XP: base + win + performance, scaled by match length and opponent le
   assert.ok(matchXp(good, {played: 180, won: false, df: 1, opp: 2}).total < x.total, 'a win is worth more');
   assert.ok(matchXp(good, {played: 180, won: true, df: DIFF_F[5], opp: 2}).total > matchXp(good, {played: 180, won: true, df: DIFF_F[0], opp: 2}).total, 'Grand Champion beats Rookie');
   assert.equal(DIFF_F.length, DIFF.length, 'a difficulty factor for every bot level');
-  assert.equal(matchXp(good, {played: 20, won: true, df: 1, opp: 1}).items[0].xp, Math.round(BASE * .4), 'a short match: base clamps at 0.4');
+  const short = matchXp(good, {played: 10, won: true, df: 1, opp: 1});
+  assert.equal(short.items[0].xp, Math.round(BASE * .1), 'a (hand-edited) 10 s match: base clamps at 0.1');
+  assert.ok(short.total < x.total / 4, `a 10 s match can't farm the performance cap (${short.total} vs ${x.total})`);
+  assert.ok(matchXp(good, {played: 120, won: true, df: 1, opp: 1}).total < x.total, 'a 2 min match gives a little less than a 3 min one');
   assert.equal(matchXp(good, {played: 3000, won: true, df: 1, opp: 1}).items[0].xp, Math.round(BASE * 5 / 3), 'a long one at 5/3');
 });
 

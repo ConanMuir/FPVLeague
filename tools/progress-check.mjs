@@ -41,7 +41,7 @@ try {
   await p.click('#pmok'); ok(!(await vis('#pmsum')), 'Continue closes the summary');
 
   // 2. autopilot League
-  const c = await p.evaluate(() => window.__pc.match('league', {len: 60, auto: true}));
+  const c = await p.evaluate(() => window.__pc.match('league', {len: 120, auto: true}));
   P = await prof(); const h = P.hist[0], st = P.st.league || {};
   ok(c.state === 'end' && P.hist.length === 2, `autopiloted League match ended (${c.score.join('-')} for team ${c.me}, ${c.sim} s)`);
   ok(h.xp > 40 && P.xp === h.xp, `autopilot earned XP: ${h.xp} (${h.r}, goals ${st.goals || 0}, touches ${st.touches || 0}, saves ${st.saves || 0}, pops ${st.pops || 0})`);
