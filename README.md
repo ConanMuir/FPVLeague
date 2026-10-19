@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main 5c965f2 (ball feel, PR #21)
-Doing: Rocket League-style goal explosions (branch `goal-explosions`): flash, team-colour shockwave shell + rings, spark streaks, arena light pulse, goal frame glow, short camera shake.
-Touches: src/render/goalfx.js (new), src/modes/match.js (goalFx calls it; fewer old particles on Low), src/render/visuals.js (one tick call), tools/goalfx-shots.mjs (new: screenshots + frame time).
-Open items / help wanted: not yet seen by a pilot in a real online match; the effect plays in real time (~1.5 s) over the goal slow-mo.
-Overlaps: effects/sound branches may also edit goalFx in src/modes/match.js (one line); merge by hand.
+Based on: origin/main 5c965f2 (ball feel, PR #21), merged with 4a49f56 (goal explosions, PR #23)
+Doing: Gameplay effects (`src/render/effects.js`): boost flame jets under every motor + boost ribbon trail + embers, motor-wash glow at high throttle, prop-wash dust off the ground/walls tinted per map (arena haze, Meadow grass clippings, Canyon dust, Alpine snow powder, Highlands grass/dirt), sparks + fading scuff decals when the frame scrapes/tumbles, a speed-based ball trail and a flash + shock ring + sparks on hard ball hits. Scaled by the graphics quality, all pooled.
+Touches: src/render/effects.js (new), src/render/visuals.js (calls `gameFx`, old boost embers removed), src/physics/world.js (`onHit` type `'ground'` event from `groundContacts`), src/modes/step.js (ball `onHit` event carries `p`/`n`; the old hit emit removed), tools/fx-shots.mjs (new: scenario screenshots + frame time with effects on/off).
+Open items / help wanted: remote (online) drones don't send ground contacts, so they get no sparks/scuffs; boost trail colour is `d.trailCol` (0xRRGGBB, null = team colour) for a cosmetic to set; sound can listen to `onHit` `'ground'` (`speed` impact, `slide` scrape speed).
+Overlaps: goal explosions (`src/render/goalfx.js`, merged) and sound may also use `onHit`; event types were only extended, none renamed.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.

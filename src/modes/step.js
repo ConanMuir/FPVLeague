@@ -24,7 +24,7 @@ import {banner} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
 import {MODES} from './registry.js';
 import {TR,trainPost,trainPre} from './training.js';
-const _pu=new V3(),_pc=new V3(),_pw2=new V3(),_pr=new V3(),_fr=new V3(),_fs=new V3(),_fc=new V3(),sst=x=>{x=cl(x,0,1);return x*x*(3-2*x)};
+const _bh=new V3(),_pu=new V3(),_pc=new V3(),_pw2=new V3(),_pr=new V3(),_fr=new V3(),_fs=new V3(),_fc=new V3(),sst=x=>{x=cl(x,0,1);return x*x*(3-2*x)};
 export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);physStep(dt,false);return}if(TR.on&&trainPre(dt)){physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state, Rapier moves it
  if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);countdown(n)}else{banner('GO!','',.6);countdown(0)}}}if(A&&GS.stT<=0)GS.state='play'}
  else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
@@ -58,9 +58,9 @@ export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);ph
     else{const r=_fr.copy(n).multiplyScalar(-BR),sv=_fs.crossVectors(ball.w,r).add(ball.v).sub(av);sv.addScaledVector(n,-sv.dot(n));const sl=sv.length();
      if(sl>1e-4){sv.divideScalar(sl);const jt=Math.min((.15+.25*Math.min(2,a.fl.grip))*j,sl/(3.5*ib+id));ball.v.addScaledVector(sv,-jt*ib);a.v.addScaledVector(sv,jt*id);ball.w.addScaledVector(_fc.crossVectors(r,sv),-jt*ib/(.4*BR*BR))}
      if(hk<.3)ball.w.lerp(_fc.copy(a.w).applyQuaternion(a.q),Math.min(1,.12*Math.min(2,a.fl.grip)));}  // rolling resistance on a resting carry: the ball rides on the frame instead of rolling off it like a marble on glass
-    ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv});
+    ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv,p:_bh.copy(ball.p).addScaledVector(n,-BR),n});  // p, n: contact point and normal (drone -> ball), reused vectors; render/effects.js draws the flash, ring and sparks
     if(GS.net&&!GS.net.host&&a===GS.player){GS.net.hit={s:++GS.net.seq,p:r2(ball.p),v:r2(ball.v)};GS.net.hitT=performance.now()}
-    if(-rv>6){emit(ball.p.clone().addScaledVector(n,-BR),0x9fe8ff,cl(-rv,4,30)|0,10,.5)}}}
+    }}
   for(let k=i+1;k<GS.drones.length;k++){const b=GS.drones[k];if(b.dead>0||a.remote&&b.remote)continue;const c=droneTouch(a,b,_v);if(!c)continue;const n=_v;  // the drones' part colliders (physics/world.js BUMP skin)
    const o=c.pen,wa=a.remote?0:b.remote?1:.5;a.p.addScaledVector(n,-o*wa);b.p.addScaledVector(n,o*(1-wa));const rv=_w.subVectors(b.v,a.v).dot(n);if(rv>=0)continue;
    emitHit({type:'drone',d:a,tag:c.ta,other:b,otherTag:c.tb,speed:-rv});
