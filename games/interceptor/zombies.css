@@ -2,6 +2,7 @@
 .gmode{display:inline-flex;border:1px solid var(--edge);border-radius:6px;overflow:hidden;margin:4px 0 8px}
 .gmode button{border:0;border-radius:0;padding:8px 20px;font-size:15px;background:rgba(255,255,255,.04);color:var(--dim)}
 .gmode button.on{background:rgba(255,198,64,.18);color:#fff;box-shadow:inset 0 -2px 0 var(--amber)}
+.gmode.zdiff{display:flex;margin:-4px 0 10px}.gmode.zdiff[hidden]{display:none}.gmode.zdiff button{flex:1;padding:6px 10px;font-size:13px}
 .gmdesc{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.45;max-width:52ch}.gmdesc b{color:var(--ink)}
 
 /* in-wave HUD: replaces Classic's score strip and site row */
@@ -22,6 +23,10 @@
 #zpk span{background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:4px 10px;color:#fff}#zpk span.off{opacity:.4}
 #zpk kbd{font:700 11px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:0 4px;margin-right:6px;color:var(--amber)}
 #hud:not(.z) #zpk{display:none}
+/* Rocket Assist burn bar, just above the perk bar */
+#zrk{position:absolute;left:50%;bottom:calc(54px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;align-items:center;gap:8px;font:700 12px var(--mono);color:#ffb070}
+#zrk b{display:block;width:200px;height:8px;background:rgba(0,0,0,.5);border:1px solid rgba(255,140,60,.5);border-radius:4px;overflow:hidden}#zrk i{display:block;height:100%;background:linear-gradient(90deg,#ff5a1a,#ffd080)}
+#zrk em{font-style:normal;min-width:4.5em}#hud:not(.z) #zrk{display:none}
 
 /* base screen and game over */
 #zbase,#zover{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(ellipse at center,rgba(5,7,13,.35),rgba(5,7,13,.85));z-index:3;overflow:auto}
@@ -60,6 +65,14 @@ body.zb-open #hud{visibility:hidden}
 .zarm{display:grid;grid-template-columns:auto minmax(110px,.8fr) minmax(0,2fr);gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--edge);border-radius:8px}
 .zarm small{display:block;color:var(--dim);font-size:12px}.zups{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.zst{font:11px var(--mono);color:var(--dim);width:100%}.zst.zn{color:#cfd8ea;font:12px var(--disp)}
 .zups .zsell{margin-left:auto;background:none;color:var(--dim);font-size:12px;padding:6px 10px}.zups .zsell.arm{color:#fff;border-color:var(--red);background:rgba(255,77,77,.18)}
+/* shop catalogue: grouped compact rows */
+.ztab h3{margin:6px 0 2px}.ztab h3:first-child{margin-top:0}
+.zitems{display:grid;gap:6px}
+.zitem{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--edge);border-radius:8px;background:rgba(255,255,255,.03)}
+.zitem.lock{opacity:.45}.zid b{font-size:15px}.zid em{font:700 10px var(--mono);font-style:normal;color:var(--amber);letter-spacing:.08em;margin-left:8px}
+.zid p{margin:2px 0 0;font-size:12.5px;color:var(--dim);line-height:1.35}.zid .zvs{margin-top:4px}
+.zitem button{white-space:nowrap;min-width:9.5em}
+@media (max-width:560px){.zitem{grid-template-columns:auto 1fr}.zitem button{grid-column:1/-1}}
 .zslots{display:flex;flex-wrap:wrap;gap:6px}.zhint{margin:0;font-size:13px;color:var(--dim)}.zhint b{color:var(--ink)}
 .zfc{border-top:1px solid var(--edge);padding-top:10px;display:grid;gap:6px}.zfc h3{margin:0}
 .zfks{display:flex;flex-wrap:wrap;gap:6px}.zfk{font:12px var(--mono);padding:3px 8px;border-radius:4px;background:rgba(255,77,77,.12);color:#ffb0b0}.zfk.new{background:rgba(255,198,64,.2);color:#ffe08a}.zfk b{color:var(--amber)}
