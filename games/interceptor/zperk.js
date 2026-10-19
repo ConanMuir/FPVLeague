@@ -34,10 +34,10 @@ export function initPerks(api,G,Z){
  // A co-op client (Z.mirror) sends the use to the host instead and spends its own charge.
  function use(k,o){if(G.state!=='wave'||!o&&!(G.ch[k]>0))return false;
   if(!o&&Z.mirror){if(!TH.some(api.live))return false;Z.req(['u',k,lv(k),api.selT()?.id|0]);G.ch[k]--;api.tone(800,1000,.2,.08,'triangle');return true}
-  const L=o?Math.max(1,o.lv|0):lv(k),who=o?`<b>${o.n}</b>: `:'',sel=o?TH.find(t=>t.id===o.sel):api.selT();
-  if(k==='freeze'){const F=FREEZE[Math.min(L,3)],L=TH.filter(t=>api.live(t)&&!t.frz).sort((a,b)=>danger(b)-danger(a)).slice(0,F.k);if(!L.length)return false;
+  const LV=o?Math.max(1,o.lv|0):lv(k),who=o?`<b>${o.n}</b>: `:'',sel=o?TH.find(t=>t.id===o.sel):api.selT();
+  if(k==='freeze'){const F=FREEZE[Math.min(LV,3)],L=TH.filter(t=>api.live(t)&&!t.frz).sort((a,b)=>danger(b)-danger(a)).slice(0,F.k);if(!L.length)return false;
    for(const t of L){t.frz=F.s;t.spd*=.5;t.cs*=.5;Z.pop(t.p,'FROZEN','#9fe8ff')}api.feed(`${who}<span class="cb">Freeze: ${L.map(Z.tname).join(', ')} slowed for ${F.s} s</span>`);api.tone(1200,600,.4,.08,'triangle')}
-  if(k==='mark'){const M=MARK[Math.min(L,3)],s=sel,t=s&&api.live(s)?s:TH.filter(api.live).sort((a,b)=>danger(b)-danger(a))[0];if(!t)return false;t.mark=M.s;Z.pop(t.p,'MARKED','#ff6bd6');api.feed(`${who}<span style="color:#ff6bd6">Marked ${Z.tname(t)} for ${M.s} s: helper hits count double</span>`);api.tone(500,900,.25,.08,'square')}
+  if(k==='mark'){const M=MARK[Math.min(LV,3)],s=sel,t=s&&api.live(s)?s:TH.filter(api.live).sort((a,b)=>danger(b)-danger(a))[0];if(!t)return false;t.mark=M.s;Z.pop(t.p,'MARKED','#ff6bd6');api.feed(`${who}<span style="color:#ff6bd6">Marked ${Z.tname(t)} for ${M.s} s: helper hits count double</span>`);api.tone(500,900,.25,.08,'square')}
   if(k==='air'){const L=TH.filter(t=>api.live(t)&&KIND[t.k]?.armor!=='hard');if(!L.length)return false;let best=L[0],bn=0;
    for(const t of L){let n=0;for(const u of L)if(u.p.distanceToSquared(t.p)<260*260)n++;if(n>bn){bn=n;best=t}}
    const C=new V3(),Cv=new V3();let cn=0;for(const u of L)if(u.p.distanceToSquared(best.p)<260*260){C.add(u.p);Cv.add(u.v);cn++}  // centre on the cluster, not on one member

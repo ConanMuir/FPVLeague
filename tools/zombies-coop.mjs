@@ -90,6 +90,8 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !docum
   ok(!hp.perks.warhead && !ap.perks.warhead, 'Shop: the host and Ash do not get Bea\'s personal perk');
   await ev(B, () => { const i = __z.G.cards.findIndex(c => c.k === 'radar'); document.querySelector(`[data-buy="${i}"]`)?.click(); });
   ok(await until(H, () => __z.G.perks.radar === 1) && await until(A, () => __z.G.perks.radar === 1 && __z.Z.radarK() === 1.3), 'Shop: Bea buys Long-range radar, a team perk: the host and Ash have it too');
+  await ev(A, () => { const i = __z.G.cards.findIndex(c => c.k === 'freeze'); document.querySelector(`[data-buy="${i}"]`)?.click(); });
+  ok(await until(A, () => __z.G.perks.freeze === 1 && __z.G.ch.freeze === 1) && await until(H, () => __z.G.cash === 3200), 'Shop: Ash buys Freeze (an active perk, personal): one charge, purse -$900');
   await ev(H, () => { __z.api.SITES[0].hp -= 120; });
   ok(await until(A, () => __z.api.SITES[0].hp === __z.api.SITES[0].max - 120), 'Site HP sync: damage on the host shows on the clients');
   const c0 = (await st(H)).cash;
@@ -114,6 +116,8 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
 // ---------- helpers fire on the clients' screens: the host's rack drones show up as shots ----------
 { await ev(H, () => { const {api, G} = __z; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); const s = __z.Z.def.SLOTS[__z.Z.def.D[0].slot]; for (let i = 0; i < 2; i++) { const t = __z.make('shahed', s.x + 300 * i, s.z - 2400); t.p.y = api.gh(t.p.x, t.p.z) + 300; } __z.sim(3); });
   ok(await until(A, () => __z.Z.def.shots.length > 0 && __z.Z.def.shots.some(h => h.tgt)), 'Helpers: the host\'s rack drones fly on Ash\'s screen with their claimed targets', 6000);
+  const u = await ev(A, () => ({used: __z.Z.pk.use('freeze'), left: __z.G.ch.freeze}));
+  ok(u.used && u.left === 0 && await until(H, () => __z.api.TH.some(t => __z.api.live(t) && t.frz > 0)) && await until(B, () => __z.api.TH.some(t => __z.api.live(t) && t.frz > 0)), 'Perks: Ash uses Freeze (charge spent); the host slows a track and Bea sees it frozen');
   if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-client-wave.png'}); }
 
 // ---------- a client leaves; then rejoins mid-wave (late join), comes in at the next base screen ----------
