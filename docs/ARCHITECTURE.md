@@ -79,3 +79,22 @@ old saves (`test/fixtures/settings-golden.json`) and checks the result and every
 
 - New setting: append a `field()` (its default goes in the field's clean function; `DEF` is v15's list and stays as it is).
 - Changing what old saves mean: append `{v: next, run(S){...}}` to `MIGRATIONS`.
+
+## Progression (`src/progress/`, `src/ui/profile.js`)
+
+Level, XP, lifetime stats, achievements and cosmetic unlocks. Everything comes from the event bus; gameplay code has no progression
+calls (the one producer added for it is the `pack` event when a training pack finishes).
+
+- `progress/tracker.js` listens to `kickoff`, `count`, `touch`, `popFire`, `bounce`, `save`, `shot`, `goal`, `demo`, `kill`, `bullet`,
+  `end` and `pack`. A match is recorded from a kickoff at 0-0 in a mode with a clock and opponents (League, Dogfight), with no overlay,
+  not in the attract demo. `end` commits it. Leaving early keeps the counts but gives no XP. Only events about your own drone count.
+  The profile is never sent online.
+- Pure rules, tested in node (`test/progress.test.mjs`): `xp.js` (levels, match XP with its anti-farm rules, training XP),
+  `match-rec.js` (one match's counts: goals, assists, pop chains, air dribbles, kills, ...), `achievements.js`, `unlocks.js` (which
+  Garage cosmetics a level or achievement unlocks; parts are never locked), `profile.js` (the saved profile).
+- The profile is localStorage `droneleague.profile`, its own key with its own version (`pv`): loaded through `config/schema.js` like
+  the settings (every field cleaned; a broken save loads fresh and the old text is kept in `droneleague.profile.bak`), then
+  `PROFILE_MIGRATIONS` newer than the save run once each. `test/fixtures/profile-golden.json` pins how 21 saves load.
+  Changing what an old profile means: append `{v: next, run(P, ctx)}` to `PROFILE_MIGRATIONS`.
+- New achievement: append to `ACH` (never rename an id: it is saved). New locked cosmetic: add it to `LEVEL_UNLOCKS` or give an
+  achievement a `reward`. `tools/progress-check.mjs` plays real matches headless and checks the whole loop.
