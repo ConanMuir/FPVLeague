@@ -6,9 +6,10 @@
 //  settings  the music / effects volume sliders in the menu, and B as a quick music mute
 //  night     window lights, site lamps and searchlights at night, then with the substation destroyed and the blocks at 30 %
 //  integ     a real-time wave with damage stages, hit fires and smoke; a snow wave on the ground; thermal FPV on the buildings
+//  snowtrees tree crowns under snow stay readable (frosted), not near-black
 // Prints ok / FAIL per check; frames are OUTDIR/p-*.png.
 import fs from 'node:fs';
-import {serve, launch, open, sleep} from './zlib.mjs';
+import {serve, launch, open, sleep, luma} from './zlib.mjs';
 const [OUT, ...what] = process.argv.slice(2), want = k => !what.length || what.includes(k);
 fs.mkdirSync(OUT, {recursive: true});
 const {server, origin} = await serve(); const b = await launch(); const errs = []; let fails = 0;
@@ -51,9 +52,11 @@ if (want('impact')) {
   const s = await site(0);
   await p.evaluate(() => { __wave(3); const {api, G} = __z, s = api.SITES[0]; s.hp = s.max; const t = __z.make('ballistic', s.x + 900, s.z - 1200, s); window.__bt = t; window.__look(s.x, s.z, 900, 120, 2); for (let i = 0; i < 3000 && !t.impacted && G.state === 'wave'; i++) __z.sim(1 / 30); });
   await sleep(150); const c1 = await p.evaluate(() => __z.Z.fxState());
-  for (const u of [.3, .75]) { await p.evaluate(u => { clearInterval(window.__pin); window.__pin = setInterval(() => __z.Z.fxTest.cineAt(u), 4); }, u); await sleep(80); await shot('impact-' + u); }
+  const L = {};  // brightness between the letterbox bars: the blast must not wash the whole picture out, even with time crawling
+  for (const u of [.3, .75]) { await p.evaluate(u => { clearInterval(window.__pin); window.__pin = setInterval(() => __z.Z.fxTest.cineAt(u), 4); }, u); await sleep(80); const png = await p.screenshot({encoding: 'base64'}); fs.writeFileSync(`${OUT}/p-impact-${u}.png`, Buffer.from(png, 'base64')); L[u] = await luma(p, [0, .15, 1, .85], png); }
   await p.evaluate(() => { clearInterval(window.__pin); __z.Z.fxTest.cineAt(.3); });
   ok(c1.cine === 'impact' && c1.tsc < .5, `impact cam on a ballistic hit (cine ${c1.cine}, time x${c1.tsc.toFixed(2)})`);
+  ok(L[.3].hot < .08 && L[.3].mean < L[.75].mean * 1.25, `impact cam: the blast doesn't wash out the picture (mean luma ${L[.3].mean} at 0.3 vs ${L[.75].mean} at 0.75, ${Math.round(L[.3].hot * 100)}% near-white)`);
   await p.keyboard.press('KeyK'); await sleep(100);
   const c2 = await p.evaluate(() => ({cine: __z.Z.fxState().cine, tsc: __z.Z.tsc, hud: document.getElementById('hud').classList.contains('zcine')}));
   ok(!c2.cine && c2.tsc === 1 && !c2.hud, 'a key skips it: camera, time and HUD back');
@@ -122,8 +125,30 @@ if (want('night')) {
   await render('night-sites-dmg', [0, 300, 2950], [0, 30, 1900], 60);
   await render('night-village-dark', [hp[0] + 120, hp[1] + 45, hp[2] + 90], [hp[0], hp[1] + 2, hp[2]], 60);
   ok(n1.w > 0 && n1.apt > .4 && n1.vil > .4, 'night: windows lit in the blocks and the villages');
+  // searchlight fade: three.js alphaMaps read the green channel, so the beam texture must go from bright green at the lamp (canvas top, v = 1) to black at the far rim
+  const bf = await p.evaluate(() => { const m = __z.api.scene.children.find(o => o.isMesh && o.geometry.type === 'ConeGeometry' && o.material.alphaMap), c = m.material.alphaMap.image, g = c.getContext('2d'), h = c.height;
+    const px = y => g.getImageData(1, Math.min(h - 1, Math.round(y * h)), 1, 1).data;  /* an opaque grey ramp: a white-to-transparent one keeps green at 255 almost to the rim (the cap) */
+    return {lamp: px(0)[1], mid: px(.5)[1], near: px(.9)[1], rim: px(1)[1], opaque: [0, .5, .9, 1].every(y => px(y)[3] === 255)}; });
+  ok(bf.opaque && bf.lamp > 200 && bf.mid < bf.lamp && bf.near < 40 && bf.rim < 8, `searchlights fade out along the beam, no visible cap at the far end (alphaMap green: lamp ${bf.lamp}, middle ${bf.mid}, 90% ${bf.near}, far rim ${bf.rim}, opaque ${bf.opaque})`);
+  { const e = await p.evaluate(() => { const m = __z.api.scene.children.find(o => o.isMesh && o.geometry.type === 'ConeGeometry' && o.visible && o.material.alphaMap); m.updateMatrixWorld(true); const s = m.position, t = m.localToWorld(new __z.api.THREE.Vector3(0, 2600, 0)); return [s.x, s.y, s.z, t.x, t.y, t.z]; });
+    await render('night-beam-end', [e[3] + 300, e[4] + 150, e[5] + 200], [e[3], e[4] - 300, e[5]], 60); }
   ok(n2.apt < n1.apt * .4 && n2.vil < .01 && n2.beams === n1.beams - 1, `damage takes the lights down (blocks ${n2.apt}, villages ${n2.vil}, searchlights ${n1.beams} -> ${n2.beams})`);
   await p.evaluate(() => { const {api, Z} = __z; for (const s of api.SITES) s.hp = s.max; Z.wx.set('clear'); });
+}
+
+if (want('snowtrees')) {
+  // tree crowns under snow: the pixels the forest covers (a render with the forest minus one without it) must not go near-black against the white fields
+  await p.evaluate(() => { const {api, Z} = __z; __clear(); Z.wx.set('snow'); for (let i = 0; i < 30; i++) api.visuals(1 / 30, performance.now()); });
+  const r = await p.evaluate(async () => { const {api} = __z, V = api.THREE.Vector3, m = new api.THREE.Matrix4(), v = new V(), F = api.scene.children.filter(o => o.isInstancedMesh && o.userData.forest);
+    let best = null; for (const o of F) if (o.geometry.attributes.position.count > 50) for (let i = 0; i < o.count; i += 2) { o.getMatrixAt(i, m); v.setFromMatrixPosition(m); const d = Math.hypot(v.x, v.z - 1950); if (!best || d < best.d) best = {d, p: v.clone()}; }
+    const b = best.p, img = async () => { const im = new Image(); im.src = __render([b.x + 45, b.y + 18, b.z + 32], [b.x, b.y, b.z], 60); await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
+    const a = await img(); F.forEach(o => o.visible = false); const n = await img(); F.forEach(o => o.visible = true);
+    let s = 0, k = 0, gs = 0, gk = 0; const L = (d, i) => .2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2];
+    for (let i = 0; i < a.length; i += 8) { const la = L(a, i), ln = L(n, i); if (Math.abs(la - ln) > 12) { s += la; k++; } else { gs += la; gk++; } }
+    return {trees: +(s / k).toFixed(1), rest: +(gs / gk).toFixed(1), px: k}; });
+  await render('snow-trees', ...(await p.evaluate(() => { const c = __z.api.camera; return [[c.position.x, c.position.y, c.position.z], [c.position.x - 45, c.position.y - 18, c.position.z - 32]]; })), 60);
+  ok(r.px > 2000 && r.trees > 68 && r.trees > r.rest * .45, `snow: tree crowns frost over instead of going near-black (mean luma ${r.trees} on ${r.px} tree pixels, ${r.rest} elsewhere)`);
+  await p.evaluate(() => __z.Z.wx.set('clear'));
 }
 
 if (want('integ')) {

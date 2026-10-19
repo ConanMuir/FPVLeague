@@ -56,14 +56,15 @@ export function initDefences(api,G,Z){
  const L=d=>d.type==='rack'?null:HELP[d.type].lv[d.lvl],rangeOf=d=>d.type==='rack'?RACK_RANGE:(L(d).rng||HELP[d.type].rng);
  function add(type,slot){const d={id:++did,type,slot,tier:0,lvl:0,cap:0,ready:0,cd:0,rearm:0,mesh:null,kills:0,shots:0,ammo:0,jam:new Set()};if(type==='rack'){d.cap=RACK_CAP[0];d.ready=d.cap}D.push(d);return d}
  const slotFree=i=>!D.some(d=>d.slot===i);
- function remove(d){const i=D.indexOf(d);if(i<0)return;D.splice(i,1);if(d.mesh)scene.remove(d.mesh);if(d.bubble)scene.remove(d.bubble);for(const h of shots)if(h.d===d)h.fuel=0;if(d.tgt)release(d)}
+ const free=d=>{for(const o of[d.mesh,d.bubble])if(o){scene.remove(o);o.traverse(q=>q.geometry?.dispose())}d.mesh=d.bubble=null};  // each defence builds its own geometries (shared materials): free them with it
+ function remove(d){const i=D.indexOf(d);if(i<0)return;D.splice(i,1);free(d);for(const h of shots)if(h.d===d)h.fuel=0;if(d.tgt)release(d)}
  // meshes appear (and magazines refill) when the next wave starts
  function deploy(){for(const h of shots)release(h);shots.length=0;shells.length=0;tr.length=0;pend.length=0;pend.length=0;
   for(const d of D){const s=SLOTS[d.slot];if(!d.mesh){d.mesh=MESH[d.type](d);d.mesh.position.set(s.x,s.y,s.z);d.mesh.rotation.y=Math.atan2(s.x,s.z+1500)+Math.PI;scene.add(d.mesh);
     if(d.bubble){d.bubble.position.set(s.x,s.y,s.z);scene.add(d.bubble)}}
    if(d.bubble)d.bubble.scale.setScalar(rangeOf(d));
    if(d.type==='rack'){d.ready=d.cap;d.rearm=0}else d.ammo=L(d).mag||0;d.jam.clear();d.tgt=null}}
- function clear(){for(const d of D){if(d.mesh)scene.remove(d.mesh);if(d.bubble)scene.remove(d.bubble)}D.length=0;for(const h of shots)release(h);shots.length=0;shells.length=0;tr.length=0;pend.length=0;for(const m of pMesh)m.count=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0)}
+ function clear(){for(const d of D)free(d);D.length=0;for(const h of shots)release(h);shots.length=0;shells.length=0;tr.length=0;pend.length=0;for(const m of pMesh)m.count=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0)}
 
  // ---------- target choice: free, in range, engageable; most urgent first; marked tracks first; leave the player's terminal track alone ----------
  const tti=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);

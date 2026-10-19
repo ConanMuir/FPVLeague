@@ -41,9 +41,9 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.on && __z.G.state === 'bas
 if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-base.png'});
 
 // ---------- ready-up: the wave waits for everyone ----------
-await H.p.click('#zgo'); await A.p.click('#zgo'); await sleep(600);
+await tap(H, '#zgo'); await tap(A, '#zgo'); await sleep(600);
 ok((await st(H)).state === 'base' && await ev(H, () => document.getElementById('zgo').textContent.includes('2/3')), 'Ready-up: 2 of 3 ready, the wave has not started (button reads 2/3)');
-await B.p.click('#zgo');
+await tap(B, '#zgo');
 ok(await until(H, () => __z.G.state === 'wave' && __z.G.wave === 1), 'Ready-up: the third pilot readies, wave 1 starts on the host');
 for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'wave' && __z.G.wave === 1 && document.getElementById('zbase').hidden), `${C.name}: wave 1 started (base screen closed)`);
 
@@ -103,7 +103,7 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !docum
   if (SHOTS) { await tap(A, '[data-tab="armory"]'); await sleep(400); await A.p.screenshot({path: SHOTS + '/coop-shop.png'}); } }
 
 // ---------- forced start: the host starts wave 2 with nobody else ready ----------
-await H.p.click('#zforce');
+await tap(H, '#zforce');
 ok(await until(H, () => __z.G.state === 'wave' && __z.G.wave === 2), 'Host: Start now begins wave 2 without the others ready');
 for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'wave' && __z.G.wave === 2), `${C.name}: wave 2 started`);
 ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is deployed on the client too');

@@ -21,6 +21,7 @@ export function initZombies(api){
  const SITE_C={x:0,z:1950};  // centre of the defended area
 
  // ---------- mode choice and Zombies difficulty on the start menu; best wave is kept per difficulty ----------
+ if(!Number.isInteger(S.zdiff))S.zdiff=1;  // a hand-edited or foreign save: Normal (a string here broke the start menu)
  const DF=()=>ZDIFF[cl(G.dfo??S.zdiff??1,0,ZDIFF.length-1)];  // G.dfo: the host's difficulty while in a co-op game
  const bestOf=d=>((S.zbests||{})[d.n]||(d.n==='Normal'&&S.zbest)||{}).wave|0;  // S.zbest = best from before difficulties existed (Normal)
  {const box=$('gmode'),desc=$('gmdesc'),dbox=document.createElement('div');dbox.className='gmode zdiff';dbox.id='zdiff';dbox.setAttribute('role','group');dbox.setAttribute('aria-label','Zombies difficulty');

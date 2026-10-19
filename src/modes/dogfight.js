@@ -19,12 +19,21 @@ import {_gd,_gp,_gq} from '../scratch.js';
 import {GS,auth} from '../state.js';
 import {feed,tag} from '../ui/hud.js';
 import {goalG} from '../world/arena.js';
-import {DHL,DLEN,DW,buildDF,cxR,dfG,dfH,sdCave,sdDF,seeded} from '../world/highlands.js';
+import {DBASE,DHL,DLEN,DW,buildDF,cxR,dfG,dfH,dfSpawns,sdCave,sdDF,sdObs,seeded} from '../world/highlands.js';
 import {setMap} from '../world/maps.js';
 import {ORBS} from '../world/orbs.js';
 export const TUR=[],TUR_HP=60;{const rnd=seeded(11),base=new THREE.CylinderGeometry(2.2,2.8,1.6,16),dome=new THREE.SphereGeometry(1.7,16,10,0,Math.PI*2,0,Math.PI/2),
  barrel=new THREE.CylinderGeometry(.22,.22,3.2,8).rotateX(Math.PI/2).translate(0,0,-1.8),mB=new THREE.MeshStandardMaterial({color:0x2a2f38,roughness:.5,metalness:.6});
- for(let i=0;i<6;i++){let x,z,n=0;do{x=(rnd()-.5)*(DW-420);z=120+rnd()*(DHL-330)}while((sdDF(x,dfH(x,z)+2,z)>-4||sdCave(x,dfH(x,z)-4,z)<14||Math.abs(x-cxR(z))<45||TUR.some(t=>Math.hypot(t.p.x-x,t.p.z-z)<90))&&++n<80);
+ // turret spots (team 0's half; team 1 gets the mirror image): open high ground. Clear of buildings, trees and rings (nothing within 9 m of the
+ // turret or the air above it), solid ground with no cave under it or mouth beside it, off the river, flat enough to stand on, away from the
+ // base pad and the respawn points, 90 m apart; of the seeded candidates that pass, the highest. (sdDF 2 m over the ground is always > -4: the
+ // ground itself is 2 m away, so the old test never passed and every turret was the 80th random try.)
+ const SP=dfSpawns(),okSpot=(x,z)=>{const h=dfH(x,z);if(sdObs(x,h+2.5,z)<9||sdObs(x,h+9,z)<9||sdCave(x,h-4,z)<14||sdCave(x,h+1,z)<8||Math.abs(x-cxR(z))<45)return false;
+  for(const[dx,dz]of[[7,0],[-7,0],[0,7],[0,-7]])if(Math.abs(dfH(x+dx,z+dz)-h)>3)return false;
+  return Math.hypot(x,z-DBASE)>150&&SP.every(p=>Math.hypot(p[0]-x,p[2]-z)>50&&Math.hypot(p[0]+x,p[2]+z)>50)&&TUR.every(t=>Math.hypot(t.p.x-x,t.p.z-z)>=90)};
+ const CAND=Array.from({length:400},()=>[(rnd()-.5)*(DW-300),100+rnd()*(DHL-220)]);
+ for(let i=0;i<6;i++){let x=0,z=0,best=-1e9;for(const[cx,cz]of CAND)if(dfH(cx,cz)>best&&okSpot(cx,cz)){best=dfH(cx,cz);x=cx;z=cz}
+  if(best===-1e9){const c=CAND.find(([cx,cz])=>TUR.every(t=>Math.hypot(t.p.x-cx,t.p.z-cz)>=90))||CAND[i];x=c[0];z=c[1]}  // never: the checks report it (tools/physics-check.mjs)
   const y=dfH(x,z);for(const t of[0,1]){const s=t?-1:1,g=new THREE.Group(),b=new THREE.Mesh(base,mB),head=new THREE.Group(),d=new THREE.Mesh(dome,MAT.team[t]),br=new THREE.Mesh(barrel,mB);
    g.position.set(s*x,y,s*z);b.position.y=.8;head.position.y=1.6;br.position.y=.9;head.add(d,br);g.add(b,head);g.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true});dfG.add(g);
    TUR.push({isTurret:true,t,team:t,p:new V3(s*x,y+2.2,s*z),hp:TUR_HP,cd:1,re:0,g,head,br,aim:new V3(0,0,-1),tg:null,scan:0})}}}

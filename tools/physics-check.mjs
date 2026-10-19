@@ -411,6 +411,57 @@ if (cv) { const CVS = await page.evaluate(() => window.__pc.CV.SEAM);
   check(cv.bot.every(b => b.underground != null && b.closestM <= 60), 'a bot follows a foe into the caves, round the ring and down to the lower level');
 }
 
+// ---------- (i) Dogfight turret spots ----------
+console.log('\n== (i) Dogfight turrets: open high ground, clear of buildings, caves, the river, bases and respawn points');
+const tu = await run('i', () => { const M = window.__pc, {DF, H, CV} = M, out = [];
+  const SP = H.dfSpawns(), med = (() => { const h = []; for (let i = 0; i < 400; i++) { const x = (((i * 7919) % 1000) / 1000 - .5) * (H.DW - 300), z = 100 + (((i * 104729) % 1000) / 1000) * (H.DHL - 220); h.push(H.dfH(x, z)); } return h.sort((a, b) => a - b)[200]; })();
+  for (const t of DF.TUR) { const x = t.p.x, z = t.p.z, h = H.dfH(x, z), sl = Math.max(...[[7, 0], [-7, 0], [0, 7], [0, -7]].map(([a, b]) => Math.abs(H.dfH(x + a, z + b) - h)));
+    out.push({team: t.t, x: Math.round(x), z: Math.round(z), h: Math.round(h), obs: +Math.min(H.sdObs(x, h + 2.5, z), H.sdObs(x, h + 9, z)).toFixed(1), caveBelow: +CV.sdCave(x, h - 4, z).toFixed(1), caveBeside: +CV.sdCave(x, h + 1, z).toFixed(1),
+      river: Math.round(Math.abs(x - H.cxR(z))), base: Math.round(Math.hypot(x, Math.abs(z) - H.DBASE)), spawn: Math.round(Math.min(...SP.map(p => Math.hypot(p[0] - x, p[2] - z)))), slope: +sl.toFixed(1),
+      near: Math.round(Math.min(...DF.TUR.filter(u => u !== t).map(u => Math.hypot(u.p.x - x, u.p.z - z)))) }); }
+  return {out, med: Math.round(med)}; });
+if (tu) {
+  for (const r of tu.out) console.log('  ' + JSON.stringify(r));
+  check(tu.out.length === 12, `6 turrets a side (${tu.out.length})`);
+  check(tu.out.every(r => r.obs >= 9 && r.caveBelow >= 14 && r.caveBeside >= 8), 'turrets: nothing (buildings, trees, rings) within 9 m, no cave under or beside them');
+  check(tu.out.every(r => r.river >= 45 && r.base > 150 && r.spawn > 50 && r.slope <= 3 && r.near >= 90), 'turrets: off the river, away from the base pads and respawn points, on level ground, 90 m apart');
+  check(tu.out.reduce((a, r) => a + r.h, 0) / tu.out.length > tu.med, `turrets on high ground (mean ${Math.round(tu.out.reduce((a, r) => a + r.h, 0) / tu.out.length)} m vs median ground ${tu.med} m)`);
+}
+
+// ---------- (j) high-speed impacts: no tunnelling ----------
+// a quad under full power holding 85 m/s (boost top speed) or 120 m/s straight at thin Highlands obstacles (tree trunks, tower legs and braces,
+// arch and ring rods, spires) and at cave walls from inside the tunnels, for 0.8 s: its centre must never get inside the solid, and it must not
+// come out on the far side of the thing it hit. (Drones have no swept CCD; predictive contacts near the map have to catch this.)
+console.log('\n== (j) high-speed impacts into thin obstacles and cave walls (no tunnelling)');
+const hs = await run('j', () => { const M = window.__pc, {W, H, CV, D, GS, T} = M, dt = M.dt, V = M.V3; M.df(); W.physStep(dt, false);
+  const OB = H.dfCollision().obs, d = new D.Drone(0, 0, false, 'hs'); GS.drones.forEach(o => o.dispose()); GS.drones = [d];
+  let seed = 9; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+  const thick = o => o.s === 'box' ? 2 * Math.min(...o.h) : 2 * o.r, size = o => o.s === 'box' ? 2 * Math.max(...o.h) : o.s === 'cyl' || o.s === 'cone' || o.s === 'cap' ? 2 * o.hh : 0;
+  const thin = OB.filter(o => o.s !== 'hull' && thick(o) < 3 && size(o) > 3), pick = []; for (let i = 0; i < thin.length && pick.length < 60; i += Math.max(1, Math.floor(thin.length / 60))) pick.push(thin[i]);
+  const cases = [];
+  for (const o of pick) { const c = new V(...o.p); for (let tries = 0; tries < 6; tries++) { const a = rnd() * Math.PI * 2, dir = new V(Math.sin(a), 0, Math.cos(a)), st = c.clone().addScaledVector(dir, -26);
+      let free = true; for (let s = 0; s <= 20; s++) { const q = st.clone().addScaledVector(dir, s * (26 - thick(o) / 2 - 2.5) / 20); if (H.sdDF(q.x, q.y, q.z) > -1.3 || q.y < H.dfH(q.x, q.z) + 2) { free = false; break; } }
+      if (free) { cases.push({k: o.s + ' ' + thick(o).toFixed(1) + ' m', c, dir, st, th: thick(o)}); break; } } }
+  // cave walls: from a point on a tunnel axis straight out sideways or up into the rock
+  for (const ax of CV.caveAxes()) for (let i = 1; i < ax.pts.length - 1; i += Math.max(1, Math.floor(ax.pts.length / 3))) { const p = new V(...ax.pts[i]), t = new V(...ax.pts[i + 1]).sub(new V(...ax.pts[i - 1])).normalize();
+    const side = new V().crossVectors(t, new V(0, 1, 0)); if (side.lengthSq() < .01) side.set(1, 0, 0); side.normalize(); if (rnd() < .3) side.crossVectors(side, t).normalize().multiplyScalar(-Math.sign(side.y || 1));
+    if (H.sdDFt(p.x, p.y, p.z) < -ax.r * .6) cases.push({k: 'cave wall r ' + ax.r.toFixed(0), c: null, dir: side, st: p, th: 0, cave: true}); }
+  const out = {n: 0, bad: [], byKind: {}}, e0 = W.PHYS.stats.escapes;
+  for (const S of [85, 120]) for (const cs of cases) { out.n++; const dir = cs.dir; d.p.copy(cs.st); d.v.copy(dir).multiplyScalar(S); d.q.setFromUnitVectors(new V(0, 1, 0), dir.clone().add(new V(0, 1, 0)).normalize()); d.w.set(0, 0, 0); d.gt = 0; d.dead = 0;
+    W.physStep(dt, false); let worst = -99; const pp = d.p.clone();
+    for (let i = 0; i < 96; i++) { const want = dir.clone().multiplyScalar(S), a = want.sub(d.v).multiplyScalar(6).clampLength(0, 200); a.y += M.T.G; d.q.setFromUnitVectors(new V(0, 1, 0), a.clone().normalize()); d.w.set(0, 0, 0); d.wt.set(0, 0, 0);
+      d.thr = Math.min(1, (a.length() / (M.T.THR * d.fl.thr)) ** (1 / (M.T.TE * d.fl.te))); d.step(dt); W.physStep(dt, false); if (d.dead > 0) break;
+      const f = cs.cave ? H.sdDFt : H.sdDF; for (let s = 1; s <= 4; s++) { const q = pp.clone().lerp(d.p, s / 4); worst = Math.max(worst, f(q.x, q.y, q.z)); } pp.copy(d.p); }  /* the path between ticks too, not just where it lands */
+    let through = false; if (!cs.cave) { const r = d.p.clone().sub(cs.c), al = r.dot(dir), lat = r.addScaledVector(dir, -al).setY(0).length(); through = al > cs.th / 2 + .5 && lat < cs.th / 2 + 1; }
+    /* caves: flying out of a mouth is fine, so only the path through the rock counts */
+    const k = cs.k.split(' ')[0] + (cs.cave ? ' wall' : ''); const b = out.byKind[k] || (out.byKind[k] = {n: 0, bad: 0}); b.n++;
+    if (worst > .05 || through) { b.bad++; if (out.bad.length < 8) out.bad.push(`${cs.k} at ${S} m/s from ${cs.st.toArray().map(Math.round)}: ${through ? 'came out the far side' : 'centre ' + worst.toFixed(2) + ' m inside'}`); } }
+  out.escapes = W.PHYS.stats.escapes - e0; return out; });
+if (hs) {
+  console.log(`  ${hs.n} runs: ${Object.entries(hs.byKind).map(([k, v]) => `${k} ${v.bad}/${v.n}`).join(', ')} tunnelled` + (hs.bad.length ? '\n    ' + hs.bad.join('\n    ') : ''));
+  check(hs.n > 100 && !hs.bad.length && !hs.escapes, `a quad at 85 and 120 m/s never tunnels into or through thin obstacles or cave walls (safety-net rescues: ${hs.escapes})`);
+}
+
 // ---------- (f) step cost ----------
 console.log('\n== (f) cost per 120 Hz tick: 3v3 bots + ball, the whole step() (bots, guns, touches) and the Rapier part (physStep)');
 const cost = await run('f', () => {

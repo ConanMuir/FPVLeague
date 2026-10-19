@@ -65,7 +65,7 @@ export function initEnemies(api,G,Z){
   g.add(new THREE.Mesh(new THREE.CylinderGeometry(1.6,2,14,16).rotateX(Math.PI/2).translate(0,.4,0),BM.pod));
   const pods=[];for(let i=0;i<stages;i++){const x=(i-(stages-1)/2)*(26/Math.max(1,stages-1)),p=new THREE.Mesh(new THREE.CylinderGeometry(.9,1.1,4.5,12).rotateX(Math.PI/2),BM.pod);p.position.set(stages>1?x:0,-1.2,-3+Math.abs(x)*.25);g.add(p);pods.push(p);
    const l=new THREE.Mesh(new THREE.SphereGeometry(.35,8,6),BM.led);l.position.set(p.position.x,-1.2,p.position.z-2.4);g.add(l);p.userData.led=l}
-  g.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(g);return{g,pods}}
+  g.traverse(o=>{if(o.isMesh)o.castShadow=true});g.userData.own=1;scene.add(g);return{g,pods}}  // own: its geometries are disposed with the track (interceptor.js dropMesh)
  function bossTick(t,dt){if(t.st!=='cruise'&&t.st!=='dive')return;if((t.rel-=dt)<=0&&t.st==='cruise'){t.rel=rnd(18,24);const n=5+Math.floor(G.wave/6),live=TH.reduce((a,u)=>a+(u.k==='swarm'&&api.live(u)?1:0),0);
    if(live<160){const g=++G.gid;for(let i=0;i<n;i++){const u=Z.make('swarm',t.p.x+rnd(-12,12),t.p.z+rnd(-12,12));if(u){u.p.y=t.p.y-6;u.grp=g}}api.feed(`<span class="cr">${Z.tname(t)} launched an FPV swarm (${n})</span>`)}}}
  Z.bossHit=t=>{if(!api.live(t))return;t.stages--;const p=t.pods?.[t.stages];if(p){p.visible=false;p.userData.led.visible=false;p.getWorldPosition(_b);api.boom(_b,2.2)}

@@ -29,7 +29,7 @@ export class Drone{
  spawn(spread){const s=(GS.OBSON?DSLOTS:SLOTS)[this.i],k=this.team?-1:1;this.hd=null;this.flipT=0;this.p.set(s[0]*k,s[1],s[2]*k);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);this.q.setFromAxisAngle(UP,this.team?Math.PI:0);
   if(spread&&GS.OBSON){const r=dfSpawnPoint(GS.drones.filter(o=>o!==this&&o.dead<=0));this.p.set(r[0],r[1],r[2]);this.q.setFromAxisAngle(UP,r[3])}  // Dogfight respawn: far from everyone alive
   this.boost=START;this.dead=0;this.hp=100;this.firing=false;this.thr=this.ms=HOV;this.gt=0;for(let j=0;j<TN;j++)this.p.toArray(this.tp,j*3);this.mesh.visible=true}
- dispose(){scene.remove(this.mesh,this.trail);freeDroneBody(this)}
+ dispose(){scene.remove(this.mesh,this.trail);this.trail?.geometry.dispose();this.trail?.material.dispose();this.mark?.material.dispose();freeDroneBody(this)}  // the trail and marker are this drone's own (the parts geometry is shared, see parts/mesh.js)
  flipUp(){if(this.dead<=0&&(this.ct||0)>=.2)this.flipT=.35}  // flip over: always, once it has touched the ground or a wall for 0.2 s (any speed)
  // ---- pop: earned by touching the ball with the top of the quad inside its four motors (modes/step.js), held POP_T s.
  // A direction (dominant stick past half) plus the flip button spends it: a locked full turn about that body axis in POP_D s, throttle held,

@@ -144,7 +144,7 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
 // shadow box then only redraws the few tiles under it instead of all 17k trees, and the view only draws the tiles in front of the camera.
 {const m4=new THREE.Matrix4(),q=new QT(),s=new V3(),c=new THREE.Color(),CK=TW/8,tiles=new Map(),
   tGeo=new THREE.CylinderGeometry(.2,.35,1,7).translate(0,.5,0),tMat=detail(new THREE.MeshStandardMaterial({color:0x4a3b2c,roughness:1}),.6,3,0,.25),
-  cGeo=crownGeo(),cMat=detail(new THREE.MeshStandardMaterial({roughness:.9,vertexColors:true}),1.3,5,0,.6);
+  cGeo=crownGeo(),cMat=detail(new THREE.MeshStandardMaterial({roughness:.9,vertexColors:true}),1.3,5,0,.6,2);
  for(const t of TREES){const k=Math.floor((t[0]+TW/2)/CK)+Math.floor((t[1]+TW/2)/CK)*64;let a=tiles.get(k);if(!a)tiles.set(k,a=[]);a.push(t)}
  for(const L of tiles.values()){const trunk=new THREE.InstancedMesh(tGeo,tMat,L.length),crown=new THREE.InstancedMesh(cGeo,cMat,L.length*2);
   L.forEach(([x,z,h],i)=>{const y=gh(x,z)-.3,r=h*.26;m4.compose(_t.set(x,y,z),q.identity(),s.set(1+h*.03,h*.55,1+h*.03));trunk.setMatrixAt(i,m4);
@@ -437,7 +437,7 @@ function impact(t){if(Z.on)return Z.impact(t);t.st='dead';boom(t.aim,4);if(demo|
 function killThreat(t,cat){if(Z.on)Z.kill(t,cat);if(cat){t.st='dead';boom(t.p,3.2);SMK.emit(t.p,0x1c1a18,30,14,6,_t.set(0,3,0),1.4,.85);if(!demo){saved++;ws++;tone(660,1320,.25,.12,'triangle')}return}t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
  boom(t.p,1.2);if(demo)return;saved++;ws++;tone(660,1320,.25,.12,'triangle')}
 function boom(p,k){if(Z.on)Z.flash(p,k);FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
- boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*k);shake=Math.max(shake,near(p)*k*.6);noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}
+ boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*(Z.on?Math.min(k,3):k));shake=Math.max(shake,near(p)*k*.6);noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}
 function fires(dt){for(const f of FIRES)if((f.t-=dt)<=0){f.t=.06;FX.emit(f.p,0xff7a20,3,3,.8,_t.set(0,7,0),2.5);SMK.emit(f.p,0x2b2724,1,2,9,_t.set(0,8,0),1,.75)}}
 const nearestThreat=p=>{let b=null,bd=1e18;for(const t of TH)if(live(t)){const q=t.p.distanceToSquared(p);if(q<bd){bd=q;b=t}}return b};
 // most urgent track: least time to reach its target
@@ -496,7 +496,8 @@ function waves(dt){if(Z.on)return Z.waves(dt);
  if(wstate==='wave'){if(toSpawn>0&&(spawnT-=dt)<=0){toSpawn--;spawnThreat(toSpawn===0);spawnT=(25+Math.random()*20)*DIFF[demo?1:S.diff].gap}  // each wave: one piston Shahed-136, then one jet Geran-3 a little later
   if(!toSpawn&&!TH.some(live)){wstate='clear';wT=5;if(!demo){banner(`WAVE ${wave} CLEAR`,'cg',2.6);feed(`Wave ${wave}: <span class="cg">${ws} down</span> · <span class="cr">${wl} hit${wl===1?'':'s'}</span>`)}}return}
  if(wstate==='clear'&&(wT-=dt)<=0)startWave()}
-function resetWorld(){pickT=null;TH.forEach(t=>scene.remove(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
+const dropMesh=m=>{scene.remove(m);if(m?.userData.own)m.traverse(o=>o.geometry?.dispose())};  // a track mesh with its own geometry (the Mothership) frees it when the track goes
+function resetWorld(){pickT=null;TH.forEach(t=>dropMesh(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
 function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);if(S.gmode==='z')Z.start();else{Z.stop();startWave();toSpawn--;spawnThreat(false);spawnT=25+Math.random()*20}launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
 function startDemo(){Z.stop();demo=true;resetWorld();setWeather(S.wx);if(player)player.mesh.visible=false;startWave();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
 function showMenu(v){menuOpen=v;$('menu').hidden=!v;paused=v&&!demo&&!(Z.on&&Z.online)}  // a co-op game (znet.js) keeps running behind the menu
@@ -598,8 +599,8 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
 function visuals(dt,now){const me=player;
  if(me){me.mesh.position.copy(me.p);me.mesh.quaternion.copy(me.q);me.mesh.scale.setScalar(MSZ);const sp=(me.dead>0?0:25+me.thr*90)*dt;me.props.forEach((p,i)=>p.rotation.y+=i%3?sp:-sp)}
  for(const t of TH){t.mesh.position.copy(t.p);t.mesh.lookAt(_t.copy(t.p).add(t.v));t.mesh.rotateZ(t.st==='fall'?t.roll:t.bank);if(t.prop)t.prop.rotation.z+=dt*90}
- for(let i=TH.length-1;i>=0;i--)if(TH[i].st==='dead'){scene.remove(TH[i].mesh);TH.splice(i,1)}
- if(RADM)RADM.rotation.y+=dt*2;boomL.intensity*=Math.exp(-dt*9);FX.upd(dt);SMK.upd(dt);BLD.step(dt,Z.on,Z.plume);
+ for(let i=TH.length-1;i>=0;i--)if(TH[i].st==='dead'){dropMesh(TH[i].mesh);TH.splice(i,1)}
+ if(RADM)RADM.rotation.y+=dt*2;boomL.intensity*=Math.exp(-dt*9/(Z.on?Math.max(Z.tsc,.04):1));FX.upd(dt);SMK.upd(dt);BLD.step(dt,Z.on,Z.plume);  // Zombies: the blast light fades in real time, so slow-mo and the impact cam do not hold a whited-out frame
  if(Z.on)Z.visuals(dt);if(audioOn())audioTick(dt)}
 
 // ---------- input events ----------
@@ -632,7 +633,7 @@ const migrate=()=>{if((S.physV|0)<4){for(const g of['Interceptor','Warhead'])for
 function applyTune(){const T=S.mod;G=T.grav;THR=T.thr;TE=T.te;VP=T.vp;MAXV=T.maxv;TAU=T.tau/1000;DL=T.dl;DQ=T.dq;FS=T.fs;DRAD=.8*T.size;MSZ=T.size/.5;{const k=MSZ;HBR=.04*k;DI=.1*k*k;  // collision hull: 4 fin tips (it stands on these), 4 prop tips, the nose; 4 cm spheres
   HBP=[[.15,-.36,0],[-.15,-.36,0],[0,-.36,.15],[0,-.36,-.15],[.27,.15,.27],[-.27,.15,.27],[.27,.15,-.27],[-.27,.15,-.27],[0,.4,0]].map(([x,y,z])=>new V3(x,y,z).multiplyScalar(k))}SPOOL=T.spool/1000;GF=T.gfric;TURT=T.turtle*Math.PI/180;WASH=T.wash;DB=T.dbounce;BCAP=T.bcap;
  LETH=T.leth;CRASH=T.crash;RELT=T.relt;TSPD=T.tspd;TCNT=T.tcnt;GSPD=T.speed;SHK=T.shake;bloom.strength=T.bloom*.33;HOV=(G/THR)**(1/TE)}
-$('modbtn').onclick=toggleMod;initModPanel({mods:MODS,presets:PRESETS,migrate,onApply:applyTune});initRates('Drone League Interceptor');
+$('modbtn').onclick=toggleMod;let zTune=()=>{};initModPanel({mods:MODS,presets:PRESETS,migrate,onApply:()=>{applyTune();zTune()}});initRates('Drone League Interceptor');
 $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','cam','thrMode','dz','fuse','fireBtn','wx','rr','fpvMix','grain','guide','skin','zwx','tiltSw','thermSw','guideSw','nextSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>feed('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
@@ -647,6 +648,7 @@ const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone()
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
  setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
+zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
 startDemo();
 startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD*(Z.on?Z.tsc:1),slow:()=>Z.on&&Z.tsc<1,paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now)=>{
  if(!menuOpen&&!demo)switches();

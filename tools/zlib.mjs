@@ -55,8 +55,19 @@ export async function open(browser, url, errors, {w = 1280, h = 720, page = null
     if (/fonts\.(googleapis|gstatic)\.com/.test(u)) return q.abort();
     q.continue();
   });
+  p.on('error', e => errors.push('page crashed: ' + (e?.message || e)));
   p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e) + (e?.stack ? ' @ ' + String(e.stack).split('\n').slice(1, 4).map(t => t.trim()).join(' < ') : '')));
   p.on('console', m => { if (m.type() === 'error' && !benign(m.text() + ' ' + (m.location()?.url || ''))) errors.push('console.error: ' + m.text()); });
   await p.goto(url, {waitUntil: 'load', timeout: 120000});
   return p;
+}
+// brightness of the page as shown (WebGL canvas, overlay and DOM): a screenshot read back through a 2D canvas.
+// Returns mean luma (0..255) and the share of near-white pixels (luma > 235) over the rectangle [x0, y0, x1, y1] in 0..1 page units.
+export async function luma(p, [x0, y0, x1, y1] = [0, 0, 1, 1], png = null) {  // png: a base64 screenshot already taken (else one is taken now)
+  png ??= await p.screenshot({encoding: 'base64'});
+  return p.evaluate(async (png, r) => { const im = new Image(); im.src = 'data:image/png;base64,' + png; await im.decode();
+    const c = document.createElement('canvas'), W = c.width = im.width, H = c.height = im.height, g = c.getContext('2d'); g.drawImage(im, 0, 0);
+    const X0 = Math.round(r[0] * W), Y0 = Math.round(r[1] * H), d = g.getImageData(X0, Y0, Math.max(1, Math.round(r[2] * W) - X0), Math.max(1, Math.round(r[3] * H) - Y0)).data;
+    let s = 0, hot = 0, n = 0; for (let i = 0; i < d.length; i += 16) { const l = .2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2]; s += l; if (l > 235) hot++; n++; }
+    return {mean: +(s / n).toFixed(1), hot: +(hot / n).toFixed(3)}; }, png, [x0, y0, x1, y1]);
 }

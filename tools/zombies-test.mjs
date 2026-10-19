@@ -35,6 +35,20 @@ if (!ONLY) {
   await p.close();
 }
 
+// ---------- saves: hand-edited or foreign values must not break the start menu or a game ----------
+if (!ONLY) {
+  const errs = [], p = await open(browser, origin + '/games/interceptor/', errs), bad = [];
+  for (const save of [{gmode: 'z', zdiff: 'x'}, {gmode: 'z', zdiff: 9}, {gmode: 'z', zdiff: 1.5, zbests: 'oops'}, {gmode: 'z', zmusv: 'loud', zname: {a: 1}}, {gmode: 7, wx: 'nope', cam: 'x'}]) {
+    const n0 = errs.length;
+    await p.evaluate(s => localStorage.setItem('dl-interceptor', JSON.stringify(s)), save); await p.reload({waitUntil: 'load'});
+    const up = await p.waitForFunction(() => window.__z, {timeout: 20000}).then(() => true, () => false);
+    if (up) { await sleep(200); await p.click('#play'); await sleep(300); await p.evaluate(() => { if (__z.G.on) __z.cont(); __z.sim(5); }); }
+    if (!up || errs.length > n0) bad.push(JSON.stringify(save) + (up ? '' : ' (page never came up)'));
+  }
+  ok(!bad.length, 'Saves: odd saved values still load and play' + (bad.length ? '\n  ' + bad.join('\n  ') + '\n  ' + errs.slice(0, 3).join('\n  ') : ''));
+  await p.evaluate(() => localStorage.removeItem('dl-interceptor')); await p.close();
+}
+
 // ---------- Zombies ----------
 if (!ONLY) {
   const {p, errs} = await page('z');
@@ -193,6 +207,9 @@ if (!ONLY) {
   ok(r.m1.kill > r.m0.kill + 15, `Mark: Mk I rack vs armored heavy, kills ${r.m0.kill}/120 unmarked -> ${r.m1.kill}/120 marked`);
   const P = r.perks;
   ok(Math.abs(P.frozen - .5) < .01 && P.airKills >= 5 && P.leth === 5 && Math.abs(P.aid - .7) < 1e-9 && P.radar === 1.3 && P.mark, `Perks: freeze x${P.frozen}, airstrike ${P.airKills}/6, warhead ${P.leth} m, Foreign Aid repairs x${P.aid}, radar x${P.radar}, mark set`);
+  // touching the tuning panel mid-game (it re-applies the tune) must keep the passive perks on top of it
+  const tk = await p.evaluate(() => { const {api} = __z, b = {leth: api.LETH}, i = document.querySelector('#m_shake') || document.querySelector('#mod input[type=range]'); if (!i) return null; i.dispatchEvent(new Event('input', {bubbles: true})); return {before: b.leth, after: api.LETH, base: api.S.mod.leth}; });
+  ok(tk && tk.after === tk.before && tk.after > tk.base, `Perks survive the tuning panel: warhead radius ${tk?.before} m -> ${tk?.after} m after a tune change (base ${tk?.base} m)`);
   // Rocket Assist: a 15 s burn from lift-off; full-throttle cruise top speed with and without it, ramp-in, stick response at speed,
   // a direct hit at rocket speed (swept check), the HUD and track box at speed, and it switches off by itself
   await p.keyboard.down('KeyW');

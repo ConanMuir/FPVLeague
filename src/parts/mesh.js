@@ -129,8 +129,13 @@ const ATT={none:()=>{},
   for(const[x,z]of sp.motors){const L=Math.hypot(x,z);K.add('metal',rbox(.05,.012,L*.35,.005),[x*.55,a.arm.t/2+.007,z*.55],[0,Math.atan2(x,z),0])}}};
 
 // ---------- whole quad ----------
-const _cache=new Map();
-function geometryOf(sp){const key=[sp.arms.id,sp.chassis.id,sp.power.id,sp.attach?.id||'none'].join('/');if(_cache.has(key))return _cache.get(key);
+// bots re-roll random loadouts every match (875 combinations), so the cache keeps the most recently used 24 and frees the rest; a drone still
+// flying an evicted loadout keeps its geometry (three.js uploads a disposed geometry again if it is drawn)
+const _cache=new Map(),CACHE_N=24;
+const freeGeo=o=>{for(const k in o.frame)o.frame[k].dispose();for(const p of o.props){p.blade.dispose();p.disc.dispose()}};
+export const geoCacheSize=()=>_cache.size;
+function geometryOf(sp){const key=[sp.arms.id,sp.chassis.id,sp.power.id,sp.attach?.id||'none'].join('/');if(_cache.has(key)){const o=_cache.get(key);_cache.delete(key);_cache.set(key,o);return o}
+ while(_cache.size>=CACHE_N){const[k0,o0]=_cache.entries().next().value;_cache.delete(k0);freeGeo(o0)}
  const K=new Kit(),a=sp.arms,pr=sp.power.motor.r+.014;
  ARM[a.arm.style](K,a,sp,pr);motors(K,sp,a);CHASSIS[sp.chassis.shape](K,sp.chassis,sp);
  BATT[sp.power.batt.style](K,sp.power.batt,sp.battY,sp.power.look);(ATT[sp.attach?.id]||ATT.none)(K,sp);
