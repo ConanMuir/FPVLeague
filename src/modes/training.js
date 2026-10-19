@@ -17,7 +17,7 @@ import {showMenu} from './match.js';
 import {registerMode} from './registry.js';
 import {leaveGame} from '../net/net.js';
 import {ball,ballPhys} from '../physics/ball.js';
-import {onEv} from '../core/events.js';
+import {emitEv,onEv} from '../core/events.js';
 import {ballMesh} from '../render/ball.js';
 import {emit} from '../render/particles.js';
 import {GS} from '../state.js';
@@ -65,7 +65,9 @@ export function retryShot(){if(!TR.on)return;if(TR.ph==='sum'){restartPack();ret
 export function nextShot(){if(!TR.on||TR.ph==='sum')return;if(TR.i+1<TR.pack.shots.length)loadShot(TR.i+1);else finish()}
 export function prevShot(){if(!TR.on||TR.ph==='sum')return;loadShot(TR.i-1)}
 export function finish(){if(!TR.on)return;TR.ph='sum';TR.score=packScore(TR.res);const id=TR.pack.id,old=S.train[id];TR.best=old||null;
- TR.newBest=TR.score.n>0&&better(TR.score,old);if(!old||TR.newBest){S.train[id]={n:TR.score.n,of:TR.score.of,t:TR.score.t};save()}hold();TR.ver++}
+ TR.newBest=TR.score.n>0&&better(TR.score,old);if(!old||TR.newBest){S.train[id]={n:TR.score.n,of:TR.score.of,t:TR.score.t};save()}hold();TR.ver++;
+ Object.assign(E_PACK,{id,tier:TR.pack.tier,n:TR.score.n,of:TR.score.of,t:TR.score.t,prev:old||null});emitEv('pack',E_PACK)}  // progression (progress/tracker.js) gives XP for a better run
+const E_PACK={id:'',tier:0,n:0,of:0,t:0,prev:null};  // the 'pack' event payload (core/events.js), reused
 // start the shot now (the first stick movement does this; tools and the smoke test call it directly)
 export function goShot(){if(!TR.on||TR.ph!=='ready')return;ball.v.copy(TR.sp.bv);ball.w.copy(TR.sp.bw);TR.ph='live';TR.t=0;TR.ver++;tone(990,990,.12,.07,'square')}
 // the quad and the ball held at the shot's spawn

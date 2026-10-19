@@ -32,6 +32,8 @@ import {initLab} from './ui/lab.js';
 import {garageView,initGarage} from './ui/garage.js';
 import {trainSnap} from './modes/training.js';
 import {initTraining} from './ui/training.js';
+import {initProfile} from './ui/profile.js';
+import {profSnap} from './progress/tracker.js';
 import {modeHud} from './modes/registry.js';
 import {cosInfo} from './render/cos-mat.js';
 import {setMap} from './world/maps.js';
@@ -51,8 +53,8 @@ function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last
 initPhysics().then(()=>{
 initMenu();initCalib();initModPanel();
 renderPresets();applyTune();syncMod();setMap(S.map);setBall(S.ball);
-initRates();initSens();initLab();initGarage();initTraining();syncRates();
+initRates();initSens();initLab();initGarage();initTraining();initProfile();syncRates();
 setGame(GS.GM);startDemo();requestAnimationFrame(frame);
 connectRoom()});
 // read-only snapshot for tools/smoke.mjs; nothing in the game reads it
-window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo,train:trainSnap};
+window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo,train:trainSnap,prof:profSnap};
