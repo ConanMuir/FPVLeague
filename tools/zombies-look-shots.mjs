@@ -34,6 +34,10 @@ if (want('drone')) {
   await p.keyboard.press('KeyC'); await sleep(300); await p.keyboard.press('KeyC'); await sleep(900); await p.screenshot({path: `${OUT}/drone-fpv.png`});
   const vis = await p.evaluate(() => ({meshVisible: __z.api.player.mesh.visible, nozzle: __z.api.player.nozzle.getWorldPosition(new __z.api.THREE.Vector3()).toArray().map(v => +v.toFixed(2))}));
   console.log('fpv: player mesh visible =', vis.meshVisible, '· nozzle world', vis.nozzle);
+  // Rocket Assist burning (zrocket.js puts its flame on player.nozzle)
+  await p.keyboard.press('KeyC'); await sleep(300);
+  await p.evaluate(() => { const {Z} = __z; if (Z.rk) Z.rk.st.t = 10; });
+  await orbit(p, 2.4, .2, 2.4, -.2); await sleep(400); await p.screenshot({path: `${OUT}/drone-rocket.png`}); await p.evaluate(() => { window.__cam = null; if (__z.Z.rk) __z.Z.rk.stop(); });
   await p.close();
 }
 if (want('weather')) {

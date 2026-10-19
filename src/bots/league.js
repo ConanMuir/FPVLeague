@@ -10,6 +10,7 @@ import {_T,_a,_b,_dir,_f,_ip,_lat,_t,_u} from '../scratch.js';
 import {GS,SB} from '../state.js';
 import {ORBS} from '../world/orbs.js';
 import {dribble,dribbleSupport} from './dribble.js';
+import {freestyle} from './freestyle.js';
 // the ball 4 s ahead: the same ball model as the game (physics/ball.js, spin included) without Rapier, at 50 Hz
 export const PDT=1/50,PRED=Array.from({length:200},()=>new V3()),PV=Array.from({length:200},()=>new V3()),_pb={p:new V3(),v:new V3(),w:new V3(),c:false,n:new V3()};
 export function predict(){_pb.p.copy(ball.p);_pb.v.copy(ball.v);_pb.w.copy(ball.w);_pb.c=ball.c;_pb.n.copy(ball.n);for(let i=0;i<PRED.length;i++){ballPhys(_pb,PDT);PRED[i].copy(_pb.p);PV[i].copy(_pb.v)}}  // PV: its velocity there (the smarter planner aims with it)
@@ -36,8 +37,8 @@ function think(d,D){if(D.iq)return thinkIQ(d,D);const ai=d.ai,was=ai.strike;ai.s
  else{let best=null,bd=1e9;for(const p of ORBS)if(p.cd<=0){const dd=p.p.distanceToSquared(d.p)*(p.big?.5:1);if(dd<bd){bd=dd;best=p}}
   if(best){ai.tg.copy(best.p);ai.tv.set(0,0,0);ai.look.copy(best.p)}}
  const inMouth=Math.abs(ai.tg.x)<GW/2-2&&ai.tg.y<GH-2;ai.tg.x=cl(ai.tg.x,-HW+2.5,HW-2.5);ai.tg.y=cl(ai.tg.y,1.6,H-3);ai.tg.z=cl(ai.tg.z,-(inMouth?HL+GD-2:HL-2.5),inMouth?HL+GD-2:HL-2.5);const sd=sdf(ai.tg.x,ai.tg.y,ai.tg.z);if(sd>-3){sdN(ai.tg,_lat);ai.tg.addScaledVector(_lat,-(sd+3))}}
-// the Dribbler level (DIFF[].drib) has its own controller: bots/dribble.js
-export function botControl(d,dt){const D=DIFF[d.skill??S.diff],ai=d.ai;if(D.drib){d.pops=true;if(d.role==='attack')dribble(d,D,dt);else dribbleSupport(d,D);return}if((ai.t-=dt)<=0){ai.t=D.react*(.7+Math.random()*.6);think(d,D)}
+// the Dribbler and Freestyler levels (DIFF[].drib, .fs) have their own controllers: bots/dribble.js, bots/freestyle.js
+export function botControl(d,dt){const D=DIFF[d.skill??S.diff],ai=d.ai;if(D.drib){d.pops=true;if(d.role!=='attack')dribbleSupport(d,D);else if(D.fs)freestyle(d,D,dt);else dribble(d,D,dt);return}if((ai.t-=dt)<=0){ai.t=D.react*(.7+Math.random()*.6);think(d,D)}
  if(LL.d===d){const s=d.team?1:-1;ai.strike=false;ai.demo=false;ai.tv.set(0,0,0);
   if(hoopMode()){const hs=hoops().filter(o=>o.c.z*s>0);let o=hs[0];for(const q of hs)if(q.c.distanceToSquared(ball.p)<o.c.distanceToSquared(ball.p))o=q;  // nearest of their rings
    const lead=(o.c.z-ball.p.z)*s;ai.tg.set(o.c.x,Math.min(H-4,o.c.y+ropeLen()+BR+(lead>40?6:0)),o.c.z+s*(lead>25?-8:25))}  // line up in front, then fly through so the ball trails through the ring
@@ -76,8 +77,8 @@ function bestAim(d,D,P,t0){const gz=(d.team?1:-1)*(HL+3),acc=BTHR*.72,vm=D.vmax*
   m-=Math.abs(x)*.004;if(m>best){best=m;d.ai.gx=x;d.ai.gy=y}}}
 // earliest time a quad (any skill: assumed as quick as this one) can get a touch on the ball, from any side
 function firstT(o,acc,vm,slack){for(let i=1;i<PRED.length;i+=3)if(reachT(o,PRED[i],acc,vm)*slack+.1<=(i+1)*PDT)return(i+1)*PDT;return 4}
-function plan(d,D){const ai=d.ai,acc=BTHR*D.thr*.72,vm=D.vmax*BOTV,vs=vm*.8,R=BR+.75,kp=keeperOf(d.team);let pick=-1,i0=-1;
- if(D.aim)bestAim(d,D,ai.tt>0&&ai.P?ai.P:ball.p,ai.tt>0?ai.tt:0);else ai.gx=null;
+export function plan(d,D){const ai=d.ai,acc=BTHR*D.thr*.72,vm=D.vmax*BOTV,vs=vm*.8,R=BR+.75,kp=keeperOf(d.team);let pick=-1,i0=-1;
+ if(D.aim)bestAim(d,D,ai.tt>0&&ai.P?ai.P:ball.p,ai.tt>0?ai.tt:0);else if(!ai.fsAim)ai.gx=null;
  for(let i=1;i<PRED.length;i+=2){const P=PRED[i],t=(i+1)*PDT;
   goalAim(d,P,kp,_g).sub(P).normalize();_n.copy(_g).multiplyScalar(vs*1.2).sub(PV[i]).normalize();
   const ny=(P.y-1.6)/(R+10);if(_n.y>ny){const h=Math.hypot(_n.x,_n.z)||1,k=Math.sqrt(Math.max(0,1-ny*ny))/h;_n.x*=k;_n.z*=k;_n.y=ny}  // the contact point and a 10 m run-up to it stay above the floor
@@ -112,7 +113,7 @@ function thinkIQ(d,D){const ai=d.ai,s=d.team?1:-1,ownZ=-s*HL;let role=d.role;ai.
  if(ai.strike)return;
  const inMouth=Math.abs(ai.tg.x)<GW/2-2&&ai.tg.y<GH-2;ai.tg.x=cl(ai.tg.x,-HW+2.5,HW-2.5);ai.tg.y=cl(ai.tg.y,1.6,H-3);ai.tg.z=cl(ai.tg.z,-(inMouth?HL+GD-2:HL-2.5),inMouth?HL+GD-2:HL-2.5);const sd=sdf(ai.tg.x,ai.tg.y,ai.tg.z);if(sd>-3){sdN(ai.tg,_lat);ai.tg.addScaledVector(_lat,-(sd+3))}}
 // the timed run: be (speed x time left) behind the contact point on the normal, moving along it, so it arrives on time and hits through
-function strikeV(d,D,dt){const ai=d.ai,vm=D.vmax*BOTV;ai.tt=Math.max(.04,ai.tt-dt);const along=_c.subVectors(ai.C,d.p).dot(ai.n),sp=cl(along/ai.tt,vm*D.fl,vm);
+export function strikeV(d,D,dt){const ai=d.ai,vm=D.vmax*BOTV;ai.tt=Math.max(.04,ai.tt-dt);const along=_c.subVectors(ai.C,d.p).dot(ai.n),sp=cl(along/ai.tt,vm*D.fl,vm);
  _b.copy(ai.C).sub(d.p).addScaledVector(ai.n,-along);  // off the line through the contact point
  _b.y=Math.max(_b.y,1.8-d.p.y);return _b.multiplyScalar(3).addScaledVector(ai.n,sp+(along-sp*ai.tt)*D.ka).clampLength(0,vm)}  // on time: ahead of schedule it eases off (or backs up for a run-up)
 // roles by time to the ball (from the right side), with a little stickiness so they don't flap

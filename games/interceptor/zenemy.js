@@ -4,7 +4,7 @@
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {dot,glow} from '../../engine/render.js';
 import {fbm,sm} from '../../engine/util.js';
-import {KIND} from './zdata.js';
+import {KIND,EVADE_SOME} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initEnemies(api,G,Z){
  const {THREE,scene,TH,gh,SHG,SHM,SHJ,SHEN,EXM}=api,V3=THREE.Vector3;
@@ -74,7 +74,19 @@ export function initEnemies(api,G,Z){
   Z.earn(300,t.p,' STAGE');api.feed(`<span class="cg">${Z.tname(t)}: stage down, ${t.stages} left</span>`)};
 
  // Z.tstep: true = handled here. Riley's code flies Shahed, Geran-3, decoys, heavies, cruise missiles and the boss; falling wrecks too.
- function tstep(t,dt){if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();const K=KIND[t.k];if(!K)return false;
+ // evasion (Hard: some kinds, Nightmare: all but the fast missiles), in cruise only: a constant weave, and a hard break to one side (and down) when your
+ // interceptor closes inside 350 m. Riley-flown kinds get it as a heading offset (t.ev, rad) that their own steering follows at t.evr rad/s;
+ // swarm drones get a sideways push on their velocity instead.
+ const _e=new V3();
+ function evade(t,dt){const mode=Z.evadeMode?.()||'none',K=KIND[t.k];t.ev=0;t.evr=0;if(mode==='none'||K.armor==='hard'||t.st!=='cruise')return;if(mode==='some'&&!EVADE_SOME.includes(t.k))return;
+  const vh=Math.hypot(t.v.x,t.v.z);if(vh<1)return;const lx=-t.v.z/vh,lz=t.v.x/vh,m=mode==='all'?1:.8;
+  t.jph=(t.jph??Math.random()*6)+dt*(.9+(t.id%5)*.15);let ev=Math.sin(t.jph)*(t.k==='jet'||t.k==='cruise'?.3:.35)*m;
+  t.brkCd=(t.brkCd||0)-dt;const me=api.player;
+  if(me&&me.dead<=0&&!(t.brk>0)&&t.brkCd<=0){_e.subVectors(t.p,me.p);const d=_e.length();if(d<350&&_e.dot(me.v)-_e.dot(t.v)>0){t.brk=1.6;t.brkCd=5;t.brkDir=(_e.x*lx+_e.z*lz)>0?1:-1}}  // closing on it: break away from your side
+  if(t.brk>0){t.brk-=dt;ev+=t.brkDir*.9*m*Math.sin(Math.PI*cl(1-t.brk/1.6,0,1));t.alt=Math.max(30,t.alt-18*dt)}
+  if(K.riley){t.ev=ev;t.evr=1.1;return}
+  const j=ev*vh*1.5*dt;t.v.x+=lx*j;t.v.z+=lz*j}
+ function tstep(t,dt){if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();const K=KIND[t.k];if(!K)return false;evade(t,dt);
   if(t.k==='boss')bossTick(t,dt);if(K.riley||t.st==='fall')return false;return mover(t,dt)}
 
  // ---------- spawn extras per kind (called from make) ----------

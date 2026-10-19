@@ -1,5 +1,5 @@
 // Zombies player perks. Active (charges refill every wave): Freeze (Q / D-pad left), Mark (E / D-pad right), Airstrike (X / D-pad up).
-// Passive: long-range radar, optics (lead cross, thermal through cloud, decoy IFF), fast relaunch, bigger warhead, better battery, Foreign Aid.
+// Passive: long-range radar, optics (thermal through cloud, decoy IFF, target and impact time on track boxes), fast relaunch, bigger warhead, better battery, Foreign Aid.
 import {KIND,PERK,ITEMS} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v;
 export function initPerks(api,G,Z){
@@ -11,14 +11,16 @@ export function initPerks(api,G,Z){
   mark:['E / D-pad right: marks your selected track for 15 s. Helper hits on it count double: two kill rolls, near misses kill, armor is ignored, and helpers go for it first. 1 charge per wave.','2 charges per wave, 18 s each.','3 charges per wave, 20 s each.'],
   air:['X / D-pad up: strike jets hit the densest cluster of tracks; everything within 260 m goes down (a boss loses a stage). 1 charge per wave.','2 charges per wave.'],
   radar:['Radar detection range ×1.3: tracks show up earlier.','Detection ×1.6.','Detection ×2.'],
-  optics:['Lead cross: shows where to aim to meet your selected track.','Thermal sees through cloud and fog.','IFF: decoys are flagged at any range.'],
+  optics:['Thermal sees through cloud and fog.','IFF: decoys are flagged at any range.','Track boxes show each track\'s target site and time to impact.'],
   relaunch:['Next interceptor on the mat in 1.5 s.','Next interceptor in 0.9 s.'],
   warhead:['Warhead kill radius +1 m (the fuse window grows with it).','+2 m.','+3 m.'],
   battery:['Pack +25% capacity and 25% less voltage sag.','+50% capacity, half the sag.'],
-  aid:['Foreign Aid: site repairs cost 30% less.']};
+  aid:['Foreign Aid: site repairs cost 30% less.'],
+  fuse:['Your warhead fires by itself at the closest approach inside 6 m, like Classic. Without it you time the burst yourself (F, click or the detonate button).'],
+  rocket:['Every interceptor gets a 15 s rocket burst when it lifts off the mat: about 3× normal top speed, same stick rates. HUD bar shows the burn left.']};
  Z.perkLevel=lv;Z.perkMaxed=k=>lv(k)>=PERK[k].cost.length;Z.perkPrice=k=>PERK[k].cost[lv(k)]??0;Z.perkBlurb=k=>BLURB[k][Math.min(lv(k),BLURB[k].length-1)];
  Z.buyPerk=k=>{G.perks[k]=lv(k)+1;if(['freeze','mark','air'].includes(k))G.ch[k]=(G.ch[k]|0)+1;apply()};
- Z.radarK=()=>[1,1.3,1.6,2][lv('radar')];Z.repairK=()=>lv('aid')?.7:1;Z.ident=()=>lv('optics')>=3;
+ Z.radarK=()=>[1,1.3,1.6,2][lv('radar')];Z.repairK=()=>lv('aid')?.7:1;Z.ident=()=>lv('optics')>=2;Z.eta=()=>lv('optics')>=3;
  // passive effects on Riley's interceptor (restored by applyTune when Zombies stops)
  function apply(){const T=S.mod;api.LETH=T.leth+lv('warhead');api.RELT=T.relt*[1,.6,.36][lv('relaunch')];api.BCAP=T.bcap*(1+.25*lv('battery'));api.SAGK=1-.25*lv('battery')}
  function reset(){G.perks={};G.ch={};apply()}
@@ -41,8 +43,8 @@ export function initPerks(api,G,Z){
   const s=G.strike;if(s){s.p.addScaledVector(s.v,dt);if((s.t-=dt)<=0&&s.n<6){s.t=.12;const p=_a.copy(s.p).addScaledVector(s.v,(s.n-2.5)*.6);api.boom(p,3);s.n++;
     if(s.n===3)for(const t of TH)if(api.live(t)&&KIND[t.k]?.armor!=='hard'&&t.p.distanceTo(s.p)<260){t.by='p';if(t.k==='boss')Z.bossHit(t);else api.killThreat(t,Math.random()<.5)}}
    if(s.n>=6)G.strike=null}
-  // optics 2: the thermal camera sees through the cloud deck and most of the fog
-  if(lv('optics')>=2&&api.thermLook&&api.WX){api.deck.visible=false;api.scene.fog.near=api.WX.fog[0]*4;api.scene.fog.far=Math.max(api.WX.fog[1]*4,9000)}}
+  // optics 1: the thermal camera sees through the cloud deck and most of the fog
+  if(lv('optics')>=1&&api.thermLook&&api.WX){api.deck.visible=false;api.scene.fog.near=api.WX.fog[0]*4;api.scene.fog.far=Math.max(api.WX.fog[1]*4,9000)}}
  const KEYS={KeyQ:'freeze',KeyE:'mark',KeyX:'air'},PADS={14:'freeze',15:'mark',12:'air'};
  function key(e){const k=KEYS[e.code];if(!k)return false;use(k);return true}
  function pad(e){for(const b in PADS)if(e(+b)){use(PADS[b]);return true}return false}
@@ -53,7 +55,5 @@ export function initPerks(api,G,Z){
  function overlay(oc,W,H){const cam=api.camera,sel=api.selT(),me=api.player;
   for(const t of TH){if(!api.live(t)||!(t.frz>0||t.mark>0))continue;_a.copy(t.p).project(cam);if(_a.z>1||Math.abs(_a.x)>1||Math.abs(_a.y)>1)continue;const X=(_a.x*.5+.5)*W,Y=(-_a.y*.5+.5)*H;
    if(t.mark>0){oc.strokeStyle='#ff6bd6';oc.lineWidth=2;oc.beginPath();oc.moveTo(X,Y-30);oc.lineTo(X+30,Y);oc.lineTo(X,Y+30);oc.lineTo(X-30,Y);oc.closePath();oc.stroke()}
-   if(t.frz>0){oc.fillStyle='#9fe8ff';oc.fillText('❄ '+Math.ceil(t.frz),X,Y-36)}}
-  if(lv("optics")&&sel&&api.live(sel)&&me&&me.dead<=0){const tg=sel.p.distanceTo(me.p)/Math.max(me.v.length(),60);
-   _a.copy(sel.p).addScaledVector(sel.v,cl(tg,0,20)).project(cam);if(_a.z<1&&Math.abs(_a.x)<1&&Math.abs(_a.y)<1){const X=(_a.x*.5+.5)*W,Y=(-_a.y*.5+.5)*H;oc.strokeStyle='#5fe3ff';oc.lineWidth=2;oc.beginPath();oc.moveTo(X-10,Y);oc.lineTo(X+10,Y);oc.moveTo(X,Y-10);oc.lineTo(X,Y+10);oc.stroke();oc.fillStyle='#5fe3ff';oc.fillText('LEAD',X,Y+22)}}}
+   if(t.frz>0){oc.fillStyle='#9fe8ff';oc.fillText('❄ '+Math.ceil(t.frz),X,Y-36)}}}
  return{reset,refill,step,key,pad,hud,overlay,apply,use}}
