@@ -18,7 +18,7 @@ import {startLoop} from '../../engine/loop.js';
 import {initZombies} from './zombies.js';
 import {strelaBody} from './strela.js';
 import {FA,CW,CH,CROPS,fieldLayout,partRects,fieldData,groundMaterial} from './ground.js';
-import {initBuildings,houseTex,houseWallGeo,houseRoofGeo} from './buildings.js';
+import {initBuildings,houseTex,houseWallGeo,houseRoofGeo,houseNight} from './buildings.js';
 mountMod();setFeedTime(5500);
 
 // ---------- world constants (metres, seconds; real scale) ----------
@@ -153,7 +153,7 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
   for(const o of[trunk,crown]){o.castShadow=o.receiveShadow=true;o.userData.forest=1;o.computeBoundingSphere();scene.add(o)}}}
 {const m4=new THREE.Matrix4(),q=new QT(),s=new V3(),c=new THREE.Color();
  // village houses: plastered walls with windows (one texture, tinted per house) and gable ends, a gable roof with a chimney (buildings.js)
- const W=['#e9e4d6','#d8d2c0','#c9d6dc','#e6dcc0','#d9c7a8'],RF=['#5a5f66','#7d3b2e','#4f6a4a','#6b6f74','#8a8f96'],walls=new THREE.InstancedMesh(houseWallGeo(),new THREE.MeshStandardMaterial({map:houseTex(),roughness:.9}),HOUSES.length),
+ const W=['#e9e4d6','#d8d2c0','#c9d6dc','#e6dcc0','#d9c7a8'],RF=['#5a5f66','#7d3b2e','#4f6a4a','#6b6f74','#8a8f96'],walls=new THREE.InstancedMesh(houseWallGeo(),houseNight(new THREE.MeshStandardMaterial({map:houseTex(),roughness:.9})),HOUSES.length),
   roofs=new THREE.InstancedMesh(houseRoofGeo(),detail(new THREE.MeshStandardMaterial({roughness:.75,metalness:.15,side:THREE.DoubleSide}),.9,4,0,.3),HOUSES.length);
  HOUSES.forEach(([x,z,a,k],i)=>{const y=gh(x,z)-.3;q.setFromAxisAngle(UP,-a);m4.compose(_t.set(x,y,z),q,s.set(8,3.2,11));walls.setMatrixAt(i,m4);walls.setColorAt(i,c.set(W[i%5]));
   m4.compose(_t.set(x,y+3.1,z),q,s.set(9.2,2.5,12));roofs.setMatrixAt(i,m4);roofs.setColorAt(i,c.set(RF[(k*5)|0]))});
@@ -650,6 +650,6 @@ const Z=initZombies({THREE,scene,camera,renderer,S,save,TH,SITES,FOBS,PADP,RRS,W
 startDemo();
 startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD*(Z.on?Z.tsc:1),slow:()=>Z.on&&Z.tsc<1,paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now)=>{
  if(!menuOpen&&!demo)switches();
- const fpvOn=!demo&&camMode===0&&player&&player.dead<=0,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
+ const fpvOn=!demo&&camMode===0&&player&&player.dead<=0&&!Z.cine,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
  sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.04-.18*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
- weather(vd,now);visuals(vd,now);updateCam(dt,now);hud(vd);overlay();if(Z.on)Z.overlay(oc)}});
+ weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);hud(vd);overlay();if(Z.on)Z.overlay(oc)}});

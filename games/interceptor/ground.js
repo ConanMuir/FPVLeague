@@ -28,7 +28,8 @@ export function fieldData(cells){const d=new Uint8Array(32*40*4);
 const GLSL_FN=`
 float lnF(float x,float w,float sp){return floor(x/sp)*w+min(fract(x/sp)*sp,w);}
 float lines(float x,float sp,float w,float fw){float h=max(fw,1e-3)*.5;return (lnF(x+h+w*.5,w,sp)-lnF(x-h+w*.5,w,sp))/(2.*h);}
-float rows(float x,float sp,float fw){return sin(x*6.2832/sp)*(1.-smoothstep(sp*.12,sp*.35,fw));}
+float rows(float x,float sp,float fw){return sin(x*6.2832/sp)*(1.-smoothstep(sp*.1,sp*.25,fw));}
+float bF(float sp,float fw){return 1.-smoothstep(sp*.05,sp*.16,fw);}
 `;
 const GLSL=`
 {float msk=smoothstep(.15,.85,texture2D(mTex,vWP.xz/9000.+.5).r);
@@ -48,17 +49,17 @@ const GLSL=`
   float ty=mod(t,16.),fl=mod(floor(t/16.),2.),vr=floor(t/32.),HL=13.+vr*3.;
   bool ax=(hs.x>hs.y)!=(fl>.5),head=e<HL;if(head)ax=e2.y<e2.x;
   float rc=ax?q.y:q.x,fw=fwidth(rc),fe=fwidth(e),ph=vr*7.3,k=1.,bb=0.,in1=step(0.,e);
-  float tram=head?lines(e-HL+6.9,1e4,.5,fe)+lines(e-HL+5.1,1e4,.5,fe):lines(rc+ph-.9,24.,.5,fw)+lines(rc+ph+.9,24.,.5,fw);
+  float tram=head?lines(e-HL+6.9,1e4,.5,fe)+lines(e-HL+5.1,1e4,.5,fe):lines(rc+ph-.9,24.,.5,fw)+lines(rc+ph+.9,24.,.5,fw),tb=1.-smoothstep(.12,.4,head?fe:fw);
   vec3 soil=vec3(.13,.095,.06),tc=diffuseColor.rgb;
-  float al=ax?q.x:q.y,nf=1.-smoothstep(.15,.6,fw),st=mix(.5,texture2D(dTex,vec2(rc/2.6,al/45.)+.37).r,nf),lg=1.-smoothstep(1.,4.,fw);
-  if(ty==1.){k=(1.-.05*rows(rc,.19,fw))*(.9+.2*st);tc=mix(tc,tc*vec3(.62,.66,.5),tram*.85);bb-=tram*.5;bb+=st*.25;k*=1.+lg*.14*(texture2D(dTex,vec2(rc*.04,al*.006)+.7).r-.5);}
-  else if(ty==2.){k=(1.-.06*rows(rc,.19,fw))*(.9+.2*st);tc=mix(tc,soil*1.6,tram*.75);bb-=tram*.5;bb+=st*.25;}
-  else if(ty==3.){float sw=lines(rc+ph*.3,7.2,1.7,fw);k=1.+.16*sw-.05;tc=mix(tc,tc*vec3(.7,.68,.6),tram*.5);bb+=sw*.25-tram*.3;}
-  else if(ty==4.){float r=rows(rc,.7,fw);k=(1.+.13*r)*(.92+.16*st);bb+=r*.1;tc=mix(tc,tc*vec3(.75,.7,.55),tram*.6);}
-  else if(ty==5.){float r=rows(rc,.75,fw);k=(1.+.12*r)*(.92+.16*st);bb+=r*.09;tc=mix(tc,soil*1.5,tram*.6);}
-  else if(ty==6.){float r=rows(rc+.3*(texture2D(dTex,vWP.xz/5.).r-.5),.42,fw);k=(1.+.1*r)*(1.+.05*(lines(rc+ph,12.,6.,fw)*2.-1.));bb+=r*.4;}
-  else if(ty==7.){k=1.+.035*(lines(rc+ph,12.,6.,fw)*2.-1.);float r=rows(rc,.25,fw);k*=1.+.06*r;bb+=r*.12;}
-  else if(ty==8.){k=(1.+.075*(lines(rc+ph,3.6,1.8,fw)*2.-1.))*(.86+.28*texture2D(dTex,vWP.xz/11.).g);bb+=texture2D(dTex,vWP.xz/2.3).r*.35;}
+  float al=ax?q.x:q.y,nf=1.-smoothstep(.02,.08,fw),st=mix(.5,texture2D(dTex,vec2(rc/2.6,al/45.)+.37).r,nf),lg=1.-smoothstep(1.,4.,fw);
+  if(ty==1.){k=(1.-.05*rows(rc,.19,fw))*(.9+.2*st);tc=mix(tc,tc*vec3(.62,.66,.5),tram*.85);bb-=tram*.5*tb;bb+=(st-.5)*.25*(1.-smoothstep(.008,.025,fw));k*=1.+lg*.14*(texture2D(dTex,vec2(rc*.04,al*.006)+.7).r-.5);}
+  else if(ty==2.){k=(1.-.06*rows(rc,.19,fw))*(.9+.2*st);tc=mix(tc,soil*1.6,tram*.75);bb-=tram*.5*tb;bb+=(st-.5)*.25*(1.-smoothstep(.008,.025,fw));}
+  else if(ty==3.){float sw=lines(rc+ph*.3,7.2,1.7,fw);k=1.+.16*sw-.05;tc=mix(tc,tc*vec3(.7,.68,.6),tram*.5);bb+=(sw*.25-tram*.3)*tb;}
+  else if(ty==4.){float r=rows(rc,.7,fw);k=(1.+.13*r)*(.92+.16*st);bb+=r*.1*bF(.7,fw);tc=mix(tc,tc*vec3(.75,.7,.55),tram*.6);}
+  else if(ty==5.){float r=rows(rc,.75,fw);k=(1.+.12*r)*(.92+.16*st);bb+=r*.09*bF(.75,fw);tc=mix(tc,soil*1.5,tram*.6);}
+  else if(ty==6.){float r=rows(rc+.3*(texture2D(dTex,vWP.xz/9.).g-.5),.42,fw);k=(1.+.1*r)*(1.+.05*(lines(rc+ph,12.,6.,fw)*2.-1.));bb+=r*.4*bF(.42,fw);}
+  else if(ty==7.){k=1.+.035*(lines(rc+ph,12.,6.,fw)*2.-1.);float r=rows(rc,.25,fw);k*=1.+.06*r;bb+=r*.12*bF(.25,fw);}
+  else if(ty==8.){k=(1.+.075*(lines(rc+ph,3.6,1.8,fw)*2.-1.))*(.86+.28*texture2D(dTex,vWP.xz/11.).g);bb+=(texture2D(dTex,vWP.xz/2.3).r-.5)*.35*(1.-smoothstep(.009,.03,max(length(dFdx(vWP.xz)),length(dFdy(vWP.xz)))));}
   vec3 fc=mix(diffuseColor.rgb,tc*k,in1)*(.93+.14*M3);bb*=in1;fc=mix(fc,fc*.86,(1.-smoothstep(0.,.7,e))*in1);
   float verge=(1.-in1)*step(0.,ec);
   vec3 vg=vec3(.075,.09,.035)*(.75+.5*texture2D(dTex,vWP.xz/3.1).r);
@@ -67,14 +68,15 @@ const GLSL=`
   float dL=lp.x+${CW/2}.,dT=lp.y+${CH/2}.,fx=fwidth(dL),fz=fwidth(dT),
    rut=tL*step(dL,${EDGE}.)*(lines(dL-2.35,1e4,.5,fx)+lines(dL-4.05,1e4,.5,fx))+tT*step(dT,${EDGE}.)*(lines(dT-2.35,1e4,.5,fz)+lines(dT-4.05,1e4,.5,fz)),
    bed=tL*(lines(dL-3.2,1e4,2.6,fx))+tT*(lines(dT-3.2,1e4,2.6,fz));
-  fc=mix(fc,mix(fc,vec3(.2,.16,.11),.45),clamp(bed,0.,1.)*(1.-in1));fc=mix(fc,vec3(.16,.125,.085),clamp(rut,0.,1.)*.8);bb-=rut*.35;
+  fc=mix(fc,mix(fc,vec3(.2,.16,.11),.45),clamp(bed,0.,1.)*(1.-in1));fc=mix(fc,vec3(.16,.125,.085),clamp(rut,0.,1.)*.8);bb-=rut*.35*(1.-smoothstep(.12,.4,max(fx,fz)));
   diffuseColor.rgb=mix(diffuseColor.rgb,fc,msk);hb=hb*mix(1.,.5,msk)+bb*msk;}
- // snow (Zombies weather sets uSnow): settles on the flatter ground first, patchy, and hides the furrows
- if(uSnow>.001){vec3 upV=normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz);float sn=uSnow*smoothstep(.55,.85,dot(normal,upV))*smoothstep(.15,.5,M3*.5+uSnow*.75)*(.62+.26*M3+.1*M);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.74,.76,.8)*(.92+.1*M),sn);hb*=1.-sn*.7;}}
+ // snow (Zombies weather sets uSnow): settles on the flatter ground first, patchy, and hides the furrows; the fields still show through a little
+ // (darker under the ploughland, brighter on stubble) and the roads, villages and yards stay slushier
+ if(uSnow>.001){vec3 upV=normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz);float sn=uSnow*smoothstep(.55,.85,dot(normal,upV))*smoothstep(.15,.5,M3*.5+uSnow*.75)*(.62+.26*M3+.1*M);float L=dot(diffuseColor.rgb,vec3(.3,.59,.11));sn*=mix(.72,1.,msk);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.74,.76,.8)*(.92+.1*M)*(.86+.9*clamp(L-.16,-.12,.14)),sn);hb*=1.-sn*.7;}}
 `;
 // the ground material: engine detail (grain and bump, no crop rows of its own) plus the field shader above
 // m.userData.snow: uniform {value 0..1} for a snow cover (Zombies weather)
-export function groundMaterial(map,fTex,mTex){const m=detail(new THREE.MeshStandardMaterial({map,roughness:1}),7,53,0,.45),ob=m.onBeforeCompile,snow=m.userData.snow={value:0};
+export function groundMaterial(map,fTex,mTex){const m=detail(new THREE.MeshStandardMaterial({map,roughness:1}),7,53,0,.45,0),ob=m.onBeforeCompile,snow=m.userData.snow={value:0};
  m.customProgramCacheKey=()=>'ifields1';
  m.onBeforeCompile=sh=>{ob(sh);sh.uniforms.fTex={value:fTex};sh.uniforms.mTex={value:mTex};sh.uniforms.uSnow=snow;
   sh.fragmentShader=sh.fragmentShader.replace('uniform sampler2D dTex;','uniform sampler2D dTex;uniform sampler2D fTex;uniform sampler2D mTex;uniform float uSnow;'+GLSL_FN).replace('#include <normal_fragment_maps>',GLSL+'#include <normal_fragment_maps>')};
