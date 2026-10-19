@@ -56,7 +56,7 @@ export function hitTurret(t,dmg,by){if(by===GS.player)hitMark();if(GS.net&&!GS.n
  if((t.hp-=dmg)<=0){t.re=25;boom(t);scored(by,t)}}
 function kill(d,by){d.hp=100;d.life++;d.lock=performance.now()+800;if(!d.remote){boom(d);d.dead=3;d.mesh.visible=false}scored(by,d)}
 const E_KILL={d:null,by:null};  // the 'kill' event payload (core/events.js), reused
-function scored(by,v){E_KILL.d=v;E_KILL.by=by??null;emitEv('kill',E_KILL);const bt=by?.isTurret?by.t:by?.team;if(GS.state==='play'&&bt!=null&&bt!==(v.isTurret?v.t:v.team))GS.score[bt]++;
+function scored(by,v){E_KILL.d=v;E_KILL.by=by??null;if(v===GS.player){GS.killedBy=by??null;GS.killedAt=performance.now()}emitEv('kill',E_KILL);const bt=by?.isTurret?by.t:by?.team;if(GS.state==='play'&&bt!=null&&bt!==(v.isTurret?v.t:v.team))GS.score[bt]++;
  if(!GS.demo)feed(`${who(by)} ${v.isTurret?'destroyed':'shot down'} ${who(v)}`);if(GS.net?.host)GS.net.kf.push([++GS.net.kfId,by?keyOf(by):'',keyOf(v)]),GS.net.kf.splice(0,GS.net.kf.length-6);
  if(GS.overtime&&auth()&&GS.state==='play')endMatch()}
 export function applyHit(k,dmg,by){const o=objOf(k);if(!o||!by||o.team===by.team)return;if(o.isTurret){if(o.re<=0)hitTurret(o,dmg,by)}else if(o.dead<=0)hitDrone(o,dmg,by)}
@@ -83,5 +83,5 @@ export function setGame(m){switchMode(m,M=>{GS.GM=M.id;GS.OBSON=M.world==='highl
 export function dfState(g){const now=performance.now();if(g.hp&&typeof g.hp==='object')for(const k in g.hp){const d=GS.drones.find(x=>x.key===k),v=+g.hp[k];if(!d||!Number.isFinite(v))continue;if(d===GS.player&&v<d.hp-.5&&d.dead<=0)hurt();d.hp=v}
  if(g.lf&&typeof g.lf==='object')for(const k in g.lf){const d=GS.drones.find(x=>x.key===k),l=g.lf[k]|0;if(!d)continue;if(d.lfSeen==null||l<d.lfSeen)d.lfSeen=l;else if(l>d.lfSeen){d.lfSeen=l;if(d===GS.player&&d.dead<=0){boom(d);d.dead=3;d.mesh.visible=false;d.hp=100}}}
  if(Array.isArray(g.tg))g.tg.forEach((v,i)=>{const t=TUR[i];if(!t)return;if(!v&&t.re<=0)boom(t);t.re=v?0:1;t.hp=+v||0});
- if(Array.isArray(g.kf)){const first=GS.net.kfSeen<0;for(const e of g.kf){if(!Array.isArray(e)||!(e[0]>GS.net.kfSeen))continue;GS.net.kfSeen=e[0];const v=objOf(e[2]);if(!first&&v)feed(`${who(objOf(e[1]))} ${v.isTurret?'destroyed':'shot down'} ${who(v)}`)}}}
+ if(Array.isArray(g.kf)){const first=GS.net.kfSeen<0;for(const e of g.kf){if(!Array.isArray(e)||!(e[0]>GS.net.kfSeen))continue;GS.net.kfSeen=e[0];const v=objOf(e[2]);if(v&&v===GS.player){GS.killedBy=objOf(e[1]);GS.killedAt=now}if(!first&&v)feed(`${who(objOf(e[1]))} ${v.isTurret?'destroyed':'shot down'} ${who(v)}`)}}}
 export function nearestFoe(me){let best=null,bd=1e9;for(const e of GS.drones)if(e.dead<=0&&e.team!==me.team){const q=e.p.distanceToSquared(me.p);if(q<bd){bd=q;best=e}}return best}

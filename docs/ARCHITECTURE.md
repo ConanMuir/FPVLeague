@@ -63,6 +63,21 @@ Rules, because several of these fire every physics tick:
 - `physics/world.js` still exports the old `onHit(fn)` / `emitHit(e)` for the four contact events (`e.type` is `'ball'`, `'drone'`,
   `'bullet'`, `'ground'`), which `tools/bot-match.mjs` uses.
 
+### Replays and cosmetic listeners (`src/render/replay.js`)
+
+Goal replays (League) and the Dogfight kill cam replay recorded render state; nothing is re-simulated. `main.js` `tick()` calls
+`rpRec(dt)` after every step: a preallocated ring keeps 10 s of the ball and up to 6 drones at 60 Hz (pose, velocity, throttle, boost /
+dead / pop flags), plus an event ring (touch, bump, bounce, popEarn, popFire, goal) and a ring of the Dogfight rounds fired (`guns.js`
+`BH` hooks). To play, a window is copied into a clip; each frame `rpIn()` swaps the clip's state into the ball and drone objects before
+`visuals()`, and `rpOut()` / `rpVis()` put the live state back (like `lerpIn` / `lerpOut`), while `camera.js` `CAM.fn` hands the camera to
+the replay. Recorded events are sent with `replayEv`, which only reaches listeners that subscribed with **`onFx`** (effects and sound).
+Gameplay listeners use `onEv` and never see a replayed touch or goal. If you add a purely cosmetic listener for an event that replays,
+subscribe it with `onFx`.
+
+Timing: `goal()` asks `goalHold()` how much to extend the post-goal wait (the host's `stT` goes to joiners, so online kickoffs stay
+synced). Offline, the wait ends when the replay ends or is skipped. Online, each pilot sends `rs` (the goal whose replay it is done with)
+and the host starts the kickoff once everyone is done.
+
 ### Adding an event
 
 1. Add the type and its payload line to the comment and `EVENTS` in `src/core/events.js`.
@@ -79,6 +94,25 @@ old saves (`test/fixtures/settings-golden.json`) and checks the result and every
 
 - New setting: append a `field()` (its default goes in the field's clean function; `DEF` is v15's list and stays as it is).
 - Changing what old saves mean: append `{v: next, run(S){...}}` to `MIGRATIONS`.
+
+## Progression (`src/progress/`, `src/ui/profile.js`)
+
+Level, XP, lifetime stats, achievements and cosmetic unlocks. Everything comes from the event bus; gameplay code has no progression
+calls (the one producer added for it is the `pack` event when a training pack finishes).
+
+- `progress/tracker.js` listens to `kickoff`, `count`, `touch`, `popFire`, `bounce`, `save`, `shot`, `goal`, `demo`, `kill`, `bullet`,
+  `end` and `pack`. A match is recorded from a kickoff at 0-0 in a mode with a clock and opponents (League, Dogfight), with no overlay,
+  not in the attract demo. `end` commits it. Leaving early keeps the counts but gives no XP. Only events about your own drone count.
+  The profile is never sent online.
+- Pure rules, tested in node (`test/progress.test.mjs`): `xp.js` (levels, match XP with its anti-farm rules, training XP),
+  `match-rec.js` (one match's counts: goals, assists, pop chains, air dribbles, kills, ...), `achievements.js`, `unlocks.js` (which
+  Garage cosmetics a level or achievement unlocks; parts are never locked), `profile.js` (the saved profile).
+- The profile is localStorage `droneleague.profile`, its own key with its own version (`pv`): loaded through `config/schema.js` like
+  the settings (every field cleaned; a broken save loads fresh and the old text is kept in `droneleague.profile.bak`), then
+  `PROFILE_MIGRATIONS` newer than the save run once each. `test/fixtures/profile-golden.json` pins how 21 saves load.
+  Changing what an old profile means: append `{v: next, run(P, ctx)}` to `PROFILE_MIGRATIONS`.
+- New achievement: append to `ACH` (never rename an id: it is saved). New locked cosmetic: add it to `LEVEL_UNLOCKS` or give an
+  achievement a `reward`. `tools/progress-check.mjs` plays real matches headless and checks the whole loop.
 
 ## Shared with Riley's games (`src/flight/core.js`, `src/input/sticks.js`)
 

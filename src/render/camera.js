@@ -19,7 +19,10 @@ function setFov(h,horizontal=true){const v=horizontal?2*Math.atan(Math.tan(h*Mat
 // onto "Tilt at axis min".."Tilt at axis max" (swap the two to reverse it), lightly smoothed against axis jitter
 let tiltNow=null;export function camTilt(dt=0){if(S.tiltAx<0)return tiltNow=S.tilt;const v=pad()?.axes?.[S.tiltAx];if(v==null)return tiltNow??S.tilt;
  const t=S.tiltMin+(S.tiltMax-S.tiltMin)*(Math.max(-1,Math.min(1,v))+1)/2;tiltNow=tiltNow==null?t:tiltNow+(t-tiltNow)*Math.min(1,dt*20);return tiltNow}
+// CAM.fn: a replay camera (render/replay.js) that takes over while a goal replay or kill cam plays: fn(camera, dt, setFov)
+export const CAM={fn:null};
 export function updateCam(dt,now){const me=GS.player;bfov+=((me?.boostOn?14:0)-bfov)*Math.min(1,dt*(me?.boostOn?10:4));
+ if(CAM.fn){CAM.fn(camera,dt,setFov);camEnd(dt);return}
  if(GS.menuOpen&&GS.demo&&GS.OBSON||!me&&GS.OBSON){const t=now*3e-5;camPos.set(Math.sin(t)*300,150+Math.sin(t*1.7)*25,Math.cos(t)*400);camera.position.copy(camPos);camera.lookAt(0,20,0);setFov(55,false);return}
  if(GS.menuOpen&&GS.demo||!me){const t=now*4e-5;camPos.set(Math.sin(t)*W*.85,45+Math.sin(t*1.7)*10,Math.cos(t)*L*.75);camera.position.copy(camPos);camera.lookAt(ball.p.x*.5,6,ball.p.z*.5);setFov(55,false);return}
  const fpv=GS.camMode===0&&me.dead<=0;me.mesh.visible=!fpv&&me.dead<=0;me.mark.visible=!fpv;
@@ -40,5 +43,7 @@ if(GS.OBSON){_cp.x=cl(_cp.x,-DHW+1,DHW-1);_cp.z=cl(_cp.z,-DHL+1,DHL-1);if(me.p.y
   if(GS.OBSON){if(me.p.y<dfHt(me.p.x,me.p.z)){let k=1;for(let i=1;i<=12;i++){const t=i/12;if(sdf(me.p.x+(camPos.x-me.p.x)*t,me.p.y+(camPos.y-me.p.y)*t,me.p.z+(camPos.z-me.p.z)*t)>-1){k=(i-1)/12;break}}if(k<1)camPos.lerpVectors(me.p,camPos,k)}
    else camPos.y=Math.max(camPos.y,dfHt(camPos.x,camPos.z)+1.5)}
   camera.position.copy(camPos);camera.lookAt(GS.camMode===2||me.dead>0?foc:_t.copy(me.p).addScaledVector(camFwd,8).setY(me.p.y+1));setFov(100+bfov)}
- if(GS.OBSON){sun.target.position.set(camera.position.x,0,camera.position.z);sun.position.copy(sun.target.position).add(LOOKS.df.sp);dfAtmos(camera,dt);dfLod(camera)}  // dfAtmos: fog closes in underground; dfLod: far forests draw low-detail trees
+ camEnd(dt)}
+// every camera but the menu orbits: the Highlands sun, fog and tree LOD follow it, then the shake
+function camEnd(dt){if(GS.OBSON){sun.target.position.set(camera.position.x,0,camera.position.z);sun.position.copy(sun.target.position).add(LOOKS.df.sp);dfAtmos(camera,dt);dfLod(camera)}  // dfAtmos: fog closes in underground; dfLod: far forests draw low-detail trees
  if(GS.shake>.01){camera.position.add(_t.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(GS.shake*.7*SHK));GS.shake*=Math.exp(-dt*4)}}

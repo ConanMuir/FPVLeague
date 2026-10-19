@@ -12,7 +12,7 @@ import {GH,GW,HL,V3,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {BR} from '../config/tune.js';
 import {ball} from '../physics/ball.js';
-import {onEv} from '../core/events.js';
+import {onEv,onFx} from '../core/events.js';
 import {camera} from '../render/renderer.js';
 import {GS} from '../state.js';
 import {inCave} from '../world/caves.js';
@@ -52,12 +52,12 @@ export function sfxInit(){if(L||!AC)return;const pan=()=>AC.createStereoPanner?A
  vS.connect(f1).connect(vG);vS.connect(f2).connect(vG);vS.connect(f3).connect(rG2);vG.connect(BUS.crowd);rG2.connect(BUS.crowd);vS.start(0,.7);
  L={sG,sP,sF:sF[1].node,rG,rP,rF:rF[0].node,rl,rd,cG,cF:cF[0].node,lf,f1,f2,vG,roar:rG2,ex:0,tens:0};
  onEv('ground',e=>{try{groundHit(e.d,e.speed,e.p)}catch(err){}});onEv('save',e=>{try{crowdSave(e.d,e.speed)}catch(err){}});onEv('shot',e=>{try{crowdShot(e.d)}catch(err){}});
- onEv('touch',e=>{try{ballHit(e.d,e.speed,e.verdict)}catch(err){}})}
+ onFx('touch',e=>{try{ballHit(e.d,e.speed,e.verdict)}catch(err){}})}
 
 // ---------- game events (core/events.js) ----------
 // contacts (ground, touch) and the crowd's save / shot listen from sfxInit on, once audio exists; the rest from load, like the direct calls they replace
-onEv('bounce',e=>ballBounce(e.speed));onEv('count',e=>countdown(e.n));onEv('goal',e=>goalSfx(e.team,e.p));
-onEv('popEarn',e=>{if(e.d===GS.player)tone(1500,2200,.08,.05)});onEv('popFire',e=>{if(e.d===GS.player)popWhoosh(e.dur)});
+onFx('bounce',e=>ballBounce(e.speed));onEv('count',e=>countdown(e.n));onFx('goal',e=>goalSfx(e.team,e.p));
+onFx('popEarn',e=>{if(e.d===GS.player)tone(1500,2200,.08,.05)});onFx('popFire',e=>{if(e.d===GS.player)popWhoosh(e.dur)});
 // landing / wall impact of a quad: a low sine thump (pitch drops like a body hitting a floor) + low-passed noise; a hard one adds
 // the frame's ring (three inharmonic partials, a carbon plate) and a short high crack; spinning into it adds clatter
 export function groundHit(d,speed,p){if(!d||!(speed>2))return;const w=now();if(d._sgt&&w-d._sgt<.07&&speed<(d._sgs||0)*1.5)return;cnt('thud');d._sgt=w;d._sgs=speed;if(!AC)return;

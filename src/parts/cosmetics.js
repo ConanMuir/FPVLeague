@@ -24,7 +24,9 @@ export const PAINTS=[
  {id:'teammet',name:'Team Metallic',sub:'Your team colour, metal flake',r:'import',col:null,rough:.3,metal:.7,coat:1,dim:.55},
  {id:'chrome',name:'Chrome',sub:'Mirror finish',r:'exotic',col:0xf0f3f8,rough:.16,metal:1},
  {id:'gold',name:'24K',sub:'Polished gold',r:'bm',col:0xe0bd55,rough:.14,metal:1},
- {id:'pearl',name:'Pearlescent',sub:'White pearl with a colour shift',r:'bm',col:0xdfe3ea,rough:.22,metal:.2,coat:1,irid:1}];
+ {id:'pearl',name:'Pearlescent',sub:'White pearl with a colour shift',r:'bm',col:0xdfe3ea,rough:.22,metal:.2,coat:1,irid:1},
+ {id:'jade',name:'Jade',sub:'Deep green metal flake',r:'vrare',col:0x0f6e5a,rough:.28,metal:.65,coat:1},
+ {id:'bchrome',name:'Black Chrome',sub:'Smoked mirror finish',r:'exotic',col:0x2a2d33,rough:.12,metal:1}];
 // decals: procedural patterns drawn in the paint shader (object space, so they need no UVs); always in the team colour.
 // pat: the shader pattern number; num: race number digits; box: confined to the chassis and also on the battery wrap; pack: only on the battery
 export const DECALS=[
@@ -40,7 +42,9 @@ export const DECALS=[
  {id:'n07',name:'Race No. 07',sub:'Big number on the battery',r:'rare',pat:9,num:7,box:1,pack:1},
  {id:'n23',name:'Race No. 23',sub:'Big number on the battery',r:'rare',pat:9,num:23,box:1,pack:1},
  {id:'n88',name:'Race No. 88',sub:'Big number on the battery',r:'import',pat:9,num:88,box:1,pack:1},
- {id:'split',name:'Two-Tone',sub:'Team-coloured front half',r:'uncommon',pat:10,box:1}];
+ {id:'split',name:'Two-Tone',sub:'Team-coloured front half',r:'uncommon',pat:10,box:1},
+ {id:'n01',name:'Race No. 01',sub:'Number one on the battery',r:'exotic',pat:9,num:1,box:1,pack:1},
+ {id:'n99',name:'Race No. 99',sub:'Big number on the battery',r:'bm',pat:9,num:99,box:1,pack:1}];
 // props: blade colour and how see-through they are (col null = team tint)
 export const PROPS=[
  {id:'team',name:'Team Tint',sub:'Translucent team colour',r:'common',col:null,op:.55},
@@ -54,7 +58,8 @@ export const PROPS=[
  {id:'violet',name:'Violet',sub:'Translucent',r:'vrare',col:0x9a4dff,op:.62},
  {id:'ice',name:'Ice',sub:'Pale see-through blue',r:'vrare',col:0x8fdcff,op:.45},
  {id:'amber',name:'Amber',sub:'Translucent orange',r:'vrare',col:0xff9a1a,op:.6},
- {id:'glow',name:'Glow',sub:'Lit team-coloured blades',r:'exotic',col:null,op:.8,emis:1}];
+ {id:'glow',name:'Glow',sub:'Lit team-coloured blades',r:'exotic',col:null,op:.8,emis:1},
+ {id:'gold',name:'Gold Blades',sub:'Opaque polished gold',r:'import',col:0xe0bd55,op:.92}];
 // motor bells: anodised colours (null col on stock = the power unit's own bell; team = your team colour)
 export const BELLS=[
  {id:'stock',name:'Stock',sub:'The motor\'s own finish',r:'common',stock:1},
@@ -77,7 +82,8 @@ export const LEDS=[
  {id:'pink',name:'Pink',sub:'',r:'rare',col:0xff3cc4},
  {id:'purple',name:'Purple',sub:'',r:'rare',col:0xa04dff},
  {id:'yellow',name:'Yellow',sub:'',r:'rare',col:0xfff03a},
- {id:'amber',name:'Amber',sub:'',r:'vrare',col:0xffa020}];
+ {id:'amber',name:'Amber',sub:'',r:'vrare',col:0xffa020},
+ {id:'ace',name:'Ace',sub:'White-gold',r:'import',col:0xfff2b0}];
 // trails: boost / speed trail colour (col, fading to col2) and a style hint for the boost effect (render reads drone.trailCol/trailCol2/trailStyle)
 export const TRAILS=[
  {id:'team',name:'Team Stream',sub:'Your team colour',r:'common',col:null,col2:null,style:'stream'},
@@ -87,7 +93,9 @@ export const TRAILS=[
  {id:'toxic',name:'Toxic',sub:'Acid green sparks',r:'rare',col:0x9dff40,col2:0x1fbf5a,style:'sparks'},
  {id:'gold',name:'Gold Dust',sub:'Glittering gold',r:'import',col:0xffe07a,col2:0xd8a030,style:'sparkle'},
  {id:'ghost',name:'Ghost',sub:'Pale smoke',r:'uncommon',col:0xdde6ff,col2:0x5a6a88,style:'smoke'},
- {id:'rainbow',name:'Prism',sub:'Full spectrum',r:'bm',col:0xff4040,col2:0x4060ff,style:'rainbow'}];
+ {id:'rainbow',name:'Prism',sub:'Full spectrum',r:'bm',col:0xff4040,col2:0x4060ff,style:'rainbow'},
+ {id:'comet',name:'Comet',sub:'Icy sparkle tail',r:'exotic',col:0xbff4ff,col2:0x3fd8ff,style:'sparkle'},
+ {id:'contrail',name:'Contrail',sub:'Jet vapour trail',r:'import',col:0xffffff,col2:0xb8c4d8,style:'smoke'}];
 
 export const COS_CATS=['paint','decal','props','bell','led','trail'],COS_NAMES=['Paint','Decal','Props','Bells','LEDs','Trail'],COS={paint:PAINTS,decal:DECALS,props:PROPS,bell:BELLS,led:LEDS,trail:TRAILS};
 export const COS_DEF=Object.freeze({paint:'carbon',decal:'none',props:'team',bell:'stock',led:'team',trail:'team'});

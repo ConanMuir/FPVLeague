@@ -29,8 +29,11 @@
 //  count    the kickoff countdown ticks, 3 2 1 then 0 = GO (modes/step.js, not in the attract demo)  {n}
 //  orb      a drone picked up a boost orb (modes/step.js)  {d, big: bool, p: orb position}
 //  end      the match ended (modes/match.js endFx, host and joiners)  {winner: team, score: GS.score}
+//  pack     a skill training pack finished (modes/training.js finish, after the best is saved)  {id, tier: 0..2, n: shots done, of: shots,
+//           t: total time of the done shots, prev: the saved best before this run {n, of, t} | null}
+// Replays: effects and sound subscribe with onFx instead, so they also hear the recorded copies a replay sends (see the end of this file).
 // Adding a type: add it to EVENTS with a one-line payload description above, emit it from its producer with a reused payload object.
-export const EVENTS=['touch','bump','bullet','ground','bounce','popEarn','popFire','save','shot','goal','demo','kill','kickoff','count','orb','end'];
+export const EVENTS=['touch','bump','bullet','ground','bounce','popEarn','popFire','save','shot','goal','demo','kill','kickoff','count','orb','end','pack'];
 const L=Object.create(null);for(const t of EVENTS)L[t]=[];
 const check=t=>{if(!L[t])throw new Error('unknown event type: '+t)};
 /** subscribe fn(payload) to an event type; returns a function that unsubscribes it */
@@ -39,3 +42,10 @@ export function onEv(type,fn){check(type);L[type]=[...L[type],fn];return()=>{L[t
 export function emitEv(type,e){const a=L[type];if(!a)check(type);for(let i=0;i<a.length;i++)a[i](e)}
 /** is anyone listening? (lets hot producers skip building a payload) */
 export const hasEv=type=>L[type]?.length>0;
+// Replays (render/replay.js) send recorded copies of some events with replayEv. Only cosmetic listeners, subscribed with onFx (effects
+// and sound), hear those; onEv listeners (judges, stats, bots, progression) never do, so a replayed touch or goal can't count twice.
+const F=Object.create(null);for(const t of EVENTS)F[t]=[];
+/** subscribe a cosmetic listener: it hears every live event (like onEv) and every replayed one; returns the unsubscribe */
+export function onFx(type,fn){const off=onEv(type,fn);F[type]=[...F[type],fn];return()=>{off();F[type]=F[type].filter(f=>f!==fn)}}
+/** deliver a replayed event to the onFx listeners only */
+export function replayEv(type,e){const a=F[type];if(!a)check(type);for(let i=0;i<a.length;i++)a[i](e)}
