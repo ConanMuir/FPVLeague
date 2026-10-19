@@ -4,7 +4,7 @@
 // lines), as an inert proxy, except physics/sdf.js, which becomes a flat floor at y = 0 so the turtle / self-righting pivots work.
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
-const STUB = /\/src\/(render|audio|physics)\/[^/]+\.js$|\/src\/world\/highlands\.js$/;
+const STUB = /\/src\/(render|audio|physics|ui|modes)\/[^/]+\.js$|\/src\/world\/highlands\.js$/;
 const names = (parent, spec) => {
   let src = ''; try { src = fs.readFileSync(fileURLToPath(parent), 'utf8'); } catch (e) { return []; }
   const out = new Set();
