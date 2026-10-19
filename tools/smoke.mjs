@@ -249,6 +249,7 @@ async function labScenario(url) {
     out.bindClosed = await hidden(p, '#bind');
     // Calibration Lab, Pro preset; run every drill a few seconds with the scripted pilot, then skip
     out.before = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {rprof: s.rprof, rpi: s.rpi, dz: s.dz, assist: s.assist}; });
+    await click(p, '#trainbtn'); out.hubOpen = !(await hidden(p, '#scr-training'));  // Training hub -> Calibration Lab
     await click(p, '#labbtn'); out.introOpen = !(await hidden(p, '#labintro'));
     await click(p, '#lpre [data-p=pro]'); await click(p, '#lgo');
     await p.evaluate(pilot);
@@ -276,12 +277,45 @@ async function labScenario(url) {
   return out;
 }
 
+// ---------- skill training packs: hub, pack browser, a pack with keyboard controls, summary, pause menu, leave ----------
+async function trainScenario(url) {
+  const browser = await launch(), errors = [], out = {errors};
+  try {
+    const p = await open(browser, url, errors);
+    await waitFor(p, s => s.state === 'play', SW ? 240000 : 60000, 'the demo to start');
+    const tr = () => p.evaluate(() => window.__dl.train());
+    await click(p, '#trainbtn'); out.hub = !(await hidden(p, '#scr-training')) && (await p.$$eval('#scr-training .ttile', l => l.length));
+    await click(p, '#packsbtn'); out.browser = {open: !(await hidden(p, '#scr-packs')), tabs: await p.$$eval('#ptabs button', l => l.length), tiles: await p.$$eval('#ptiles .ptile', l => l.length)};
+    await click(p, '#ptabs [data-c=goalie]'); out.browser.goalie = await p.$$eval('#ptiles .ptile', l => l.map(b => b.dataset.id).join());
+    await click(p, '#ptabs [data-c=striker]'); await click(p, '#ptiles [data-id=striker-rookie]'); await sleep(500);
+    const s0 = await tr(); out.start = {on: s0.on, ph: s0.ph, i: s0.i, hud: !(await hidden(p, '#train')), menu: await hidden(p, '#menu'), num: await text(p, '#trnum')};
+    await p.keyboard.down('ArrowUp'); await sleep(400); await p.keyboard.up('ArrowUp'); await sleep(1200);  // pitch: any stick starts the shot
+    const s1 = await tr(), sn = await snap(p); out.live = {ph: s1.ph, t: s1.t, finite: finite(sn)};
+    const steps = [];
+    await key(p, 'n'); steps.push((await tr()).i); await key(p, 'n'); steps.push((await tr()).i); await key(p, 'b'); steps.push((await tr()).i);
+    await key(p, 'r'); const r = await tr(); steps.push(r.i + ':' + r.ph); await key(p, 'Backspace'); steps.push((await tr()).ph);
+    await click(p, '#trnext'); steps.push((await tr()).i); await click(p, '#trprev'); steps.push((await tr()).i); out.steps = steps.join();
+    for (let i = 0; i < 9; i++) await key(p, 'n');
+    await sleep(400); const s2 = await tr(); out.summary = {ph: s2.ph, open: !(await hidden(p, '#trsum')), rows: await p.$$eval('#trslist li', l => l.length), score: s2.score, saved: s2.saved};
+    await click(p, '#trsretry'); await sleep(300); const s3 = await tr(); out.retryPack = {ph: s3.ph, i: s3.i, sumHidden: await hidden(p, '#trsum')};
+    await key(p, 'Escape'); out.pause = {menu: !(await hidden(p, '#menu')), play: await p.$eval('#play', e => e.textContent), leave: await p.$eval('#leave', e => e.textContent)};
+    await click(p, '#resume'); await sleep(300);
+    await click(p, '#trnext'); await sleep(200); await key(p, 'Escape'); await click(p, '#leave'); await sleep(800);
+    const e = await snap(p); out.leave = {on: (await tr()).on, demo: e.demo, packs: !(await hidden(p, '#scr-packs')), hud: await hidden(p, '#train'), stored: await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').train?.['striker-rookie'] ?? null)};
+    await click(p, '#packsback'); await click(p, '#labbtn'); out.labFromHub = await p.waitForFunction(() => !document.getElementById('labintro').hidden, {timeout: 5000}).then(() => true, () => false); await click(p, '#lquit'); await sleep(500);
+    out.after = (await snap(p)).demo;
+  } catch (e) { errors.push('training: ' + e.message); }
+  await browser.close();
+  return out;
+}
+
 // ---------- run ----------
 let failed = false;
 const fail = m => { failed = true; console.log('FAIL ' + m); };
 const results = {new: await scenario('new (dist/index.html)', origin + '/new/')};
 const set = {new: await settings('new', origin + '/new/')};
 const lab = await labScenario(origin + '/new/');
+const train = await trainScenario(origin + '/new/');
 if (BASELINE) {
   results.old = await scenario('v15 baseline', origin + '/old/');
   set.old = await settings('v15 baseline', origin + '/old/');
@@ -331,6 +365,7 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(x[2]?.a === 3 && x[2].s < 0 && x[3]?.a === 2 && x[3].s > 0, 'binding: pitch and roll on the right stick');
   chk(L.bound?.xfire === 7, 'binding: fire on RT reported as an analog button');
   chk(L.bound?.xflip === 'a5', 'binding: flip on RT reported as an axis that reads 0 until its first press');
+  chk(L.hubOpen, 'Lab: the Training hub should open from the main menu');
   chk(L.introOpen && L.drills?.length === 6 && L.drills.every(d => d.started && d.finite && d.t > 2), 'Lab: every drill should start and run with finite state');
   chk(L.drills?.reduce((a, d) => Math.max(a, d.reps), 0) > 0 && L.drills.at(-1).changes > 0, 'Lab: reps should be measured and the tuner should change something');
   chk(L.sumOpen && L.working?.type === 'ACTUAL', 'Lab: summary should open; Pro tunes in Actual rates');
@@ -339,13 +374,29 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(L.reverted && eq(L.reverted, L.before), 'Lab: Revert should restore the rate profiles, active profile, deadband and assist');
   chk(L.exit?.demo && !L.exit.lab && L.exit.drones > 0, 'Lab: Back to menu should leave the Lab for the menu demo');
 }
+// skill training packs
+{
+  const T = train;
+  console.log('\n== skill training packs\n ' + JSON.stringify({hub: T.hub, browser: T.browser, start: T.start, live: T.live, steps: T.steps, summary: T.summary, retryPack: T.retryPack, pause: T.pause, leave: T.leave, labFromHub: T.labFromHub}) +
+    (T.errors.length ? '\n  errors:\n   ' + T.errors.slice(0, 20).join('\n   ') : '\n  no errors'));
+  if (T.errors.length) fail(`${T.errors.length} error(s) in the training run`);
+  chk(T.hub === 2 && T.browser?.open && T.browser.tabs === 5 && T.browser.tiles === 3 && T.browser.goalie === 'goalie-rookie,goalie-pro,goalie-allstar', 'training: hub with two tiles, pack browser with 5 categories x 3 tiers');
+  chk(T.start?.on && T.start.ph === 'ready' && T.start.i === 0 && T.start.hud && T.start.menu && T.start.num === '1 / 8', 'training: a pack starts on its first shot, waiting, with the HUD');
+  chk(T.live?.ph === 'live' && T.live.t > .5 && T.live.finite, 'training: a stick input starts the shot and the timer runs');
+  chk(T.steps === '1,2,1,1:ready,ready,2,1', 'training: next / previous / retry (keys and buttons)');
+  chk(T.summary?.ph === 'sum' && T.summary.open && T.summary.rows === 8 && T.summary.score?.of === 8 && T.summary.saved?.of === 8, 'training: Next past the last shot shows the summary and stores the result');
+  chk(T.retryPack?.ph === 'ready' && T.retryPack.i === 0 && T.retryPack.sumHidden, 'training: Retry pack restarts at shot 1');
+  chk(T.pause?.menu && /restart pack/i.test(T.pause.play) && /leave training/i.test(T.pause.leave), 'training: the pause menu offers Restart pack / Leave training');
+  chk(T.leave && !T.leave.on && T.leave.demo && T.leave.packs && T.leave.hud && T.leave.stored?.of === 8, 'training: Leave goes back to the pack browser and the best result is saved');
+  chk(T.labFromHub && T.after, 'training: the Calibration Lab is still reachable from the hub');
+}
 console.log('\n== settings from a v15 save\n new: ' + set.new.ui);
 if (set.old) {
   console.log(' v15: ' + set.old.ui);
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
   else {
     // settings added after v15 (with defaults) are left out of the comparison
-    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd', 'cos'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
+    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd', 'cos', 'train'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
     chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check

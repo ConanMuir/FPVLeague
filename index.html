@@ -30,7 +30,7 @@
       <button class="go" id="play">Play vs bots</button>
       <button id="onlbtn" data-scr="online">Play online</button>
       <button id="garbtn">Garage</button>
-      <button id="labbtn">Training<small>Calibration Lab</small></button>
+      <button id="trainbtn" data-scr="training">Training<small>Skill packs · Calibration Lab</small></button>
       <button id="setbtn" data-scr="settings">Settings</button>
       <button id="modbtn">Mod panel</button>
       <button class="quit" id="leave" hidden>Leave game</button>
@@ -42,6 +42,21 @@
       <div class="mp"><input id="code" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="join">Join</button></div>
       <div id="games"></div>
       <p class="note" id="mpnote">Connecting…</p>
+  </section>
+  <section class="scr wide" id="scr-training" hidden aria-label="Training">
+    <div class="shead"><button class="sm back">Back</button><h2>Training</h2></div>
+    <div class="thub">
+      <button class="ttile" id="packsbtn"><span class="tart" aria-hidden="true"><svg viewBox="0 0 120 70"><path d="M18 62V14h84v48" fill="none" stroke="currentColor" stroke-width="4"/><path d="M18 14l12 10h60l12-10M30 24v38M90 24v38M30 40h60M30 52h60M45 24v38M60 24v38M75 24v38" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/><circle cx="60" cy="44" r="11" fill="currentColor"/></svg></span>
+        <span class="tbody"><b>Skill packs</b><small>Set shots with the real ball: Striker, Goalie, Aerial, Dribbling and Pops, each in Rookie, Pro and All-Star.</small><em id="packsum"></em></span></button>
+      <button class="ttile lab" id="labbtn"><span class="tart" aria-hidden="true"><svg viewBox="0 0 120 70"><path d="M22 58a38 38 0 0 1 76 0" fill="none" stroke="currentColor" stroke-width="4"/><path d="M60 58L80 30" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="60" cy="58" r="5" fill="currentColor"/><path d="M30 46l5 2M38 33l4 4M52 25l1 5M68 25l-1 5M82 33l-4 4M90 46l-5 2" stroke="currentColor" stroke-width="2"/></svg></span>
+        <span class="tbody"><b>Calibration Lab</b><small>Six drills that measure how you fly and tune your rates, deadband and throttle while you fly them.</small><em>Rates · deadband · throttle</em></span></button>
+    </div>
+  </section>
+  <section class="scr wide" id="scr-packs" hidden aria-label="Skill packs">
+    <div class="shead"><button class="sm back" id="packsback">Back</button><h2>Skill packs</h2><span class="note" id="packstot" style="margin:0 0 0 auto"></span></div>
+    <div class="ptabs" id="ptabs" role="tablist" aria-label="Category"></div>
+    <p class="pblurb" id="pblurb"></p>
+    <div class="ptiles" id="ptiles"></div>
   </section>
   <section class="scr set-scr" id="scr-settings" hidden aria-label="Settings">
     <div class="shead"><button class="sm back">Back</button><h2>Settings</h2></div>
@@ -96,6 +111,20 @@
   <p class="note" id="lsmsg"></p></div></div>
 <div id="ltest" hidden><div class="ltbar"><b>Test drive</b><span id="ltt" class="osd">1:00</span><span class="note">Freeplay with your new settings. No bots.</span><button class="go" id="lexitt">Exit test</button></div></div>
 <div id="ltip" role="tooltip" hidden></div>
+<div id="train" hidden>
+  <div class="trtop"><div class="trpack"><i id="trtier"></i><b id="trname"></b></div><div class="trshot"><span>Shot</span><b id="trnum"></b></div><div class="trtime" id="trtime"></div></div>
+  <div class="trsub"><div class="trpips" id="trpips"></div><div class="trsn" id="trsn"></div></div>
+  <div class="trready" id="trready" hidden><b>Move to start</b><span id="trtip"></span></div>
+  <div class="trres" id="trres" hidden></div>
+  <div class="trkeys"><button id="trprev"><kbd>B</kbd><kbd>D-pad &#9664;</kbd>Previous</button><button id="trretry"><kbd>R</kbd><kbd>Y</kbd>Retry</button><button id="trnext"><kbd>N</kbd><kbd>D-pad &#9654;</kbd>Next</button></div>
+</div>
+<div id="trsum" class="modal" hidden><div class="trbox" role="dialog" aria-label="Pack summary">
+  <div class="trsh"><span id="trscat"></span><h2 id="trstitle"></h2><i id="trstier"></i></div>
+  <div class="trbig"><div><b id="trsn2"></b><span>/ <i id="trsof"></i> shots</span></div><em id="trsbest"></em></div>
+  <div class="trsstats" id="trsstats"></div>
+  <ol class="trslist" id="trslist"></ol>
+  <div class="trsact"><button class="go" id="trsretry">Retry pack</button><button id="trsnext">Next pack</button><button id="trsback">Skill packs</button><button id="trsmenu">Main menu</button></div>
+</div></div>
 <div id="bind" class="modal" hidden><div class="sbox wide"><div class="mhead"><b id="bstep"></b><span class="note" id="bdev" style="margin:0"></span><button class="sm" id="bx" aria-label="Cancel">✕</button></div>
   <h3 id="bq"></h3><p class="note" id="bmsg"></p><div id="blive" class="blive"></div><div id="bres" class="bres"></div>
   <div class="mp"><button class="sm" id="bredo">Redo step</button><button class="sm" id="bskip">Skip</button><button class="go sm" id="bsave" hidden>Save</button></div></div></div>
