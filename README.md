@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main da7fc78 (pop mechanic, PR #15)
-Doing: Dogfight underground: a cave network under the Highlands (caverns, tunnels, six entrances), collision + bots + checks.
-Touches: src/world/caves.js (new), src/world/terrain.js (new, terrain maths split out of highlands.js), src/world/highlands.js, src/physics/world.js (terrain/cave trimeshes, hybrid CCD), src/bots/dogfight.js, src/render/camera.js, src/modes/dogfight.js (turrets off cave mouths), tools/physics-check.mjs, tools/smoke.mjs (Lab pilot null-band race; page-error stacks).
-Open items / help wanted: how the caves feel to fly (unverified by a pilot); cave walls have no shadows from drones; online play with someone underground untested.
-Overlaps: riley-test-0u2krq (Long line mode) also edits src/physics/world.js (rope); merge by hand.
+Based on: origin/main 5c965f2 (ball feel, PR #21)
+Doing: Rocket League-style goal explosions (branch `goal-explosions`): flash, team-colour shockwave shell + rings, spark streaks, arena light pulse, goal frame glow, short camera shake.
+Touches: src/render/goalfx.js (new), src/modes/match.js (goalFx calls it; fewer old particles on Low), src/render/visuals.js (one tick call), tools/goalfx-shots.mjs (new: screenshots + frame time).
+Open items / help wanted: not yet seen by a pilot in a real online match; the effect plays in real time (~1.5 s) over the goal slow-mo.
+Overlaps: effects/sound branches may also edit goalFx in src/modes/match.js (one line); merge by hand.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.
