@@ -1,7 +1,7 @@
 // Event bus (src/core/events.js): order, unsubscribing (also during delivery), unknown types, reused payloads.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EVENTS, emitEv, hasEv, onEv} from '../src/core/events.js';
+import {EVENTS, emitEv, hasEv, onEv, onFx, replayEv} from '../src/core/events.js';
 
 test('listeners run in subscription order with the producer\'s payload object', () => {
   const seen = [], P = {speed: 0};
@@ -32,4 +32,13 @@ test('emitting allocates nothing per event (heap stays flat over a million emits
   for (let i = 0; i < 1e6; i++) { P.speed = 1; emitEv('touch', P); }
   const grow = process.memoryUsage().heapUsed - h0; off();
   assert.ok(grow < 4e6, 'heap grew ' + grow + ' bytes'); assert.ok(s > 1e6);
+});
+
+test('replayed events (render/replay.js) reach onFx listeners only; onFx listeners also hear live events', () => {
+  const seen = []; const offE = onEv('goal', e => seen.push('ev' + e.n)), offF = onFx('goal', e => seen.push('fx' + e.n));
+  emitEv('goal', {n: 1}); replayEv('goal', {n: 2});
+  assert.deepEqual(seen, ['ev1', 'fx1', 'fx2']);
+  offF(); replayEv('goal', {n: 3}); emitEv('goal', {n: 4}); offE();
+  assert.deepEqual(seen, ['ev1', 'fx1', 'fx2', 'ev4']); assert.equal(hasEv('goal'), false);
+  assert.throws(() => replayEv('tuoch', {}));
 });
