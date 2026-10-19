@@ -1,6 +1,6 @@
 // Screenshots + frame time for the visuals pass: every map (League maps + Highlands) from fixed cameras, per graphics quality.
 // Time is frozen through a requestAnimationFrame/performance.now shim, so the menu-demo orbit camera lands on the same spot every run.
-//   node tools/shots.mjs [--html dist/index.html] [--tag after] [--q high,low] [--maps arena,meadow,canyon,alpine,df] [--no-perf] [--dpr 1]
+//   node tools/shots.mjs [--html dist/index.html] [--tag after] [--q high,low] [--maps arena,meadow,canyon,alpine,df] [--no-perf] [--perf-all: time every map, not just arena/df] [--dpr 1] [--cam 1 (0 = FPV)]
 // Writes shots/<tag>-<map>-<q>-<view>.png (shots/ is gitignored) and prints the average ms per frame (uncapped frame rate) per quality.
 import fs from 'node:fs';
 import http from 'node:http';
@@ -43,13 +43,13 @@ const frames = async (p, n) => { const c0 = await p.evaluate(() => window.__ft.l
 const shot = async (p, name) => { await frames(p, 4); await p.screenshot({path: path.join(out, name + '.png')}); console.log('  ' + name + '.png'); };
 const perf = [];
 for (const q of QS) for (const map of MAPS) {
-  const df = map === 'df', p = await open({map: df ? 'arena' : map, game: df ? 'df' : 'league', gfx: q, cam: 1});
+  const df = map === 'df', p = await open({map: df ? 'arena' : map, game: df ? 'df' : 'league', gfx: q, cam: +arg('cam', 1)});
   const base = `${tag}-${map}-${q}`;
   // menu demo orbit: League t = now*4e-5, Highlands t = now*3e-5
   for (const [v, t] of (df ? [['orbitA', 0.4], ['orbitB', 3.6], ['orbitC', 5.2]] : [['orbitA', 4.0], ['orbitB', 1.1]])) { await p.evaluate(T => { window.__T = T; }, t / (df ? 3e-5 : 4e-5)); await shot(p, `${base}-${v}`); }
   // a match: chase cam behind the player at kickoff (time runs ~1.2 s so the camera settles, then freezes)
   await p.$eval('#play', e => e.click()); await p.evaluate(() => { window.__step = 16.7; }); await frames(p, 75); await p.evaluate(() => { window.__step = 0; }); await shot(p, `${base}-chase`);
-  if (PERF && (map === 'arena' || df)) {  // let the sim run and time real frames (uncapped)
+  if (PERF && (map === 'arena' || df || process.argv.includes('--perf-all'))) {  // let the sim run and time real frames (uncapped)
     await p.evaluate(() => { window.__step = 16.7; window.__ft.length = 0; }); await frames(p, 240);
     const ft = await p.evaluate(() => window.__ft.slice(20)); const avg = ft.reduce((a, b) => a + b, 0) / ft.length;
     perf.push(`${map.padEnd(6)} ${q.padEnd(5)} ${avg.toFixed(2)} ms/frame (${(1000 / avg).toFixed(0)} fps, ${ft.length} frames)`);

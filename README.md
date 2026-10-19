@@ -3,10 +3,10 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Riley   Last updated: 2026-10-19 by Claude
-Based on: riley-test-0u2krq (Riley's test build: long line mode, sling cam, look-down, audio tab, jitter fixes) + origin/main 5c965f2 (Jared's PRs #12-#21)
-Doing: second test build so Riley can try Jared's latest main (freeplay, pop, caves, ground grip, ball feel) together with Riley's test-build features.
-Touches: merge only; conflicts resolved by hand in src/flight/drone.js, src/input/input.js, src/modes/match.js, src/modes/step.js, src/parts/index.js, src/ui/hud.js, app.html.
-Open items / help wanted: long line mode with Jared's new ball feel and ground grip is unverified by a pilot.
+Based on: riley-test-0u2krq (Riley's test build: long line mode, sling cam, look-down, audio tab, jitter fixes) + origin/main 1d14492 (Jared's PRs #12-#30)
+Doing: second test build so Riley can try Jared's latest main (freeplay, pop, caves, ground grip, ball feel, sound, goal explosions, cosmetics, skill training packs, effects, harder bots, map detail, underground routes) together with Riley's test-build features.
+Touches: merges only; conflicts resolved by hand (keep both sides) in src/audio, src/bots/league.js, src/config/settings.js, src/main.js, src/modes/match.js, src/modes/step.js, src/net/net.js, src/render/drone-mesh.js, src/styles.css, src/ui/menu.js, src/world/maps.js, app.html.
+Open items / help wanted: long line mode with Jared's newer ball feel, ground grip and effects is unverified by a pilot. Jared's interceptor-zombies branch (WIP, not on main) is not merged here.
 Overlaps: riley-test-0u2krq (this branch's parent, left as it was); main.
 
 ## How to play

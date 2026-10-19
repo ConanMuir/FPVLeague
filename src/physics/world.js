@@ -127,18 +127,19 @@ export function physStep(dt,simBall){const t0=performance.now();world.timestep=d
   else ball.hit=ballContact(ball,dt)}
  PHYS.stats.steps++;PHYS.stats.ms+=performance.now()-t0}
 // contacts of a stepped drone with the world: ground timer, impact speed, our ground friction (Rapier's solver friction is 0)
-function groundContacts(d,dt){let touch=false,jn=0,hit=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0);let np=0;
+function groundContacts(d,dt){let touch=false,jn=0,hit=0;d.slide=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0);let np=0;
  for(const e of d.cols){if(!e.use.includes('world'))continue;world.contactPairsWith(e.c,o=>{if(C2D.has(o.handle))return;world.contactPair(e.c,o,(m,fl)=>{const k=m.numSolverContacts();if(!k)return;touch=true;
    const nn=m.normal(),s=fl?1:-1;let j=0;for(let i=0;i<m.numContacts();i++)j+=m.contactImpulse(i);jn+=j;n.x+=nn.x*s*Math.max(j,1e-3);n.y+=nn.y*s*Math.max(j,1e-3);n.z+=nn.z*s*Math.max(j,1e-3);
    for(let i=0;i<k&&np<CP.length;i++){const p=m.solverContactPoint(i);CP[np++].set(p.x,p.y,p.z)}
    hit=Math.max(hit,-(d.v0.x*nn.x+d.v0.y*nn.y+d.v0.z*nn.z)*s)})})}
  if(!touch)return 0;d.gt=.12;if(n.lengthSq()<1e-12||!np)return hit;n.normalize();(d.cn||(d.cn=new V3())).copy(n);jn*=im;  // d.cn: contact normal (floor up, wall sideways, ceiling down) for the self-righting pendulum; impulse -> velocity change
+ if(hitFns.length)groundHit(d,n,np,hit);  // contact event for effects / sound (onHit type 'ground')
  if(d.piv)return hit;  // pivoting over an edge (self-righting, turtle): pivot() already moves it as a roll about that edge
  // Coulomb friction at every contact point, each with its share of the normal impulse (capped at G*.05 so thrusting into the ground
  // doesn't add grip). Per point, so rolling over an edge has no slip there and isn't braked. No wheels: the frame scrapes and grips
  // (Ground grip), harder the faster it slides, and the friction below the centre of mass trips a hot landing. Wheels (parts/attach.js):
  // roll along the quad's forward axis, grip sideways, and barely spin the frame, so it stays planted.
- const wh=d.fl?.wheels,vt=Math.sqrt(Math.max(0,d.v.lengthSq()-d.v.dot(n)**2)),sp=wh?.15:Math.min(1,.2+vt/8),jc=Math.min(jn,G*.05)/np,ww=_w.copy(d.w).applyQuaternion(d.q);  // sp: share of friction that spins the frame
+ const wh=d.fl?.wheels,vt=d.slide=Math.sqrt(Math.max(0,d.v.lengthSq()-d.v.dot(n)**2)),sp=wh?.15:Math.min(1,.2+vt/8),jc=Math.min(jn,G*.05)/np,ww=_w.copy(d.w).applyQuaternion(d.q);  // sp: share of friction that spins the frame
  const fwd=wh?_f2.set(0,0,-1).applyQuaternion(d.q).addScaledVector(n,-_f2.dot(n)):null;if(fwd&&fwd.lengthSq()>1e-6)fwd.normalize();const side=fwd?_s2.crossVectors(n,fwd):null;
  const fric=(r,vp,dir,mu)=>{const sl=vp.dot(dir);if(Math.abs(sl)<1e-4)return;const rt=_t.crossVectors(r,dir),jt=Math.sign(sl)*Math.min(mu*jc,.7*Math.abs(sl)/(1+sp*rt.lengthSq()/DI));
   d.v.addScaledVector(dir,-jt);ww.addScaledVector(rt,-jt*sp/DI)};  // at most 70% of the slip per step, so strong grip settles instead of ringing
@@ -149,6 +150,12 @@ function groundContacts(d,dt){let touch=false,jn=0,hit=0;const DI=d.di||DI0,im=1
  if(!wh&&slide>12&&_s2.set(0,1,0).applyQuaternion(d.q).dot(n)<.97)ww.addScaledVector(_f2.crossVectors(n,sd).normalize(),Math.min(30,(slide-12)*1.8)*dt);  // tilted at speed: the leading edge catches and it tumbles over it
  d.w.copy(ww).applyQuaternion(_q.copy(d.q).invert());return hit}
 const CP=Array.from({length:24},()=>new V3()),_d3=new V3();
+// onHit {type:'ground', d, tag:'chassis', speed: impact speed into the surface, slide: sliding speed at the contact, p: contact point (mean), n: surface normal}
+// sent every tick a stepped drone touches the map; the event object and its p/n are reused, so copy them to keep them
+const GEV={type:'ground',d:null,tag:'chassis',speed:0,slide:0,p:new V3(),n:new V3()},_gw=new V3(),_gr=new V3(),_gv=new V3();
+function groundHit(d,n,np,hit){const P=GEV.p.set(0,0,0);for(let i=0;i<np;i++)P.add(CP[i]);P.divideScalar(np);
+ const vp=_gv.crossVectors(_gw.copy(d.w).applyQuaternion(d.q),_gr.subVectors(P,d.p)).add(d.v);vp.addScaledVector(n,-vp.dot(n));
+ GEV.d=d;GEV.speed=hit;GEV.slide=vp.length();GEV.n.copy(n);emitHit(GEV)}
 // League arena or Highlands colliders, swapped with the mode (Highlands built on first use)
 function setMap(df){if(df===mapDF)return;mapDF=df;if(df&&!dfCols)buildDF();arenaCol.forEach(c=>c.setEnabled(!df));dfCols?.forEach(c=>c.setEnabled(df))}
 function buildDF(){const D=dfCollision(),add=(cd,x,y,z,q)=>{cd.setTranslation(x,y,z).setCollisionGroups(grp(GW_,GHULL|GB_|QRY)).setFriction(1).setFrictionCombineRule(R.CoefficientCombineRule.Min).setRestitution(0).setRestitutionCombineRule(R.CoefficientCombineRule.Max);
@@ -188,5 +195,5 @@ export function droneTouch(a,b,n){if(!a.rb||!b.rb||a.p.distanceToSquared(b.p)>(a
  for(const ea of a.cols){if(!ea.use.includes('drone'))continue;for(const eb of b.cols){if(!eb.use.includes('drone'))continue;const c=ea.c.contactCollider(eb.c,BUMP);
   if(c&&c.distance<BUMP&&(!best||c.distance<best.distance))best={distance:c.distance,n:c.normal1,ta:ea.tag,tb:eb.tag}}}
  if(!best)return null;n.set(best.n.x,best.n.y,best.n.z);if(n.lengthSq()<.5)n.subVectors(b.p,a.p).normalize();return{pen:BUMP-best.distance,ta:best.ta,tb:best.tb}}
-// contact / hit events for gameplay code (track D: zone hits): {type:'ball'|'drone'|'bullet', d, tag, other, otherTag, speed}
+// contact / hit events for gameplay code (track D: zone hits): {type:'ball'|'drone'|'bullet'|'ground', d, tag, other, otherTag, speed}; 'ball' also has p (contact point) and n, 'ground' p, n and slide (see groundHit)
 const hitFns=[];export const onHit=f=>{hitFns.push(f)},emitHit=e=>{for(const f of hitFns)f(e)};
