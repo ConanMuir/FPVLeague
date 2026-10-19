@@ -11,6 +11,8 @@
 //    with the v15 response code in modes/step.js.
 //  - Bullets: a ray (world) and a 1.4 m sphere cast (drones) from the previous to the new position each tick.
 import RAPIER from '@dimforge/rapier3d-compat';
+import * as THREE from 'three';
+import {ConvexGeometry} from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import {GD,H,HL,HW,QT,V3,cl} from '../config/constants.js';
 import {BB,BR,DB,DI as DI0,DRAD,BBX,G,GF,HBP,HBR,onTune} from '../config/tune.js';
 import {GS} from '../state.js';
@@ -20,7 +22,7 @@ import {ball,ballContact,ballRoll} from './ball.js';
 import {dfCollision,sdDFt} from '../world/highlands.js';
 import {bodyOf} from '../parts/index.js';
 export let R=null,world=null;
-export const PHYS={ballMesh:false,net:true,ccd:'soft',stats:{escapes:0,steps:0,ms:0}};  // net: the escape safety net (checks switch it off for free flight); ccd 'soft': above 25 m/s predictive contacts 1.5 ticks of travel ahead instead of swept CCD (sweeping fast drones through the 250k-triangle Highlands meshes cost 4.6 ms a tick); slower, full CCD (it also keeps a resting quad still)
+export const PHYS={ballMesh:false,net:true,ccd:'soft',stats:{escapes:0,steps:0,ms:0}};  // net: the escape safety net (checks switch it off for free flight); ccd 'soft': never swept CCD (its time-of-impact sweeps against the Highlands trimeshes cost 3-6 ms a tick per drone using it); moving near the map (the SDF: something within 4 ticks of travel + 3 m) predictive contacts 1.5 ticks of travel ahead (at least 0.4 m); in open air or below 3 m/s nothing extra. Any other value: Rapier's swept CCD always
 // collision groups: membership<<16 | filter. QRY is only ever a query's membership, so query-only colliders never form solver pairs.
 export const GW_=1,GB_=2,GHULL=4,GDRONE=8,GBALL=16,GBUL=32,QRY=0x8000,grp=(m,f)=>(m<<16)|f;
 const USE={world:GHULL,ball:GBALL,drone:GDRONE,bullet:GBUL};
@@ -99,7 +101,7 @@ export function buildDroneBody(d,desc){freeDroneBody(d);desc=desc||(d.lo?loadout
  if(desc.pivot)d.pts=desc.pivot.map(o=>({p:new V3(...o.p),r:o.r}));
  if(desc.inertia)b.setAdditionalMassProperties(desc.mass,{x:0,y:0,z:0},{x:desc.inertia[0],y:desc.inertia[1],z:desc.inertia[2]},IDQ,true);
  else{for(const e of d.cols)if(e.use.includes('world'))e.c.setDensity(desc.mass/Math.max(vol,1e-6));b.recomputeMassPropertiesFromColliders()}
- d.bound=bound;d.ph=0;d.bodyMode='dyn';if(d.dead>0)b.setEnabled(false)}
+ d.bound=bound;d.ph=0;d.bodyMode='dyn';d.ccdK=null;if(d.dead>0)b.setEnabled(false)}
 export function freeDroneBody(d){if(!d.rb)return;for(const e of d.cols)C2D.delete(e.c.handle);world.removeRigidBody(d.rb);d.rb=null;d.cols=[]}
 const vec4=q=>({x:q.x,y:q.y,z:q.z,w:q.w});
 function setMode(b,o,m){if(o.bodyMode===m)return;if(m==='off'){b.setEnabled(false)}else{if(o.bodyMode==='off')b.setEnabled(true);
@@ -111,7 +113,7 @@ function setMode(b,o,m){if(o.bodyMode===m)return;if(m==='off'){b.setEnabled(fals
 // the ball's velocity already has gravity/drag (ballPre). simBall: the ball moves this tick.
 export function physStep(dt,simBall){const t0=performance.now();world.timestep=dt;setMap(!!GS.OBSON);  // timestep: goal slow-mo steps by less than 1/120 s
  for(const d of GS.drones){const b=d.rb;if(!b)continue;const m=d.dead>0?'off':d.ph?'dyn':'kin';setMode(b,d,m);
-  if(m==='dyn'){if(PHYS.ccd==='soft'){const sp=d.v.length(),fast=sp>25;if(fast!==d.ccdFast){d.ccdFast=fast;b.enableCcd(!fast)}b.setSoftCcdPrediction(fast?Math.min(6,sp*dt*1.5):0)}b.setTranslation(d.p,true);b.setRotation(vec4(d.q),true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
+  if(m==='dyn'){if(PHYS.ccd==='soft'){const sp=d.v.length(),k=sp>3&&-sdf(d.p.x,d.p.y,d.p.z)<sp*dt*4+d.bound+3;if(d.ccdK==null)b.enableCcd(false);d.ccdK=k;b.setSoftCcdPrediction(k?Math.min(6,Math.max(.4,sp*dt*1.5)):0)}b.setTranslation(d.p,true);b.setRotation(vec4(d.q),true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
   else if(m==='kin'){b.setNextKinematicTranslation(d.p);b.setNextKinematicRotation(vec4(d.q))}}
  {const m=GS.OBSON?'off':simBall?'dyn':'kin';setMode(ballBody,ball,m);
   if(m==='dyn'){ball.v0.copy(ball.v);ballBody.setTranslation(ball.p,true);ballBody.setRotation(vec4(ball.q),true);ballBody.setLinvel(ball.v,true);ballBody.setAngvel(ball.w,true)}
@@ -162,12 +164,19 @@ function buildDF(){const D=dfCollision(),add=(cd,x,y,z,q)=>{cd.setTranslation(x,
   if(q)cd.setRotation(q);dfCols.push(world.createCollider(cd))};dfCols=[];
  add(R.ColliderDesc.trimesh(D.terrain.vertices,D.terrain.indices,R.TriMeshFlags.FIX_INTERNAL_EDGES),0,0,0);PHYS.dfTerrain=dfCols[dfCols.length-1];  // terrain (cut open at the cave mouths; a heightfield can't have holes)
  add(R.ColliderDesc.trimesh(D.caves.vertices,D.caves.indices,R.TriMeshFlags.FIX_INTERNAL_EDGES),0,0,0);PHYS.dfCaves=dfCols[dfCols.length-1];  // cave walls, facing inward
- for(const o of D.obs){const q=o.q?{x:o.q[0],y:o.q[1],z:o.q[2],w:o.q[3]}:null;
-  if(o.s==='box')add(R.ColliderDesc.cuboid(o.h[0],o.h[1],o.h[2]),...o.p,q);
-  else if(o.s==='cyl')add(R.ColliderDesc.cylinder(o.hh,o.r),...o.p,q);
-  else if(o.s==='cone')add(R.ColliderDesc.cone(o.hh,o.r),...o.p,q);
-  else if(o.s==='cap')add(R.ColliderDesc.capsule(o.hh,o.r),...o.p,q);
-  else if(o.s==='hull'){const c=R.ColliderDesc.convexHull(new Float32Array(o.pts));if(c)add(c,...o.p,q)}}}
+ const M=obsMesh(D.obs);add(R.ColliderDesc.trimesh(M.V,M.I),0,0,0);PHYS.dfObs=dfCols[dfCols.length-1]}  // every obstacle (trees, buildings, mesas, hangars, arches, the rings round the cave mouths, boulders)
+// the Highlands obstacles as ONE static trimesh: ~1760 separate colliders cost ~2 ms a 120 Hz tick in Rapier's per-step bookkeeping (broad phase,
+// query-pipeline refit) even with no drone near them; one trimesh is one proxy with its own BVH. Shapes as in dfCollision (box, cyl, cone, cap,
+// hull: p, q); round ones are polygons circumscribed round the true shape, so the solid is never smaller than the SDF's
+function obsMesh(L){const P=[],m=new THREE.Matrix4(),q=new QT(),v=new V3(),one=new V3(1,1,1),n=10,k=1/Math.cos(Math.PI/n);
+ for(const o of L){let g;
+  if(o.s==='box')g=new THREE.BoxGeometry(o.h[0]*2,o.h[1]*2,o.h[2]*2);
+  else if(o.s==='cyl')g=new THREE.CylinderGeometry(o.r*k,o.r*k,o.hh*2,n);
+  else if(o.s==='cone')g=new THREE.ConeGeometry(o.r*k,o.hh*2,n);
+  else if(o.s==='cap')g=new THREE.CapsuleGeometry(o.r*k,o.hh*2,3,n);
+  else{const pts=[];for(let i=0;i<o.pts.length;i+=3)pts.push(new V3(o.pts[i],o.pts[i+1],o.pts[i+2]));g=new ConvexGeometry(pts)}
+  if(g.index)g=g.toNonIndexed();g.applyMatrix4(m.compose(v.fromArray(o.p),o.q?q.fromArray(o.q):q.identity(),one));const a=g.attributes.position.array;for(let i=0;i<a.length;i++)P.push(a[i])}
+ const V=new Float32Array(P),I=new Uint32Array(V.length/3);for(let i=0;i<I.length;i++)I[i]=i;return{V,I}}
 
 // ---------- queries ----------
 // bullet sweep radius: aim forgiveness around a drone's parts. 1.4 m at the old 0.75 drone size; it shrinks as drones grow (their
