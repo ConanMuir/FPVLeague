@@ -65,6 +65,17 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
           if (GS.score[0] !== s0) { if (hit >= 0) goals++; GS.score[0] = s0; break; } if (hit >= 0 && i - hit > 480) break; if (hit < 0 && i > 600) break; } }
       res[DIFF[L].n] = {trials: N, touched, avgTouchS: +(tt / (touched || 1)).toFixed(2), onTarget: onT, goals, avgSpeed: +(spd / (touched || 1)).toFixed(1)}; }
     return res; }
+  if (mode === 'tapdrill') {  // planned double taps: the bot carries the ball 18-30 m out with a lob into the backboard planned; did its next touch come after the backboard?
+    const bot = GS.drones.find(d => d.team === 0 && d.i === 0); for (const d of GS.drones) if (d !== bot) d.dispose(); GS.drones = [bot]; bot.skill = A;
+    let seed = 11; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647, N = +size * 10, H0 = topOf(bot) + BR; let wall = 0, second = 0, goals = 0, planned = 0; const fms = [];
+    for (let k = 0; k < N; k++) { GS.state = 'play'; const x = (rnd() - .5) * 24, z = -C.HL + 18 + rnd() * 12; bot.p.set(x, 9, z); bot.v.set(0, 0, -6); bot.w.set(0, 0, 0); bot.q.set(0, 0, 0, 1);
+      ball.p.set(x, 9 + H0, z + .5); ball.v.set(0, 0, -6); ball.w.set(0, 0, 0); Object.assign(bot.ai, {fm: null, mv: 'lob', fin: 'tap', ct: 0, ch: 3, cht: 1, epi: true}); bot.role = 'attack'; LB.predict();
+      const s0 = GS.score[0]; let hitWall = false, sec = false, tn = 0, lastT = -1;
+      for (let i = 0; i < 120 * 6; i++) { hitBy = null; ST.step(dt); tn += dt; if (GS.score[0] !== s0) { goals++; GS.score[0] = s0; break; }
+        if (!hitWall && ball.c && Math.abs(ball.p.z) > C.HL - BR - 2 && ball.p.y > C.GH) hitWall = true;
+        if (hitBy === bot && hitWall && tn - lastT > .3 && !sec) { sec = tn; second++; if (bot.ai.fm === 'follow') planned++; } if (hitBy === bot) { lastT = tn; if (k < 3) fms.push(k + '@' + tn.toFixed(2) + ':' + (bot.ai.fm || '-') + (hitWall ? 'W' : '') + (bot.popT > 0 ? 'P' : '')); } if (sec && tn - sec > 3) break; }
+      if (hitWall) wall++; }
+    return {trials: N, offBackboard: wall, secondTouchAfterBackboard: second, secondTouchAsPlannedStrike: planned, goals, fms: fms.slice(0, 60)}; }
   if (mode === 'solo') {  // one bot alone on the League field (kickoffs, goals and all) for `mins` per level: how much it carries and pops
     const bot = GS.drones.find(d => d.team === 0 && d.i === 0); for (const d of GS.drones) if (d !== bot) d.dispose(); GS.drones = [bot]; const res = {};
     // the touch/pop rings (render/popfx.js) run here too: count rings that appear, by colour, against touches and pops
