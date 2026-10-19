@@ -3,7 +3,7 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main 8c0182c, merged with origin/main 5c965f2 (ball feel, PR #21)
+Based on: origin/main 8c0182c, merged with the latest origin/main (goal explosions)
 Doing: Underground part 1 (branch underground-routes): more cave routes. Loops, S-bends, 90-degree corners, two crawl-ways, a lower level reached by shafts and a spiral ramp; bot waypoint graph; checks. Part 2 (underground-detail: pipes, arches, crates, lamps, signage) comes next, after part 1 is merged.
 Touches: src/world/caves.js, src/world/highlands.js (clip calls only), tools/physics-check.mjs (section h), Drone League/claude-project/drone-league-notes.md.
 Open items / help wanted: how the new routes feel to fly (no pilot has tried them yet); the cave build now takes about 1 s at map load (node), up from 0.17 s.
