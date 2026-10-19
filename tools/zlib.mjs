@@ -31,10 +31,19 @@ export async function serve() {
 export const launch = ({w = 1280, h = 720, sw = false} = {}) => launchBrowser({protocolTimeout: 600000,
   args: [`--window-size=${w},${h}`, '--autoplay-policy=no-user-gesture-required', '--enable-unsafe-swiftshader', ...(sw ? ['--use-angle=swiftshader'] : ['--ignore-gpu-blocklist', '--enable-gpu'])]});
 
+// a page in its own headless window: tabs behind the active one get no frames (no requestAnimationFrame, clicks never finish),
+// so harnesses that run several pages at once (tools/zombies-coop.mjs) give each one a window
+export async function newWindow(browser) {
+  const s = await browser.target().createCDPSession();
+  const {targetId} = await s.send('Target.createTarget', {url: 'about:blank', newWindow: true});
+  const t = await browser.waitForTarget(t => t._targetId === targetId);
+  await s.detach();
+  return t.page();
+}
 const benign = t => /fonts\.(googleapis|gstatic)\.com|favicon\.ico|net::ERR_FAILED/i.test(t);
 // open a page with three.js routed to the local copy; errors collects page errors and console errors
-export async function open(browser, url, errors, {w = 1280, h = 720} = {}) {
-  const p = await browser.newPage();
+export async function open(browser, url, errors, {w = 1280, h = 720, page = null} = {}) {  // page: an already created page (e.g. its own window, see newWindow)
+  const p = page || await browser.newPage();
   await p.setViewport({width: w, height: h});
   await p.setRequestInterception(true);
   p.on('request', q => {

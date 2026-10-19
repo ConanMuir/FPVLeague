@@ -79,3 +79,13 @@ body.zb-open #hud{visibility:hidden}
 .zpanel button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 @media (max-width:900px){.zcols{grid-template-columns:1fr}.ztab{max-height:none}}
 @media (max-width:560px){.zcards{grid-template-columns:1fr}.zarm{grid-template-columns:auto 1fr}.zups{grid-column:1/-1}}
+
+/* co-op (znet.js): lobby on the start menu, roster and ready state on the base screen, roster line on the HUD */
+.zmp{margin:0 0 14px;padding:10px 12px;border:1px solid var(--edge);border-radius:8px;background:rgba(95,227,255,.04)}.zmp[hidden]{display:none}
+.zmp h3{margin:0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#5fe3ff}.zmp h3 small{letter-spacing:.04em;text-transform:none;color:var(--dim);font-weight:500;margin-left:6px}
+.zmp .note{margin:8px 0 0}.zmp .note.warn{color:var(--amber);font-weight:700}#zgames{display:grid;gap:6px;margin-top:6px}#zgames:empty{display:none}
+.zcoop{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 10px;border:1px solid rgba(95,227,255,.35);border-radius:8px;background:rgba(95,227,255,.06);font:12px var(--mono)}
+.zcoop b{color:#5fe3ff;letter-spacing:.08em}.zcoop span{padding:3px 8px;border-radius:4px;background:rgba(255,255,255,.05);color:var(--dim)}.zcoop span.rd{background:rgba(61,220,132,.18);color:#9ff0c0}
+.zcoop em{font:12px var(--disp);font-style:normal;color:var(--dim);flex-basis:100%}.zcoop button{margin-left:auto}
+body.zcoop #menu{z-index:4}  /* in co-op the menu (Leave co-op game) opens over the base screen */
+#zco{font:700 12px var(--mono);color:#5fe3ff;text-shadow:0 0 3px #000}#zco:empty{display:none}

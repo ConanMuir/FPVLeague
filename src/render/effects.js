@@ -1,14 +1,15 @@
 // ---------- gameplay effects: code-built, pooled, no per-frame allocation ----------
 // - boost: a flame jet under every motor (one draw call per quad) + a ribbon trail + embers; motor-wash glow under the props at high throttle
 // - prop wash: dust kicked off the ground / walls under a low quad (thrust axis traced against the SDF), tinted per map
-// - ground scrapes: sparks + fading scuff decals where the frame skids or tumbles (physics/world.js onHit type 'ground')
-// - ball: a speed-based ribbon trail, and a flash + shock ring + sparks on hard hits (onHit type 'ball', with p and n from modes/step.js)
-// Everything scales with the graphics quality (renderer.js qId). Trail colour: d.trailCol (THREE.Color from the Trail cosmetic, render/cos-mat.js, or 0xRRGGBB), else the team colour.
+// - ground scrapes: sparks + fading scuff decals where the frame skids or tumbles (the 'ground' event, core/events.js)
+// - ball: a speed-based ribbon trail, and a flash + shock ring + sparks on hard hits (the 'touch' event, with p and n from modes/step.js)
+// Everything scales with the graphics quality (renderer.js qId). Trail colour: d.trailCol (THREE.Color from the Trail cosmetic, render/cos-mat.js, or 0xRRGGBB), else the team colour,
+// fading to d.trailCol2 down the ribbon; d.trailStyle picks the ribbon's look and the boost embers (RSTY), d.trailCols the rainbow.
 import * as THREE from 'three';
 import {COL,V3,cl} from '../config/constants.js';
 import {BR,DRAD,G} from '../config/tune.js';
 import {ball} from '../physics/ball.js';
-import {onHit} from '../physics/world.js';
+import {onEv} from '../core/events.js';
 import {sdN,sdf} from '../physics/sdf.js';
 import {GS} from '../state.js';
 import {mapId} from '../world/maps.js';
@@ -24,7 +25,7 @@ const FOGF=add=>`#ifdef USE_FOG
 #endif`;
 
 // ---------- particles: instanced camera-facing quads (billboards, or streaks stretched along their velocity) ----------
-const PV=`attribute vec3 iP;attribute vec3 iV;attribute vec4 iC;attribute vec2 iS;uniform float uK;varying vec4 vC;varying vec2 vUv;varying float vSh;
+const PV=`attribute vec3 iP;attribute vec3 iV;attribute vec4 iC;attribute vec2 iS;attribute vec4 iN;uniform float uK;varying vec4 vC;varying vec2 vUv;varying float vSh;varying vec4 vPl;varying vec3 vVP;
 #include <fog_pars_vertex>
 void main(){vec2 c=position.xy;vec4 mvPosition=modelViewMatrix*vec4(iP,1.);float nf=smoothstep(.8,4.,-mvPosition.z);  // fade out right in front of the camera (FPV)
 #ifdef STREAK
@@ -33,17 +34,20 @@ void main(){vec2 c=position.xy;vec4 mvPosition=modelViewMatrix*vec4(iP,1.);float
 #else
  float s=sin(iS.y*7.),k=cos(iS.y*7.);mvPosition.xy+=mat2(k,s,-s,k)*c*iS.x;
 #endif
- vC=vec4(iC.rgb,iC.a*nf);vUv=c;vSh=iS.y;gl_Position=projectionMatrix*mvPosition;
+ vC=vec4(iC.rgb,iC.a*nf);vUv=c;vSh=iS.y;vVP=mvPosition.xyz;gl_Position=projectionMatrix*mvPosition;
+ vPl=vec4(0.,0.,0.,1e4);if(dot(iN.xyz,iN.xyz)>.25){vec3 nv=normalize((viewMatrix*vec4(iN.xyz,0.)).xyz),p0=(viewMatrix*vec4(iN.xyz*iN.w,1.)).xyz;vPl=vec4(nv,dot(vVP-p0,nv)/(.35*iS.x+.2));}  // the surface it came off: height over it, in fade widths
 #include <fog_vertex>
 }`;
-const PF=add=>`varying vec4 vC;varying vec2 vUv;varying float vSh;
+const PF=add=>`varying vec4 vC;varying vec2 vUv;varying float vSh;varying vec4 vPl;varying vec3 vVP;
 #include <fog_pars_fragment>
 void main(){float r2=dot(vUv,vUv);
 #ifdef STREAK
  float a=(1.-smoothstep(0.,1.,abs(vUv.y)))*smoothstep(-1.,-.2,vUv.x)*(1.-smoothstep(.8,1.,vUv.x));
 #else
- float a=vSh<.5?pow(max(0.,1.-r2),1.6):(1.-smoothstep(.35,1.,r2))*(vSh>1.5?1.-smoothstep(.15,.5,abs(vUv.y)):1.);
+ float a;if(vSh<.5){float an=atan(vUv.y,vUv.x),q=max(0.,1.-r2*(1.+.14*sin(an*3.+vSh*40.)+.07*sin(an*5.-vSh*25.)));a=q*q*(.55+.45*q);}  // puff: soft round, a slightly billowy edge
+ else a=(1.-smoothstep(.35,1.,r2))*(vSh>1.5?1.-smoothstep(.15,.5,abs(vUv.y)):1.);
 #endif
+ if(vPl.w<1e3)a*=smoothstep(0.,1.,vPl.w/max(-dot(normalize(vVP),vPl.xyz),.08));  // soft against the surface it came off (depth behind it along the view ray), so where the quad cuts into the ground it shows no hard edge
  a*=vC.a;if(a<.004)discard;vec3 col=vC.rgb;
 ${FOGF(add)}
  gl_FragColor=vec4(col,a);
@@ -54,61 +58,75 @@ const QV=new Float32Array([-1,-1,0,1,-1,0,1,1,0,-1,1,0]),QI=[0,1,2,0,2,3];
 const upd=(a,n)=>{a.clearUpdateRanges();a.addUpdateRange(0,n);a.needsUpdate=true};
 class Pool{
  constructor(n,add,streak,ro){this.n=n;this.h=0;this.act=0;this.add=add;const F=k=>new Float32Array(n*k);
-  Object.assign(this,{p:F(3),v:F(3),c:F(3),a:F(1),life:F(1),age:F(1),s0:F(1),s1:F(1),dr:F(1),gr:F(1),sh:F(1),bo:F(1)});
+  Object.assign(this,{p:F(3),v:F(3),c:F(3),a:F(1),life:F(1),age:F(1),s0:F(1),s1:F(1),dr:F(1),gr:F(1),sh:F(1),bo:F(1),pl:F(4)});
   const g=this.g=new THREE.InstancedBufferGeometry();g.setIndex(QI);g.setAttribute('position',new THREE.BufferAttribute(QV,3));
   const at=(nm,k)=>{const a=new THREE.InstancedBufferAttribute(F(k),k);a.setUsage(THREE.DynamicDrawUsage);g.setAttribute(nm,a);return a};
-  this.iP=at('iP',3);this.iV=at('iV',3);this.iC=at('iC',4);this.iS=at('iS',2);g.instanceCount=0;
+  this.iP=at('iP',3);this.iV=at('iV',3);this.iC=at('iC',4);this.iS=at('iS',2);this.iN=at('iN',4);g.instanceCount=0;
   const m=this.mat=new THREE.ShaderMaterial({uniforms:{...fogU(),uK:{value:.03}},defines:streak?{STREAK:''}:{},vertexShader:PV,fragmentShader:PF(add),
    transparent:true,depthWrite:false,fog:true,toneMapped:!add,blending:add?THREE.AdditiveBlending:THREE.NormalBlending});
   this.m=new THREE.Mesh(g,m);this.m.frustumCulled=false;this.m.renderOrder=ro;scene.add(this.m)}
  // position, velocity, colour (linear, >1 blooms on additive pools), alpha, life (s), size start/end (half width, m), drag (1/s), gravity (m/s²), shape (0 puff, 1 chip, 2 blade; rotation for billboards), floor bounce
  spawn(px,py,pz,vx,vy,vz,r,g,b,a,life,s0,s1,dr,gr,sh,bo){const i=this.h;this.h=(i+1)%this.n;if(this.life[i]<=0)this.act++;const i3=i*3,P=this.p,V=this.v,C=this.c;
-  P[i3]=px;P[i3+1]=py;P[i3+2]=pz;V[i3]=vx;V[i3+1]=vy;V[i3+2]=vz;C[i3]=r;C[i3+1]=g;C[i3+2]=b;this.a[i]=a;this.life[i]=life;this.age[i]=0;this.s0[i]=s0;this.s1[i]=s1;this.dr[i]=dr;this.gr[i]=gr;this.sh[i]=sh;this.bo[i]=bo}
+  P[i3]=px;P[i3+1]=py;P[i3+2]=pz;V[i3]=vx;V[i3+1]=vy;V[i3+2]=vz;C[i3]=r;C[i3+1]=g;C[i3+2]=b;this.a[i]=a;this.life[i]=life;this.age[i]=0;this.s0[i]=s0;this.s1[i]=s1;this.dr[i]=dr;this.gr[i]=gr;this.sh[i]=sh;this.bo[i]=bo;this.pl.fill(0,i*4,i*4+4);this.last=i}
+ // the surface (unit normal n, through point p) the last spawned particle fades into instead of cutting
+ plane(n,p){const i=this.last*4;this.pl[i]=n.x;this.pl[i+1]=n.y;this.pl[i+2]=n.z;this.pl[i+3]=n.dot(p)}
  update(dt,floor){const g=this.g;if(!this.act){g.instanceCount=0;return}let k=0;const IP=this.iP.array,IV=this.iV.array,IC=this.iC.array,IS=this.iS.array,P=this.p,V=this.v,C=this.c,add=this.add;
-  for(let i=0;i<this.n;i++){const L=this.life[i];if(L<=0)continue;const ag=this.age[i]+=dt;if(ag>=L){this.life[i]=0;this.act--;continue}
+  const IN=this.iN.array,PL=this.pl;for(let i=0;i<this.n;i++){const L=this.life[i];if(L<=0)continue;const ag=this.age[i]+=dt;if(ag>=L){this.life[i]=0;this.act--;continue}
    const i3=i*3,f=Math.exp(-this.dr[i]*dt);V[i3]*=f;V[i3+1]=V[i3+1]*f-this.gr[i]*dt;V[i3+2]*=f;P[i3]+=V[i3]*dt;P[i3+1]+=V[i3+1]*dt;P[i3+2]+=V[i3+2]*dt;
    if(floor&&this.bo[i]>0&&P[i3+1]<.04&&V[i3+1]<0){P[i3+1]=.04;V[i3+1]*=-this.bo[i];V[i3]*=.55;V[i3+2]*=.55}  // League maps: the floor is y = 0
    const u=1-ag/L,al=this.a[i]*(add?u*u:Math.min(1,ag/.07)*u*Math.sqrt(u)),k3=k*3,k4=k*4;
    IP[k3]=P[i3];IP[k3+1]=P[i3+1];IP[k3+2]=P[i3+2];IV[k3]=V[i3];IV[k3+1]=V[i3+1];IV[k3+2]=V[i3+2];IC[k4]=C[i3];IC[k4+1]=C[i3+1];IC[k4+2]=C[i3+2];IC[k4+3]=al;
-   IS[k*2]=this.s0[i]+(this.s1[i]-this.s0[i])*(1-u*u);IS[k*2+1]=this.sh[i];k++}
-  g.instanceCount=k;if(k){upd(this.iP,k*3);upd(this.iV,k*3);upd(this.iC,k*4);upd(this.iS,k*2)}}}
+   IS[k*2]=this.s0[i]+(this.s1[i]-this.s0[i])*(1-u*u);IS[k*2+1]=this.sh[i];IN[k4]=PL[i*4];IN[k4+1]=PL[i*4+1];IN[k4+2]=PL[i*4+2];IN[k4+3]=PL[i*4+3];k++}
+  g.instanceCount=k;if(k){upd(this.iP,k*3);upd(this.iV,k*3);upd(this.iC,k*4);upd(this.iS,k*2);upd(this.iN,k*4)}}}
 const ADD=new Pool(1400,true,false,4),SPK=new Pool(700,true,true,4),DUST=new Pool(1600,false,false,3);
 
 // ---------- ribbon trails (boost, ball): a camera-facing strip through the recent positions, additive, soft edges, hot core ----------
-const RV=`attribute float aA;attribute float aS;varying float vA;varying float vS;
+// styles (the Trail cosmetic's d.trailStyle, render/cos-mat.js): 0 stream, 1 fire, 2 plasma, 3 sparks, 4 sparkle, 5 smoke, 6 rainbow (uR: the 7 colours head to tail)
+// colour runs uCol (head) to uCol2 (tail); vU: 0 at the head .. 1 at the end of its life
+const RSTY={stream:0,fire:1,plasma:2,sparks:3,sparkle:4,smoke:5,rainbow:6};
+const RV=`attribute float aA;attribute float aS;attribute float aU;varying float vA;varying float vS;varying float vU;
 #include <fog_pars_vertex>
-void main(){vA=aA;vS=aS;vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
+void main(){vA=aA;vS=aS;vU=aU;vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
 #include <fog_vertex>
 }`;
-const RFS=`uniform vec3 uCol;uniform vec3 uHot;varying float vA;varying float vS;
+const RFS=`uniform vec3 uCol;uniform vec3 uCol2;uniform vec3 uHot;uniform vec3 uR[7];uniform float uSt;uniform float uT;varying float vA;varying float vS;varying float vU;
 #include <fog_pars_fragment>
-void main(){float e=1.-abs(vS),a=vA*smoothstep(0.,.8,e);if(a<.003)discard;vec3 col=mix(uCol,uHot,pow(max(e,0.),6.)*smoothstep(.35,.9,vA));
+float h1(float x){return fract(sin(x*127.1)*43758.5453);}
+float n1(float x){float i=floor(x),f=fract(x);return mix(h1(i),h1(i+1.),f*f*(3.-2.*f));}
+void main(){float e=1.-abs(vS),a=vA*smoothstep(0.,.8,e),hot=pow(max(e,0.),6.)*smoothstep(.35,.9,vA);vec3 base=mix(uCol,uCol2,smoothstep(0.,.9,vU));
+ if(uSt>.5&&uSt<1.5){float fl=n1(vU*14.-uT*22.+vS*1.5)*.6+n1(vU*33.-uT*41.)*.4;a*=(.45+.8*fl)*smoothstep(0.,.2+.6*fl,e);base=mix(uCol*1.25,uCol2,smoothstep(0.,.75,vU+.25*(1.-fl)));hot*=1.5;}
+ else if(uSt>1.5&&uSt<2.5){float b=.5+.5*sin(vU*46.-uT*34.);a*=.65+.55*b;hot=max(hot,pow(max(e,0.),2.5)*.55*b);base*=1.+.5*b;}
+ else if(uSt>2.5&&uSt<3.5){float z=vU*22.-uT*9.;a*=smoothstep(.25,.8,e)*(.35+.65*step(.25+.5*h1(floor(z)),fract(z)));}
+ else if(uSt>3.5&&uSt<4.5){vec2 c=vec2(vU*60.,vS*1.6+1.6),f=fract(c)-.5;float g=step(.8,h1(floor(c.x)*3.7+floor(c.y)*5.9+floor(uT*14.)*11.3))*smoothstep(.45,.05,length(f));a*=.5+2.4*g*smoothstep(0.,.5,vA);base+=g*vec3(1.2,1.,.55);}  // glints: round twinkles in cells along the ribbon
+ else if(uSt>4.5&&uSt<5.5){a*=.5*(.45+.9*n1(vU*8.-uT*2.5+vS*1.7))*smoothstep(0.,1.,e);hot=0.;}
+ else if(uSt>5.5){float x=clamp(vU,0.,1.)*6.;base=uR[0];for(int i=0;i<6;i++)base=mix(base,uR[i+1],clamp(x-float(i),0.,1.));}
+ if(a<.003)discard;vec3 col=mix(base,uSt>.5?mix(uHot,uCol*1.3,.55):uHot,hot);  // styled trails keep their colour in the hot core
 ${FOGF(true)}
  gl_FragColor=vec4(col,a);
 #include <colorspace_fragment>
 }`;
 class Ribbon{
  constructor(N,life,grow){this.N=N;this.life=life;this.grow=grow;this.n=0;this.h=0;this.last=-1;this.owner=null;const M=N+1;
-  this.sp=new Float32Array(N*3);this.st=new Float64Array(N);this.sk=new Float32Array(N);this.sw=new Float32Array(N);this.tp=new Float32Array(M*3);this.tk=new Float32Array(M);this.tw=new Float32Array(M);
+  this.sp=new Float32Array(N*3);this.st=new Float64Array(N);this.sk=new Float32Array(N);this.sw=new Float32Array(N);this.tp=new Float32Array(M*3);this.tk=new Float32Array(M);this.tw=new Float32Array(M);this.tu=new Float32Array(M);
   const g=this.g=new THREE.BufferGeometry(),sd=new Float32Array(M*2),ix=[];for(let i=0;i<M;i++){sd[i*2]=-1;sd[i*2+1]=1;if(i<N)ix.push(i*2,i*2+1,i*2+2,i*2+1,i*2+3,i*2+2)}
-  this.pos=new THREE.BufferAttribute(new Float32Array(M*6),3).setUsage(THREE.DynamicDrawUsage);this.al=new THREE.BufferAttribute(new Float32Array(M*2),1).setUsage(THREE.DynamicDrawUsage);
-  g.setAttribute('position',this.pos);g.setAttribute('aA',this.al);g.setAttribute('aS',new THREE.BufferAttribute(sd,1));g.setIndex(ix);g.setDrawRange(0,0);
-  this.mat=new THREE.ShaderMaterial({uniforms:{...fogU(),uCol:{value:new THREE.Color()},uHot:{value:new THREE.Color(1.6,1.5,1.3)}},vertexShader:RV,fragmentShader:RFS,
+  this.pos=new THREE.BufferAttribute(new Float32Array(M*6),3).setUsage(THREE.DynamicDrawUsage);this.al=new THREE.BufferAttribute(new Float32Array(M*2),1).setUsage(THREE.DynamicDrawUsage);this.au=new THREE.BufferAttribute(new Float32Array(M*2),1).setUsage(THREE.DynamicDrawUsage);
+  g.setAttribute('position',this.pos);g.setAttribute('aA',this.al);g.setAttribute('aU',this.au);g.setAttribute('aS',new THREE.BufferAttribute(sd,1));g.setIndex(ix);g.setDrawRange(0,0);
+  this.mat=new THREE.ShaderMaterial({uniforms:{...fogU(),uCol:{value:new THREE.Color()},uCol2:{value:new THREE.Color()},uHot:{value:new THREE.Color(1.6,1.5,1.3)},uR:{value:Array.from({length:7},()=>new THREE.Color())},uSt:{value:0},uT:{value:0}},vertexShader:RV,fragmentShader:RFS,
    transparent:true,depthWrite:false,fog:true,toneMapped:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
   this.m=new THREE.Mesh(g,this.mat);this.m.frustumCulled=false;this.m.renderOrder=4;this.m.visible=false;scene.add(this.m)}
  reset(){this.n=0;this.last=-1;this.m.visible=false}
  // head p this frame with intensity k and width w; a new sample every 1/60 s; draws everything younger than life (s)
  tick(p,k,w){if(this.n&&p.distanceToSquared(_a.fromArray(this.sp,this.h*3))>900)this.n=0;  // teleported (kickoff, respawn): start over
   if(T-this.last>=1/60||this.last<0){this.h=(this.h+this.N-1)%this.N;p.toArray(this.sp,this.h*3);this.st[this.h]=T;this.sk[this.h]=k;this.sw[this.h]=w;this.n=Math.min(this.n+1,this.N);this.last=T}
-  let m=1,mx=k;p.toArray(this.tp,0);this.tk[0]=k;this.tw[0]=w;
+  let m=1,mx=k;p.toArray(this.tp,0);this.tk[0]=k;this.tw[0]=w;this.tu[0]=0;this.mat.uniforms.uT.value=T;
   for(let j=0;j<this.n;j++){const i=(this.h+j)%this.N,age=T-this.st[i];if(age>=this.life)break;const u=age/this.life;
-   this.tp[m*3]=this.sp[i*3];this.tp[m*3+1]=this.sp[i*3+1];this.tp[m*3+2]=this.sp[i*3+2];this.tk[m]=this.sk[i]*(1-u)*(1-u);this.tw[m]=this.sw[i]*(1+this.grow*u);mx=Math.max(mx,this.tk[m]);m++}
+   this.tp[m*3]=this.sp[i*3];this.tp[m*3+1]=this.sp[i*3+1];this.tp[m*3+2]=this.sp[i*3+2];this.tk[m]=this.sk[i]*(1-u)*(1-u);this.tw[m]=this.sw[i]*(1+this.grow*u);this.tu[m]=u;mx=Math.max(mx,this.tk[m]);m++}
   if(m<3||mx<.005){this.m.visible=false;return}
-  const P=this.pos.array,A=this.al.array,tp=this.tp,cp=camera.position;
+  const P=this.pos.array,A=this.al.array,U=this.au.array,tp=this.tp,cp=camera.position;
   for(let i=0;i<m;i++){const a=Math.max(0,i-1),b=Math.min(m-1,i+1);_b.set(tp[a*3]-tp[b*3],tp[a*3+1]-tp[b*3+1],tp[a*3+2]-tp[b*3+2]);_a.fromArray(tp,i*3);
    _c.subVectors(cp,_a);_d.crossVectors(_b,_c);const l=_d.length();if(l>1e-6)_d.multiplyScalar(this.tw[i]/l);else _d.set(0,this.tw[i],0);
-   P[i*6]=_a.x-_d.x;P[i*6+1]=_a.y-_d.y;P[i*6+2]=_a.z-_d.z;P[i*6+3]=_a.x+_d.x;P[i*6+4]=_a.y+_d.y;P[i*6+5]=_a.z+_d.z;A[i*2]=A[i*2+1]=i?this.tk[i]:this.tk[0]*.6}
-  upd(this.pos,m*6);upd(this.al,m*2);this.g.setDrawRange(0,(m-1)*6);this.m.visible=true}}
+   P[i*6]=_a.x-_d.x;P[i*6+1]=_a.y-_d.y;P[i*6+2]=_a.z-_d.z;P[i*6+3]=_a.x+_d.x;P[i*6+4]=_a.y+_d.y;P[i*6+5]=_a.z+_d.z;A[i*2]=A[i*2+1]=i?this.tk[i]:this.tk[0]*.6;U[i*2]=U[i*2+1]=this.tu[i]}
+  upd(this.pos,m*6);upd(this.al,m*2);upd(this.au,m*2);this.g.setDrawRange(0,(m-1)*6);this.m.visible=true}}
 const RIB=[],ballRib=new Ribbon(40,.55,-.75);
 
 // ---------- boost flame + motor glow: one shared geometry (8 motor slots x outer cone, inner core, glow disc), placed by uniforms ----------
@@ -141,7 +159,7 @@ function flameMat(){return new THREE.ShaderMaterial({uniforms:{...fogU(),uM:{val
  uCol:{value:new THREE.Color()},uHot:{value:new THREE.Color(2.6,2.1,1.5)}},vertexShader:FV,fragmentShader:FF,transparent:true,depthWrite:false,fog:true,toneMapped:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending})}
 const PS=PARTS_SCALE;
 // per-drone state, made on first use; the flame mesh rides on the drone's mesh (hidden with it, e.g. your own quad in FPV)
-function fxOf(d){let f=d.fx;if(f)return f;f=d.fx={mat:flameMat(),mesh:null,props:null,hex:-1,col:new THREE.Color(),bk:0,gl:0,dA:0,eA:0,sA:0,
+function fxOf(d){let f=d.fx;if(f)return f;f=d.fx={mat:flameMat(),mesh:null,props:null,hex:-1,col:new THREE.Color(),col2:new THREE.Color(),st:0,bk:0,gl:0,dA:0,eA:0,sA:0,
  g:0,gs:0,gi:0,gp:new V3(),gn:new V3(),sc:new V3(),scOk:false,pr:.1};
  if(d.mesh){f.mesh=new THREE.Mesh(FG,f.mat);f.mesh.frustumCulled=false;f.mesh.renderOrder=3;f.mesh.visible=false;d.mesh.add(f.mesh)}return f}
 function placeFlames(d,f){f.props=d.props;const M=f.mat.uniforms.uM.value;let pr=0;
@@ -206,7 +224,7 @@ function spawnDust(p,n,w,d,wall){const S=wall?SURF.wall:SURF[surf()],K=S.dust,s=
  _a.copy(p).addScaledVector(n,.25*s).addScaledVector(_t1,ca*rr).addScaledVector(_t2,sa*rr);
  _b.copy(_t1).multiplyScalar(ca*sp).addScaledVector(_t2,sa*sp).addScaledVector(n,lf);_c.copy(d.v).addScaledVector(n,-d.v.dot(n));_b.addScaledVector(_c,.2);
  const v=.8+.4*rnd(),ch=k[10]>0,sz=ch?k[5]*s*(.7+.6*rnd()):k[5]*s;
- DUST.spawn(_a.x,_a.y,_a.z,_b.x,_b.y,_b.z,k[1]*v,k[2]*v,k[3]*v,k[4]*(ch?1:.6+.6*w),k[7]*(.6+.6*rnd()),sz,ch?sz:k[6]*s*(.8+.5*w),k[8],k[9],ch?k[10]+rnd()*.4:rnd()*.4,ch?.25:0)}
+ DUST.spawn(_a.x,_a.y,_a.z,_b.x,_b.y,_b.z,k[1]*v,k[2]*v,k[3]*v,k[4]*(ch?1:.6+.6*w),k[7]*(.6+.6*rnd()),sz,ch?sz:k[6]*s*(.8+.5*w),k[8],k[9],ch?k[10]+rnd()*.4:rnd()*.4,ch?.25:0);if(!ch)DUST.plane(n,p)}
 // prop wash: trace the thrust axis down to the surface; strength by motor spool (or boost) and height
 function wash(d,f,dt){const s=DRAD/2,Rw=(9+6*s)*(f.bk>.1?1.5:1),st=Math.max(cl((d.ms-.1)/.55,0,1)**1.2,f.bk*.95);if(st<.04)return;
  let x0=sdf(d.p.x,d.p.y,d.p.z);if(x0>-.05||-x0>Rw)return;  // inside the map (a cave mouth, the safety net) or nothing close by
@@ -244,10 +262,21 @@ function ballHit(e){const sp=e.speed;if(sp<7||!ballMesh.visible)return;const k=c
 function ringTick(dt){for(const m of RINGS){if(!m.visible)continue;const u=m.userData;u.t+=dt;const x=u.t/u.d;if(x>=1){m.visible=false;continue}
  const e=1-(1-x)**3;m.scale.setScalar(u.r0+(u.r1-u.r0)*e);m.material.opacity=u.a*(1-x)**1.5}}
 
-onHit(e=>{if(e.type==='ground'){if(!e.d.mesh)return;const f=fxOf(e.d);if(!f.g){f.g=1;f.gs=f.gi=0}f.gs=Math.max(f.gs,e.slide);f.gi=Math.max(f.gi,e.speed);f.gp.copy(e.p);f.gn.copy(e.n)}
- else if(e.type==='ball'&&e.p)ballHit(e);
- else if(e.type==='drone'&&e.speed>14&&e.other){const p=_e.addVectors(e.d.p,e.other.p).multiplyScalar(.5),N=Math.round(Math.min(40,e.speed)*QQ.k);
+onEv('ground',e=>{if(!e.d.mesh)return;const f=fxOf(e.d);if(!f.g){f.g=1;f.gs=f.gi=0}f.gs=Math.max(f.gs,e.slide);f.gi=Math.max(f.gi,e.speed);f.gp.copy(e.p);f.gn.copy(e.n)});
+onEv('touch',e=>{if(e.p)ballHit(e)});
+onEv('bump',e=>{if(e.speed>14&&e.other){const p=_e.addVectors(e.d.p,e.other.p).multiplyScalar(.5),N=Math.round(Math.min(40,e.speed)*QQ.k);
   for(let i=0;i<N;i++){_a.set(rnd()-.5,rnd()-.5,rnd()-.5).normalize().multiplyScalar(10+rnd()*25);const h=rnd();SPK.spawn(p.x,p.y,p.z,_a.x,_a.y,_a.z,3,1.6+h,.5+h*.5,1,.2+rnd()*.3,.08,.05,1.5,G*.6,0,.35)}}});
+
+// boost embers, by trail style: stream (team / white) half hot sparks, fire hot col..col2, plasma glowing orbs, sparks fast streaks, sparkle hanging glints, smoke puffs, rainbow every colour
+function embers(d,f,dn,s,dt){const st=f.st;f.eA+=[90,130,70,120,110,45,90][st]*QQ.k*dt;let c=0;
+ while(f.eA>=1&&c++<10){f.eA--;const h=rnd(),v=18+rnd()*10,C=_col2;
+  _a.set(rnd()-.5,rnd()-.5,rnd()-.5).multiplyScalar(5).addScaledVector(dn,v).addScaledVector(d.v,.4);_b.copy(d.p).addScaledVector(dn,(.5+rnd()*.4)*s);
+  if(st===3){_a.addScaledVector(_e.set(rnd()-.5,rnd()-.5,rnd()-.5),22);C.copy(f.col).lerp(f.col2,h);SPK.spawn(_b.x,_b.y,_b.z,_a.x,_a.y,_a.z,C.r*2.6,C.g*2.6,C.b*2.6,1,.2+rnd()*.25,.05*s,.03*s,1.2,G*.5,0,0)}
+  else if(st===5){C.copy(f.col).lerp(f.col2,h*h*.6);_a.multiplyScalar(.12).addScaledVector(d.v,.08);DUST.spawn(_b.x,_b.y,_b.z,_a.x,_a.y,_a.z,C.r,C.g,C.b,.3,1.1+rnd()*.6,.5*s,2.6*s,1.4,-.8,rnd()*.4,0)}
+  else if(st===4){const w=h<.3;C.copy(f.col);_a.multiplyScalar(.25);ADD.spawn(_b.x+(rnd()-.5)*s,_b.y+(rnd()-.5)*s,_b.z+(rnd()-.5)*s,_a.x,_a.y,_a.z,w?2.4:C.r*2.6,w?2.3:C.g*2.6,w?2:C.b*2.6,1,.35+rnd()*.45,.09*s,.02*s,2.5,-.5,rnd()*.4,0)}
+  else if(st===2){C.copy(f.col).lerp(f.col2,h);_a.multiplyScalar(.6);ADD.spawn(_b.x,_b.y,_b.z,_a.x,_a.y,_a.z,C.r*2.8,C.g*2.8,C.b*2.8,.9,.3+rnd()*.2,.26*s,.04*s,3,0,0,0)}
+  else{if(st===6&&d.trailCols)C.copy(d.trailCols[rnd()*d.trailCols.length|0]);else if(st===1)C.copy(f.col).lerp(f.col2,h);else C.copy(f.col);const hot=st===0&&h<.5;
+   ADD.spawn(_b.x,_b.y,_b.z,_a.x,_a.y,_a.z,hot?2.6:C.r*2.4,hot?1.7:C.g*2.4,hot?.55:C.b*2.4,.8,.25+rnd()*.2,(st===1?.3:.22)*s,.06*s,1.8,-2,0,0)}}}
 
 // ---------- per frame (render/visuals.js, after the drones are placed) ----------
 // FX.on: false hides every effect (A/B frame-time checks, tools/fx-shots.mjs); FX.ms: time spent in gameFx (ms, summed)
@@ -265,13 +294,14 @@ function gameFx1(dt){QQ=QK[qId]||QK.high;T+=dt;const fpv=GS.camMode===0,cp=camer
   // boost trail + embers
   const rb=RIB[ri]||(RIB[ri]=new Ribbon(36,.6,2.2));ri++;if(rb.owner!==d){rb.owner=d;rb.reset()}
   const dn=_n.set(0,-1,0).applyQuaternion(d.q);
-  if(f.bk>.01||rb.m.visible){_c.copy(d.p).addScaledVector(dn,.35*s);rb.mat.uniforms.uCol.value.copy(f.col).multiplyScalar(1.4);rb.tick(_c,f.bk*.7,.55*s*(.5+.5*f.bk));if(fpv&&d===GS.player)rb.m.visible=false}
-  if(bo&&near&&dt>0){f.eA+=90*QQ.k*dt;let c=0;while(f.eA>=1&&c++<8){f.eA--;const h=rnd()<.5;_col2.copy(f.col);const v=18+rnd()*10;
-   _a.set(rnd()-.5,rnd()-.5,rnd()-.5).multiplyScalar(5).addScaledVector(dn,v).addScaledVector(d.v,.4);_b.copy(d.p).addScaledVector(dn,(.5+rnd()*.4)*s);
-   ADD.spawn(_b.x,_b.y,_b.z,_a.x,_a.y,_a.z,h?2.6:_col2.r*2.4,h?1.7:_col2.g*2.4,h?.55:_col2.b*2.4,.8,.25+rnd()*.2,.22*s,.06*s,1.8,-2,0,0)}}
+  const st=f.st=RSTY[d.trailStyle]||0,c2=d.trailCol2;f.col2.copy(c2?.isColor?c2:f.col);
+  if(f.bk>.01||rb.m.visible){_c.copy(d.p).addScaledVector(dn,.35*s);const RU=rb.mat.uniforms;RU.uCol.value.copy(f.col).multiplyScalar(1.4);RU.uCol2.value.copy(f.col2).multiplyScalar(1.4);RU.uSt.value=st;
+   if(st===6&&d.trailCols)for(let i=0;i<7;i++)RU.uR.value[i].copy(d.trailCols[Math.min(i,d.trailCols.length-1)]).multiplyScalar(1.5);
+   rb.tick(_c,f.bk*(st===5?.55:.7),.55*s*(.5+.5*f.bk)*(st===5?1.7:st===3?.65:st===1?1.2:1));if(fpv&&d===GS.player)rb.m.visible=false}
+  if(bo&&near&&dt>0)embers(d,f,dn,s,dt);
   if(live&&near&&dt>0){wash(d,f,dt);scrape(d,f,dt)}else f.g=0}
  for(;ri<RIB.length;ri++){RIB[ri].owner=null;RIB[ri].m.visible=false}
  // ball trail: faint at rolling speeds, a bright comet tail at shot speeds
- if(ballMesh.visible&&!GS.OBSON){const sp=ball.v.length(),k=.1*cl((sp-12)/20,0,1)+.75*cl((sp-30)/100,0,1)**1.1;ballRib.mat.uniforms.uCol.value.copy(ballLight.color).multiplyScalar(1.5);ballRib.tick(ball.p,k,BR*.92)}
+ if(ballMesh.visible&&!GS.OBSON){const sp=ball.v.length(),k=.1*cl((sp-12)/20,0,1)+.75*cl((sp-30)/100,0,1)**1.1;ballRib.mat.uniforms.uCol.value.copy(ballLight.color).multiplyScalar(1.5);ballRib.mat.uniforms.uCol2.value.copy(ballRib.mat.uniforms.uCol.value);ballRib.tick(ball.p,k,BR*.92)}
  else ballRib.reset();
  const fl=!GS.OBSON;ADD.update(dt,fl);SPK.update(dt,fl);DUST.update(dt,fl);decTick(dt);ringTick(dt)}

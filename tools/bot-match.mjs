@@ -28,24 +28,30 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
     tricks(sim); };
   // tricks: pop chains (pops in a row by one quad with the ball never touching the floor), air-dribble touches (a quad touching the ball
   // again while it is in the air, 0.2-2 s after its last touch), double taps (its touch, the ball off the backboard or end wall above the
-  // goal, then its touch again within 3.5 s, no floor or other touch between), spin (ball spin rate right after a spin-shot touch)
-  const FS = new Map(), fsOf = d => FS.get(d) || FS.set(d, {chain: 0, live: false, lastT: -9, air: false, wall: false, was: false}).get(d); let tnow = 0, lastBy = null, touchedNow = null;
+  // goal, then its touch again within 3.5 s, no floor or other touch between), spin (ball spin rate in the 0.1 s after a spin-shot touch) and curve (the most the ball
+  // drifts sideways off the straight line it left on, over the next 1.5 s, until another touch or a wall)
+  const FS = new Map(), fsOf = d => FS.get(d) || FS.set(d, {chain: 0, live: false, lastT: -9, air: false, wall: false, was: false}).get(d); let tnow = 0, lastBy = null, touchedNow = null, cv = null;
   const endChain = (f, st) => { if (f.live && f.chain > 0) (st.chains || (st.chains = [])).push(f.chain); f.live = false; f.chain = 0; };
   const tricks = sim => { tnow += 1 / 120; const floor = ball.c && ball.p.y < BR + .4;
-    for (const d of GS.drones) { const f = fsOf(d), st = sim(d); const fm = d.ai.fm || null; if (fm && fm !== f.fm) (st.modes || (st.modes = {}))[fm] = ((st.modes || {})[fm] || 0) + 1; f.fm = fm; if (d.popT > 0 && !f.pw) { f.chain = f.live ? f.chain + 1 : 1; f.live = true; } f.pw = d.popT > 0;
+    if (cv) { cv.t += 1 / 120; if (cv.t < cv.a) { const hl = Math.hypot(ball.v.x, ball.v.z) || 1; Object.assign(cv, {w: Math.max(cv.w, ball.w.length()), x: ball.p.x, z: ball.p.z, hx: ball.v.x / hl, hz: ball.v.z / hl}); }  // the first 0.1 s (0.25 s after a pop): still in contact
+      else { const lat = Math.abs((ball.p.x - cv.x) * -cv.hz + (ball.p.z - cv.z) * cv.hx); cv.max = Math.max(cv.max, lat);
+        if (cv.t > 1.6 || touchedNow || ball.c && Math.abs(ball.n.y) < .7) { (cv.st.spins || (cv.st.spins = [])).push(cv.w); (cv.st.curves || (cv.st.curves = [])).push(cv.max); cv = null; } } }
+    for (const d of GS.drones) { const f = fsOf(d), st = sim(d); const fm = d.ai.fm || null; if (fm && fm !== f.fm) (st.modes || (st.modes = {}))[fm] = ((st.modes || {})[fm] || 0) + 1; f.fm = fm; if (d.popT > 0 && !f.pw) { f.chain = f.live ? f.chain + 1 : 1; f.live = true;
+        if (d.ai.fin === 'spin' && DIFF[d.skill]?.fs && d.p.distanceTo(ball.p) < BR + 4) { if (cv) { (cv.st.spins || (cv.st.spins = [])).push(cv.w); (cv.st.curves || (cv.st.curves = [])).push(cv.max); } st.spinPops = (st.spinPops || 0) + 1; cv = {st, t: 0, a: .25, max: 0, w: ball.w.length(), x: ball.p.x, z: ball.p.z, hx: 0, hz: 1}; }  // a spin pop (the frame yawed flat out under the ball, then popped it)
+        if ((C.HW - Math.abs(d.p.x) < 16 || C.HL - Math.abs(d.p.z) < 16 && Math.abs(d.p.x) > C.GW / 2) && d.p.y > 9 && d.p.distanceTo(ball.p) < BR + 4) st.wallPops = (st.wallPops || 0) + 1; } f.pw = d.popT > 0;
       if (floor) { endChain(f, st); f.air = false; f.wall = false; }
       const now = touchedNow === d; if (now && !f.was) { const dtT = tnow - f.lastT;
         if (f.air && dtT > .2 && dtT < 2 && ball.p.y > BR + 2 && d.p.y > 2) st.air = (st.air || 0) + 1;
         if (f.wall && dtT < 3.5) { st.taps = (st.taps || 0) + 1; if (d.ai.fm === 'follow') st.tapsPlanned = (st.tapsPlanned || 0) + 1; }
         if (d.ai.fm === 'air') st.airDribble = (st.airDribble || 0) + 1;
         st.touchEv = (st.touchEv || 0) + 1;
-        const w = ball.w.length(); if (d.ai.fm === 'spin') (st.spins || (st.spins = [])).push(w); else (st.wAll || (st.wAll = [])).push(w);
+        const w = ball.w.length(); if (d.ai.fm === 'spin' && DIFF[d.skill]?.fs) { if (cv) { (cv.st.spins || (cv.st.spins = [])).push(cv.w); (cv.st.curves || (cv.st.curves = [])).push(cv.max); } const hl = Math.hypot(ball.v.x, ball.v.z) || 1; cv = {st, t: 0, a: .1, max: 0, w, x: ball.p.x, z: ball.p.z, hx: ball.v.x / hl, hz: ball.v.z / hl}; } else (st.wAll || (st.wAll = [])).push(w);
         f.lastT = tnow; f.air = !floor; f.wall = false; for (const o of GS.drones) if (o !== d) { const g = fsOf(o); g.air = false; g.wall = false; } lastBy = d; }
       f.was = now; }
     if (lastBy && ball.c && Math.abs(ball.p.z) > HL - BR - 2 && ball.p.y > GH && !floor) fsOf(lastBy).wall = true; };
   const trickStats = (o, min) => { const ch = (o.chains || []).filter(n => n >= 2), sp = o.spins || [], wa = o.wAll || [], avg = a => a.length ? +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : null;
     return {chains_perMin: +(ch.length / min).toFixed(2), chainAvg: avg(ch), chainMax: ch.length ? Math.max(...ch) : 0, popsInChains: ch.reduce((x, y) => x + y, 0), airTouches: o.air || 0, airTouches_perMin: +((o.air || 0) / min).toFixed(1),
-      doubleTaps: o.taps || 0, doubleTapsPlanned: o.tapsPlanned || 0, airDribbleTouches: o.airDribble || 0, trickAttempts: o.modes || {}, spinShots: sp.length, spinAvg: avg(sp), spinMax: sp.length ? +Math.max(...sp).toFixed(1) : null, otherTouchSpinAvg: avg(wa)}; };
+      wallPops: o.wallPops || 0, doubleTaps: o.taps || 0, doubleTapsPlanned: o.tapsPlanned || 0, airDribbleTouches: o.airDribble || 0, trickAttempts: o.modes || {}, spinShots: sp.length, spinPops: o.spinPops || 0, spinAvg: avg(sp), spinMax: sp.length ? +Math.max(...sp).toFixed(1) : null, spin10: sp.filter(x => x >= 10).length, curveAvg_m: avg(o.curves || []), curveMax_m: (o.curves || []).length ? +Math.max(...o.curves).toFixed(2) : null, otherTouchSpinAvg: avg(wa)}; };
   const rates = (o, min) => ({carryS_perMin: +((o.carry || 0) / min).toFixed(1), earned_perMin: +((o.earned || 0) / min).toFixed(1), popsFired_perMin: +((o.popsFired || 0) / min).toFixed(1), popsGoalward: o.popGood || 0, popsFired: o.popsFired || 0, popSuccessPct: o.popsFired ? Math.round(100 * (o.popGood || 0) / o.popsFired) : null});
   const lv = x => { const i = DIFF.findIndex(d => d.n.toLowerCase() === String(x).toLowerCase()); return i >= 0 ? i : +x; }, A = lv(la), B = lv(lb), dt = 1 / 120; Object.assign(DIFF[A], bt.D || {}); Object.assign(DIFF[B], bt.DB || {});
   DF.setGame(mode); MA.startDemo(); GS.paused = true; GS.menuOpen = true;
@@ -64,6 +70,17 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
           if (GS.score[0] !== s0) { if (hit >= 0) goals++; GS.score[0] = s0; break; } if (hit >= 0 && i - hit > 480) break; if (hit < 0 && i > 600) break; } }
       res[DIFF[L].n] = {trials: N, touched, avgTouchS: +(tt / (touched || 1)).toFixed(2), onTarget: onT, goals, avgSpeed: +(spd / (touched || 1)).toFixed(1)}; }
     return res; }
+  if (mode === 'tapdrill') {  // planned double taps: the bot carries the ball 18-30 m out with a lob into the backboard planned; did its next touch come after the backboard?
+    const bot = GS.drones.find(d => d.team === 0 && d.i === 0); for (const d of GS.drones) if (d !== bot) d.dispose(); GS.drones = [bot]; bot.skill = A;
+    let seed = 11; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647, N = +size * 10, H0 = topOf(bot) + BR; let wall = 0, second = 0, goals = 0, planned = 0; const fms = [];
+    for (let k = 0; k < N; k++) { GS.state = 'play'; const x = (rnd() - .5) * 24, z = -C.HL + 18 + rnd() * 12; bot.p.set(x, 9, z); bot.v.set(0, 0, -6); bot.w.set(0, 0, 0); bot.q.set(0, 0, 0, 1);
+      ball.p.set(x, 9 + H0, z + .5); ball.v.set(0, 0, -6); ball.w.set(0, 0, 0); Object.assign(bot.ai, {fm: null, mv: 'lob', fin: 'tap', ct: 0, ch: 3, cht: 1, epi: true}); bot.role = 'attack'; LB.predict();
+      const s0 = GS.score[0]; let hitWall = false, sec = false, tn = 0, lastT = -1;
+      for (let i = 0; i < 120 * 6; i++) { hitBy = null; ST.step(dt); tn += dt; if (GS.score[0] !== s0) { goals++; GS.score[0] = s0; break; }
+        if (!hitWall && ball.c && Math.abs(ball.p.z) > C.HL - BR - 2 && ball.p.y > C.GH) hitWall = true;
+        if (hitBy === bot && hitWall && tn - lastT > .3 && !sec) { sec = tn; second++; if (bot.ai.fm === 'follow') planned++; } if (hitBy === bot) { lastT = tn; if (k < 3) fms.push(k + '@' + tn.toFixed(2) + ':' + (bot.ai.fm || '-') + (hitWall ? 'W' : '') + (bot.popT > 0 ? 'P' : '')); } if (sec && tn - sec > 3) break; }
+      if (hitWall) wall++; }
+    return {trials: N, offBackboard: wall, secondTouchAfterBackboard: second, secondTouchAsPlannedStrike: planned, goals, fms: fms.slice(0, 60)}; }
   if (mode === 'solo') {  // one bot alone on the League field (kickoffs, goals and all) for `mins` per level: how much it carries and pops
     const bot = GS.drones.find(d => d.team === 0 && d.i === 0); for (const d of GS.drones) if (d !== bot) d.dispose(); GS.drones = [bot]; const res = {};
     // the touch/pop rings (render/popfx.js) run here too: count rings that appear, by colour, against touches and pops

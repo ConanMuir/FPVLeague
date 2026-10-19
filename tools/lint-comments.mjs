@@ -109,7 +109,7 @@ function main() {
   else { const base = pickBase(); targets = changedLines(base); console.log(`lint-comments: lines changed since ${base.slice(0, 12)} in ${targets.size} file(s)`); }
   let hits = 0;
   for (const [file, lines] of targets) {
-    const f = path.join(root, file); if (!fs.existsSync(f)) continue;
+    const f = path.join(root, file); if (!fs.existsSync(f) || file === 'tools/lint-comments.mjs') continue;  // this file's comments quote the bad patterns on purpose
     const src = fs.readFileSync(f, 'utf8'), cm = lineComments(src), all = src.split('\n');
     for (const [ln, c] of cm) {
       if (lines && !lines.has(ln)) continue;

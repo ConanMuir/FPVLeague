@@ -6,6 +6,7 @@ import {mergeGeometries,mergeVertices} from 'three/examples/jsm/utils/BufferGeom
 import {COL,GW,HL,HW,RC,RF,cl} from '../config/constants.js';
 import {glow,qId,tex} from '../render/renderer.js';
 import {RM} from '../physics/arena-shape.js';
+import {crowdGeo} from './arena.js';
 import {fbm,hash2,sm,vnoise} from './noise.js';
 
 export const UT={value:0};  // shared time uniform (water)
@@ -82,9 +83,10 @@ vec2 wv(vec2 p,float t){vec2 g=vec2(0.);vec2 d[4];d[0]=vec2(.8,.6);d[1]=vec2(-.5
 const cc=h=>new THREE.Color(h);
 function fin(g,col){g.deleteAttribute('uv');if(!g.attributes.normal)g.computeVertexNormals();if(g.index)g=g.toNonIndexed();const p=g.attributes.position,n=g.attributes.normal,a=new Float32Array(p.count*3),c3=new THREE.Color();
  for(let i=0;i<p.count;i++){col(c3,p.getX(i),p.getY(i),p.getZ(i),n.getX(i),n.getY(i),n.getZ(i));a[i*3]=c3.r;a[i*3+1]=c3.g;a[i*3+2]=c3.b}g.setAttribute('color',new THREE.BufferAttribute(a,3));return g}
-function blob(r,det,amp,seed,sx=1,sy=1,sz=1){let g=new THREE.IcosahedronGeometry(r,det);g.deleteAttribute('uv');g.deleteAttribute('normal');g=mergeVertices(g);const p=g.attributes.position;
+let LO=0;  // species() building its low-detail (far LOD) set: fewer facets per blob, cone and trunk
+function blob(r,det,amp,seed,sx=1,sy=1,sz=1){let g=new THREE.IcosahedronGeometry(r,Math.max(0,det-LO));g.deleteAttribute('uv');g.deleteAttribute('normal');g=mergeVertices(g);const p=g.attributes.position;
  for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),k=1+amp*(vnoise(x/r*1.6+seed*3.1,z/r*1.6+y/r*1.2+seed)-.5)*2;p.setXYZ(i,x*k*sx,y*k*sy,z*k*sz)}g.computeVertexNormals();return g}
-const cyl=(r0,r1,h,n=7)=>new THREE.CylinderGeometry(r1,r0,h,n,1).translate(0,h/2,0);
+const cyl=(r0,r1,h,n=7)=>new THREE.CylinderGeometry(r1,r0,h,LO?Math.min(n,4):n,1).translate(0,h/2,0);
 const solid=c=>t=>t.copy(c);
 function species(){const BARK=cc('#5a3d27'),BIRCH=cc('#d8d4c8'),LEAF=cc('#4f7d2c'),LEAF2=cc('#6f9a34'),PINE=cc('#2c5a32'),SNOW=cc('#f3f7fb'),DEAD=cc('#7c6a58'),CACT=cc('#4f7a3a'),SCRUB=cc('#8a8a52'),ROCK=cc('#8b8780');
  const leafy=(c,y0,y1,b=1)=>(t,x,y,z,nx,ny)=>t.copy(c).multiplyScalar(b*(.5+.5*cl((y-y0)/(y1-y0),0,1)+.14*ny));
@@ -92,15 +94,15 @@ function species(){const BARK=cc('#5a3d27'),BIRCH=cc('#d8d4c8'),LEAF=cc('#4f7d2c
  S.oak=M([fin(cyl(.09,.05,.55),solid(BARK)),...[[0,.66,0,.28],[.17,.58,.08,.21],[-.15,.6,-.08,.22],[.04,.83,-.03,.19],[-.04,.62,.16,.19]].map(([x,y,z,r],i)=>fin(blob(r,1,.22,i).translate(x,y,z),leafy(i%2?LEAF:LEAF2,.4,.95)))]);
  S.birch=M([fin(cyl(.05,.03,.7),solid(BIRCH)),...[[0,.72,0,.17],[.08,.6,.04,.13],[-.07,.86,-.03,.12]].map(([x,y,z,r],i)=>fin(blob(r,1,.25,i+7,1,1.3,1).translate(x,y,z),leafy(LEAF2,.45,1,1.1)))]);
  S.poplar=M([fin(cyl(.05,.03,.3),solid(BARK)),fin(blob(.16,1,.15,3,1,3.2,1).translate(0,.6,0),leafy(LEAF,.2,1))]);
- const pine=snow=>M([fin(cyl(.06,.03,.35),solid(BARK)),...[0,1,2,3].map(k=>{const r=.36*(1-k*.21),h=.34-k*.03,y0=.14+k*.19;return fin(new THREE.ConeGeometry(r,h,9,1).translate(0,y0+h/2,0),(t,x,y,z,nx,ny)=>{const u=(y-y0)/h;
+ const pine=snow=>M([fin(cyl(.06,.03,.35),solid(BARK)),...[0,1,2,3].map(k=>{const r=.36*(1-k*.21),h=.34-k*.03,y0=.14+k*.19;return fin(new THREE.ConeGeometry(r,h,LO?5:9,1).translate(0,y0+h/2,0),(t,x,y,z,nx,ny)=>{const u=(y-y0)/h;
    t.copy(PINE).multiplyScalar(.5+.6*u);if(snow&&ny>.2&&u>.5+.35*vnoise(x*40+k,z*40))t.copy(SNOW).multiplyScalar(.85+.15*u);if(ny<-.5)t.copy(PINE).multiplyScalar(.35)})})]);
  S.pine=pine(0);S.snowpine=pine(1);
  S.bush=M([[0,.18,0,.22],[.18,.13,.05,.16],[-.15,.14,-.06,.17],[.02,.12,.18,.14]].map(([x,y,z,r],i)=>fin(blob(r,1,.25,i+11,1,.8,1).translate(x,y,z),leafy(i%2?LEAF:LEAF2,0,.35,.9))));
  const rock=top=>fin(blob(.5,1,.32,5,1,.62,1.1).translate(0,.12,0),(t,x,y,z,nx,ny)=>{t.copy(ROCK).multiplyScalar(.72+.4*vnoise(x*7,z*7+y*5));if(top==='moss'&&ny>.55)t.lerp(cc('#55752e'),.75);if(top==='snow'&&ny>.35)t.copy(SNOW);if(top==='red')t.lerp(cc('#b0583a'),.8).multiplyScalar(.85+.2*Math.sin(y*30))});
  S.rockM=rock('moss');S.rockS=rock('snow');S.rockR=rock('red');
  {const rib=g=>{const p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i),a=Math.atan2(z,x),k=1+.12*Math.cos(a*12);p.setX(i,x*k);p.setZ(i,z*k)}g.computeVertexNormals();return g};
-  const col=(t,x,y,z)=>{const a=Math.atan2(z,x);t.copy(CACT).multiplyScalar(.7+.35*(.5+.5*Math.cos(a*12)))},arm=(sd,y,h)=>[fin(rib(new THREE.CylinderGeometry(.055,.055,.2,12)).rotateZ(Math.PI/2).translate(sd*.1,y,0),col),fin(rib(new THREE.CylinderGeometry(.05,.055,h,12,1).translate(sd*.2,y+h/2-.03,0)),col),fin(new THREE.SphereGeometry(.05,10,5,0,Math.PI*2,0,Math.PI/2).translate(sd*.2,y+h-.03,0),col)];
-  S.cactus=M([fin(rib(new THREE.CylinderGeometry(.08,.09,.92,12,3).translate(0,.46,0)),col),fin(new THREE.SphereGeometry(.08,12,6,0,Math.PI*2,0,Math.PI/2).translate(0,.92,0),col),...arm(1,.42,.3),...arm(-1,.56,.22)])}
+  const col=(t,x,y,z)=>{const a=Math.atan2(z,x);t.copy(CACT).multiplyScalar(.7+.35*(.5+.5*Math.cos(a*12)))},arm=(sd,y,h)=>[fin(rib(new THREE.CylinderGeometry(.055,.055,.2,LO?6:12)).rotateZ(Math.PI/2).translate(sd*.1,y,0),col),fin(rib(new THREE.CylinderGeometry(.05,.055,h,LO?6:12,1).translate(sd*.2,y+h/2-.03,0)),col),fin(new THREE.SphereGeometry(.05,LO?5:10,LO?2:5,0,Math.PI*2,0,Math.PI/2).translate(sd*.2,y+h-.03,0),col)];
+  S.cactus=M([fin(rib(new THREE.CylinderGeometry(.08,.09,.92,LO?6:12,LO?1:3).translate(0,.46,0)),col),fin(new THREE.SphereGeometry(.08,LO?6:12,LO?3:6,0,Math.PI*2,0,Math.PI/2).translate(0,.92,0),col),...arm(1,.42,.3),...arm(-1,.56,.22)])}
  S.scrub=M([[0,.1,0,.2],[.15,.08,.07,.15],[-.13,.08,-.05,.15]].map(([x,y,z,r],i)=>fin(blob(r,1,.35,i+21,1,.6,1).translate(x,y,z),leafy(SCRUB,0,.25,.95))));
  S.dead=M([fin(cyl(.06,.035,.7),solid(DEAD)),...[[.5,.4,.9],[-.6,.5,2.4],[.35,.62,4.1]].map(([a,y,r])=>fin(cyl(.03,.012,.38,5).rotateZ(a).rotateY(r).translate(0,y,0),solid(DEAD)))]);
  {const parts=[];let y=0;for(let k=0;k<4;k++){const h=.24-k*.02,r0=.16-k*.025+(k===2?-.04:0),r1=r0*.82;parts.push(fin(cyl(r0,r1,h,9).translate(0,y,0),(t,x,yy)=>t.set(k%2?'#c46a42':'#d98a5a').multiplyScalar(.82+.18*Math.sin(yy*60))));y+=h}
@@ -110,18 +112,22 @@ function species(){const BARK=cc('#5a3d27'),BIRCH=cc('#d8d4c8'),LEAF=cc('#4f7d2c
   const roof=fin(new THREE.CylinderGeometry(.62,.62,1.15,3,1).rotateZ(Math.PI/2).rotateX(-Math.PI/2).scale(1,.55,1).translate(0,.72,0),(t,x,y,z,nx,ny)=>t.copy(ny>.3?SNOW:cc('#3a2a20')));
   S.cabin=M([body,roof,fin(new THREE.BoxGeometry(.1,.3,.1).translate(.3,.95,.12),solid(cc('#5c5c5c')))])}
  return S}
-let SP=null;
+let SP=null,SPL=null;
+/** a prop species' geometry (unit size, vertex coloured: trunk, foliage, snow), lo: the far-LOD version (world/highlands.js forests) */
+export function propGeo(k,lo){if(!lo)return(SP=SP||species())[k];if(!SPL){LO=1;SPL=species();LO=0}return SPL[k]}
+// props further than PLOD from the arena's outline (the camera stays in or over the stadium, so that is far) use the low-detail species set
+const PLOD=230;
 // place props: rules(x,z,y,slope,dens,o,r) -> [kind, height] or null. Instances shuffled + chunked into 8 sectors so off-screen chunks cull.
 export function buildProps(G,H,rules,n,seed,wl){SP=SP||species();const r=RNG(seed),I={},m4=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),s=new THREE.Vector3(),pp=new THREE.Vector3(),c=new THREE.Color();let k=0;
  for(let i=0;i<n*8&&k<n;i++){const x=(r()-.5)*2000,z=(r()-.5)*2000,o=offR(x,z);if(o<104)continue;const y=H(x,z);if(wl!=null&&y<wl+.8)continue;
   const sl=1-Math.abs(Math.cos(Math.atan(Math.hypot(H(x+2,z)-H(x-2,z),H(x,z+2)-H(x,z-2))/4))),d=fbm(x/90+11,z/90-4);
   const R=rules(x,z,y,sl,d,o,r);if(!R)continue;k++;const[kind,h,tint=1]=R,sx=h*(.85+.3*r()),sz=h*(.85+.3*r());
   e.set(kind.startsWith('rock')?r()*.5:(r()-.5)*.08,r()*6.3,(r()-.5)*.08);q.setFromEuler(e);m4.compose(pp.set(x,y-h*.03-.2,z),q,s.set(sx,h,sz));
-  const sec=Math.floor((Math.atan2(z,x)+Math.PI)/(Math.PI/4))&7,key=kind+'|'+sec,v=.9+.2*r(),hu=(r()-.5)*.12*tint;
+  const sec=Math.floor((Math.atan2(z,x)+Math.PI)/(Math.PI/4))&7,key=kind+'|'+sec+'|'+(o>PLOD?1:0),v=.9+.2*r(),hu=(r()-.5)*.12*tint;
   c.setRGB(v*(1+hu),v,v*(1-hu));(I[key]||(I[key]=[])).push(m4.clone(),c.clone())}
  const mats={};for(const key in I){const kind=key.split('|')[0],L2=I[key],N=L2.length/2,ord=[...Array(N).keys()];for(let j=N-1;j>0;j--){const t=r()*(j+1)|0;[ord[j],ord[t]]=[ord[t],ord[j]]}
   const mat=mats[kind]||(mats[kind]=new THREE.MeshStandardMaterial({vertexColors:true,roughness:kind.startsWith('rock')||kind==='hoodoo'?.95:.82,flatShading:kind.startsWith('rock')||kind==='hoodoo'||kind==='cabin'}));
-  const im=new THREE.InstancedMesh(SP[kind],mat,N);ord.forEach((o,j)=>{im.setMatrixAt(j,L2[2*o]);im.setColorAt(j,L2[2*o+1])});im.computeBoundingSphere();  // props stand outside the sun's shadow frustum (fitShadow 180 m around the pitch): no shadow passes or lookups
+  const im=new THREE.InstancedMesh(propGeo(kind,key.endsWith('|1')),mat,N);ord.forEach((o,j)=>{im.setMatrixAt(j,L2[2*o]);im.setColorAt(j,L2[2*o+1])});im.computeBoundingSphere();  // props stand outside the sun's shadow frustum (fitShadow 180 m around the pitch): no shadow passes or lookups
   im.userData={n:N,fix:kind==='hoodoo'||kind==='cabin'};G.add(im)}}
 
 // ---------- stadium bowl around the arena: concourse, LED boards, two seating tiers with crowd, floodlights, light masts, screens, banners, plaza ----------
@@ -197,7 +203,7 @@ export function buildStadium(G,st,name){const g=[];
    if(r()<.5*(.3+.7*Math.abs(k)))c.copy(k>0?cB:cO).multiplyScalar(.75+.4*r());else c.copy(pal[r()*pal.length|0]).multiplyScalar(.7+.5*r());
    E.set(0,Math.atan2(nx,nz),0);M4.compose(V.set(x,ry,z),Q.setFromEuler(E),Sv.set(.56,h,.42));L2.push(M4.clone(),c.clone())});
   const N=L2.length/2,ord=[...Array(N).keys()];for(let j=N-1;j>0;j--){const t=r()*(j+1)|0;[ord[j],ord[t]]=[ord[t],ord[j]]}
-  const cr=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1).translate(0,.5,0),new THREE.MeshLambertMaterial(),N);ord.forEach((o2,j)=>{cr.setMatrixAt(j,L2[2*o2]);cr.setColorAt(j,L2[2*o2+1])});cr.userData={n:N,qf:{high:1,med:.8,low:.5}};cr.receiveShadow=true;G.add(cr)}
+  const cr=new THREE.InstancedMesh(crowdGeo(1,.5),new THREE.MeshLambertMaterial(),N);ord.forEach((o2,j)=>{cr.setMatrixAt(j,L2[2*o2]);cr.setColorAt(j,L2[2*o2+1])});cr.userData={n:N,qf:{high:1,med:.8,low:.5}};cr.receiveShadow=true;G.add(cr)}
  // corner light masts (lattice-ish: tapered mast, cross arms, lamp grid facing the centre)
  {const mast=mergeGeometries([cyl(1.6,.9,100,10),...[30,55,80].map(h=>new THREE.CylinderGeometry(2.4,2.4,.8,10).translate(0,h,0))]),mm=std(st.steel,null,{metalness:.55,roughness:.45}),frame=new THREE.BoxGeometry(20,13,1.4),lamp=new THREE.BoxGeometry(2.6,2,.4);
   const lg=[];for(let i=0;i<6;i++)for(let j=0;j<4;j++)lg.push(lamp.clone().translate(-7.5+i*3,-4.5+j*3,-.9));const lgm=mergeGeometries(lg),lmat=glow(st.lampC,st.lamp*1.1);

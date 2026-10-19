@@ -5,6 +5,7 @@ import {S} from '../config/settings.js';
 import {RADIO,pad,padX} from '../input/input.js';
 import {startDemo} from '../modes/match.js';
 import {TR,exitTrain,nextShot,prevShot,restartPack,retryShot,startPack} from '../modes/training.js';
+import {addHud} from '../modes/registry.js';
 import {dot} from '../render/particles.js';
 import {scene} from '../render/renderer.js';
 import {GS,esc} from '../state.js';
@@ -43,6 +44,7 @@ export function initTraining(){
  const lab=$('labbtn').onclick;$('labbtn').onclick=()=>{exitTrain();lab()};  // the Calibration Lab tile (ui/lab.js wires it)
  // the menu's own buttons (ui/menu.js) leave training first; in the pause menu Restart restarts the pack and Leave goes back to the packs
  for(const id of['host','join']){const f=$(id).onclick;$(id).onclick=()=>{exitTrain();f()}}
+ for(const b of $('modes').children)if(b.dataset.m){const f=b.onclick;b.onclick=()=>{exitTrain();f()}}  // a mode button in the pause menu leaves the pack (it used to start the match with training still holding the quad)
  const play=$('play').onclick;$('play').onclick=()=>{if(TR.on)restartPack();else play()};
  const leave=$('leave').onclick;$('leave').onclick=()=>{const t=exitTrain();leave();if(t){renderPacks();menuScreen('packs')}};
  $('trprev').onclick=e=>{prevShot();e.currentTarget.blur()};$('trnext').onclick=e=>{nextShot();e.currentTarget.blur()};$('trretry').onclick=e=>{retryShot();e.currentTarget.blur()};
@@ -73,6 +75,7 @@ function padTrain(){const g=pad();if(!g||RADIO.test(g.id)){prevB=[];return}const
  if(TR.ph==='sum'){if(edge(0))restartPack();else if(edge(1))$('trsback').click()}
  else{if(edge(15)&&!used.has(15))nextShot();if(edge(14)&&!used.has(14))prevShot()}}
 // per rendered frame
+addHud('train',()=>trainFrame());  // the Training mode's per-frame UI (modes/registry.js modeHud, every frame, training or not)
 export function trainFrame(){const on=TR.on;$('score').hidden=on;markers();
  if(!on){if(lastPh){lastPh='';$('train').hidden=$('trsum').hidden=true}return}
  padTrain();const m=GS.menuOpen,ph=TR.ph;

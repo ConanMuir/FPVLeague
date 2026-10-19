@@ -5,6 +5,7 @@ import {RTYPES} from '../config/ratetypes.js';
 import {openBind} from '../input/calibration.js';
 import {LAB,discard,endTest,enterLab,exitLab,finish,retry,revert,saveTo,skipDrill,startPack,startTest,targetQ} from '../modes/lab.js';
 import {startDemo} from '../modes/match.js';
+import {addHud} from '../modes/registry.js';
 import {camera} from '../render/renderer.js';
 import {GS,esc} from '../state.js';
 import {DRILLS} from '../tuner/drills.js';
@@ -49,6 +50,7 @@ function panel(){const T=LAB.T,D=LAB.drill;if(!T||!D)return;$('ltop').innerHTML=
  const h=RTYPES[T.type].h,R=$('lrt');R.innerHTML=`<tr><th></th><th>Centre</th><th>Max</th><th>Expo</th></tr>`+['Roll','Pitch','Yaw'].map((n,i)=>`<tr><th>${n}</th>${['c','m','e'].map(k=>`<td>${fmt(T.p[k+i],T.p[k+i].v)}</td>`).join('')}</tr>`).join('')+
   `<tr><th>Deadband</th><td colspan="3">${fmt(T.p.dz,T.p.dz.v)} · yaw ${fmt(T.p.dzy,T.p.dzy.v)}</td></tr><tr><th>Throttle</th><td colspan="3">mid ${Math.round(T.p.tm.v)} · expo ${Math.round(T.p.te.v)}</td></tr><tr><th>Assist</th><td colspan="3">${T.p.as.v.toFixed(2)}</td></tr>`;R.title=h.join(' / ')}
 // per rendered frame
+addHud('lab',labFrame);  // the Lab overlay's per-frame UI (modes/registry.js modeHud, every frame, Lab on or not)
 export function labFrame(now){if(!LAB.on){lastSt='';return}if(LAB.st==='test'){const s=Math.max(0,Math.ceil(LAB.testT));$('ltt').textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}const key=LAB.st+GS.menuOpen;if(key!==lastSt){const was=lastSt;lastSt=key;$('labintro').hidden=LAB.st!=='intro'||GS.menuOpen;$('labsum').hidden=LAB.st!=='sum'||GS.menuOpen;
   $('labrun').hidden=LAB.st!=='drill'&&LAB.st!=='ready'||GS.menuOpen;if(!was.startsWith(LAB.st)){if(LAB.st==='intro')intro();if(LAB.st==='sum')sumShow()}}
  const D=LAB.drill,run=LAB.st==='drill'||LAB.st==='ready',v=D?.view||{};

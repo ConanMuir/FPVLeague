@@ -21,8 +21,16 @@ export function initBase(Z,api,G){
  const locked=k=>G.wave+1<ITEMS[k].from,maxed=k=>ITEMS[k].type==='perk'&&Z.perkMaxed(k);
  function buy(i){const c=G.cards[i];if(!c||locked(c.k)||maxed(c.k))return;const it=ITEMS[c.k],p=price(c.k);if(G.cash<p)return;
   if(it.type==='helper'){if(!Z.def.SLOTS.some((_,j)=>Z.def.slotFree(j)))return;G.placing={i,k:c.k,p};focusSlot=Z.def.SLOTS.findIndex((_,j)=>Z.def.slotFree(j));render();focus('[data-slot]');return}
-  G.cash-=p;Z.buyPerk(c.k);render();focus(`[data-buy="${i}"]`)}
- function place(j){const P=G.placing;if(!P||!Z.def.slotFree(j))return;G.cash-=P.p;Z.def.add(P.k,j).spent=P.p;G.placing=null;tab='armory';render();focus('[data-up]')}
+  if(Z.req)Z.req(['p',c.k]);else{G.cash-=p;Z.buyPerk(c.k)}render();focus(`[data-buy="${i}"]`)}
+ // Z.req (co-op): every purchase is a request to the host, which owns the shared purse; act.* are the purchases themselves (solo, and the host applying a request)
+ const act={place(k,j,by){const it=ITEMS[k];if(!it||it.type!=='helper'||locked(k)||G.cash<it.price||!Z.def.SLOTS[j]||!Z.def.slotFree(j))return null;G.cash-=it.price;const d=Z.def.add(k,j);d.spent=it.price;if(by)d.by=by;return d},
+  sell(id){const d=Z.def.D.find(x=>x.id===id);if(!d)return null;const r=Math.floor((d.spent||ITEMS[d.type].price)/2);G.cash+=r;Z.def.remove(d);return r},
+  upgrade(id,what){const d=Z.def.D.find(x=>x.id===id);if(!d)return 0;const c0=G.cash;
+   if(d.type==='rack'){if(what==='tier'){const N=RACK_TIERS[d.tier+1];if(N&&G.cash>=N.cost){G.cash-=N.cost;d.tier++}}
+    else{const ci=RACK_CAP.indexOf(d.cap),c=RACK_CAP_COST[ci+1];if(c&&G.cash>=c){G.cash-=c;d.cap=RACK_CAP[ci+1];d.ready=d.cap}}}
+   else{const n=HELP[d.type].lv[d.lvl+1];if(n&&G.cash>=n.cost){G.cash-=n.cost;d.lvl++}}d.spent=(d.spent||ITEMS[d.type].price)+c0-G.cash;return c0-G.cash},
+  repair(i,hp){const s=SITES[i],k=repairK();if(!s||s.hp<=0)return 0;hp=Math.min(hp|0,s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return 0;G.cash-=Math.ceil(hp*REPAIR_PER_HP*k);s.hp+=hp;return hp}};
+ function place(j){const P=G.placing;if(!P||!Z.def.slotFree(j))return;if(Z.req)Z.req(['b',P.k,j]);else act.place(P.k,j);G.placing=null;tab='armory';render();focus('[data-up]')}
  function cancelPlace(){if(!G.placing)return false;G.placing=null;render();focus('[data-buy]');return true}
 
  // how a defence does against the kinds you have met or are about to meet
@@ -45,16 +53,13 @@ export function initBase(Z,api,G){
     ${n?`<span class="zst zn">Next: level ${d.lvl+2}, ${n.txt}</span>`:''}
     <button class="sm" data-up="${d.id}:lvl" ${n&&G.cash>=n.cost?'':'disabled'}>${n?`Level ${d.lvl+2} ${money(n.cost)}`:'Max level'}</button>`}
   const refund=Math.floor((d.spent||it.price)/2),armed=sellArm===d.id;
-  return`<div class="zarm"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}</small></div><div class="zups">${ups}<button class="sm zsell ${armed?'arm':''}" data-sell="${d.id}">${armed?`Confirm: sell for ${money(refund)}`:`Sell ${money(refund)}`}</button></div></div>`}
+  return`<div class="zarm"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}${d.by?' · '+d.by:''}</small></div><div class="zups">${ups}<button class="sm zsell ${armed?'arm':''}" data-sell="${d.id}">${armed?`Confirm: sell for ${money(refund)}`:`Sell ${money(refund)}`}</button></div></div>`}
  // selling frees the slot and refunds half of everything spent on it; it takes a second press to confirm
  let sellArm=0;
  function sell(id){const d=Z.def.D.find(x=>x.id===id);if(!d)return;if(sellArm!==id){sellArm=id;render();focus(`[data-sell="${id}"]`);return}
-  sellArm=0;G.cash+=Math.floor((d.spent||ITEMS[d.type].price)/2);Z.def.remove(d);render();focus('[data-up]')}
- function upgrade(id,what){const d=Z.def.D.find(x=>x.id===id);if(!d)return;const c0=G.cash;
-  if(d.type==='rack'){if(what==='tier'){const N=RACK_TIERS[d.tier+1];if(N&&G.cash>=N.cost){G.cash-=N.cost;d.tier++}}
-   else{const ci=RACK_CAP.indexOf(d.cap),c=RACK_CAP_COST[ci+1];if(c&&G.cash>=c){G.cash-=c;d.cap=RACK_CAP[ci+1];d.ready=d.cap}}}
-  else{const n=HELP[d.type].lv[d.lvl+1];if(n&&G.cash>=n.cost){G.cash-=n.cost;d.lvl++}}d.spent=(d.spent||ITEMS[d.type].price)+c0-G.cash;render();focus(`[data-up="${id}:${what}"]`)}
- function upPerk(k){const c=Z.perkPrice(k);if(Z.perkMaxed(k)||G.cash<c)return;G.cash-=c;Z.buyPerk(k);render();focus(`[data-perk="${k}"]`)}
+  sellArm=0;if(Z.req)Z.req(['s',id]);else act.sell(id);render();focus('[data-up]')}
+ function upgrade(id,what){if(!Z.def.D.some(x=>x.id===id))return;if(Z.req)Z.req(['g',id,what]);else act.upgrade(id,what);render();focus(`[data-up="${id}:${what}"]`)}
+ function upPerk(k){const c=Z.perkPrice(k);if(Z.perkMaxed(k)||G.cash<c)return;if(Z.req)Z.req(['p',k]);else{G.cash-=c;Z.buyPerk(k)}render();focus(`[data-perk="${k}"]`)}
 
  // ---------- render ----------
  function render(){const integ=SITES.reduce((a,s)=>(a.hp+=Math.max(0,s.hp),a.max+=s.max,a),{hp:0,max:0}),f=integ.hp/integ.max,P=G.placing;
@@ -70,7 +75,7 @@ export function initBase(Z,api,G){
   const fc=forecast();
   el.innerHTML=`<div class="zpanel zb"><header><div><h2>${G.wave?`Wave ${G.wave} cleared`:'Briefing'}</h2><div class="zbig">${money(G.cash)}</div></div>
    <div class="zint"><span>Defense integrity ${Math.round(f*100)}% · ${Math.ceil(integ.hp)}/${integ.max}</span><b><i style="width:${(f*100).toFixed(1)}%" class="${f<.3?'lo':f<.6?'mid':''}"></i></b></div>
-   <button class="go" id="zgo">Start wave ${G.wave+1} ▸</button></header>
+   <button class="go" id="zgo">${Z.goTxt?.()||`Start wave ${G.wave+1} ▸`}</button></header>${Z.coopHTML?.()||''}
    <div class="zcols"><div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
     <div class="zleg"><span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lt"></i>next wave's approach</span></div></div>
    <div class="zside"><nav class="ztabs">${[['shop','Shop'],['armory','Armory'],['sites','Sites']].map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
@@ -82,7 +87,7 @@ export function initBase(Z,api,G){
   for(const b of el.querySelectorAll('[data-up]'))b.onclick=()=>{const[id,w]=b.dataset.up.split(':');upgrade(+id,w)};
   for(const b of el.querySelectorAll('[data-perk]'))b.onclick=()=>upPerk(b.dataset.perk);
   for(const b of el.querySelectorAll('[data-sell]'))b.onclick=()=>sell(+b.dataset.sell);
-  for(const b of el.querySelectorAll('[data-rep]'))b.onclick=()=>{const s=SITES[+b.dataset.rep],k=repairK(),hp=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return;G.cash-=Math.ceil(hp*REPAIR_PER_HP*k);s.hp+=hp;render();focus(`[data-rep="${b.dataset.rep}"]`)};
+  for(const b of el.querySelectorAll('[data-rep]'))b.onclick=()=>{const i=+b.dataset.rep,s=SITES[i],k=repairK(),hp=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return;if(Z.req)Z.req(['r',i,hp]);else act.repair(i,hp);render();focus(`[data-rep="${b.dataset.rep}"]`)};
   const cv=$('zmap');cv.onclick=e=>{if(!G.placing)return;const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*MW,y=(e.clientY-r.top)/r.height*MH;let bj=-1,bd=24;
    Z.def.SLOTS.forEach((s,j)=>{const[sx,sy]=spx(j),d=Math.hypot(sx-x,sy-y);if(Z.def.slotFree(j)&&d<bd){bd=d;bj=j}});if(bj>=0)place(bj)};
   drawMap()}
@@ -119,6 +124,10 @@ export function initBase(Z,api,G){
  const focus=q=>setTimeout(()=>{const b=el.querySelector(q+':not([disabled])');(b||$('zgo'))?.focus();drawMap()},0);
  function open(){document.body.classList.add('zb-open');G.state="base";G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
  function close(){el.hidden=true;G.placing=null;document.body.classList.remove('zb-open')}
+ // redraw for a change made elsewhere (co-op: the purse, the defences, who is ready), keeping focus and the tab's scroll
+ function refresh(){if(el.hidden)return;const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','perk','sell','rep','tab'].find(x=>a.dataset[x]!=null):null,
+   q=k?`[data-${k}="${a.dataset[k]}"]`:mine&&a.id?'#'+a.id:null,sc=el.querySelector('.ztab')?.scrollTop||0;
+  render();const t=el.querySelector('.ztab');if(t)t.scrollTop=sc;if(q)el.querySelector(q)?.focus()}
  // spatial focus move between the visible buttons
  function move(dx,dy){const bs=[...el.querySelectorAll('button:not([disabled])')];if(!bs.length)return;const a=document.activeElement,ra=bs.includes(a)?a.getBoundingClientRect():null;
   if(!ra){bs[0].focus();return}const cx=ra.x+ra.width/2,cy=ra.y+ra.height/2;let best=null,bd=1e9;
@@ -134,4 +143,4 @@ export function initBase(Z,api,G){
  function pad(e){if(el.hidden&&over.hidden)return false;const host=el.hidden?over:el;
   if(e(12))move(0,-1);if(e(13))move(0,1);if(e(14))move(-1,0);if(e(15))move(1,0);if(e(0)&&host.contains(document.activeElement))document.activeElement.click();
   if(!el.hidden){if(e(1))cancelPlace();if(e(4)||e(5)){const i=TABS.indexOf(tab);setTab(TABS[(i+(e(5)?1:2))%3])}if(e(3)&&!G.placing)Z.continue()}return true}
- return{open,close,render,key,pad,el,buy,place,upgrade,setTab,sell}}
+ return{open,close,render,refresh,act,key,pad,el,buy,place,upgrade,setTab,sell}}

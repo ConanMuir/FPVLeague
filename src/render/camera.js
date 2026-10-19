@@ -10,7 +10,7 @@ import {ball} from '../physics/ball.js';
 import {camera,sun} from './renderer.js';
 import {_f,_ip,_t,_x} from '../scratch.js';
 import {GS} from '../state.js';
-import {DCEIL,DHL,DHW,dfAtmos,dfH,dfHt} from '../world/highlands.js';
+import {DCEIL,DHL,DHW,dfAtmos,dfH,dfHt,dfLod} from '../world/highlands.js';
 import {sdf} from '../physics/sdf.js';
 import {LOOKS} from '../world/maps.js';
 const camPos=new V3(0,20,60),camFwd=new V3(0,0,-1),tiltQ=new QT(),_cp=new V3();let curFov=0,bfov=0,lookK=0,slK=0,slPos=null;const _ld=new V3(),_lq=new QT(),_lm=new M4();  // bfov: boost FOV stretch
@@ -40,5 +40,5 @@ if(GS.OBSON){_cp.x=cl(_cp.x,-DHW+1,DHW-1);_cp.z=cl(_cp.z,-DHL+1,DHL-1);if(me.p.y
   if(GS.OBSON){if(me.p.y<dfHt(me.p.x,me.p.z)){let k=1;for(let i=1;i<=12;i++){const t=i/12;if(sdf(me.p.x+(camPos.x-me.p.x)*t,me.p.y+(camPos.y-me.p.y)*t,me.p.z+(camPos.z-me.p.z)*t)>-1){k=(i-1)/12;break}}if(k<1)camPos.lerpVectors(me.p,camPos,k)}
    else camPos.y=Math.max(camPos.y,dfHt(camPos.x,camPos.z)+1.5)}
   camera.position.copy(camPos);camera.lookAt(GS.camMode===2||me.dead>0?foc:_t.copy(me.p).addScaledVector(camFwd,8).setY(me.p.y+1));setFov(100+bfov)}
- if(GS.OBSON){sun.target.position.set(camera.position.x,0,camera.position.z);sun.position.copy(sun.target.position).add(LOOKS.df.sp);dfAtmos(camera,dt)}  // dfAtmos: fog closes in underground
+ if(GS.OBSON){sun.target.position.set(camera.position.x,0,camera.position.z);sun.position.copy(sun.target.position).add(LOOKS.df.sp);dfAtmos(camera,dt);dfLod(camera)}  // dfAtmos: fog closes in underground; dfLod: far forests draw low-detail trees
  if(GS.shake>.01){camera.position.add(_t.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(GS.shake*.7*SHK));GS.shake*=Math.exp(-dt*4)}}
