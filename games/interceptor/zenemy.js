@@ -94,4 +94,15 @@ export function initEnemies(api,G,Z){
   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('color',new THREE.BufferAttribute(col,3));geo.setIndex(idx);geo.computeVertexNormals();
   ring=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}));ring.frustumCulled=false;ring.visible=false;scene.add(ring);return ring}
 
- return{visuals,hide,tstep,dress,farRing,IM}}
+ // ---------- flashes: every explosion also gets a screen-sized additive flash, so the fight still reads at 1-3 km (particles go sub-pixel there) ----------
+ const FN=160,fPos=new Float32Array(FN*3),fAtt=new Float32Array(FN*2),fGeo=new THREE.BufferGeometry();fGeo.setAttribute('position',new THREE.BufferAttribute(fPos,3));fGeo.setAttribute('sa',new THREE.BufferAttribute(fAtt,2));
+ const fMat=new THREE.ShaderMaterial({uniforms:{map:{value:dot}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+  vertexShader:`attribute vec2 sa;varying float vA;\n#include <common>\n#include <logdepthbuf_pars_vertex>\nvoid main(){vA=sa.y;vec4 mv=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mv;gl_PointSize=sa.x;\n#include <logdepthbuf_vertex>\n}`,
+  fragmentShader:`uniform sampler2D map;varying float vA;\n#include <logdepthbuf_pars_fragment>\nvoid main(){\n#include <logdepthbuf_fragment>\nfloat a=texture2D(map,gl_PointCoord).a*vA;gl_FragColor=vec4(vec3(1.,.72,.38)*a*2.2,a);}`});
+ const fPts=new THREE.Points(fGeo,fMat);fPts.frustumCulled=false;scene.add(fPts);fGeo.setDrawRange(0,0);
+ const FL=[];
+ function flash(p,k){if(FL.length>=FN)FL.shift();FL.push({p:p.clone(),k:Math.min(4,k),t:0,life:.25+.12*Math.min(4,k)})}
+ function flashes(dt){const cam=api.camera.position,H=innerHeight;let n=0;for(let i=FL.length-1;i>=0;i--){const f=FL[i];if((f.t+=dt)>f.life){FL.splice(i,1);continue}}
+  for(const f of FL){const d=f.p.distanceTo(cam),u=f.t/f.life;fPos[n*3]=f.p.x;fPos[n*3+1]=f.p.y;fPos[n*3+2]=f.p.z;fAtt[n*2]=cl((8+16*f.k)*(1+.6*u)*Math.min(1.6,900/Math.max(d,300))*H/720,4,90);fAtt[n*2+1]=(1-u)*(1-u);n++}
+  fGeo.setDrawRange(0,n);fGeo.attributes.position.needsUpdate=fGeo.attributes.sa.needsUpdate=true}
+ return{visuals:dt=>{visuals(dt);flashes(dt)},hide:()=>{hide();FL.length=0;fGeo.setDrawRange(0,0)},tstep,dress,farRing,IM,flash}}

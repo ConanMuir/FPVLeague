@@ -5,6 +5,7 @@ const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv
 const {server, origin} = await serve();
 const browser = await launch();
 let fails = 0;
+const ONLY = argv.includes('--only');  // with --balance or --tiers: run just those sections
 const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fails++; };
 
 async function page(mode) {
@@ -18,7 +19,7 @@ async function page(mode) {
 }
 
 // ---------- Classic ----------
-{
+if (!ONLY) {
   const {p, errs} = await page('classic');
   ok(await p.$eval('#play', b => b.textContent) === 'Defend', 'Classic: start button reads Defend');
   await p.click('#play'); await sleep(1500);
@@ -33,7 +34,7 @@ async function page(mode) {
 }
 
 // ---------- Zombies ----------
-{
+if (!ONLY) {
   const {p, errs} = await page('z');
   ok(await p.$eval('#play', b => b.textContent) === 'Hold the line', 'Zombies: mode choice switches the start button');
   await p.click('#play'); await sleep(800);
@@ -89,7 +90,7 @@ async function page(mode) {
 }
 
 // ---------- roster: every kind flies in and hits, unlocks by wave, boss stages and swarm launches, bunker, direct hit on a fast track ----------
-{
+if (!ONLY) {
   const {p, errs} = await page('z');
   await p.click('#play'); await sleep(500);
   const r = await p.evaluate(() => {
@@ -123,7 +124,7 @@ async function page(mode) {
 }
 
 // ---------- helpers and perks: every helper engages its kinds; Mark, Freeze, Airstrike and the passives do what the cards say ----------
-{
+if (!ONLY) {
   const {p, errs} = await page('z');
   await p.click('#play'); await sleep(500);
   const r = await p.evaluate(() => {
@@ -153,6 +154,40 @@ async function page(mode) {
   ok(Math.abs(P.frozen - .5) < .01 && P.airKills >= 5 && P.leth === 5 && Math.abs(P.aid - .7) < 1e-9 && P.radar === 1.3 && P.mark, `Perks: freeze x${P.frozen}, airstrike ${P.airKills}/6, warhead ${P.leth} m, Foreign Aid repairs x${P.aid}, radar x${P.radar}, mark set`);
   ok(!errs.length, 'Helpers/perks: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
+}
+
+// ---------- balance: a scripted player who shops sensibly and runs down a share of the tracks; how far does it get? ----------
+if (argv.includes('--balance')) {  // about 10 minutes
+  for (const skill of [.01, .025]) {  // chance per half second of a player kill: about one kill every 50 s (casual) or 20 s (good)
+    const {p, errs} = await page('z');
+    await p.click('#play'); await sleep(400);
+    const r = await p.evaluate(skill => {
+      const {api, G, Z, KIND} = __z, def = Z.def, log = [];
+      const PRIO = ['gdome', 'idome', 'sam', 'gepard', 'rack', 'flak', 'ew', 'mark', 'air', 'warhead', 'freeze', 'radar', 'aid', 'relaunch', 'battery', 'optics'];
+      function shop() {
+        for (const s of api.SITES) { const need = s.max - s.hp; if (s.hp > 0 && need > 0) { const k = Z.repairK(), hp = Math.min(need, Math.floor(G.cash * .5 / (2.2 * k))); G.cash -= Math.ceil(hp * 2.2 * k); s.hp += hp; } }
+        for (let pass = 0; pass < 6; pass++) {
+          const cards = G.cards.map((c, i) => ({...c, i})).filter(c => !c.sold).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));
+          for (const c of cards) { const it = __z.ITEMS[c.k], price = it.type === 'perk' ? Z.perkPrice(c.k) : it.price; if (G.cash < price) continue;
+            if ((c.k === 'idome' && G.wave < 22) || (c.k === 'gdome' && G.wave < 27)) continue;
+            if (it.type === 'helper' && !def.SLOTS.some((_, j) => def.slotFree(j))) { const w = def.D.filter(d => d.type === 'flak' || d.type === 'ew').sort((a, b) => a.kills - b.kills)[0]; if (!w || PRIO.indexOf(c.k) > PRIO.indexOf('gepard')) continue; Z.base.sell(w.id); Z.base.sell(w.id); }  // make room for better helpers
+            Z.base.buy(c.i); if (G.placing) { const j = def.SLOTS.findIndex((_, j) => def.slotFree(j)); if (j < 0) { G.placing = null; continue; } Z.base.place(j); } }
+          for (const d of def.D) { Z.base.upgrade(d.id, d.type === 'rack' ? 'tier' : 'lvl'); if (d.type === 'rack') Z.base.upgrade(d.id, 'cap'); }
+          if (G.cash > 1500 && G.cards.some(c => !c.sold)) Z.base.reroll(); else break;
+        }
+      }
+      while (G.state !== 'over' && G.wave < 45) {
+        shop(); __z.cont(); let n = 0;
+        while (G.state === 'wave' && n++ < 2400) { __z.sim(.5); if (Math.random() < skill) { const t = Z.urgent(); if (t && KIND[t.k].armor !== 'hard' && api.player.dead <= 0) __z.botKill(.8); } if (Math.random() < .02) ['freeze', 'mark', 'air'].forEach(k => Z.pk.use(k)); }
+        if (G.state === 'clear') __z.sim(4);
+        log.push([G.wave, Math.round(100 * __z.integrity().hp / __z.integrity().max), G.cash, def.D.length]);
+      }
+      return {log, wave: G.wave, kills: G.kills, earned: G.earned, defs: def.D.map(d => d.type + (d.type === 'rack' ? 'T' + (d.tier + 1) : 'L' + (d.lvl + 1))).join(' '), perks: JSON.stringify(G.perks)};
+    }, skill);
+    console.log(`  skill ${skill}: reached wave ${r.wave}, kills you ${r.kills.p} / helpers ${r.kills.h}, earned $${r.earned}\n   per wave [wave, integrity %, cash, defences]: ${r.log.map(x => x.join('/')).join(' ')}\n   defences: ${r.defs}\n   perks: ${r.perks}`);
+    ok(!errs.length, `Balance skill ${skill}: no errors` + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+    await p.close();
+  }
 }
 
 // ---------- helper rack tiers: kill rate per tier and enemy kind (balance check) ----------

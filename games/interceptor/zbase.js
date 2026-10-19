@@ -23,7 +23,7 @@ export function initBase(Z,api,G){
  function buy(i){const c=G.cards[i];if(!c||c.sold)return;const it=ITEMS[c.k],p=price(c.k);if(G.cash<p)return;
   if(it.type==='helper'){if(!Z.def.SLOTS.some((_,j)=>Z.def.slotFree(j)))return;G.placing={i,k:c.k,p};focusSlot=Z.def.SLOTS.findIndex((_,j)=>Z.def.slotFree(j));render();focus('[data-slot]');return}
   G.cash-=p;c.sold=true;Z.buyPerk(c.k);render();focus('[data-buy]')}
- function place(j){const P=G.placing;if(!P||!Z.def.slotFree(j))return;G.cash-=P.p;G.cards[P.i].sold=true;Z.def.add(P.k,j);G.placing=null;tab='armory';render();focus('[data-up]')}
+ function place(j){const P=G.placing;if(!P||!Z.def.slotFree(j))return;G.cash-=P.p;G.cards[P.i].sold=true;Z.def.add(P.k,j).spent=P.p;G.placing=null;tab='armory';render();focus('[data-up]')}
  function cancelPlace(){if(!G.placing)return false;G.placing=null;render();focus('[data-buy]');return true}
  function reroll(){const c=REROLL(G.rerolls|0);if(G.cash<c)return;G.cash-=c;G.rerolls=(G.rerolls|0)+1;deal();render();focus('#zreroll')}
 
@@ -43,11 +43,16 @@ export function initBase(Z,api,G){
    ups=`<span class="zst">level ${d.lvl+1}${l.mag?` · ${l.mag} shots per wave`:''}${d.type==='ew'?` · ${((l.rng||H.rng)/1000).toFixed(1)} km bubble · ${d.kills} spoofed`:` · ${d.kills} kills`}</span>
     ${n?`<span class="zst zn">Next: level ${d.lvl+2}, ${n.txt}</span>`:''}
     <button class="sm" data-up="${d.id}:lvl" ${n&&G.cash>=n.cost?'':'disabled'}>${n?`Level ${d.lvl+2} ${money(n.cost)}`:'Max level'}</button>`}
-  return`<div class="zarm"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}</small></div><div class="zups">${ups}</div></div>`}
- function upgrade(id,what){const d=Z.def.D.find(x=>x.id===id);if(!d)return;
+  const refund=Math.floor((d.spent||it.price)/2),armed=sellArm===d.id;
+  return`<div class="zarm"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}</small></div><div class="zups">${ups}<button class="sm zsell ${armed?'arm':''}" data-sell="${d.id}">${armed?`Confirm: sell for ${money(refund)}`:`Sell ${money(refund)}`}</button></div></div>`}
+ // selling frees the slot and refunds half of everything spent on it; it takes a second press to confirm
+ let sellArm=0;
+ function sell(id){const d=Z.def.D.find(x=>x.id===id);if(!d)return;if(sellArm!==id){sellArm=id;render();focus(`[data-sell="${id}"]`);return}
+  sellArm=0;G.cash+=Math.floor((d.spent||ITEMS[d.type].price)/2);Z.def.remove(d);render();focus('[data-up]')}
+ function upgrade(id,what){const d=Z.def.D.find(x=>x.id===id);if(!d)return;const c0=G.cash;
   if(d.type==='rack'){if(what==='tier'){const N=RACK_TIERS[d.tier+1];if(N&&G.cash>=N.cost){G.cash-=N.cost;d.tier++}}
    else{const ci=RACK_CAP.indexOf(d.cap),c=RACK_CAP_COST[ci+1];if(c&&G.cash>=c){G.cash-=c;d.cap=RACK_CAP[ci+1];d.ready=d.cap}}}
-  else{const n=HELP[d.type].lv[d.lvl+1];if(n&&G.cash>=n.cost){G.cash-=n.cost;d.lvl++}}render();focus(`[data-up="${id}:${what}"]`)}
+  else{const n=HELP[d.type].lv[d.lvl+1];if(n&&G.cash>=n.cost){G.cash-=n.cost;d.lvl++}}d.spent=(d.spent||ITEMS[d.type].price)+c0-G.cash;render();focus(`[data-up="${id}:${what}"]`)}
  function upPerk(k){const c=Z.perkPrice(k);if(Z.perkMaxed(k)||G.cash<c)return;G.cash-=c;Z.buyPerk(k);render();focus(`[data-perk="${k}"]`)}
 
  // ---------- render ----------
@@ -75,6 +80,7 @@ export function initBase(Z,api,G){
   for(const b of el.querySelectorAll('[data-slot]')){b.onclick=()=>place(+b.dataset.slot);b.onfocus=()=>{focusSlot=+b.dataset.slot;drawMap()}}
   for(const b of el.querySelectorAll('[data-up]'))b.onclick=()=>{const[id,w]=b.dataset.up.split(':');upgrade(+id,w)};
   for(const b of el.querySelectorAll('[data-perk]'))b.onclick=()=>upPerk(b.dataset.perk);
+  for(const b of el.querySelectorAll('[data-sell]'))b.onclick=()=>sell(+b.dataset.sell);
   for(const b of el.querySelectorAll('[data-rep]'))b.onclick=()=>{const s=SITES[+b.dataset.rep],k=repairK(),hp=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return;G.cash-=Math.ceil(hp*REPAIR_PER_HP*k);s.hp+=hp;render();focus(`[data-rep="${b.dataset.rep}"]`)};
   const cv=$('zmap');cv.onclick=e=>{if(!G.placing)return;const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*MW,y=(e.clientY-r.top)/r.height*MH;let bj=-1,bd=24;
    Z.def.SLOTS.forEach((s,j)=>{const[sx,sy]=spx(j),d=Math.hypot(sx-x,sy-y);if(Z.def.slotFree(j)&&d<bd){bd=d;bj=j}});if(bj>=0)place(bj)};
@@ -127,4 +133,4 @@ export function initBase(Z,api,G){
  function pad(e){if(el.hidden&&over.hidden)return false;const host=el.hidden?over:el;
   if(e(12))move(0,-1);if(e(13))move(0,1);if(e(14))move(-1,0);if(e(15))move(1,0);if(e(0)&&host.contains(document.activeElement))document.activeElement.click();
   if(!el.hidden){if(e(1))cancelPlace();if(e(4)||e(5)){const i=TABS.indexOf(tab);setTab(TABS[(i+(e(5)?1:2))%3])}if(e(3)&&!G.placing)Z.continue()}return true}
- return{open,close,render,key,pad,el,buy,place,reroll,upgrade,setTab}}
+ return{open,close,render,key,pad,el,buy,place,reroll,upgrade,setTab,sell}}

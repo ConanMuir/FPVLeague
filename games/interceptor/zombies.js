@@ -1,7 +1,7 @@
 // Interceptor: Zombies mode. Endless, growing waves from the map edges against the defended sites; money per intercept, a base screen between
 // waves, helpers and perks. interceptor.js stays Riley's Classic game: it calls the hooks below only while Z.on is true.
 // api = live access to interceptor.js internals (see the initZombies call there).
-import {KIND,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,speedK,START_CASH,HELPER_SHARE,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP} from './zdata.js';
+import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,speedK,START_CASH,HELPER_SHARE,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP} from './zdata.js';
 import {initBase} from './zbase.js';
 import {initDefences} from './zdef.js';
 import {initEnemies} from './zenemy.js';
@@ -39,7 +39,7 @@ export function initZombies(api){
 
  // ---------- start / stop ----------
  const def=Z.def=initDefences(api,G,Z);
- const en=Z.en=initEnemies(api,G,Z);
+ const en=Z.en=initEnemies(api,G,Z);Z.flash=(p,k)=>en.flash(p,k);
  const pk=Z.pk=initPerks(api,G,Z);
  const base=Z.base=initBase(Z,api,G);
  const openBase=()=>{G.next=plan(G.wave+1);base.open()};
@@ -48,7 +48,7 @@ export function initZombies(api){
   bunker(false);for(const s of SITES){s.max=s.hp=SITE_HP[s.n]||400}def.clear();pk.reset();en.farRing().visible=true;if(api.RRS.length===3)api.RRS.push(25000,100000,250000);
   api.AW=4300;api.wave=0;api.wstate='wave';$('hud').classList.add('z');hudEl.hidden=false;$('zover').hidden=true;
   openBase()};
- Z.stop=()=>{if(!G.on&&G.state==='off')return;G.on=false;G.state='off';bunker(false);for(const s of SITES){s.max=s.hp=3}api.AW=3000;api.applyTune();def.clear();en.hide();en.farRing().visible=false;
+ Z.stop=()=>{if(!G.on&&G.state==='off')return;G.on=false;G.state='off';Z.shadowsBack();bunker(false);for(const s of SITES){s.max=s.hp=3}api.AW=3000;api.applyTune();def.clear();en.hide();en.farRing().visible=false;
   api.RRS.length=3;S.rr=Math.min(S.rr|0,2);$('hud').classList.remove('z');hudEl.hidden=true;base.close();$('zover').hidden=true;G.wq.length=0};
  Z.hold=()=>G.on&&!api.demo&&(G.state==='base'||G.state==='over');
 
@@ -171,7 +171,8 @@ export function initZombies(api){
  const lead=new Map();
  Z.seen=t=>{const K=KIND[t.k]||KIND.shahed;if(t.k==='swarm'&&lead.get(t.grp)!==t)return false;return Math.hypot(t.p.x-api.PADP.x,t.p.z-api.PADP.z)<K.det*(Z.radarK?.()??1)};
  const inRange=t=>{const K=KIND[t.k]||KIND.shahed;return Math.hypot(t.p.x-api.PADP.x,t.p.z-api.PADP.z)<K.det*(Z.radarK?.()??1)};
- Z.quiet=t=>t.k==='swarm'&&lead.get(t.grp)!==t;
+ // in the FPV overlay: swarm members and far tracks (over 4 km, unless selected) are dots, not labelled brackets
+ Z.quiet=t=>t.k==='swarm'&&lead.get(t.grp)!==t||t!==G.selNow&&t.p.distanceToSquared(api.camera.position)>16e6;
  Z.rcol=t=>t.claim?'255,226,60':'255,77,77';
  Z.ocol=t=>t.claim?'#ffe23c':'#ff4d4d';
  const shown=t=>t.k==='decoy'&&!t.ident?KIND.shahed:KIND[t.k]||KIND.shahed;  // a decoy passes for a Shahed until identified (close, thermal, or optics)
@@ -179,7 +180,7 @@ export function initZombies(api){
  Z.label=t=>{const K=shown(t),n=t.k==='swarm'?TH.reduce((a,u)=>a+(u.grp===t.grp&&api.live(u)?1:0),0):0;return`${K.tag}${n>1?` ×${n}`:''}${t.k==='boss'?` STAGES ${t.stages}`:''}${K.armor===1?' <span class="co">ARMORED</span>':K.armor==='hard'?' <span class="cr">DIRECT HIT ONLY</span>':''}${t.mark?' <span style="color:#ff6bd6">MARKED</span>':''}${t.claim?' <span style="color:#ffe23c">CLAIMED</span>':''}`};
  Z.slabel=s=>s.hp>0?`${s.n} ${Math.ceil(s.hp)}/${s.max}`:`${s.n} · DESTROYED`;
  // auto-selected track: the most urgent one nobody has claimed, preferring ones you can actually stop
- Z.urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(api.live(t)){let tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(t.claim)tt+=1e6;if(KIND[t.k]?.armor==='hard')tt+=1e5;if(Z.quiet(t))tt+=1e4;if(tt<bt){bt=tt;b=t}}return b};
+ Z.urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(api.live(t)){let tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(t.claim)tt+=1e6;if(KIND[t.k]?.armor==='hard')tt+=1e5;if(t.k==='swarm'&&lead.get(t.grp)!==t)tt+=1e4;if(tt<bt){bt=tt;b=t}}return b};
  const hardT=()=>TH.filter(t=>api.live(t)&&KIND[t.k]?.armor==='hard');
  Z.radar=(rc,P,sel)=>{def.radar(rc,P);
   for(const t of TH)if(t.k==='swarm'&&api.live(t)&&lead.get(t.grp)!==t&&inRange(t)){const q=P(t.p.x,t.p.z);rc.fillStyle=t.claim?'#ffe23c':'#ff4d4d';rc.fillRect(q[0]-1.5,q[1]-1.5,3,3)}
@@ -194,12 +195,20 @@ export function initZombies(api){
   for(let i=G.pops.length-1;i>=0;i--){const p=G.pops[i];if(p.t>1.6){G.pops.splice(i,1);continue}_a.copy(p.p).project(cam);if(_a.z>1)continue;
    oc.globalAlpha=cl(2-p.t*1.25,0,1);oc.fillStyle=p.col;oc.fillText(p.txt,(_a.x*.5+.5)*W,(-_a.y*.5+.5)*H-30-p.t*40)}
   pk.overlay(oc,W,H);oc.restore()};
- Z.visuals=dt=>{for(const p of G.pops)p.t+=dt;lead.clear();for(const t of TH)if(t.k==='swarm'&&api.live(t)&&!lead.has(t.grp))lead.set(t.grp,t);def.visuals();en.visuals(dt)};
+ // performance governor (Zombies only): the forest's shadow pass is the biggest frame cost; if frames stay slow for a few seconds, trees stop casting shadows.
+ // Classic is never touched: the shadows come back when Zombies stops.
+ const perf={ema:16,last:0,slow:0,off:false,trees:null};
+ const trees=()=>perf.trees||(perf.trees=api.scene.children.filter(o=>o.isInstancedMesh&&o.instanceMatrix.count>=10000&&o.castShadow));
+ function govern(){const now=performance.now(),ft=now-(perf.last||now);perf.last=now;if(ft<=0||ft>500||G.state!=='wave')return;perf.ema+=(ft-perf.ema)*.05;
+  perf.slow=perf.ema>26?perf.slow+ft:0;if(!perf.off&&perf.slow>3000){perf.off=true;for(const o of trees())o.castShadow=false;feed('<span class="co">Performance: tree shadows off to keep the frame rate up</span>')}}
+ Z.shadowsBack=()=>{if(perf.off){for(const o of trees())o.castShadow=true;perf.off=false}perf.slow=0;perf.last=0};
+ Z.perf=perf;
+ Z.visuals=dt=>{govern();G.selNow=api.selT();for(const p of G.pops)p.t+=dt;lead.clear();for(const t of TH)if(t.k==='swarm'&&api.live(t)&&!lead.has(t.grp))lead.set(t.grp,t);def.visuals();en.visuals(dt)};
  Z.key=e=>base.el.hidden?pk.key(e):base.key(e);
  Z.pad=e=>base.el.hidden&&$('zover').hidden?pk.pad(e):base.pad(e);
 
  // ---------- harness hooks (tools/zombies-test.mjs) ----------
- window.__z={G,Z,api,KIND,integrity,
+ window.__z={G,Z,api,KIND,ITEMS,integrity,
   sim(sec,h=1/120){const n=Math.round(sec/h);for(let i=0;i<n;i++){api.step(h);if(i%12===11)api.visuals(h*12,performance.now())}},
   cont:()=>Z.continue(),make:(k,x,z)=>make(k,x,z),plan:w=>plan(w),jump(w,cash){G.wave=w-1;if(cash!=null)G.cash=cash},
   // helper rack trials: one track of a kind runs in toward a site, one drone of the given tier is launched at it from that site's north slot.

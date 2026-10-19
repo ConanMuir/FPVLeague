@@ -417,7 +417,7 @@ function impact(t){if(Z.on)return Z.impact(t);t.st='dead';boom(t.aim,4);if(demo|
  if(!liveSites().length){wstate='over';wT=8;banner('ALL SITES DESTROYED','cr',0);feed(`Held ${wave-1} wave${wave===2?'':'s'} · ${saved} downed · ${spent} interceptors`)}}
 function killThreat(t,cat){if(Z.on)Z.kill(t,cat);if(cat){t.st='dead';boom(t.p,3.2);SMK.emit(t.p,0x1c1a18,30,14,6,_t.set(0,3,0),1.4,.85);if(!demo){saved++;ws++;tone(660,1320,.25,.12,'triangle')}return}t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
  boom(t.p,1.2);if(demo)return;saved++;ws++;tone(660,1320,.25,.12,'triangle')}
-function boom(p,k){FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
+function boom(p,k){if(Z.on)Z.flash(p,k);FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
  boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*k);shake=Math.max(shake,near(p)*k*.6);noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}
 function fires(dt){for(const f of FIRES)if((f.t-=dt)<=0){f.t=.06;FX.emit(f.p,0xff7a20,3,3,.8,_t.set(0,7,0),2.5);SMK.emit(f.p,0x2b2724,1,2,9,_t.set(0,8,0),1,.75)}}
 const nearestThreat=p=>{let b=null,bd=1e18;for(const t of TH)if(live(t)){const q=t.p.distanceToSquared(p);if(q<bd){bd=q;b=t}}return b};
@@ -535,7 +535,7 @@ function linkQ(me,dt){if((lqT-=dt)>0)return lqS;lqT=.1;const h=me.home,ax=h.x-3,
 const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';let siteHTML='';
 const hdg=v=>String(Math.round((Math.atan2(v.x,-v.z)*180/Math.PI+360)%360)).padStart(3,'0');
 function hud(dt){if(demo)return;if(Z.on)Z.hud(dt);const me=player;$('sw').textContent='WAVE '+wave;$('sv').textContent=saved+' DOWN';$('sl').textContent=lost+' HIT'+(lost===1?'':'S');
- const sh=SITES.map(s=>`<span class="${s.hp?'':'dead'}">${s.n} ${'■'.repeat(s.hp)}${'□'.repeat(s.max-s.hp)}</span>`).join('');if(sh!==siteHTML)$('sites').innerHTML=siteHTML=sh;
+ const sh=Z.on?'':SITES.map(s=>`<span class="${s.hp?'':'dead'}">${s.n} ${'■'.repeat(s.hp)}${'□'.repeat(s.max-s.hp)}</span>`).join('');if(sh!==siteHTML)$('sites').innerHTML=siteHTML=sh;
  const inb=TH.filter(live).length+(wstate==='wave'||wstate==='brief'?toSpawn:0),sel=selT(),alive=me.dead<=0;
  const cv=cellV(me),fl=me.t|0,ws=WIND.length();
  $('osd').innerHTML=`<span><b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE','THREAT CAM'][camMode]} · ${DIFF[S.diff].n.toUpperCase()} · CAM ${camUp?S.tilt+'°':'LVL'}${therm?' · TI WHT':''} · ${WX.n.toUpperCase()} · WIND ${Math.round(ws*3.6)} km/h ${hdg(_t.copy(WIND).negate())}</span>`+

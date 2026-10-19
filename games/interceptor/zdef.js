@@ -56,6 +56,7 @@ export function initDefences(api,G,Z){
  const L=d=>d.type==='rack'?null:HELP[d.type].lv[d.lvl],rangeOf=d=>d.type==='rack'?RACK_RANGE:(L(d).rng||HELP[d.type].rng);
  function add(type,slot){const d={id:++did,type,slot,tier:0,lvl:0,cap:0,ready:0,cd:0,rearm:0,mesh:null,kills:0,shots:0,ammo:0,jam:new Set()};if(type==='rack'){d.cap=RACK_CAP[0];d.ready=d.cap}D.push(d);return d}
  const slotFree=i=>!D.some(d=>d.slot===i);
+ function remove(d){const i=D.indexOf(d);if(i<0)return;D.splice(i,1);if(d.mesh)scene.remove(d.mesh);if(d.bubble)scene.remove(d.bubble);for(const h of shots)if(h.d===d)h.fuel=0;if(d.tgt)release(d)}
  // meshes appear (and magazines refill) when the next wave starts
  function deploy(){for(const h of shots)release(h);shots.length=0;shells.length=0;tr.length=0;pend.length=0;pend.length=0;
   for(const d of D){const s=SLOTS[d.slot];if(!d.mesh){d.mesh=MESH[d.type](d);d.mesh.position.set(s.x,s.y,s.z);d.mesh.rotation.y=Math.atan2(s.x,s.z+1500)+Math.PI;scene.add(d.mesh);
@@ -137,7 +138,7 @@ export function initDefences(api,G,Z){
 
  function step(dt){fxBudget=40;for(let i=pend.length-1;i>=0;i--)if((pend[i].t-=dt)<=0){const f=pend[i].fn;pend.splice(i,1);f()}for(const d of D)LOGIC[d.type](d,dt);for(let i=shots.length-1;i>=0;i--)if(shots[i])shotStep(shots[i],dt);
   for(let i=shells.length-1;i>=0;i--){const sh=shells[i];sh.time-=dt;const f=1-sh.time/sh.T;sh.p.lerpVectors(sh.from,sh.at,f);sh.p.y+=Math.sin(f*Math.PI)*sh.T*60;
-   if(sh.time<=0){shells.splice(i,1);release(sh);const l=L(sh.d),t=sh.t;api.SMK.emit(sh.at,0x2a2826,14,7,4,null,1,.85);api.FX.emit(sh.at,0xffb050,30,14,.3,null,2.5);
+   if(sh.time<=0){shells.splice(i,1);release(sh);const l=L(sh.d),t=sh.t;Z.flash(sh.at,.7);api.SMK.emit(sh.at,0x2a2826,14,7,4,null,1,.85);api.FX.emit(sh.at,0xffb050,30,14,.3,null,2.5);
     if(api.live(t)){const miss=t.p.distanceTo(sh.at),pk=l.p*(RESIST.flak[t.k]??1)*cl(1.4-miss/60,0,1);const o=Z.helperHit(t,pk,.2);if(o==='kill'){sh.d.kills++;Z.helperKill(t)}else if(o==='damage'&&t.k!=='boss')api.damage(t)}
     splash(sh.d,sh.at,26,l.p*.7,t)}}
   for(let i=tr.length-1;i>=0;i--){const q=tr[i];q.p.addScaledVector(q.v,dt);if((q.life-=dt)<=0)tr.splice(i,1)}}
@@ -151,4 +152,4 @@ export function initDefences(api,G,Z){
  // radar: shots as cyan dots with a thin yellow line to their claimed track; your defences as cyan squares (EW bubble as a ring)
  function radar(rc,P,K){rc.lineWidth=1.5;for(const h of shots){const q=P(h.p.x,h.p.z);rc.fillStyle=h.kind==='drone'?'#5fe3ff':'#e8f4ff';rc.fillRect(q[0]-2.5,q[1]-2.5,5,5);if(h.tgt){const u=P(h.tgt.p.x,h.tgt.p.z);rc.strokeStyle='rgba(255,226,60,.55)';rc.beginPath();rc.moveTo(q[0],q[1]);rc.lineTo(u[0],u[1]);rc.stroke()}}
   for(const d of D){const s=sl(d),q=P(s.x,s.z);rc.strokeStyle='#5fe3ff';rc.lineWidth=2;rc.strokeRect(q[0]-4,q[1]-4,8,8);if(d.type==='ew'&&K){rc.strokeStyle='rgba(95,227,255,.3)';rc.beginPath();rc.arc(q[0],q[1],rangeOf(d)*K,0,7);rc.stroke()}}}
- return{SLOTS,D,shots,get drones(){return shots.filter(h=>h.kind==='drone')},add,slotFree,deploy,clear,step,visuals,radar,rangeOf,L,launchDrone:(d,t)=>{const s=sl(d);fire(d,t,'drone',_a.set(s.x,s.y+2.5,s.z))}}}
+ return{SLOTS,D,shots,get drones(){return shots.filter(h=>h.kind==='drone')},add,remove,slotFree,deploy,clear,step,visuals,radar,rangeOf,L,launchDrone:(d,t)=>{const s=sl(d);fire(d,t,'drone',_a.set(s.x,s.y+2.5,s.z))}}}
