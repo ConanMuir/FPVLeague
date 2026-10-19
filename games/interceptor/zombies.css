@@ -14,6 +14,7 @@
 .zi i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#1f8f55,#3ddc84);transition:width .3s}.zi i.mid{background:linear-gradient(90deg,#9b7a18,#ffc640)}.zi i.lo{background:linear-gradient(90deg,#8f1f1f,#ff4d4d)}
 .zi em{position:relative;font-style:normal;font-size:13px;padding:0 12px;width:100%;text-align:center;text-shadow:0 0 3px #000}
 #zsites{display:flex;gap:14px;font-size:12px;white-space:nowrap}#zsites span{color:#7fd0ff}#zsites .lo{color:var(--amber)}#zsites .dead{color:#8a8f99;text-decoration:line-through}
+#zwarn{font:700 15px var(--mono);color:var(--red);margin-top:30px;animation:zbl 1s steps(2) infinite}#zwarn:empty{display:none}@keyframes zbl{50%{opacity:.55}}
 #zhud #zinb{font-size:13px;color:#ffb0b0}#zhud #zinb:empty{display:none}
 
 /* base screen and game over */

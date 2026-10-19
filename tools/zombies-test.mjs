@@ -88,6 +88,40 @@ async function page(mode) {
   await p.close();
 }
 
+// ---------- roster: every kind flies in and hits, unlocks by wave, boss stages and swarm launches, bunker, direct hit on a fast track ----------
+{
+  const {p, errs} = await page('z');
+  await p.click('#play'); await sleep(500);
+  const r = await p.evaluate(() => {
+    const {api, G, KIND} = __z, out = {};
+    __z.cont(); G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0;
+    for (const k of ['shahed', 'jet', 'decoy', 'swarm', 'heavy', 'cruise', 'ballistic', 'hyper', 'icbm']) {
+      const hp0 = __z.integrity().hp, t = __z.make(k, 0, -4000); let s = 0; const y0 = t.p.y, d0 = t.p.distanceTo(t.aim);
+      while (api.live(t) && s < 400) { __z.sim(.5); s += .5; }
+      out[k] = {sec: s, impacted: !!t.impacted, dmg: hp0 - __z.integrity().hp, startKm: +(d0 / 1000).toFixed(1), alt0: Math.round(y0)};
+      api.SITES.forEach(x => x.hp = x.max); for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0;
+    }
+    // unlocks: which kinds each wave's plan contains
+    const unl = {}; for (const w of [1, 5, 10, 11, 15, 20, 25, 30, 40]) { const P = []; for (let i = 0; i < 6; i++) P.push(...__z.plan(w).list.map(q => q.split(':')[0])); unl[w] = [...new Set(P)].sort().join(','); }
+    // boss: stages, swarm launches; player direct hit on a ballistic track
+    const b = __z.make('boss', 0, -3500); const st0 = b.stages; __z.sim(30); const sw = api.TH.filter(t => t.k === 'swarm').length; __z.Z.bossHit(b); const st1 = b.stages;
+    while (api.live(b)) __z.Z.bossHit(b); const bossPaid = !!b.paid;
+    for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0;
+    const m = __z.make('ballistic', 0, -60000), me = api.player; while (m.p.distanceTo(m.aim) > 1500) __z.sim(.25); me.p.copy(m.p).addScaledVector(m.v, 1 / 60).add(new api.THREE.Vector3(.3, 0, 0)); me.v.set(0, 0, 0); __z.sim(1 / 30);
+    const dh = !api.live(m) && !!m.paid;
+    __z.Z.bunker(true); const bk = api.SITES.length;
+    return {out, unl, st0, st1, sw, bossPaid, dh, bk};
+  });
+  for (const [k, v] of Object.entries(r.out)) ok(v.impacted && (k === 'decoy' ? v.dmg === 0 : v.dmg > 0), `Roster ${k}: from ${v.startKm} km at ${v.alt0} m, impact after ${v.sec} s, damage ${v.dmg}`);
+  console.log('  kinds per wave:', JSON.stringify(r.unl));
+  ok(!r.unl[1].includes('decoy') && r.unl[5].includes('decoy') && r.unl[10].includes('boss') && r.unl[15].includes('heavy') && r.unl[25].includes('ballistic') && r.unl[40].includes('icbm'), 'Roster: new kinds unlock every 5 waves, boss on wave 10');
+  ok(r.st0 >= 3 && r.st1 === r.st0 - 1 && r.sw > 0 && r.bossPaid, `Boss: ${r.st0} stages, one hit removes one, launched ${r.sw} swarm drones in 30 s, destroyed and paid`);
+  ok(r.dh, 'Direct hit: interceptor sitting on a ballistic track\'s line kills it');
+  ok(r.bk === 4, 'Command bunker joins as a fourth site');
+  ok(!errs.length, 'Roster: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+}
+
 // ---------- helper rack tiers: kill rate per tier and enemy kind (balance check) ----------
 if (argv.includes('--tiers')) {
   const {p, errs} = await page('z');

@@ -12,9 +12,9 @@ export const KIND={
  swarm:{n:'FPV swarm',tag:'FPV',pts:2,cash:20,dmg:10,spd:36,alt:[25,70],hitR:.8,armor:0,from:11,det:4500},
  heavy:{n:'Armored heavy',tag:'HEAVY',pts:30,cash:300,dmg:90,spd:60,alt:[150,700],hitR:2.1,armor:1,from:15,det:7500,riley:1},
  cruise:{n:'Cruise missile',tag:'CRUISE',pts:35,cash:350,dmg:110,spd:210,alt:[35,60],hitR:1.3,armor:0,from:20,det:16000,riley:1,far:22000},
- ballistic:{n:'Ballistic missile',tag:'BALLISTIC',pts:50,cash:600,dmg:160,spd:900,hitR:1.2,armor:'hard',from:25,det:1e9,far:70000},
- hyper:{n:'Hypersonic glider',tag:'HYPERSONIC',pts:80,cash:1000,dmg:240,spd:1600,hitR:1.4,armor:'hard',from:30,det:1e9,far:110000},
- icbm:{n:'ICBM warhead',tag:'ICBM',pts:120,cash:1500,dmg:400,spd:2600,hitR:1.2,armor:'hard',from:40,det:1e9,far:160000},
+ ballistic:{n:'Ballistic missile',tag:'BALLISTIC',pts:50,cash:600,dmg:160,spd:900,y0:32000,hitR:1.2,armor:'hard',from:25,det:1e9,far:70000},
+ hyper:{n:'Hypersonic glider',tag:'HYPERSONIC',pts:80,cash:1000,dmg:240,spd:1600,y0:30000,hitR:1.4,armor:'hard',from:30,det:1e9,far:110000},
+ icbm:{n:'ICBM warhead',tag:'ICBM',pts:120,cash:1500,dmg:400,spd:2600,y0:120000,hitR:1.2,armor:'hard',from:40,det:1e9,far:160000},
  boss:{n:'Mothership',tag:'MOTHERSHIP',pts:0,cash:2500,dmg:300,spd:30,alt:[650,750],hitR:9,armor:'boss',from:10,det:12000,riley:1}};
 export const ORDER=['shahed','jet','decoy','swarm','heavy','cruise','ballistic','hyper','icbm'];
 

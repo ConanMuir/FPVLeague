@@ -563,9 +563,9 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
  for(const f of FOBS){const d=Math.hypot(f.x-camera.position.x,f.z-camera.position.z);if(d>4000)continue;const q=scr(_ip.set(f.x,f.y+6,f.z));if(q){oc.fillStyle='#3ddc84';oc.fillText(f.n+' '+rng(d),q[0],q[1])}}
  for(const s of SITES){const q=scr(_ip.set(s.x,s.y+34,s.z));if(!q)continue;oc.fillStyle=s.hp?'#7fd0ff':'#8a8f99';oc.fillText(Z.on?Z.slabel(s):s.n+(s.hp?' '+'■'.repeat(s.hp):' · DESTROYED'),q[0],q[1])}
  for(const t of TH){if(t.st==='dead')continue;const q=scr(t.p);if(!q)continue;const[x,y]=q,d=t.p.distanceTo(camera.position),s=Math.max(9,Math.min(70,2.8/d/ft*H2*.5+5)),L=live(t),k=s*.45;
-  oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':Z.on?Z.ocol(t,sel):t===sel?'#ffc640':t.jet?'#ff9640':'#ff4d4d';
+  oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':Z.on?Z.ocol(t,sel):t===sel?'#ffc640':t.jet?'#ff9640':'#ff4d4d';if(Z.on&&Z.quiet(t)){oc.fillRect(x-2,y-2,4,4);continue}
   oc.beginPath();for(const[sx,sy]of[[-1,-1],[1,-1],[1,1],[-1,1]]){oc.moveTo(x+sx*s,y+sy*s-sy*k);oc.lineTo(x+sx*s,y+sy*s);oc.lineTo(x+sx*s-sx*k,y+sy*s)}oc.stroke();
-  if(L)oc.fillText(`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`,x,y+s+13);
+  if(L&&!(Z.on&&Z.quiet(t)))oc.fillText(`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`,x,y+s+13);
   // pursuit cue: a point 40 m behind the target along its track, led by your time to get there; fly through it to end up in its six
   if(L&&t===sel&&me){const vh=_tv.copy(t.v).normalize(),r=_a.subVectors(t.p,me.p).length(),tg=cl(r/Math.max(me.v.length(),40),0,8),cue=_ip.copy(t.p).addScaledVector(t.v,tg*.5).addScaledVector(vh,-40),lp=scr(cue);
    if(lp){oc.beginPath();oc.arc(lp[0],lp[1],7,0,7);oc.moveTo(lp[0]-11,lp[1]);oc.lineTo(lp[0]-4,lp[1]);oc.moveTo(lp[0]+4,lp[1]);oc.lineTo(lp[0]+11,lp[1]);oc.stroke()}}}
@@ -623,7 +623,7 @@ function step(dt){const me=player;
  if(me&&!demo){if(me.dead>0){if((me.dead-=dt)<=0&&wstate!=='over')launch()}else{humanControl(me,dt);if(me.mah>=BCAP)me.thr=0;const h=me.step(dt);if(h>CRASH)lose('crash');else if(me.mah>=BCAP&&me.gt>0)lose('bat');else fuse()}}
  for(const t of TH)threatStep(t,dt);waves(dt);fires(dt);if(Z.on)Z.step(dt)}
 // Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
-const Z=initZombies({THREE,scene,camera,renderer,S,save,TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,
+const Z=initZombies({THREE,scene,camera,renderer,S,save,TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},set BCAP(v){BCAP=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
