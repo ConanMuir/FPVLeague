@@ -9,7 +9,7 @@ const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(_
 const server = await createServer({root: process.cwd(), logLevel: 'error', server: {port: 0, host: '127.0.0.1'}}); await server.listen();
 const b = await puppeteer.launch({executablePath: process.env.EDGE_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true, protocolTimeout: 0, env, args: ['--ignore-gpu-blocklist', '--window-size=960,540']});
 const p = await b.newPage(); await p.setViewport({width: 960, height: 540}); const errs = [];
-p.on('pageerror', e => errs.push('pageerror: ' + e.message)); p.on('console', m => { if (m.type() === 'error' && !/favicon|fonts\.g/.test(m.text())) errs.push('console.error: ' + m.text()); }); p.on('error', e => errs.push('page crashed: ' + e.message));
+p.on('pageerror', e => errs.push('pageerror: ' + e.message)); p.on('console', m => { const u = m.location()?.url || ''; if (m.type() === 'error' && !/favicon|fonts\.g/.test(m.text() + ' ' + u)) errs.push('console.error: ' + m.text() + ' ' + u); }); p.on('error', e => errs.push('page crashed: ' + e.message));
 await p.goto(server.resolvedUrls.local[0] + 'app.html'); await new Promise(r => setTimeout(r, 6000)); p.setDefaultTimeout(0);
 let fails = 0; const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++; };
 async function heapMB() { const s = await p.target().createCDPSession(); await s.send('HeapProfiler.collectGarbage'); const h = await s.send('Runtime.getHeapUsage'); await s.detach(); return +(h.usedSize / 1048576).toFixed(1); }
@@ -71,6 +71,29 @@ ok(rows.every(r => r.mode === 'df' || (r.ballOut < 30 && !r.ballFar)), `League: 
 ok(rows.every(r => r.inWall < 50), `drones stay out of walls and rock (samples inside: ${rows.map(r => r.inWall).join(' ')})`);
 ok(rows.every(r => r.stuck < 5), `no drone stuck against a wall or in a cave (${rows.map(r => r.stuck).join(' ')})`);
 ok([...new Set(rows.map(r => r.mode))].every(m => rows.filter(r => r.mode === m).reduce((a, r) => a + r.goals, 0) > 0), `every mode scores (${rows.map(r => r.goals).join(" ")})`);
+// mode lifecycle through the real menu: in a match, open the pause menu and switch League -> Dogfight -> Freeplay -> League with the mode
+// buttons, then enter a training pack from its tile, play shots, leave with Leave game; 8 rounds. The mode, world, drones, physics
+// bodies and scene must come back to the same state every round.
+const LC = [];
+for (let round = 0; round < 8; round++) {
+  const r = await p.evaluate(async round => { const {MA, GS, ST, DF, R} = window.__ls, W = await import('/src/physics/world.js'), T = await import('/src/modes/training.js'), $ = id => document.getElementById(id), seen = [];
+    const run = s => { for (let i = 0; i < s * 120; i++) ST.step(1 / 120); };
+    if (GS.demo) { MA.startMatch(); }  /* a real match (the pause menu's mode buttons then start matches too) */
+    for (const m of ['df', 'free', 'league']) { MA.showMenu(true); const b = $('m_' + m); if (!b) return {err: 'no mode button ' + m}; b.click(); GS.paused = false; GS.menuOpen = false; run(2);
+      seen.push(`${m}:${GS.GM}/${GS.OBSON ? 'hl' : 'ar'}/${GS.drones.length}`); }
+    MA.showMenu(true); $('packsbtn')?.click();  /* the Training screen's pack tiles are drawn when it opens */
+    const tiles = [...($('ptiles')?.children || [])].filter(b => b.dataset.id), tile = tiles[round % Math.max(1, tiles.length)]; if (!tile) return {err: 'no training tiles'};
+    MA.showMenu(true); tile.click(); GS.paused = false; GS.menuOpen = false; const on = T.TR.on, pack = T.TR.pack?.id;
+    for (let s = 0; s < 3 && T.TR.on; s++) { run(1); T.goShot(); run(3); T.nextShot(); }
+    MA.showMenu(true); $('leave').click(); const off = !T.TR.on; GS.paused = true; GS.menuOpen = true;
+    if (!GS.demo) MA.startDemo(); GS.paused = true; GS.menuOpen = true; run(.5);
+    const st = window.__ls.stats(); return {seen, on, pack, off, GM: GS.GM, drones: GS.drones.length, bodies: W.world.bodies.len(), colliders: W.world.colliders.len(), objs: st.objs, geo: st.geo, orphan: st.orphan, top: st.top}; }, round);
+  LC.push(r); if (r.err) break;
+}
+console.log('mode lifecycle rounds:'); for (const r of LC) console.log('  ' + (r.err || `${r.seen.join(' ')} | training ${r.pack} on ${r.on} off ${r.off} -> ${r.GM} | drones ${r.drones} bodies ${r.bodies} colliders ${r.colliders} objs ${r.objs} geo ${r.geo} left behind ${r.orphan}`));
+ok(LC.every(r => !r.err && r.seen.every(s => { const [want, got] = s.split(':'); return got.startsWith(want + '/'); }) && r.on && r.off), 'mode buttons in the pause menu switch modes, training packs enter and leave');
+{ const a = LC[2] || LC[0], z = LC.at(-1); ok(!z.err && z.bodies === a.bodies && z.colliders === a.colliders && z.drones === a.drones && z.objs - a.objs < 30 && z.geo - a.geo < 40, `mode lifecycle leaves nothing behind (round 3 -> 8: bodies ${a.bodies} -> ${z.bodies}, colliders ${a.colliders} -> ${z.colliders}, drones ${a.drones} -> ${z.drones}, objects ${a.objs} -> ${z.objs}, geometries ${a.geo} -> ${z.geo})` + (z.geo - a.geo >= 40 ? ' ' + JSON.stringify(z.top) : '')); }
+
 // many match starts: every one re-rolls the bots' part loadouts; GPU geometries must level off (the parts cache is capped, each drone frees its trail)
 const reb = []; for (let k = 0; k < 3; k++) { reb.push(await p.evaluate(() => { const {MA, GS} = window.__ls; for (let i = 0; i < 25; i++) { MA.startDemo(); GS.paused = true; GS.menuOpen = true; window.__ls.ST.step(1 / 120); } return null; })); await new Promise(r => setTimeout(r, 300)); reb[k] = await p.evaluate(() => window.__ls.stats()); }
 console.log(`75 match starts: geometries ${reb.map(r => r.geo).join(' -> ')}, left behind ${reb.map(r => r.orphan).join(' -> ')}`);
