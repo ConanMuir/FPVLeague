@@ -55,6 +55,29 @@ export const RACK_TIERS=[{n:'Mk I',hit:.30,direct:.25,cost:0,note:'basic seeker'
  {n:'Mk III',hit:.65,direct:.45,cost:1200,note:'predicts manoeuvres'},{n:'Mk IV',hit:.80,direct:.55,cost:2200,note:'endgame shaping'},{n:'Mk V',hit:.90,direct:.7,cost:3600,note:'top seeker and fuse; ignores decoys'}];
 export const RACK_CAP=[2,3,4],RACK_CAP_COST=[0,500,800],RACK_REARM=12,RACK_RANGE=3200,DRONE_SPD=118,DRONE_FUEL=60;
 
-// shop items: helpers are placed on a slot; perks are the player's (checkpoint 4 adds the rest)
+// The other helpers: three levels each (lv[0] = as bought). p = kill chance per engagement before RESIST; mag = shots per wave; rng = reach (m).
+export const HELP={
+ flak:{rng:1800,lv:[{rof:2.4,p:.35},{cost:350,rof:1.8,p:.42,txt:'faster loading'},{cost:600,rof:1.3,p:.5,txt:'better fuzes'}]},
+ gepard:{rng:3500,lv:[{p:.28},{cost:900,p:.36,rng:4000,txt:'+range, tighter bursts'},{cost:1500,p:.45,rng:4000,ahead:1,txt:'airburst rounds: bursts catch swarm neighbours'}]},
+ sam:{rng:9000,lv:[{mag:4,p:.9},{cost:1200,mag:6,p:.9,txt:'+2 missiles per wave'},{cost:1500,mag:8,p:.92,smart:1,txt:'+2 missiles, seekers ignore decoys'}]},
+ ew:{rng:1400,lv:[{p:.35},{cost:700,p:.5,rng:1800,txt:'bigger bubble, stronger'},{cost:1100,p:.65,rng:2300,txt:'widest bubble, strongest'}]},
+ idome:{rng:12000,lv:[{mag:6,p:.88},{cost:1800,mag:10,p:.88,over:1,txt:'+4 interceptors; also covers drones when idle'},{cost:2400,mag:14,p:.9,over:1,txt:'+4 interceptors'}]},
+ gdome:{rng:9e9,lv:[{mag:2,p:.92},{cost:4000,mag:4,p:.92,txt:'+2 space interceptors'},{cost:5000,mag:6,p:.94,txt:'+2 space interceptors'}]}};
+
+// Player perks: prices per level; active ones (freeze, mark, air) have charges per wave. Mark: helper hits on a marked track count double.
+export const PERK={
+ freeze:{key:'Q',pad:'D-pad left',cost:[900,800,1200]},mark:{key:'E',pad:'D-pad right',cost:[1000,900,1400]},air:{key:'X',pad:'D-pad up',cost:[1800,1600]},
+ radar:{cost:[500,800,1200]},optics:{cost:[600,700,900]},relaunch:{cost:[500,900]},warhead:{cost:[700,1100,1600]},battery:{cost:[500,900]},aid:{cost:[1200]}};
+
+// shop items: helpers are placed on a slot; perks belong to the player
 export const ITEMS={
- rack:{type:'helper',n:'Interceptor drone rack',price:700,from:1,glyph:'▲',blurb:'Launches interceptor drones at tracks in range (3.2 km). A drone claims its track: it turns yellow for you. Upgrade Mk I→V in the Armory.'}};
+ rack:{type:'helper',n:'Interceptor drone rack',price:700,from:1,glyph:'▲',blurb:'Launches interceptor drones at tracks in range (3.2 km). A drone claims its track: it turns yellow for you. Upgrade Mk I→V in the Armory.'},
+ flak:{type:'helper',n:'Flak mortar',price:450,from:1,glyph:'✸',blurb:'Lobs airburst shells at slow, low tracks within 1.8 km. Great against swarms. Useless against jets and missiles.'},
+ ew:{type:'helper',n:'EW jammer',price:1100,from:3,glyph:'≋',blurb:'Jams satellite navigation in a 1.4 km bubble: spoofed tracks hit empty fields instead of the site. FPV swarms are fibre-guided and immune.'},
+ gepard:{type:'helper',n:'Gepard gun',price:1600,from:3,glyph:'≡',blurb:'Twin 35 mm cannons with radar, 3.5 km. Solid against drones, jets and cruise missiles.'},
+ sam:{type:'helper',n:'SAM battery',price:2800,from:6,glyph:'⇑',blurb:'Long-range missiles (9 km): 4 per wave, nearly always a kill and armor doesn\'t matter. Wasted on swarms and decoys.'},
+ idome:{type:'helper',n:'Iron Dome',price:4200,from:20,glyph:'◠',blurb:'Dome-class interceptors: stops ballistic and cruise missiles. 6 per wave.'},
+ gdome:{type:'helper',n:'Golden Dome',price:9000,from:28,glyph:'✦',blurb:'Space-based interceptors: the only answer to hypersonic and ICBM tracks. 2 per wave, anywhere on the map.'},
+ freeze:{type:'perk',n:'Freeze',from:2,glyph:'❄'},mark:{type:'perk',n:'Mark',from:2,glyph:'◎'},air:{type:'perk',n:'Airstrike',from:6,glyph:'✈'},
+ radar:{type:'perk',n:'Long-range radar',from:2,glyph:'◉'},optics:{type:'perk',n:'Optics',from:2,glyph:'◈'},relaunch:{type:'perk',n:'Fast relaunch',from:2,glyph:'↻'},
+ warhead:{type:'perk',n:'Bigger warhead',from:2,glyph:'✹'},battery:{type:'perk',n:'Better battery',from:2,glyph:'▮'},aid:{type:'perk',n:'Foreign Aid',from:4,glyph:'$'}};

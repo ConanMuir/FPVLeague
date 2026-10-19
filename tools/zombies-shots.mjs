@@ -23,4 +23,19 @@ if (want('kinds')) {
   await sleep(600); await p.screenshot({path: OUT + '/z-kinds.png'});
   await p.evaluate(() => { clearInterval(window.__freeze); const {api} = __z; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; while (__z.G.state === 'wave') __z.sim(1); });
 }
+if (want('base')) {
+  // a mid-game base: wave 14 cleared, a handful of defences and perks, some damage
+  await p.evaluate(() => {
+    const {api, G, Z} = __z, def = Z.def;
+    if (G.state !== 'base') { while (G.state === 'wave') __z.sim(1); if (G.state === 'clear') __z.sim(4); }
+    [['rack', 0, 2], ['gepard', 3], ['flak', 6], ['sam', 9], ['ew', 10], ['rack', 12, 1]].forEach(([t, s, l]) => { const d = def.add(t, s); if (t === 'rack') d.tier = l; else d.lvl = 1; d.kills = 3 + (Math.random() * 20 | 0); });
+    G.perks = {}; for (const k of ['freeze', 'mark', 'radar']) Z.buyPerk(k);
+    G.wave = 14; G.cash = 8450; Z.bunker(true); api.SITES[0].hp = 230; api.SITES[2].hp = 410; api.SITES[3].hp = 500;
+    Z.base.close(); G.next = __z.plan(15); Z.base.open();
+  });
+  await sleep(400); await p.screenshot({path: OUT + '/z-base-shop.png'});
+  await p.click('[data-tab="armory"]'); await sleep(300); await p.screenshot({path: OUT + '/z-base-armory.png'});
+  await p.click('[data-tab="sites"]'); await sleep(300); await p.screenshot({path: OUT + '/z-base-sites.png'});
+  await p.setViewport({width: 412, height: 860}); await p.click('[data-tab="shop"]'); await sleep(400); await p.screenshot({path: OUT + '/z-base-phone.png'}); await p.setViewport({width: 1280, height: 720});
+}
 console.log(errs.length ? errs.join('\n') : 'no errors'); await b.close(); server.close();

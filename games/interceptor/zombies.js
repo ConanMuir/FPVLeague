@@ -5,6 +5,7 @@ import {KIND,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,speedK,START_CASH,HE
 import {initBase} from './zbase.js';
 import {initDefences} from './zdef.js';
 import {initEnemies} from './zenemy.js';
+import {initPerks} from './zperk.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -28,7 +29,7 @@ export function initZombies(api){
  hudEl.innerHTML='<div class="zt"><span id="zw">WAVE 1</span><span id="zc">$0</span><span class="zi"><i id="zib"></i><em id="zit">100%</em></span><span id="zs"></span><span id="zinb"></span></div><div id="zsites"></div><div id="zwarn"></div>';
  $('hud').append(hudEl);
  let lastSites='';
- Z.hud=()=>{const integ=integrity();$('zw').textContent=G.state==='base'?`WAVE ${G.wave+1} NEXT`:`WAVE ${G.wave}`;$('zc').textContent=money(G.cash);
+ Z.hud=()=>{pk.hud();const integ=integrity();$('zw').textContent=G.state==='base'?`WAVE ${G.wave+1} NEXT`:`WAVE ${G.wave}`;$('zc').textContent=money(G.cash);
   const f=integ.max?integ.hp/integ.max:0;$('zib').style.width=(f*100).toFixed(1)+'%';$('zib').className=f<.3?'lo':f<.6?'mid':'';$('zit').textContent=`INTEGRITY ${Math.round(f*100)}%`;
   $('zs').textContent=G.streak>1?`STREAK ×${G.streak}`:'';$('zs').hidden=G.streak<2;
   const sh=SITES.map(s=>`<span class="${s.hp>0?(s.hp<s.max*.35?'lo':''):'dead'}">${s.n} ${Math.max(0,Math.ceil(s.hp))}/${s.max}</span>`).join('');if(sh!==lastSites)$('zsites').innerHTML=lastSites=sh;
@@ -39,11 +40,12 @@ export function initZombies(api){
  // ---------- start / stop ----------
  const def=Z.def=initDefences(api,G,Z);
  const en=Z.en=initEnemies(api,G,Z);
- const base=initBase(Z,api,G);
+ const pk=Z.pk=initPerks(api,G,Z);
+ const base=Z.base=initBase(Z,api,G);
  const openBase=()=>{G.next=plan(G.wave+1);base.open()};
  // Zombies widens the AO, adds the far-field terrain and long radar ranges (25 / 100 / 250 km) for the fast threats
  Z.start=()=>{G.on=true;G.state='base';G.wave=0;G.cash=START_CASH;G.earned=0;G.kills={p:0,h:0};G.streak=0;G.wq.length=0;G.pops.length=0;G.perfect=true;
-  bunker(false);for(const s of SITES){s.max=s.hp=SITE_HP[s.n]||400}def.clear();en.farRing().visible=true;if(api.RRS.length===3)api.RRS.push(25000,100000,250000);
+  bunker(false);for(const s of SITES){s.max=s.hp=SITE_HP[s.n]||400}def.clear();pk.reset();en.farRing().visible=true;if(api.RRS.length===3)api.RRS.push(25000,100000,250000);
   api.AW=4300;api.wave=0;api.wstate='wave';$('hud').classList.add('z');hudEl.hidden=false;$('zover').hidden=true;
   openBase()};
  Z.stop=()=>{if(!G.on&&G.state==='off')return;G.on=false;G.state='off';bunker(false);for(const s of SITES){s.max=s.hp=3}api.AW=3000;api.applyTune();def.clear();en.hide();en.farRing().visible=false;
@@ -54,6 +56,7 @@ export function initZombies(api){
  // a wave = a threat-point budget spent on unlocked kinds, split into raids from different edges; each raid spawns over a few seconds
  function compose(w){const out=[];let b=budget(w,S.diff|0);if(w===1)return['shahed','jet'];
   if(isBoss(w)){out.push('boss');b=Math.round(b*.6)}
+  for(const k of ORDER)if(KIND[k].from===w&&k!=='swarm'){out.push(k);b-=KIND[k].pts}  // a new kind always shows up in its first wave
   const ks=ORDER.filter(k=>weight(k,w)>0);
   while(b>0){let tot=0;for(const k of ks)tot+=weight(k,w);let r=Math.random()*tot,k=ks[0];for(const q of ks){r-=weight(q,w);if(r<=0){k=q;break}}
    if(k==='swarm'){const n=6+(Math.random()*Math.min(10,2+w/3)|0);out.push('swarm:'+n);b-=n*KIND.swarm.pts}else{out.push(k);b-=KIND[k].pts}}
@@ -74,7 +77,7 @@ export function initZombies(api){
  Z.bunker=bunker;
  function startWave(){G.wave++;api.wave=G.wave;G.state='wave';G.perfect=true;G.wt=0;if(G.wave>=BUNKER_WAVE)bunker(true);const P=G.next||plan(G.wave);G.next=null;G.wq=P.q;
   banner('WAVE '+G.wave,'cr',2.4);const n={};for(const q of P.list){const k=q.split(':')[0];n[k]=(n[k]||0)+(+q.split(':')[1]||1)}
-  feed('Inbound: '+Object.entries(n).map(([k,c])=>`${c}× ${KIND[k].n}`).join(', '));def.deploy();
+  feed('Inbound: '+Object.entries(n).map(([k,c])=>`${c}× ${KIND[k].n}`).join(', '));def.deploy();pk.refill();
   if(api.player&&api.player.dead<=0)api.launch()}
  Z.continue=()=>{base.close();startWave()};
  Z.kindNote=k=>({decoy:'cheap and harmless, but looks like a Shahed on radar and soaks up helpers. Cold on thermal.',swarm:'many tiny quads, low and erratic. One burst can take several.',
@@ -117,7 +120,7 @@ export function initZombies(api){
   earn(c,t.p,why)};
  function earn(c,p,why){c=Math.round(c);G.cash+=c;G.earned+=c;if(p)pop(p,`+${money(c)}${why||''}`,why?'#ffe23c':'#3ddc84')}
  Z.earn=earn;
- const pop=(p,txt,col)=>{if(G.pops.length>40)G.pops.shift();G.pops.push({p:p.clone(),txt,col,t:0})};
+ const pop=Z.pop=(p,txt,col)=>{if(G.pops.length>40)G.pops.shift();G.pops.push({p:p.clone(),txt,col,t:0})};
 
  // player warhead in Zombies: Riley's kill model (pkill from miss distance + fuse delay), plus the one-hit/armor rules
  Z.detonate=()=>{const d=api.player,out=[];G.burst={n:0};
@@ -136,7 +139,7 @@ export function initZombies(api){
  Z.outcome=outcome;
  // helper hits: p = the helper's kill chance for this target. Marked targets take double damage from helpers: two rolls (1-(1-p)^2),
  // near-miss damage becomes a kill, and armor is ignored. Unmarked armor turns non-direct hits into damage.
- Z.helperHit=(t,p,direct=.3)=>{const K=KIND[t.k]||KIND.shahed,mk=!!t.mark;if(K.armor==='hard'&&!Z.domeHit)return'miss';if(mk)p=1-(1-p)**2;const r=Math.random();
+ Z.helperHit=(t,p,direct=.3,dome=false)=>{const K=KIND[t.k]||KIND.shahed,mk=!!t.mark;if(K.armor==='hard'&&!dome)return'miss';if(mk)p=1-(1-p)**2;const r=Math.random();
   if(r<p){if(!mk&&(K.armor===1||K.armor==='boss')&&r>=p*direct)return'damage';return'kill'}
   if(r<p+(1-p)*.3)return mk?'kill':t.dmg?'miss':'damage';return'miss'};
  Z.helperKill=t=>{if(!api.live(t))return;t.by='h';if(KIND[t.k]?.armor==='boss'&&Z.bossHit)return Z.bossHit(t);api.killThreat(t,Math.random()<.4)};
@@ -155,7 +158,7 @@ export function initZombies(api){
  // ---------- per-step ----------
  Z.step=dt=>{const me=api.player;if(!me)return;const alive=me.dead<=0;
   if(G.wasAlive&&!alive&&!G.detFlag&&G.streak)G.streak=0;  // crashed or flat battery: streak over
-  if(alive){G.detFlag=false;if(G.pp)directHits(me);(G.pp||(G.pp=new V3())).copy(me.p)}else G.pp=null;G.wasAlive=alive;def.step(dt);
+  pk.step(dt);if(alive){G.detFlag=false;if(G.pp)directHits(me);(G.pp||(G.pp=new V3())).copy(me.p)}else G.pp=null;G.wasAlive=alive;def.step(dt);
   for(const t of TH)if(t.k==='decoy'&&!t.ident&&api.live(t)&&(alive&&me.p.distanceTo(t.p)<900||Z.ident?.(t)))t.ident=1};
  // fast tracks move metres per step, faster than the fuse's sampling: check the closest approach over the step itself. Only a direct hit counts.
  function directHits(me){for(const t of TH){if(!api.live(t)||!t.pp||t.spd<150)continue;const K=KIND[t.k];
@@ -190,10 +193,10 @@ export function initZombies(api){
   oc.font='700 14px "JetBrains Mono",monospace';
   for(let i=G.pops.length-1;i>=0;i--){const p=G.pops[i];if(p.t>1.6){G.pops.splice(i,1);continue}_a.copy(p.p).project(cam);if(_a.z>1)continue;
    oc.globalAlpha=cl(2-p.t*1.25,0,1);oc.fillStyle=p.col;oc.fillText(p.txt,(_a.x*.5+.5)*W,(-_a.y*.5+.5)*H-30-p.t*40)}
-  oc.restore()};
+  pk.overlay(oc,W,H);oc.restore()};
  Z.visuals=dt=>{for(const p of G.pops)p.t+=dt;lead.clear();for(const t of TH)if(t.k==='swarm'&&api.live(t)&&!lead.has(t.grp))lead.set(t.grp,t);def.visuals();en.visuals(dt)};
- Z.key=e=>base.key(e);
- Z.pad=e=>base.pad(e);
+ Z.key=e=>base.el.hidden?pk.key(e):base.key(e);
+ Z.pad=e=>base.el.hidden&&$('zover').hidden?pk.pad(e):base.pad(e);
 
  // ---------- harness hooks (tools/zombies-test.mjs) ----------
  window.__z={G,Z,api,KIND,integrity,
@@ -201,9 +204,9 @@ export function initZombies(api){
   cont:()=>Z.continue(),make:(k,x,z)=>make(k,x,z),plan:w=>plan(w),jump(w,cash){G.wave=w-1;if(cash!=null)G.cash=cash},
   // helper rack trials: one track of a kind runs in toward a site, one drone of the given tier is launched at it from that site's north slot.
   // Returns kill / damage / miss counts. Sites and money are left as they were.
-  trials(tier,kind,n=100){const save={cash:G.cash,earned:G.earned,kills:{...G.kills},st:G.state,hp:SITES.map(s=>s.hp)},res={kill:0,damage:0,miss:0};G.state='trial';
+  trials(tier,kind,n=100,mark=false){const save={cash:G.cash,earned:G.earned,kills:{...G.kills},st:G.state,hp:SITES.map(s=>s.hp)},res={kill:0,damage:0,miss:0};G.state='trial';
    const keep=TH.splice(0);const si=def.SLOTS.findIndex(s=>s.site&&/north/.test(s.n)),d=def.add('rack',si);d.tier=tier;
-   for(let i=0;i<n;i++){const s=def.SLOTS[si],b=(Math.random()-.5)*2,R=3000,t=make(kind,s.x+Math.sin(b)*R,s.z-Math.cos(b)*R,s.site);if(!t)break;t.mesh.visible=false;
+   for(let i=0;i<n;i++){const s=def.SLOTS[si],b=(Math.random()-.5)*2,R=3000,t=make(kind,s.x+Math.sin(b)*R,s.z-Math.cos(b)*R,s.site);if(!t)break;t.mesh.visible=false;if(mark)t.mark=1e9;
     def.launchDrone(d,t);d.ready=d.cap;let k=0;while(def.drones.length&&k++<120*90){api.step(1/120)}
     if(t.paid||t.st==='fall'||t.st==='dead'&&!t.impacted)res.kill++;else if(t.dmg)res.damage++;else res.miss++;
     for(const u of TH)api.scene.remove(u.mesh);TH.length=0}

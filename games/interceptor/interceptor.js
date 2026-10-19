@@ -21,7 +21,7 @@ mountMod();setFeedTime(5500);
 // ---------- world constants (metres, seconds; real scale) ----------
 // AO = area of operations, ±AW. Threats enter at SPAWNZ (north, -z) and fly toward the defended sites in the south (+z).
 let AW=3000;const TW=9000,TN=360,CEIL=4000,SPAWNZ=-2900;  // AW is widened while Zombies runs
-let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.22,MAXV=78,TE=1.6,VP=240,DL=.1,DQ=.006,HOV=(G/THR)**(1/TE),TAU=.012,DB=.35,GSPD=1,SHK=1,LETH=4,CRASH=30,RELT=2.5,TSPD=1,TCNT=1,BCAP=16000,MSZ=1;
+let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.22,MAXV=78,TE=1.6,VP=240,DL=.1,DQ=.006,HOV=(G/THR)**(1/TE),TAU=.012,DB=.35,GSPD=1,SHK=1,LETH=4,CRASH=30,RELT=2.5,TSPD=1,TCNT=1,BCAP=16000,MSZ=1,SAGK=1;
 const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3(),_tl=new V3(),_vr=new V3();
 const DIFF=[{n:'Light',cnt:.7,spd:.92,gap:1.3},{n:'Heavy',cnt:1,spd:1,gap:1},{n:'Saturation',cnt:1.5,spd:1.06,gap:.7}];
 const RRS=[2000,5000,10000];
@@ -309,7 +309,7 @@ class Drone{
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
   this.ms+=(this.thr-this.ms)*(1-Math.exp(-dt/Math.max(1e-3,this.thr>this.ms?SPOOL:SPOOL*1.6)));  // motor spool-up / spin-down
-  const I=this.amp=6+220*Math.max(this.ms,0)**1.5;this.mah+=I*dt/3.6;this.vp+=(I*.0011-this.vp)*(1-Math.exp(-dt/(I*.0011>this.vp?.6:2.5)));this.vc=ocv(this.mah/BCAP)-I*.0016-this.vp;  // pack current (A), mAh used, per-cell voltage: IR drop (1.6 mΩ/cell) + polarisation that builds over ~0.6 s and recovers over ~2.5 s
+  const I=this.amp=6+220*Math.max(this.ms,0)**1.5;this.mah+=I*dt/3.6;this.vp+=(I*.0011-this.vp)*(1-Math.exp(-dt/(I*.0011>this.vp?.6:2.5)));this.vc=ocv(this.mah/BCAP)-(I*.0016+this.vp)*SAGK;  // pack current (A), mAh used, per-cell voltage: IR drop (1.6 mΩ/cell) + polarisation that builds over ~0.6 s and recovers over ~2.5 s
   let acc=THR*this.ms**TE*Math.min(1.04,(Math.max(this.vc,3)/4.05)**1.6);  // thrust ~ rpm² ~ voltage² at a given throttle: sags with load and as the pack drains (1.0 at a fresh pack in hover)
   acc*=cl(1-va/VP,0,1.15);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
   this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;
@@ -626,7 +626,7 @@ function step(dt){const me=player;
 const Z=initZombies({THREE,scene,camera,renderer,S,save,TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
- get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},set BCAP(v){BCAP=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
+ get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get thermLook(){return thermLook},get WX(){return WX},deck,set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
 startDemo();
 startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD,paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now)=>{
  if(!menuOpen&&!demo)switches();

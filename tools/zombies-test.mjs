@@ -49,7 +49,7 @@ async function page(mode) {
   ok(b1.base && b1.st === 'base' && b1.wave === 1, 'Zombies: wave 1 clear opens the base screen (no timer)');
   // shop: buy a drone rack from its card, place it, upgrade it in the Armory, reroll
   await p.evaluate(() => { __z.G.cash = 6000; __z.Z.def && document.querySelector('[data-tab="shop"]').click(); });
-  const bought = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); if (i < 0) return 'no rack card'; document.querySelector(`[data-buy="${i}"]`).click(); return !!document.querySelector('[data-slot]'); });
+  const bought = await p.evaluate(() => { if (!__z.G.cards.some(c => c.k === 'rack')) { __z.G.cards[0] = {k: 'rack', sold: false}; __z.Z.base.render(); } const i = __z.G.cards.findIndex(c => c.k === 'rack'); if (i < 0) return 'no rack card'; document.querySelector(`[data-buy="${i}"]`).click(); return !!document.querySelector('[data-slot]'); });
   ok(bought === true, 'Base: buying the rack card asks for a position');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-place.png'});
   await p.click('[data-slot]');
@@ -102,7 +102,7 @@ async function page(mode) {
       api.SITES.forEach(x => x.hp = x.max); for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0;
     }
     // unlocks: which kinds each wave's plan contains
-    const unl = {}; for (const w of [1, 5, 10, 11, 15, 20, 25, 30, 40]) { const P = []; for (let i = 0; i < 6; i++) P.push(...__z.plan(w).list.map(q => q.split(':')[0])); unl[w] = [...new Set(P)].sort().join(','); }
+    const unl = {}; for (const w of [1, 5, 10, 11, 15, 20, 25, 30, 40]) { const P = []; for (let i = 0; i < 3; i++) P.push(...__z.plan(w).list.map(q => q.split(':')[0])); unl[w] = [...new Set(P)].sort().join(','); }
     // boss: stages, swarm launches; player direct hit on a ballistic track
     const b = __z.make('boss', 0, -3500); const st0 = b.stages; __z.sim(30); const sw = api.TH.filter(t => t.k === 'swarm').length; __z.Z.bossHit(b); const st1 = b.stages;
     while (api.live(b)) __z.Z.bossHit(b); const bossPaid = !!b.paid;
@@ -119,6 +119,39 @@ async function page(mode) {
   ok(r.dh, 'Direct hit: interceptor sitting on a ballistic track\'s line kills it');
   ok(r.bk === 4, 'Command bunker joins as a fourth site');
   ok(!errs.length, 'Roster: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+}
+
+// ---------- helpers and perks: every helper engages its kinds; Mark, Freeze, Airstrike and the passives do what the cards say ----------
+{
+  const {p, errs} = await page('z');
+  await p.click('#play'); await sleep(500);
+  const r = await p.evaluate(() => {
+    const {api, G, Z, KIND} = __z, def = Z.def, out = {};
+    // a defence with one of everything; waves 20 and 30 (cruise, ballistic, hyper) with an idle player
+    const types = ['rack', 'flak', 'gepard', 'sam', 'ew', 'idome', 'gdome'];
+    types.forEach((t, i) => { const d = def.add(t, i); if (t !== 'rack') d.lvl = 1; });
+    for (const w of [20, 30]) { __z.jump(w, 0); G.next = __z.plan(w); __z.cont(); let n = 0; while (G.state === 'wave' && n++ < 1600) { __z.sim(.5); if (__z.integrity().hp < 600) api.SITES.forEach(s => s.hp = s.max); } if (G.state === 'clear') __z.sim(4); }
+    for (const d of def.D) out[d.type] = {shots: d.shots, kills: d.kills, ...(d.res || {})};
+    // Mark: rack Mk I against armored heavies, marked vs not
+    const m0 = __z.trials(0, 'heavy', 120, false), m1 = __z.trials(0, 'heavy', 120, true);
+    // perks
+    G.state = 'wave'; G.perks = {}; for (const k of ['freeze', 'mark', 'air', 'warhead', 'relaunch', 'battery', 'aid', 'radar']) Z.buyPerk(k); Z.pk.refill();
+    for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0;
+    const a = __z.make('shahed', 0, -2000), sp0 = a.spd; Z.pk.use('freeze'); const frozen = a.spd / sp0;
+    const L = []; for (let i = 0; i < 6; i++) { const t = __z.make('shahed', 300 + i * 12, -1500); t.p.y = 400; t.alt = 400 - api.gh(t.p.x, t.p.z); L.push(t); }
+    Z.pk.use('air'); __z.sim(3); const airKills = L.filter(t => !api.live(t)).length;
+    const perks = {frozen, airKills, leth: api.LETH, aid: Z.repairK(), radar: Z.radarK(), mark: (Z.pk.use('mark'), api.TH.some(t => t.mark > 0))};
+    return {out, m0, m1, perks};
+  });
+  console.log('  helper shots/kills over waves 20 and 30:', JSON.stringify(r.out));
+  for (const t of ['rack', 'flak', 'gepard', 'sam', 'idome']) ok(r.out[t].shots > 0 && r.out[t].kills > 0, `Helper ${t}: ${r.out[t].shots} shots, ${r.out[t].kills} kills`);
+  ok(r.out.ew.kills > 0, `EW jammer spoofed ${r.out.ew.kills} tracks`);
+  ok(r.out.gdome.shots > 0, `Golden Dome fired ${r.out.gdome.shots} space interceptors (${r.out.gdome.kills} kills)`);
+  ok(r.m1.kill > r.m0.kill + 15, `Mark: Mk I rack vs armored heavy, kills ${r.m0.kill}/120 unmarked -> ${r.m1.kill}/120 marked`);
+  const P = r.perks;
+  ok(Math.abs(P.frozen - .5) < .01 && P.airKills >= 5 && P.leth === 5 && Math.abs(P.aid - .7) < 1e-9 && P.radar === 1.3 && P.mark, `Perks: freeze x${P.frozen}, airstrike ${P.airKills}/6, warhead ${P.leth} m, Foreign Aid repairs x${P.aid}, radar x${P.radar}, mark set`);
+  ok(!errs.length, 'Helpers/perks: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
 

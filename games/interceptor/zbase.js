@@ -1,10 +1,10 @@
 // Zombies base screen, shown between waves with no timer. An overview map of the defended area (sites, slots, your defences, where the
 // next wave comes from), a Shop of random cards with a paid reroll, the Armory (upgrade anything you own), Sites (repairs), and Continue.
 // Keyboard: arrows move focus, Enter / Space activate, 1-3 tabs, C continue (Esc opens the menu; Cancel backs out of a placement). Gamepad: D-pad, A, B cancel, LB/RB tabs, Y continue.
-import {KIND,ITEMS,RESIST,REPAIR_PER_HP,REROLL,RACK_TIERS,RACK_CAP,RACK_CAP_COST,RACK_RANGE,ORDER} from './zdata.js';
+import {KIND,ITEMS,RESIST,REPAIR_PER_HP,REROLL,RACK_TIERS,RACK_CAP,RACK_CAP_COST,RACK_RANGE,ORDER,HELP} from './zdata.js';
 const $=id=>document.getElementById(id);
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
-const MAPX=[-4300,4300],MAPZ=[-3400,3000],MW=640,MH=Math.round(MW*(MAPZ[1]-MAPZ[0])/(MAPX[1]-MAPX[0]));
+const MAPX=[-3200,3200],MAPZ=[-1900,2900],MW=640,MH=Math.round(MW*(MAPZ[1]-MAPZ[0])/(MAPX[1]-MAPX[0]));
 export function initBase(Z,api,G){
  const {SITES,PADP,FOBS}=api;
  const el=document.createElement('div');el.id='zbase';el.hidden=true;$('menu').before(el);
@@ -36,14 +36,19 @@ export function initBase(Z,api,G){
  function defRow(d){const s=Z.def.SLOTS[d.slot],it=ITEMS[d.type];let ups='';
   if(d.type==='rack'){const T=RACK_TIERS[d.tier],N=RACK_TIERS[d.tier+1],ci=RACK_CAP.indexOf(d.cap),nc=RACK_CAP[ci+1];
    ups=`<span class="zst">${T.n} · ${Math.round(T.hit*100)}% kill per hit · ${d.cap} drones · ${d.kills} kills</span>
-    <button class="sm" data-up="${d.id}:tier" ${N&&G.cash>=N.cost?'':'disabled'}>${N?`${N.n} (${Math.round(N.hit*100)}%, ${N.note}) ${money(N.cost)}`:'Mk V: max'}</button>
+    ${N?`<span class="zst zn">Next: ${N.n}, ${Math.round(N.hit*100)}% per hit, ${N.note}</span>`:''}
+    <button class="sm" data-up="${d.id}:tier" ${N&&G.cash>=N.cost?'':'disabled'}>${N?`${N.n} ${money(N.cost)}`:'Mk V: max'}</button>
     <button class="sm" data-up="${d.id}:cap" ${nc&&G.cash>=RACK_CAP_COST[ci+1]?'':'disabled'}>${nc?`+1 drone ${money(RACK_CAP_COST[ci+1])}`:'4 drones: max'}</button>`}
-  else ups=Z.defUpgradeHTML?.(d,money)||'';
+  else{const H=HELP[d.type],l=H.lv[d.lvl],n=H.lv[d.lvl+1];
+   ups=`<span class="zst">level ${d.lvl+1}${l.mag?` · ${l.mag} shots per wave`:''}${d.type==='ew'?` · ${((l.rng||H.rng)/1000).toFixed(1)} km bubble · ${d.kills} spoofed`:` · ${d.kills} kills`}</span>
+    ${n?`<span class="zst zn">Next: level ${d.lvl+2}, ${n.txt}</span>`:''}
+    <button class="sm" data-up="${d.id}:lvl" ${n&&G.cash>=n.cost?'':'disabled'}>${n?`Level ${d.lvl+2} ${money(n.cost)}`:'Max level'}</button>`}
   return`<div class="zarm"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}</small></div><div class="zups">${ups}</div></div>`}
  function upgrade(id,what){const d=Z.def.D.find(x=>x.id===id);if(!d)return;
   if(d.type==='rack'){if(what==='tier'){const N=RACK_TIERS[d.tier+1];if(N&&G.cash>=N.cost){G.cash-=N.cost;d.tier++}}
    else{const ci=RACK_CAP.indexOf(d.cap),c=RACK_CAP_COST[ci+1];if(c&&G.cash>=c){G.cash-=c;d.cap=RACK_CAP[ci+1];d.ready=d.cap}}}
-  else Z.defUpgrade?.(d,what);render();focus(`[data-up="${id}:${what}"]`)}
+  else{const n=HELP[d.type].lv[d.lvl+1];if(n&&G.cash>=n.cost){G.cash-=n.cost;d.lvl++}}render();focus(`[data-up="${id}:${what}"]`)}
+ function upPerk(k){const c=Z.perkPrice(k);if(Z.perkMaxed(k)||G.cash<c)return;G.cash-=c;Z.buyPerk(k);render();focus(`[data-perk="${k}"]`)}
 
  // ---------- render ----------
  function render(){const integ=SITES.reduce((a,s)=>(a.hp+=Math.max(0,s.hp),a.max+=s.max,a),{hp:0,max:0}),f=integ.hp/integ.max,P=G.placing;
@@ -55,7 +60,7 @@ export function initBase(Z,api,G){
   else body=`<div class="zsites">${SITES.map((s,i)=>{const c=repairCost(s),part=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*repairK())));
    return`<div class="zrow"><span>${s.n}</span><span class="zhp"><b><i style="width:${Math.max(0,s.hp)/s.max*100}%" class="${s.hp<s.max*.35?'lo':s.hp<s.max*.7?'mid':''}"></i></b>${Math.max(0,Math.ceil(s.hp))}/${s.max}</span>
    <button class="sm" data-rep="${i}" ${s.hp>0&&c&&part>0?'':'disabled'}>${s.hp<=0?'Destroyed':!c?'Intact':part<s.max-s.hp?`Repair ${part} hp ${money(Math.ceil(part*REPAIR_PER_HP*repairK()))}`:`Repair ${money(c)}`}</button></div>`}).join('')}</div>
-   <p class="zhint">Repairs cost ${money(REPAIR_PER_HP*repairK())} per hit point${repairK()<1?' (Foreign Aid discount)':''}. A destroyed site can't be rebuilt.</p>`;
+   <p class="zhint">Repairs cost $${(REPAIR_PER_HP*repairK()).toFixed(2)} per hit point${repairK()<1?' (Foreign Aid discount)':''}. A destroyed site can't be rebuilt.</p>`;
   const fc=forecast();
   el.innerHTML=`<div class="zpanel zb"><header><div><h2>${G.wave?`Wave ${G.wave} cleared`:'Briefing'}</h2><div class="zbig">${money(G.cash)}</div></div>
    <div class="zint"><span>Defense integrity ${Math.round(f*100)}% · ${Math.ceil(integ.hp)}/${integ.max}</span><b><i style="width:${(f*100).toFixed(1)}%" class="${f<.3?'lo':f<.6?'mid':''}"></i></b></div>
@@ -69,9 +74,10 @@ export function initBase(Z,api,G){
   for(const b of el.querySelectorAll('[data-buy]'))b.onclick=()=>buy(+b.dataset.buy);
   for(const b of el.querySelectorAll('[data-slot]')){b.onclick=()=>place(+b.dataset.slot);b.onfocus=()=>{focusSlot=+b.dataset.slot;drawMap()}}
   for(const b of el.querySelectorAll('[data-up]'))b.onclick=()=>{const[id,w]=b.dataset.up.split(':');upgrade(+id,w)};
+  for(const b of el.querySelectorAll('[data-perk]'))b.onclick=()=>upPerk(b.dataset.perk);
   for(const b of el.querySelectorAll('[data-rep]'))b.onclick=()=>{const s=SITES[+b.dataset.rep],k=repairK(),hp=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return;G.cash-=Math.ceil(hp*REPAIR_PER_HP*k);s.hp+=hp;render();focus(`[data-rep="${b.dataset.rep}"]`)};
   const cv=$('zmap');cv.onclick=e=>{if(!G.placing)return;const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*MW,y=(e.clientY-r.top)/r.height*MH;let bj=-1,bd=24;
-   Z.def.SLOTS.forEach((s,j)=>{const d=Math.hypot(mx(s.x)-x,mz(s.z)-y);if(Z.def.slotFree(j)&&d<bd){bd=d;bj=j}});if(bj>=0)place(bj)};
+   Z.def.SLOTS.forEach((s,j)=>{const[sx,sy]=spx(j),d=Math.hypot(sx-x,sy-y);if(Z.def.slotFree(j)&&d<bd){bd=d;bj=j}});if(bj>=0)place(bj)};
   drawMap()}
  // next wave preview: counts per kind, new kinds flagged, approach bearings drawn on the map
  function forecast(){const n={};for(const q of G.next.list){const[k,c]=q.split(':');n[k]=(n[k]||0)+(+c||1)}
@@ -85,7 +91,7 @@ export function initBase(Z,api,G){
  function drawMap(){const cv=$("zmap");if(!cv||!G.next||el.hidden)return;const g=cv.getContext('2d');g.setTransform(2,0,0,2,0,0);g.drawImage(bg(),0,0,MW,MH);
   g.strokeStyle='rgba(120,200,255,.35)';g.setLineDash([6,6]);g.strokeRect(mx(-api.AW),mz(-api.AW),mx(api.AW)-mx(-api.AW),mz(api.AW)-mz(-api.AW));g.setLineDash([]);
   // approach arrows
-  for(const b of G.next.brgs){const R=4700,x=Math.sin(b)*R,z=1950-Math.cos(b)*R,X=Math.min(MW-14,Math.max(14,mx(x))),Y=Math.min(MH-14,Math.max(14,mz(z))),a=Math.atan2(mz(1950)-Y,mx(0)-X);
+  for(const b of G.next.brgs){const R=3800,x=Math.sin(b)*R,z=1950-Math.cos(b)*R,X=Math.min(MW-14,Math.max(14,mx(x))),Y=Math.min(MH-14,Math.max(14,mz(z))),a=Math.atan2(mz(1950)-Y,mx(0)-X);
    g.save();g.translate(X,Y);g.rotate(a);g.fillStyle='rgba(255,77,77,.9)';g.beginPath();g.moveTo(16,0);g.lineTo(-8,-10);g.lineTo(-3,0);g.lineTo(-8,10);g.closePath();g.fill();g.restore()}
   g.font='700 11px "JetBrains Mono",monospace';g.textAlign='center';
   for(const s of SITES){const hp=Math.max(0,s.hp)/s.max;g.fillStyle=s.hp>0?'#7fd0ff':'#555b66';g.fillRect(mx(s.x)-7,mz(s.z)-7,14,14);
@@ -94,12 +100,15 @@ export function initBase(Z,api,G){
   g.strokeStyle='#ffc640';g.lineWidth=2;g.strokeRect(mx(PADP.x)-5,mz(PADP.z)-5,10,10);
   for(const f of FOBS){g.strokeStyle='#3ddc84';g.beginPath();g.moveTo(mx(f.x),mz(f.z)-7);g.lineTo(mx(f.x)+7,mz(f.z)+5);g.lineTo(mx(f.x)-7,mz(f.z)+5);g.closePath();g.stroke()}
   const foc=document.activeElement?.dataset?.up?Z.def.D.find(d=>d.id===+document.activeElement.dataset.up.split(':')[0]):null;
-  Z.def.SLOTS.forEach((s,j)=>{const d=Z.def.D.find(q=>q.slot===j),X=mx(s.x),Y=mz(s.z);
-   if(d){if(d===foc){const r=(Z.rangeOf?.(d)||RACK_RANGE)/(MAPX[1]-MAPX[0])*MW;g.strokeStyle='rgba(95,227,255,.5)';g.lineWidth=1.5;g.beginPath();g.arc(X,Y,r,0,7);g.stroke()}
+  Z.def.SLOTS.forEach((s,j)=>{const d=Z.def.D.find(q=>q.slot===j),[X,Y]=spx(j);
+   if(d){if(d===foc){const r=Math.min(Z.def.rangeOf(d),20000)/(MAPX[1]-MAPX[0])*MW;g.strokeStyle='rgba(95,227,255,.5)';g.lineWidth=1.5;g.beginPath();g.arc(X,Y,r,0,7);g.stroke()}
     g.fillStyle='#5fe3ff';g.beginPath();g.arc(X,Y,8,0,7);g.fill();g.fillStyle='#04121a';g.font='700 10px "JetBrains Mono",monospace';g.fillText(ITEMS[d.type].glyph,X,Y+3.5)}
    else{const hot=G.placing&&j===focusSlot;g.strokeStyle=hot?'#ffe23c':G.placing?'rgba(255,226,60,.75)':'rgba(220,230,255,.4)';g.lineWidth=hot?3:1.5;g.setLineDash(hot?[]:[3,3]);g.beginPath();g.arc(X,Y,hot?9:7,0,7);g.stroke();g.setLineDash([])}});
-  if(G.placing&&focusSlot>=0){const s=Z.def.SLOTS[focusSlot],r=(Z.rangeOfType?.(G.placing.k)||RACK_RANGE)/(MAPX[1]-MAPX[0])*MW;g.strokeStyle='rgba(255,226,60,.45)';g.beginPath();g.arc(mx(s.x),mz(s.z),r,0,7);g.stroke()}}
+  if(G.placing&&focusSlot>=0){const s=Z.def.SLOTS[focusSlot],r=Math.min(HELP[G.placing.k]?.rng||RACK_RANGE,20000)/(MAPX[1]-MAPX[0])*MW;g.strokeStyle='rgba(255,226,60,.45)';g.beginPath();g.arc(mx(s.x),mz(s.z),r,0,7);g.stroke()}}
 
+ // slots are drawn schematically around their site / pad / forward position (true scale would stack them on top of each other)
+ function spx(j){const s=Z.def.SLOTS[j];if(s.site){const dx=s.x-s.site.x,dz=s.z-s.site.z,l=Math.hypot(dx,dz)||1;return[mx(s.site.x)+dx/l*24,mz(s.site.z)+dz/l*24]}
+  if(/^Radar/.test(s.n))return[mx(PADP.x)+(s.x<PADP.x?-18:18),mz(PADP.z)-6];return[mx(s.x)-14,mz(s.z)+12]}
  const focus=q=>setTimeout(()=>{const b=el.querySelector(q+':not([disabled])');(b||$('zgo'))?.focus();drawMap()},0);
  function open(){document.body.classList.add('zb-open');G.state='base';G.rerolls=0;G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
  function close(){el.hidden=true;G.placing=null;document.body.classList.remove('zb-open')}
