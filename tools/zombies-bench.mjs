@@ -52,10 +52,11 @@ async function run(L, zd, idx) {
 const jobs = [];
 for (let i = 0; i < RUNS; i++) for (const L of LV) for (const zd of DIFFS) jobs.push([L, zd, i]);
 const results = [], T0 = Date.now();
+let failed = 0;
 let next = 0;
 async function worker() { while (next < jobs.length) { const j = jobs[next++]; try { const r = await run(...j); results.push(r);
   console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}, positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
-  catch (e) { console.log('  run failed', j[0].n, DN[j[1]], String(e.message || e).split('\n')[0]); } } }
+  catch (e) { failed++; console.log('  run failed', j[0].n, DN[j[1]], String(e.message || e).split('\n')[0]); } } }
 await Promise.all(Array.from({length: Math.min(PAR, jobs.length)}, worker));
 
 const med = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n ? n % 2 ? s[n >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2 : 0; };
@@ -65,6 +66,8 @@ console.log('level'.padEnd(16) + DIFFS.map(zd => DN[zd].padEnd(16)).join(''));
 for (const r of table) console.log(r.n.padEnd(16) + r.d.map(c => (c ? `${c.med} [${c.min}-${c.max}]` : '-').padEnd(16)).join(''));
 // the ladder: higher levels beat lower ones on every difficulty; harder difficulties lower every level (medians; a capped run counts as the cap)
 const bad = [];
+if (failed) bad.push(`${failed} of ${jobs.length} runs failed`);
+if (!results.length) bad.push('no runs finished');
 for (let i = 1; i < table.length; i++) DIFFS.forEach((zd, j) => { const a = table[i - 1].d[j], b = table[i].d[j]; if (a && b && !(b.med > a.med) && !(a.med >= CAP && b.med >= CAP)) bad.push(`${table[i].n} ${b.med} vs ${table[i - 1].n} ${a.med} on ${DN[zd]}`); });
 for (const r of table) for (let j = 1; j < DIFFS.length; j++) { const a = r.d[j - 1], b = r.d[j]; if (a && b && !(b.med < a.med) && !(a.med >= CAP && b.med >= CAP)) bad.push(`${r.n}: ${DN[DIFFS[j]]} ${b.med} not below ${DN[DIFFS[j - 1]]} ${a.med}`); }
 console.log(bad.length ? 'LADDER NOT MONOTONIC:\n  ' + bad.join('\n  ') : 'ladder ok: every level beats the one below on every difficulty, and every level does worse on each harder difficulty');
