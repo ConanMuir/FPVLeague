@@ -3,7 +3,7 @@
 // of the frame, carries it toward the enemy goal over the pop zone (ball and quad share gravity, so the ball takes the tilted top's
 // acceleration and only drifts when their speeds differ), and spends the pop it earns toward the goal. Its teammates keep clear.
 // Same flight model and thrust limits as everyone (the controller only chooses an acceleration, like botControl).
-import {H,HL,V3,cl} from '../config/constants.js';
+import {GW,H,HL,HW,V3,cl} from '../config/constants.js';
 import {BG,BOTV,BR,BTHR,DL,DQ,G,TE,THR} from '../config/tune.js';
 import {attitude} from '../flight/attitude.js';
 import {GS} from '../state.js';
@@ -23,7 +23,7 @@ export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+
  if(onTop){  // carry: match the ball's velocity, pull back under it, speed both up toward the goal, then pop
   ai.dm='carry';ai.ct=(ai.ct||0)+dt;const vc=cl(gl/12,5,D.dv||10),o=_v.set(g.x*vc-ball.v.x,0,g.z*vc-ball.v.z).multiplyScalar(D.kg??1.2).clampLength(0,8);
   // the ball rides on the top: steer the quad's velocity toward the ball's (plus a pull back under it when it drifts off centre)
-  if(D.fs){fsCarry(d,D,dt,a,g,gl);steer(d,D,a,look);return}
+  if(D.fs){fsCarry(d,D,dt,a,g,gl);steer(d,D,a,look);if(ai.yw)d.wt.y=ai.yw;return}
   const ke=D.ke??2.5,kv=D.kv??4,amx=D.am??25;a.x=kv*(ball.v.x+ke*(ball.p.x-d.p.x)-d.v.x)+o.x;a.z=kv*(ball.v.z+ke*(ball.p.z-d.p.z)-d.v.z)+o.z;  // ball and quad share gravity, so on the tilted top the ball takes the quad's acceleration: o speeds both up toward the goal
   const ah=Math.hypot(a.x,a.z);if(ah>amx){a.x*=amx/ah;a.z*=amx/ah}a.y=6*(cl(((D.cy||3)-d.p.y)*1.5,-3,4)-d.v.y);
   if(d.popC>0&&!(d.popT>0)&&ai.ct>(D.hold??.6)){  // spend the pop toward the goal: the pop direction (pitch fwd/back, roll right/left) that points at it
@@ -34,9 +34,13 @@ export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+
    ai.dm='wait';_q.subVectors(d.p,ball.p);_q.y=0;if(_q.lengthSq()<1)_q.set(1,0,0);_q.setLength(15).add(ball.p);_q.y=Math.max(6,ball.p.y);_v.subVectors(_q,d.p).multiplyScalar(2).clampLength(0,vm).add(ball.v);a.subVectors(_v,d.v).multiplyScalar(4)}
   else if(grounded&&hd<30){  // scoop: from behind (along its roll, or away from the goal when it is slow), skim in low (centre ~1 m up), nose down, into the bottom half of the ball: it leaves at ~45 degrees
    ai.dm='scoop';look=_lk.subVectors(ball.p,d.p);ai.sct=(ai.sct||0)+dt;const bs=Math.hypot(ball.v.x,ball.v.z),sw=sdf(ball.p.x,ball.p.y,ball.p.z);let sd=bs>5?_px.set(ball.v.x/bs,0,ball.v.z/bs):_px.copy(g);
-   if(sw>-BR-10){sdN(ball.p,_u);_u.y=0;if(_u.lengthSq()>.04)sd=_px.copy(_u).normalize()}  // by a wall: run it up the wall (it comes back down to be caught)
-   if(ai.sct>5)sd.set(-sd.z,0,sd.x);if(ai.sct>9)ai.sct=0;  // stuck: try from the side
-   _q.copy(ball.p).addScaledVector(sd,-(D.sbk??24));_q.y=D.sy??1.4;const behind=_v.subVectors(d.p,ball.p).dot(sd)<-3,rv=Math.hypot(d.v.x-ball.v.x,d.v.z-ball.v.z);
+   const wx=HW-Math.abs(ball.p.x),wz=HL-Math.abs(ball.p.z),near=D.wallR??20;  // how far the side and end walls are (the floor curves up into them)
+   if(wx<near||wz<near&&Math.abs(ball.p.x)>GW/2){_u.set(wx<near?Math.sign(ball.p.x):0,0,wz<near&&Math.abs(ball.p.x)>GW/2?Math.sign(ball.p.z):0).normalize();sd=_px.copy(_u);ai.dm='wallrun'}  // by a wall: run it up the wall from the field side (it comes back down to be caught)
+   else if(sw>-BR-10){sdN(ball.p,_u);_u.y=0;if(_u.lengthSq()>.04)sd=_px.copy(_u).normalize()}
+   if(ai.sct>6)ai.sct=-1.5;  // stuck: back off to the field side for a moment, then try again
+   if(ai.sct<0){_q.copy(ball.p).addScaledVector(sd,-26);_q.y=6;_v.subVectors(_q,d.p).multiplyScalar(2).clampLength(0,vm);a.subVectors(_v,d.v).multiplyScalar(4);steer(d,D,a,look);return}
+   let run=D.sbk??24,room=roomBehind(ball.p,sd);if(room<9){sd.negate();ai.dm='wallrun';room=roomBehind(ball.p,sd)}run=Math.min(run,Math.max(8,room));  // no room for the run-up (a wall behind): run it into that wall instead
+   _q.copy(ball.p).addScaledVector(sd,-run);_q.y=D.sy??1.4;const behind=_v.subVectors(d.p,ball.p).dot(sd)<-3,rv=Math.hypot(d.v.x-ball.v.x,d.v.z-ball.v.z);
    if(behind&&_q.distanceTo(d.p)<3&&rv<6&&d.p.y<(D.sy??1.4)+.5||ai.sc>0){if(!(ai.sc>0))ai.sc=3.5;ai.sc-=dt;_v.subVectors(ball.p,d.p);_v.y=0;_v.normalize();  // accelerate all the way in, so the quad is nose-down when it meets the ball
     a.copy(_v).multiplyScalar(D.sa??12);_u.subVectors(ball.v,d.v);_u.y=0;a.addScaledVector(_u.addScaledVector(_v,-_u.dot(_v)),4);a.y=Math.max(-5,8*((D.sy??1.4)-d.p.y)-4*d.v.y)}  // gentle on height: thrust goes into the run
    else{const l=_q.distanceTo(d.p);_v.subVectors(_q,d.p).multiplyScalar(2).clampLength(0,Math.min(vm,Math.sqrt((D.sdc??40)*l))).add(ball.v);_v.y=(_q.y-d.p.y)*3;a.subVectors(_v,d.v).multiplyScalar(4)}}  // braking profile: arrive at its speed
@@ -56,6 +60,9 @@ export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+
  const fl=ai.dm==='scoop'?.7:1.4;if(d.p.y<fl&&d.v.y<0)a.y+=-d.v.y*2+(fl-d.p.y)*8;
  steer(d,D,a,look)}
 // acceleration -> thrust and attitude, as botControl does (same limits)
+// how far back from P (against dir) the field goes before the floor starts curving up into a wall
+function roomBehind(P,dir){const m=10;let t=1e9;if(dir.x>1e-3)t=Math.min(t,(P.x+HW-m)/dir.x);else if(dir.x<-1e-3)t=Math.min(t,(HW-m-P.x)/-dir.x);
+ if(dir.z>1e-3)t=Math.min(t,(P.z+HL-m)/dir.z);else if(dir.z<-1e-3)t=Math.min(t,(HL-m-P.z)/-dir.z);return t}
 export function steer(d,D,a,look){const s=d.team?1:-1;if(d.p.y>H-10&&a.y>-5)a.y=-5;  // never chase the ball into the roof
  const sw=sdf(d.p.x,d.p.y,d.p.z);if(sw>-2.2){sdN(d.p,_px);if(_px.y>-.9){const vn=d.v.dot(_px);a.addScaledVector(_px,-(sw+2.2)*25-Math.max(0,vn)*4)}}  // off walls and ramps (not the floor): a frame rubbing a curved wall gets stuck there
  const ah=Math.hypot(a.x,a.z),hm=D.ah??55;if(ah>hm){a.x*=hm/ah;a.z*=hm/ah}a.y=Math.max(a.y,-G*.85,Math.min(ah,hm)/1.7-G);  // never thrust downward or tip past ~60 degrees (it has to stay under the ball): lift is added rather than steering lost
