@@ -75,9 +75,9 @@ export function initWeather(api,G,Z){
  const GN=160,glow=pts(GN,new THREE.PointsMaterial({size:6,sizeAttenuation:false,map:dot,color:new THREE.Color(0xff5a3c).multiplyScalar(2),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));
  const LP=[],LS=[];for(const s of[...api.SITES,api.PADP,...api.FOBS]){const n=s.fob?2:6,r=s.r*.85;for(let i=0;i<n;i++){LS.push([s,i*.618%1]);const a=i/n*6.283+.4,x=s.x+Math.cos(a)*r,z=s.z+Math.sin(a)*r;LP.push(x,api.gh(x,z)+7,z)}}
  const lamps=pts(LP.length/3,new THREE.PointsMaterial({size:5,sizeAttenuation:false,map:dot,color:new THREE.Color(0xffcf86).multiplyScalar(2.2),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));lamps.P.set(LP);
- // searchlights: four additive cones from the sites, sweeping slowly; bright at the lamp, fading out along the beam
- const beamTex=tex(4,128,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#fff');gr.addColorStop(.25,'rgba(255,255,255,.45)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,w,h)});
- const BL=2600,beamGeo=new THREE.ConeGeometry(110,BL,20,1,true).rotateX(Math.PI).translate(0,BL/2,0),beamMat=new THREE.MeshBasicMaterial({color:0xc9d6ff,alphaMap:beamTex,transparent:true,opacity:.055,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
+ // searchlights: four additive cones from the sites, sweeping slowly; bright at the lamp, fading out along the beam (alphaMap reads the green channel: the gradient is grey to black, opaque)
+ const beamTex=tex(4,128,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#fff');gr.addColorStop(.5,'#8c8c8c');gr.addColorStop(1,'#000');g.fillStyle=gr;g.fillRect(0,0,w,h)});
+ const BL=2600,beamGeo=new THREE.ConeGeometry(110,BL,20,1,true).rotateX(Math.PI).translate(0,BL/2,0),beamMat=new THREE.MeshBasicMaterial({color:0xc9d6ff,alphaMap:beamTex,transparent:true,opacity:.1,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
  const BS=[api.SITES[0],api.SITES[1],api.SITES[2],api.PADP],beams=BS.map((s,i)=>{const m=add(new THREE.Mesh(beamGeo,beamMat));m.position.set(s.x+(i%2?-1:1)*s.r*.6,s.y+12,s.z-s.r*.5);m.userData.ph=i*1.7;return m});
  const UP=new THREE.Vector3(0,1,0);let beamOn=false;
  // a site's lamps and searchlight die with it: the lamps go out one by one as it loses HP, the beam when it's destroyed (the radar pad's go with the command bunker)

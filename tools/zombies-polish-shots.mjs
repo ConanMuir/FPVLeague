@@ -124,6 +124,13 @@ if (want('night')) {
   await render('night-sites-dmg', [0, 300, 2950], [0, 30, 1900], 60);
   await render('night-village-dark', [hp[0] + 120, hp[1] + 45, hp[2] + 90], [hp[0], hp[1] + 2, hp[2]], 60);
   ok(n1.w > 0 && n1.apt > .4 && n1.vil > .4, 'night: windows lit in the blocks and the villages');
+  // searchlight fade: three.js alphaMaps read the green channel, so the beam texture must go from bright green at the lamp (canvas top, v = 1) to black at the far rim
+  const bf = await p.evaluate(() => { const m = __z.api.scene.children.find(o => o.isMesh && o.geometry.type === 'ConeGeometry' && o.material.alphaMap), c = m.material.alphaMap.image, g = c.getContext('2d'), h = c.height;
+    const px = y => g.getImageData(1, Math.min(h - 1, Math.round(y * h)), 1, 1).data;  /* an opaque grey ramp: a white-to-transparent one keeps green at 255 almost to the rim (the cap) */
+    return {lamp: px(0)[1], mid: px(.5)[1], near: px(.9)[1], rim: px(1)[1], opaque: [0, .5, .9, 1].every(y => px(y)[3] === 255)}; });
+  ok(bf.opaque && bf.lamp > 200 && bf.mid < bf.lamp && bf.near < 40 && bf.rim < 8, `searchlights fade out along the beam, no visible cap at the far end (alphaMap green: lamp ${bf.lamp}, middle ${bf.mid}, 90% ${bf.near}, far rim ${bf.rim}, opaque ${bf.opaque})`);
+  { const e = await p.evaluate(() => { const m = __z.api.scene.children.find(o => o.isMesh && o.geometry.type === 'ConeGeometry' && o.visible && o.material.alphaMap); m.updateMatrixWorld(true); const s = m.position, t = m.localToWorld(new __z.api.THREE.Vector3(0, 2600, 0)); return [s.x, s.y, s.z, t.x, t.y, t.z]; });
+    await render('night-beam-end', [e[3] + 300, e[4] + 150, e[5] + 200], [e[3], e[4] - 300, e[5]], 60); }
   ok(n2.apt < n1.apt * .4 && n2.vil < .01 && n2.beams === n1.beams - 1, `damage takes the lights down (blocks ${n2.apt}, villages ${n2.vil}, searchlights ${n1.beams} -> ${n2.beams})`);
   await p.evaluate(() => { const {api, Z} = __z; for (const s of api.SITES) s.hp = s.max; Z.wx.set('clear'); });
 }
