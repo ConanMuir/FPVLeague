@@ -8,7 +8,7 @@
 //  integ     a real-time wave with damage stages, hit fires and smoke; a snow wave on the ground; thermal FPV on the buildings
 // Prints ok / FAIL per check; frames are OUTDIR/p-*.png.
 import fs from 'node:fs';
-import {serve, launch, open, sleep} from './zlib.mjs';
+import {serve, launch, open, sleep, luma} from './zlib.mjs';
 const [OUT, ...what] = process.argv.slice(2), want = k => !what.length || what.includes(k);
 fs.mkdirSync(OUT, {recursive: true});
 const {server, origin} = await serve(); const b = await launch(); const errs = []; let fails = 0;
@@ -51,9 +51,11 @@ if (want('impact')) {
   const s = await site(0);
   await p.evaluate(() => { __wave(3); const {api, G} = __z, s = api.SITES[0]; s.hp = s.max; const t = __z.make('ballistic', s.x + 900, s.z - 1200, s); window.__bt = t; window.__look(s.x, s.z, 900, 120, 2); for (let i = 0; i < 3000 && !t.impacted && G.state === 'wave'; i++) __z.sim(1 / 30); });
   await sleep(150); const c1 = await p.evaluate(() => __z.Z.fxState());
-  for (const u of [.3, .75]) { await p.evaluate(u => { clearInterval(window.__pin); window.__pin = setInterval(() => __z.Z.fxTest.cineAt(u), 4); }, u); await sleep(80); await shot('impact-' + u); }
+  const L = {};  // brightness between the letterbox bars: the blast must not wash the whole picture out, even with time crawling
+  for (const u of [.3, .75]) { await p.evaluate(u => { clearInterval(window.__pin); window.__pin = setInterval(() => __z.Z.fxTest.cineAt(u), 4); }, u); await sleep(80); const png = await p.screenshot({encoding: 'base64'}); fs.writeFileSync(`${OUT}/p-impact-${u}.png`, Buffer.from(png, 'base64')); L[u] = await luma(p, [0, .15, 1, .85], png); }
   await p.evaluate(() => { clearInterval(window.__pin); __z.Z.fxTest.cineAt(.3); });
   ok(c1.cine === 'impact' && c1.tsc < .5, `impact cam on a ballistic hit (cine ${c1.cine}, time x${c1.tsc.toFixed(2)})`);
+  ok(L[.3].hot < .08 && L[.3].mean < L[.75].mean * 1.25, `impact cam: the blast doesn't wash out the picture (mean luma ${L[.3].mean} at 0.3 vs ${L[.75].mean} at 0.75, ${Math.round(L[.3].hot * 100)}% near-white)`);
   await p.keyboard.press('KeyK'); await sleep(100);
   const c2 = await p.evaluate(() => ({cine: __z.Z.fxState().cine, tsc: __z.Z.tsc, hud: document.getElementById('hud').classList.contains('zcine')}));
   ok(!c2.cine && c2.tsc === 1 && !c2.hud, 'a key skips it: camera, time and HUD back');
