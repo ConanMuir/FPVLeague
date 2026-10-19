@@ -106,6 +106,17 @@ Drone rack tiers set the kill chance of a drone that reaches its target: Mk I 30
 
 **Look** (`strela.js`). In Zombies the interceptor's body is styled as a 9K32 Strela-2 missile: an olive tube with the glass seeker dome, canards, clipped tail fins, bands and stencils. The props, hitbox and flight are unchanged. Classic keeps Riley's dart unless **Interceptor look (Classic)** is set to Strela-2. `node tools/zombies-look-shots.mjs OUTDIR [drone] [weather] [classic]` takes the look screenshots.
 
+**Feel.** The battlefield reacts.
+- **Your kills:** a short hit-stop and slow-mo, with the sound muffled. The dead-cam then becomes a kill cam that follows the wreck down. A big call names the kill: SHAHED DOWN, DOUBLE KILL, CLUTCH SAVE or MOTHERSHIP DESTROYED.
+- **Explosions:** a shockwave ring, a dust ring when near the ground, burning debris, and black smoke left hanging in the sky. Their sound reaches you at the speed of sound and gets duller with distance.
+- **Fires:** wrecks and impacts keep burning, with smoke columns that drift with the wind for about a minute.
+- **Each wave:** it opens with an air-raid siren and a radio call. The radio (subtitled, under a garbled voice) calls each raid by direction, launches, hits on the sites and the all-clear.
+- **The front:** artillery flickers and rumbles on the horizon, and far-off AA tracer climbs into the sky.
+- **Helpers:** you hear them fire.
+- **Close calls:** a close pass whooshes, and a hit on a site flashes the screen edges red.
+- **Score:** a code-built score builds with the number of tracks and how close they are to impact. **B** turns it on or off.
+- **End of wave:** a card with up to three stars (held, no damage, you pulled your weight) and medals.
+
 **Performance.** Enemies, shots and tracers are pooled and drawn instanced, so a late wave with 100+ tracks costs about the same as Classic. If frames stay slow for a few seconds in Zombies, trees stop casting shadows (Classic is never changed).
 
-**Code.** `zombies.js` (director, money, HUD, hooks), `zdata.js` (every number: enemies, prices, helper levels), `zenemy.js` (instanced enemies, movers, boss, far-field terrain), `zdef.js` (slots, helpers, shots), `zperk.js` (perks), `zbase.js` (base screen), `zombies.css`. `interceptor.js` only calls them through one-line hooks behind `Z.on`. Headless tests: `node tools/zombies-test.mjs [--tiers N] [--balance] [--only]`, screenshots: `node tools/zombies-shots.mjs OUTDIR [kinds] [chaos] [base]`, frame times: `node tools/zombies-perf.mjs`.
+**Code.** `zombies.js` (director, money, HUD, hooks), `zdata.js` (every number: enemies, prices, helper levels), `zenemy.js` (instanced enemies, movers, boss, far-field terrain), `zdef.js` (slots, helpers, shots), `zperk.js` (perks), `zbase.js` (base screen), `zombies.css`, `zfx.js` (game feel: time scale, kill cam, explosions, fires, smoke, the front; it wraps the Z hooks), `zaudio.js` (all Zombies sound and the score), `zannounce.js` + `zfx.css` (announcer, radio, wave card). `interceptor.js` only calls them through one-line hooks behind `Z.on`. Headless tests: `node tools/zombies-test.mjs [--tiers N] [--balance] [--only]`, screenshots: `node tools/zombies-shots.mjs OUTDIR [kinds] [chaos] [base]`, frame times: `node tools/zombies-perf.mjs`, game-feel frame sequences and checks: `node tools/zombies-fx.mjs OUTDIR`.
