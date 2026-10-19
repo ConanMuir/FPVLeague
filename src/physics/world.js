@@ -20,12 +20,12 @@ import {ball,ballContact,ballRoll} from './ball.js';
 import {dfCollision,sdDFt} from '../world/highlands.js';
 import {bodyOf} from '../parts/index.js';
 export let R=null,world=null;
-export const PHYS={ballMesh:false,net:true,stats:{escapes:0,steps:0,ms:0}};  // net: the escape safety net (checks switch it off for free flight)
+export const PHYS={ballMesh:false,net:true,ccd:'soft',stats:{escapes:0,steps:0,ms:0}};  // net: the escape safety net (checks switch it off for free flight); ccd 'soft': above 25 m/s predictive contacts 1.5 ticks of travel ahead instead of swept CCD (sweeping fast drones through the 250k-triangle Highlands meshes cost 4.6 ms a tick); slower, full CCD (it also keeps a resting quad still)
 // collision groups: membership<<16 | filter. QRY is only ever a query's membership, so query-only colliders never form solver pairs.
 export const GW_=1,GB_=2,GHULL=4,GDRONE=8,GBALL=16,GBUL=32,QRY=0x8000,grp=(m,f)=>(m<<16)|f;
 const USE={world:GHULL,ball:GBALL,drone:GDRONE,bullet:GBUL};
 let arenaCol=null,dfCols=null,ballBody=null,ballCol=null,mapDF=null;const C2D=new Map();  // collider handle -> {d, tag}
-const _v=new V3(),_w=new V3(),_n=new V3(),_r=new V3(),_t=new V3(),_q=new QT(),IDQ={x:0,y:0,z:0,w:1},vec=v=>({x:v.x,y:v.y,z:v.z});
+const _v=new V3(),_w=new V3(),_n=new V3(),_r=new V3(),_t=new V3(),_f2=new V3(),_s2=new V3(),_d2=new V3(),_q=new QT(),IDQ={x:0,y:0,z:0,w:1},vec=v=>({x:v.x,y:v.y,z:v.z});
 
 export async function initPhysics(){await RAPIER.init();R=RAPIER;world=new R.World({x:0,y:0,z:0});world.timestep=1/120;
  const T=arenaTrimesh(arenaData(),true),st=cd=>world.createCollider(cd.setCollisionGroups(grp(GW_,GHULL|GB_|QRY)).setFriction(1).setFrictionCombineRule(R.CoefficientCombineRule.Min).setRestitution(0).setRestitutionCombineRule(R.CoefficientCombineRule.Max));
@@ -111,7 +111,7 @@ function setMode(b,o,m){if(o.bodyMode===m)return;if(m==='off'){b.setEnabled(fals
 // the ball's velocity already has gravity/drag (ballPre). simBall: the ball moves this tick.
 export function physStep(dt,simBall){const t0=performance.now();world.timestep=dt;setMap(!!GS.OBSON);  // timestep: goal slow-mo steps by less than 1/120 s
  for(const d of GS.drones){const b=d.rb;if(!b)continue;const m=d.dead>0?'off':d.ph?'dyn':'kin';setMode(b,d,m);
-  if(m==='dyn'){b.setTranslation(d.p,true);b.setRotation(vec4(d.q),true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
+  if(m==='dyn'){if(PHYS.ccd==='soft'){const sp=d.v.length(),fast=sp>25;if(fast!==d.ccdFast){d.ccdFast=fast;b.enableCcd(!fast)}b.setSoftCcdPrediction(fast?Math.min(6,sp*dt*1.5):0)}b.setTranslation(d.p,true);b.setRotation(vec4(d.q),true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
   else if(m==='kin'){b.setNextKinematicTranslation(d.p);b.setNextKinematicRotation(vec4(d.q))}}
  {const m=GS.OBSON?'off':simBall?'dyn':'kin';setMode(ballBody,ball,m);
   if(m==='dyn'){ball.v0.copy(ball.v);ballBody.setTranslation(ball.p,true);ballBody.setRotation(vec4(ball.q),true);ballBody.setLinvel(ball.v,true);ballBody.setAngvel(ball.w,true)}
@@ -127,21 +127,34 @@ export function physStep(dt,simBall){const t0=performance.now();world.timestep=d
   else ball.hit=ballContact(ball,dt)}
  PHYS.stats.steps++;PHYS.stats.ms+=performance.now()-t0}
 // contacts of a stepped drone with the world: ground timer, impact speed, our ground friction (Rapier's solver friction is 0)
-function groundContacts(d,dt){let touch=false,jn=0,hit=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0),pc=_t.set(0,0,0);let np=0;
+function groundContacts(d,dt){let touch=false,jn=0,hit=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0);let np=0;
  for(const e of d.cols){if(!e.use.includes('world'))continue;world.contactPairsWith(e.c,o=>{if(C2D.has(o.handle))return;world.contactPair(e.c,o,(m,fl)=>{const k=m.numSolverContacts();if(!k)return;touch=true;
    const nn=m.normal(),s=fl?1:-1;let j=0;for(let i=0;i<m.numContacts();i++)j+=m.contactImpulse(i);jn+=j;n.x+=nn.x*s*Math.max(j,1e-3);n.y+=nn.y*s*Math.max(j,1e-3);n.z+=nn.z*s*Math.max(j,1e-3);
-   for(let i=0;i<k;i++){const p=m.solverContactPoint(i);pc.x+=p.x;pc.y+=p.y;pc.z+=p.z;np++}
+   for(let i=0;i<k&&np<CP.length;i++){const p=m.solverContactPoint(i);CP[np++].set(p.x,p.y,p.z)}
    hit=Math.max(hit,-(d.v0.x*nn.x+d.v0.y*nn.y+d.v0.z*nn.z)*s)})})}
- if(!touch)return 0;d.gt=.12;if(n.lengthSq()<1e-12||!np)return hit;n.normalize();(d.cn||(d.cn=new V3())).copy(n);pc.divideScalar(np);const r=_r.subVectors(pc,d.p);jn*=im;  // d.cn: contact normal (floor up, wall sideways, ceiling down) for the self-righting pendulum; impulse -> velocity change
- // Coulomb friction from the normal impulse, capped at G*.05 so thrusting into the ground doesn't add grip; spin from it x.2 (v15)
- const ww=_w.copy(d.w).applyQuaternion(d.q),vp=_v.crossVectors(ww,r).add(d.v);vp.addScaledVector(n,-vp.dot(n));const tl=vp.length();
- if(tl>1e-4){vp.divideScalar(tl);const rt=_t.crossVectors(r,vp),jt=Math.min(GF*Math.min(jn,G*.05),tl/(1+rt.lengthSq()/DI));d.v.addScaledVector(vp,-jt);ww.addScaledVector(rt,-jt*.2/DI);d.w.copy(ww).applyQuaternion(_q.copy(d.q).invert())}
- return hit}
+ if(!touch)return 0;d.gt=.12;if(n.lengthSq()<1e-12||!np)return hit;n.normalize();(d.cn||(d.cn=new V3())).copy(n);jn*=im;  // d.cn: contact normal (floor up, wall sideways, ceiling down) for the self-righting pendulum; impulse -> velocity change
+ if(d.piv)return hit;  // pivoting over an edge (self-righting, turtle): pivot() already moves it as a roll about that edge
+ // Coulomb friction at every contact point, each with its share of the normal impulse (capped at G*.05 so thrusting into the ground
+ // doesn't add grip). Per point, so rolling over an edge has no slip there and isn't braked. No wheels: the frame scrapes and grips
+ // (Ground grip), harder the faster it slides, and the friction below the centre of mass trips a hot landing. Wheels (parts/attach.js):
+ // roll along the quad's forward axis, grip sideways, and barely spin the frame, so it stays planted.
+ const wh=d.fl?.wheels,vt=Math.sqrt(Math.max(0,d.v.lengthSq()-d.v.dot(n)**2)),sp=wh?.15:Math.min(1,.2+vt/8),jc=Math.min(jn,G*.05)/np,ww=_w.copy(d.w).applyQuaternion(d.q);  // sp: share of friction that spins the frame
+ const fwd=wh?_f2.set(0,0,-1).applyQuaternion(d.q).addScaledVector(n,-_f2.dot(n)):null;if(fwd&&fwd.lengthSq()>1e-6)fwd.normalize();const side=fwd?_s2.crossVectors(n,fwd):null;
+ const fric=(r,vp,dir,mu)=>{const sl=vp.dot(dir);if(Math.abs(sl)<1e-4)return;const rt=_t.crossVectors(r,dir),jt=Math.sign(sl)*Math.min(mu*jc,.7*Math.abs(sl)/(1+sp*rt.lengthSq()/DI));
+  d.v.addScaledVector(dir,-jt);ww.addScaledVector(rt,-jt*sp/DI)};  // at most 70% of the slip per step, so strong grip settles instead of ringing
+ let slide=0;const sd=_d3.set(0,0,0);
+ for(let i=0;i<np;i++){const r=_r.subVectors(CP[i],d.p),vp=_v.crossVectors(ww,r).add(d.v);vp.addScaledVector(n,-vp.dot(n));const tl=vp.length();if(tl<1e-4)continue;
+  if(fwd&&fwd.lengthSq()>.5){fric(r,vp,fwd,.03);fric(r,vp,side,Math.max(GF,.9))}
+  else{const dir=_d2.copy(vp).divideScalar(tl);fric(r,vp,dir,wh?GF:GF*Math.min(2.5,1+tl/20));if(tl>slide){slide=tl;sd.copy(dir)}}}  // a bare frame digs in harder the faster it scrapes
+ if(!wh&&slide>12&&_s2.set(0,1,0).applyQuaternion(d.q).dot(n)<.97)ww.addScaledVector(_f2.crossVectors(n,sd).normalize(),Math.min(30,(slide-12)*1.8)*dt);  // tilted at speed: the leading edge catches and it tumbles over it
+ d.w.copy(ww).applyQuaternion(_q.copy(d.q).invert());return hit}
+const CP=Array.from({length:24},()=>new V3()),_d3=new V3();
 // League arena or Highlands colliders, swapped with the mode (Highlands built on first use)
 function setMap(df){if(df===mapDF)return;mapDF=df;if(df&&!dfCols)buildDF();arenaCol.forEach(c=>c.setEnabled(!df));dfCols?.forEach(c=>c.setEnabled(df))}
 function buildDF(){const D=dfCollision(),add=(cd,x,y,z,q)=>{cd.setTranslation(x,y,z).setCollisionGroups(grp(GW_,GHULL|GB_|QRY)).setFriction(1).setFrictionCombineRule(R.CoefficientCombineRule.Min).setRestitution(0).setRestitutionCombineRule(R.CoefficientCombineRule.Max);
   if(q)cd.setRotation(q);dfCols.push(world.createCollider(cd))};dfCols=[];
- const h=D.hf;add(R.ColliderDesc.heightfield(h.nz,h.nx,h.heights,{x:h.w,y:1,z:h.l},R.HeightFieldFlags.FIX_INTERNAL_EDGES),0,0,0);
+ add(R.ColliderDesc.trimesh(D.terrain.vertices,D.terrain.indices,R.TriMeshFlags.FIX_INTERNAL_EDGES),0,0,0);PHYS.dfTerrain=dfCols[dfCols.length-1];  // terrain (cut open at the cave mouths; a heightfield can't have holes)
+ add(R.ColliderDesc.trimesh(D.caves.vertices,D.caves.indices,R.TriMeshFlags.FIX_INTERNAL_EDGES),0,0,0);PHYS.dfCaves=dfCols[dfCols.length-1];  // cave walls, facing inward
  for(const o of D.obs){const q=o.q?{x:o.q[0],y:o.q[1],z:o.q[2],w:o.q[3]}:null;
   if(o.s==='box')add(R.ColliderDesc.cuboid(o.h[0],o.h[1],o.h[2]),...o.p,q);
   else if(o.s==='cyl')add(R.ColliderDesc.cylinder(o.hh,o.r),...o.p,q);
@@ -166,8 +179,9 @@ export function los(a,b){const d=_v.subVectors(b,a),L=d.length();if(L<4)return t
 let tbShape=null,tbR=0;
 /** ball vs drone d's 'ball' colliders: n (unit, drone -> ball) and pen like v15's ballBox, plus the tag touched */
 export function ballTouch(d,n){if(!d.rb||d.p.distanceToSquared(ball.p)>(BR+d.bound+.5)**2)return null;if(!tbShape||tbR!==BR){tbShape=new R.Ball(BR);tbR=BR}let best=null;
- for(const e of d.cols){if(!e.use.includes('ball'))continue;const c=e.c.contactShape(tbShape,ball.p,IDQ,0);if(c&&c.distance<0&&(!best||c.distance<best.distance))best={distance:c.distance,n:c.normal2,tag:e.tag}}
- if(!best)return null;n.set(-best.n.x,-best.n.y,-best.n.z);if(n.lengthSq()<.5)n.subVectors(ball.p,d.p).normalize();return{pen:-best.distance,tag:best.tag}}
+ let sx=0,sy=0,sz=0;for(const e of d.cols){if(!e.use.includes('ball'))continue;const c=e.c.contactShape(tbShape,ball.p,IDQ,0);if(!c||c.distance>=0)continue;const w=-c.distance;sx-=c.normal2.x*w;sy-=c.normal2.y*w;sz-=c.normal2.z*w;
+  if(!best||c.distance<best.distance)best={distance:c.distance,tag:e.tag}}
+ if(!best)return null;n.set(sx,sy,sz);if(n.lengthSq()<1e-10)n.subVectors(ball.p,d.p);n.normalize();return{pen:-best.distance,tag:best.tag}}  // normal: every overlapping part, weighted by depth, so mirror-image parts don't pick a side
 /** drone a vs drone b ('drone' colliders, with the BUMP skin): n (unit, a -> b), pen, tags */
 export const BUMP=.4;  // drone-drone contact skin (m): parts within this distance bump (v15's 1.2 m spheres were generous; thin frames need some)
 export function droneTouch(a,b,n){if(!a.rb||!b.rb||a.p.distanceToSquared(b.p)>(a.bound+b.bound+BUMP+.2)**2)return null;let best=null;

@@ -122,6 +122,8 @@ const ATT={none:()=>{},
   K.add('metal',new THREE.TorusGeometry(hz,.01,8,40,PI),[0,y,0],[0,PI/2,0],[1,.7,1]);K.add('team',new THREE.TorusGeometry(.03,.006,8,20),[0,y+.7*hz+.004,0],[PI/2,0,0])},
  ducts:(K,sp)=>{const R=sp.arms.prop.r+.025;for(const[x,z]of sp.motors){K.add('carbon',new THREE.TorusGeometry(R,.011,10,48),[x,sp.propY-.016,z],[PI/2,0,0]);
   K.add('team',new THREE.TorusGeometry(R,.007,8,48),[x,sp.propY+.012,z],[PI/2,0,0]);for(let i=0;i<4;i++){const a=i*PI/2+PI/4;K.add('carbon',rbox(.012,.03,.012,.004),[x+Math.cos(a)*R,sp.propY-.002,z+Math.sin(a)*R])}}},
+ wheels:(K,sp)=>{const R=.06,y=-.13+R;for(const[x,z]of sp.motors){const wx=x*.78,wz=z*.78;  // axle along x, so they roll forward
+  K.add('rubber',cyl(R,R,.035,24).rotateZ(PI/2),[wx,y,wz]);K.add('metal',cyl(R*.45,R*.45,.04,16).rotateZ(PI/2),[wx,y,wz]);K.add('carbon',rbox(.014,Math.abs(y)+.02,.03,.005,1),[wx-.026,y/2,wz])}},
  armor:(K,sp)=>{const c=sp.chassis,a=sp.arms;for(const s of[-1,1])K.add('metal',rbox(.014,c.half[1]*1.7,c.half[2]*1.5,.006),[s*(c.half[0]+.009),c.y,0]);
   K.add('team',rbox(c.half[0]*1.5,.012,.03,.004),[0,c.y,-(c.half[2]+.01)]);
   for(const[x,z]of sp.motors){const L=Math.hypot(x,z);K.add('metal',rbox(.05,.012,L*.35,.005),[x*.55,a.arm.t/2+.007,z*.55],[0,Math.atan2(x,z),0])}}};

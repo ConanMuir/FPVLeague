@@ -19,18 +19,18 @@ const cl=(v,a,b)=>v<a?a:v>b?b:v,R=Math.round,AXN=['Roll','Pitch','Yaw'],ema=(o,n
 export const rel=(v,t)=>Math.max(0,(v??0)-t)/Math.max(t,1);
 export const fmt=(q,v)=>q.mul?R(v)+' '+q.u:q.k==='dz'||q.k==='dzy'?`${v.toFixed(3)} (BF ${R(v*500)})`:q.d===0?R(v)+q.u:v.toFixed(q.d);
 // prof: the rate profile to start from ({type, ax, thrMid, thrExpo, thrLimit}); ext: {dz, dzy, assist}
-export function makeTuner(pid,prof,ext={}){const P=PRESETS[pid]||PRESETS.def,type=P.type||prof.type,sh=prof.ax.map(a=>toShape(prof.type,a));
+export function makeTuner(pid,prof,ext={}){const P0=PRESETS[pid]||PRESETS.def,P={...P0,g0:P0.g0*(ext.speed||1)},type=P.type||prof.type,sh=prof.ax.map(a=>toShape(prof.type,a));
  const T={P,pid:P.id,type,thrLimit:prof.thrLimit??100,p:{},E:{},log:[],pend:[],loss:{},reps:0,changes:0,dzFloor:null};
  const add=(k,v,[lo,hi],o)=>{T.p[k]={k,v:cl(v,lo,hi),v0:v,lo,hi,g:P.g0,sg:0,n:0,...o}};
  sh.forEach((s,i)=>{const y=i===2;add('c'+i,s.c,P.b[y?'cy':'c'],{mul:1,lab:AXN[i]+' centre',u:'°/s'});add('m'+i,s.m,P.b[y?'my':'m'],{mul:1,lab:AXN[i]+' max rate',u:'°/s'});add('e'+i,s.e,P.b[y?'ey':'e'],{lab:AXN[i]+' expo',d:2})});
  add('dz',ext.dz??.03,P.b.dz,{lab:'Stick deadband',d:3});add('dzy',ext.dzy??ext.dz??.03,P.b.dzy,{lab:'Yaw deadband',d:3});
- add('tm',prof.thrMid??50,P.b.tm,{lab:'Throttle mid',u:'',d:0});add('te',prof.thrExpo??0,P.b.te,{lab:'Throttle expo',u:'',d:0});add('as',ext.assist||0,P.b.as,{lab:'Assist',d:2});
+ add('tm',prof.thrMid??50,P.b.tm,{lab:'Throttle mid',u:'',d:0});add('te',prof.thrExpo??0,P.b.te,{lab:'Throttle expo',u:'',d:0});add('tl',prof.thrLimit??100,P.b.tl||[100,100],{lab:'Throttle limit',u:'%',d:0});add('as',ext.assist||0,P.b.as,{lab:'Assist',d:2});
  if(type!==prof.type)T.log.push({txt:`${P.name} preset tunes in ${type} rates: your ${prof.type} curve converted with the same centre, max and expo`});
  for(const k in T.p){const q=T.p[k];if(Math.abs(q.v-q.v0)>1e-9)T.log.push({k,from:q.v0,to:q.v,txt:`${P.name} range: ${q.lab} ${fmt(q,q.v0)} → ${fmt(q,q.v)}`})}
  return T}
 const shape=(T,i)=>({c:T.p['c'+i].v,m:Math.max(T.p['m'+i].v,T.p['c'+i].v),e:T.p['e'+i].v});
 // the working rate profile, in the rates panel's raw integers
-export const profile=T=>({type:T.type,ax:[0,1,2].map(i=>fromShape(T.type,shape(T,i))),thrMid:R(T.p.tm.v),thrExpo:R(T.p.te.v),thrLimit:T.thrLimit});
+export const profile=T=>({type:T.type,ax:[0,1,2].map(i=>fromShape(T.type,shape(T,i))),thrMid:R(T.p.tm.v),thrExpo:R(T.p.te.v),thrLimit:R(T.p.tl.v)});
 export const extras=T=>({dz:+T.p.dz.v.toFixed(3),dzy:+T.p.dzy.v.toFixed(3),assist:+T.p.as.v.toFixed(2)});
 // °/s on axis i at stick x, with one knob scaled (continuous, before rounding)
 export function rateAt(T,i,x,k,f=1){const s=shape(T,i);if(k)s[k]*=f;const ax=[[0,0,0],[0,0,0],[0,0,0]];ax[i]=fromShape(T.type,s,false);return rateR({type:T.type,ax},i,x)*180/Math.PI}
@@ -49,7 +49,7 @@ export function setTo(T,k,target,maxF,why){const q=T.p[k],to=cl(cl(target,q.v-ma
  if(Math.abs(to-q.v)<(q.hi-q.lo)*.004)return null;const c={k,from:q.v,to,why,txt:`${why} → ${q.lab} ${fmt(q,q.v)}→${fmt(q,to)}`,rep:T.reps};q.v=to;T.log.push(c);T.changes++;return c}
 // one rep of drill group grp scored `loss` (0 = on target): judge pending changes, then say whether a new change may be made
 function verdict(T,grp,loss){T.loss[grp]=ema(T.loss[grp],loss,.5);let ok=true;
- for(const c of T.pend.filter(c=>c.grp===grp)){c.after.push(loss);if(c.after.length<2){ok=false;continue}T.pend.splice(T.pend.indexOf(c),1);const a=mean(c.after);
+ for(const c of T.pend.filter(c=>c.grp===grp)){c.after.push(loss);T.pend.splice(T.pend.indexOf(c),1);const a=mean(c.after);  // judged after one more rep, so the tune keeps moving while you fly
   if(a>c.before*1.3+.25){const q=T.p[c.k];q.v=c.from;q.g=Math.max(q.g*.5,T.P.g0*.15);q.sg=0;ok=false;
    T.log.push({k:c.k,from:c.to,to:c.from,back:1,txt:`Worse after that change (score ${c.before.toFixed(2)}→${a.toFixed(2)}) → backing off ${q.lab} to ${fmt(q,c.from)}`})}}
  return ok}
@@ -81,16 +81,27 @@ export function onTrack(T,Ms,dzNow){if(!Ms)return[];T.reps++;const tg=T.P.tg,pro
  if(!pro&&jit>1.5&&!out.length){const c=nudge(T,'as',1,.4,`jittery sticks (${jit.toFixed(1)} reversals/s)`);if(c)out.push(c)}
  return out}
 
-// ---- dodge: over-correcting past level -> assist (Default) or less max rate; full stick in time and still hit -> more max rate
-export function onDodge(T,M){if(!M)return[];T.reps++;const E=stats(T,'d',{...M,hit:M.hit?1:0,react:M.react??1.5},['hit','react','peak','over']),tg=T.P.tg,pro=T.pid==='pro';
- if(!verdict(T,'d',rel(E.over,tg.over)+E.hit+.5*rel(E.react,tg.react)))return[];const out=[],n=(k,s,m,why)=>{const c=track(T,'d',nudge(T,k,s,m,why));if(c)out.push(c)};
- if(E.over>tg.over){const w=`over-corrects ${p0(E.over)}° past level after a dodge (target ≤ ${tg.over}°)`;if(!pro&&T.p.as.v<T.p.as.hi-.01)n('as',1,rel(E.over,tg.over),w);else{n('m0',-1,rel(E.over,tg.over),w);n('m1',-1,rel(E.over,tg.over),w)}}
- else if(E.hit>.4&&E.peak>.8&&E.react<=tg.react){const w=`full stick in ${E.react.toFixed(2)} s and still hit ${p0(E.hit*100)}% of the time`;n('m0',1,E.hit,w);n('m1',1,E.hit,w)}
- else if(!pro&&T.p.as.v>T.p.as.lo&&E.over<tg.over*.5&&E.hit<.3)n('as',-1,.5,'dodging cleanly');
+// ---- holding a height (live, every ~1.5 s in the hover and altitude drills): can you hold the throttle?
+// bouncing through the band -> softer throttle around hover (more expo); sinking or climbing with the stick held still -> throttle mid
+// follows the motor you actually need; stick pinned at an end and still outside the band -> less expo (more authority)
+// the quad's real hover throttle (from its thrust and weight): throttle mid goes there at once, so the expo flattens the curve
+// around hover instead of around mid-stick; set at the start of every pack and retry
+export function onHoverPhys(T,h){if(!(h>0&&h<1))return[];T.hovPhys=h;const c=setTo(T,'tm',100*h/(T.p.tl.v/100),1,`your quad hovers at ${R(h*100)}% throttle`);return c?[c]:[]}
+// after the throttle limit moves, throttle mid follows so the curve still pivots on the real hover
+function repivot(T,out){if(!T.hovPhys)return;const c=setTo(T,'tm',100*T.hovPhys/(T.p.tl.v/100),1,`throttle mid re-centred on hover at ${R(T.p.tl.v)}% limit`);if(c)out.push(c)}
+export function onHold(T,M){if(!M)return[];T.reps++;const out=[],tg=T.P.tg,band=(M.hi-M.lo)||2.4;
+ if(!T.hovPhys&&M.steady&&Math.abs(M.drift)>.6){const c=setTo(T,'tm',M.motor*100,.06,`${M.drift<0?'sinks':'climbs'} ${Math.abs(M.drift).toFixed(1)} m/s with the throttle held still`);if(c)out.push(c)}
+ const loss=Math.max(0,M.amp/band-.5)+.4*Math.max(0,M.bounce-.5)+(1-M.inb);if(!verdict(T,'h',loss))return out;const n=(k,s,m,why)=>{const c=track(T,'h',nudge(T,k,s,m,why));if(c)out.push(c)};
+ const soften=(m,w)=>{if(T.p.te.v<T.p.te.hi-.5)n('te',1,m,w);else{n('tl',-1,m,w+' with the throttle curve already soft');repivot(T,out)}};  // first softer around hover (expo), then less thrust per stick (throttle limit)
+ if(M.bounce>.6&&M.amp>band*.45)soften(Math.min(1,M.amp/band),`can't hold the height: bouncing ${M.amp.toFixed(1)} m at ${M.bounce.toFixed(1)}/s`);
+ else if(M.above>.35&&M.sat<.35)soften(Math.min(1,M.above*1.4),`over-throttling: above the band ${R(M.above*100)}% of the time`);
+ else if(M.below>.35&&M.sat<.2)n('te',1,Math.min(1,M.below*1.4),`under-throttling: below the band ${R(M.below*100)}% of the time`);
+ else if(M.sat>.35&&M.inb<.5)n('te',-1,M.sat,`throttle at the end of its travel ${Math.round(M.sat*100)}% of the time and still outside the band`);
  return out}
 
 // ---- altitude gates: throttle mid follows the measured hover; bouncing through the band -> more throttle expo; slow with the stick at an end -> less
-export function onAlt(T,M){if(!M)return[];T.reps++;const out=[],tg=T.P.tg;if(M.hover!=null){T.hov=ema(T.hov,M.hover,.5);const c=setTo(T,'tm',T.hov*100,.15,`hovers at ${p0(T.hov*100)}% motor`);if(c)out.push(c)}
+// (the altitude drill also scores each 5 s band)
+export function onAlt(T,M){if(!M)return[];T.reps++;const out=[],tg=T.P.tg;if(M.hover!=null&&!T.hovPhys){T.hov=ema(T.hov,M.hover,.5);const c=setTo(T,'tm',T.hov*100,.15,`hovers at ${p0(T.hov*100)}% motor`);if(c)out.push(c)}
  const E=stats(T,'a',{...M,tEnter:M.tEnter??6},['over','exits','tEnter','sat']);
  if(!verdict(T,'a',rel(E.over,tg.alt)+.3*Math.max(0,E.exits-1)+.3*rel(E.tEnter,2.5)))return out;const n=(k,s,m,why)=>{const c=track(T,'a',nudge(T,k,s,m,why));if(c)out.push(c)};
  if(E.over>tg.alt||E.exits>1.5)n('te',1,Math.max(rel(E.over,tg.alt),.4),`height overshoots the band (${E.over.toFixed(2)}× band, ${E.exits.toFixed(1)} exits)`);
@@ -102,7 +113,7 @@ export function onAlt(T,M){if(!M)return[];T.reps++;const out=[],tg=T.P.tg;if(M.h
 export function onRest(T,N){if(!N)return[];const pad=T.pid==='pro'?.005:.01,rp=Math.max(N[0].need,N[1].need),y=N[2].need;T.dzFloor=[rp,y];
  return[setTo(T,'dz',rp*1.25+pad,1,`sticks rest within ${rp.toFixed(3)} of centre`),setTo(T,'dzy',y*1.25+pad,1,`yaw rests within ${y.toFixed(3)} of centre`)].filter(Boolean)}
 export function onHover(T,{motor,cross}){const out=[];if(cross!=null&&T.dzFloor){const c=setTo(T,'dzy',Math.max(T.dzFloor[1]*1.25,cross*1.1),.3,`yaw moves ${cross.toFixed(3)} while you work the throttle`);if(c)out.push(c)}
- if(motor!=null){T.hov=motor;const c=setTo(T,'tm',motor*100,1,`hovers at ${p0(motor*100)}% motor`);if(c)out.push(c)}return out}
+ if(motor!=null&&!T.hovPhys){T.hov=motor;const c=setTo(T,'tm',motor*100,1,`hovers at ${p0(motor*100)}% motor`);if(c)out.push(c)}return out}
 
 // before/after rows for the end-of-pack summary
 export const summary=T=>Object.values(T.p).map(q=>({k:q.k,lab:q.lab,from:fmt(q,q.v0),to:fmt(q,q.v),changed:Math.abs(q.v-q.v0)>(q.mul?.5:(q.hi-q.lo)*.003)}));

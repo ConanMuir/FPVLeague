@@ -3,8 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {rateR} from '../src/flight/rates.js';
 import {toShape,fromShape} from '../src/tuner/rshape.js';
-import {snapMetrics,trackMetrics,dodgeMetrics,altMetrics,noiseMetrics,crossings} from '../src/tuner/metrics.js';
-import {makeTuner,profile,extras,onSnap,onAlt,onRest,onHover,onDodge,onTrack,nudge,rateAt} from '../src/tuner/tuner.js';
+import {snapMetrics,trackMetrics,holdMetrics,altMetrics,noiseMetrics,crossings} from '../src/tuner/metrics.js';
+import {makeTuner,profile,extras,onSnap,onAlt,onRest,onHover,onHold,onHoverPhys,onTrack,nudge,rateAt} from '../src/tuner/tuner.js';
 import {PRESETS} from '../src/tuner/presets.js';
 import {rng,simSnap,simAlt} from './sim.mjs';
 const deg=r=>r*180/Math.PI,PROF=(type,ax,o={})=>({type,ax:[ax,ax,ax],thrMid:50,thrExpo:0,thrLimit:100,...o});
@@ -71,16 +71,16 @@ for (const [pid, mk, pilot, k, tgt, why] of [
     assert.equal(profile(T).type, pid === 'pro' ? 'ACTUAL' : mk().type);
     for (const q of Object.values(T.p)) assert.ok(q.v >= q.lo - 1e-9 && q.v <= q.hi + 1e-9, q.k + ' in bounds');
     if (pid === 'def') assert.ok(T.p.e0.v >= PRESETS.def.b.e[0], 'default keeps some expo');
-    else assert.equal(T.p.as.v, 0, 'pro: no assist');
+    assert.equal(T.p.as.v, 0, 'no preset ever adds assist');
   });
 }
 test('tuner: steps shrink after a reversal, and a change that makes things worse is backed off', () => {
   const T = makeTuner('pro', PROF('ACTUAL', [20, 100, 0]), {});
   const bad = {valid: true, reached: true, os: 25, us: 0, settle: 200, osc: 0, rev: 0, lag: 80, sat: 0, use: .6};
   const c = onSnap(T, 0, bad); assert.equal(c.length, 1); const k = c[0].k, from = c[0].from;
-  // the next two reps are much worse: the change is backed off
+  // the next rep is much worse: the change is backed off straight away (judged after one rep, so the tune keeps moving)
   const worse = {...bad, os: 90, osc: 3};
-  assert.equal(onSnap(T, 0, worse).length, 0); assert.equal(onSnap(T, 0, worse).length, 0);
+  assert.equal(onSnap(T, 0, worse).length, 0);
   assert.equal(T.p[k].v, from, 'backed off to the old value');
   assert.ok(T.log.some(l => l.back), 'logged the back-off');
   assert.ok(T.p[k].g < PRESETS.pro.g0, 'step halved');
@@ -116,16 +116,46 @@ test('altitude gates: throttle mid follows the hover, throttle expo rises for a 
   assert.ok(B.p.te.v > 10, 'more throttle expo for a bouncy pilot');
   assert.ok(o1 < o0, 'and it bounces less');
 });
-test('dodge and tracking rules move the right knobs', () => {
-  // over-correcting after dodges: Default adds assist, Pro (no assists) lowers max rate
-  const ev = {t0: 0, hit: false, s: Array.from({length: 240}, (_, k) => { const t = k / 120; return {t, x: [t > .3 && t < .6 ? 1 : t > .8 && t < .95 ? -1 : 0, 0], tilt: [t < .6 ? t * 60 : t < 1 ? 36 - (t - .6) * 160 : -28 + (t - 1) * 28, 0]}; })};
-  const M = dodgeMetrics(ev); assert.ok(M.react > .29 && M.react < .32 && M.over > 20, JSON.stringify(M));
-  const D = makeTuner('def', PROF('BETAFLIGHT', [100, 70, 0]), {}); onDodge(D, M); assert.ok(D.p.as.v > 0, 'default: assist');
-  const P = makeTuner('pro', PROF('ACTUAL', [20, 90, 0]), {}); onDodge(P, M); assert.ok(P.p.m0.v < P.p.m0.v0 && P.p.as.v === 0, 'pro: less max rate, never assist');
-  // hit despite full stick in time -> more max rate
-  const H = makeTuner('pro', PROF('ACTUAL', [20, 70, 0]), {}); onDodge(H, {react: .2, peak: 1, over: 2, tilt: 30, hit: true}); assert.ok(H.p.m0.v > H.p.m0.v0);
+test('live hold: bouncing adds throttle expo, drifting with a still stick moves throttle mid, pinned and short removes expo', () => {
+  const win = (f) => Array.from({length: 180}, (_, k) => { const t = k / 120; return {t, ...f(t)}; });
+  // bouncing ±1.6 m at ~1.3 Hz around the band centre with the throttle working
+  const B = holdMetrics(win(t => ({y: 8 + 1.6 * Math.sin(t * 8.2), vy: 13 * Math.cos(t * 8.2), thr: .5 + .2 * Math.sin(t * 8.2), m: .3})), 6.8, 9.2);
+  assert.ok(B.bounce > .6 && B.amp > 2, JSON.stringify(B));
+  const T1 = makeTuner('def', PROF('BETAFLIGHT', [100, 70, 0]), {}); const te0 = T1.p.te.v; onHold(T1, B); assert.ok(T1.p.te.v > te0, 'bouncing -> more throttle expo');
+  // sinking 1.2 m/s with the stick held still at a motor of 31%: throttle mid moves toward 31
+  const D = holdMetrics(win(t => ({y: 9 - 1.2 * t, vy: -1.2, thr: .5, m: .31})), 6.8, 9.2);
+  const T2 = makeTuner('def', PROF('BETAFLIGHT', [100, 70, 0]), {}); const tm0 = T2.p.tm.v; onHold(T2, D); assert.ok(T2.p.tm.v < tm0 && T2.p.tm.v >= 31 - 1e-9, 'drift -> throttle mid follows the motor');
+  // stick pinned at full and still below the band: less expo
+  const P = holdMetrics(win(t => ({y: 3 + .3 * t, vy: .3, thr: 1, m: .9})), 6.8, 9.2);
+  const T3 = makeTuner('def', PROF('BETAFLIGHT', [100, 70, 0]), {}); T3.p.te.v = 30; onHold(T3, P); assert.ok(T3.p.te.v < 30, 'pinned and short -> less expo');
+});
+
+test('tracking: lagging a drifting target adds centre', () => {
   // tracking: lagging a drifting target -> more centre on that axis
   const s = Array.from({length: 600}, (_, k) => { const t = k / 120, tv = 20 * Math.cos(t), e = 8 * Math.sign(tv); return {t, e: [e, 0, 0], x: [.2, 0, 0], r: [.2, 0, 0], tv: [tv, 0, 0]}; });
   const TM = trackMetrics(s, .03); assert.ok(TM[0].rms > 7 && TM[0].bias > .9);
   const K = makeTuner('pro', PROF('ACTUAL', [20, 80, 0]), {}); onTrack(K, TM); assert.ok(K.p.c0.v > K.p.c0.v0, 'more roll centre');
+});
+
+test('altitude gates: a pilot who keeps over-throttling past the band is fixed (throttle mid at the real hover, expo softens the curve around it)', () => {
+  const hov = .237, DT = 1 / 120, tc = (t, m, e) => { m /= 100; e /= 100; const d = t - m, y = d > 0 ? 1 - m : m; return Math.min(1, Math.max(0, m + d * (1 - e + e * d * d / (y * y || 1)))); };
+  // an aggressive pilot: high gain, little damping, starts each band a little high and keeps correcting (integral), 0.2 s reaction
+  const band = (curve, from, lo, hi, rnd) => { const s = [], hist = [], mid = (lo + hi) / 2, n = 24; let y = from, vy = 0, I = 0;
+    for (let k = 0; k < 600; k++) { const seen = k >= n ? hist[k - n] : [from, 0], e = mid - seen[0]; I += e * DT;
+      const thr = Math.min(1, Math.max(0, hov + .06 + .045 * e - .006 * seen[1] + .006 * I + (rnd() - .5) * .02)), m = curve(thr);
+      vy += (34.5 * ((m / hov) ** 1.6) - 34.5) * DT; vy *= 1 - DT * .8; y += vy * DT; if (y < 0) { y = 0; vy = 0; } hist.push([y, vy]); s.push({t: k * DT, y, vy, thr, m}); }
+    return {lo, hi, s}; };
+  const steps = [[5, 11], [11, 6], [6, 13], [13, 7], [7, 12], [12, 5]];
+  const fly = (T, n, seed) => { const rnd = rng(seed); let out = 0, cnt = 0;
+    for (let i = 0; i < n; i++) { const [a, b] = steps[i % steps.length], ev = band(t => tc(t, T.p.tm.v, T.p.te.v) * T.p.tl.v / 100, a, b - 1.2, b + 1.2, rnd);
+      for (let w = 1.5; w + 1.5 <= 5.001; w += 1.5) { const win = ev.s.filter(o => o.t >= w && o.t < w + 1.5); if (T.live) onHold(T, holdMetrics(win, ev.lo, ev.hi));
+        if (i >= n - 6) { out += win.filter(o => o.y > ev.hi || o.y < ev.lo).length; cnt += win.length; } }
+      if (T.live) onAlt(T, altMetrics(ev)); }
+    return out / cnt; };
+  const F = makeTuner('def', PROF('BETAFLIGHT', [100, 70, 0]), {}), base = fly(F, 24, 4);  // the same pilot, no tuning
+  const T = makeTuner('def', PROF('BETAFLIGHT', [100, 70, 0]), {}); T.live = true; onHoverPhys(T, hov); const tuned = fly(T, 24, 4);
+  console.log(`  over-throttler: outside the band ${(base * 100).toFixed(0)}% untuned -> ${(tuned * 100).toFixed(0)}% tuned (mid ${T.p.tm.v.toFixed(0)}, expo ${T.p.te.v.toFixed(0)}, limit ${T.p.tl.v.toFixed(0)}%)`);
+  assert.ok(Math.abs(T.p.tm.v * T.p.tl.v / 100 - hov * 100) < 3, 'the curve pivots on the real hover: mid ' + T.p.tm.v + ' x limit ' + T.p.tl.v);
+  assert.ok(T.p.te.v >= 15, 'expo raised: ' + T.p.te.v);
+  assert.ok(tuned < base * .7, `time outside the band: ${(base * 100).toFixed(0)}% untuned -> ${(tuned * 100).toFixed(0)}% tuned`);
 });

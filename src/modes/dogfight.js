@@ -17,12 +17,12 @@ import {_gd,_gp,_gq} from '../scratch.js';
 import {GS,auth} from '../state.js';
 import {feed,tag} from '../ui/hud.js';
 import {goalG} from '../world/arena.js';
-import {DHL,DLEN,DW,buildDF,cxR,dfG,dfH,sdDF,seeded} from '../world/highlands.js';
+import {DHL,DLEN,DW,buildDF,cxR,dfG,dfH,sdCave,sdDF,seeded} from '../world/highlands.js';
 import {setMap} from '../world/maps.js';
 import {ORBS} from '../world/orbs.js';
 export const TUR=[],TUR_HP=60;{const rnd=seeded(11),base=new THREE.CylinderGeometry(2.2,2.8,1.6,16),dome=new THREE.SphereGeometry(1.7,16,10,0,Math.PI*2,0,Math.PI/2),
  barrel=new THREE.CylinderGeometry(.22,.22,3.2,8).rotateX(Math.PI/2).translate(0,0,-1.8),mB=new THREE.MeshStandardMaterial({color:0x2a2f38,roughness:.5,metalness:.6});
- for(let i=0;i<6;i++){let x,z,n=0;do{x=(rnd()-.5)*(DW-420);z=120+rnd()*(DHL-330)}while((sdDF(x,dfH(x,z)+2,z)>-4||Math.abs(x-cxR(z))<45||TUR.some(t=>Math.hypot(t.p.x-x,t.p.z-z)<90))&&++n<80);
+ for(let i=0;i<6;i++){let x,z,n=0;do{x=(rnd()-.5)*(DW-420);z=120+rnd()*(DHL-330)}while((sdDF(x,dfH(x,z)+2,z)>-4||sdCave(x,dfH(x,z)-4,z)<14||Math.abs(x-cxR(z))<45||TUR.some(t=>Math.hypot(t.p.x-x,t.p.z-z)<90))&&++n<80);
   const y=dfH(x,z);for(const t of[0,1]){const s=t?-1:1,g=new THREE.Group(),b=new THREE.Mesh(base,mB),head=new THREE.Group(),d=new THREE.Mesh(dome,MAT.team[t]),br=new THREE.Mesh(barrel,mB);
    g.position.set(s*x,y,s*z);b.position.y=.8;head.position.y=1.6;br.position.y=.9;head.add(d,br);g.add(b,head);g.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true});dfG.add(g);
    TUR.push({isTurret:true,t,team:t,p:new V3(s*x,y+2.2,s*z),hp:TUR_HP,cd:1,re:0,g,head,br,aim:new V3(0,0,-1),tg:null,scan:0})}}}

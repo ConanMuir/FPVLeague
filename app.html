@@ -12,7 +12,6 @@
 <div id="hud" hidden>
   <div id="score"><span id="sb">0</span><span id="clock" class="osd">3:00</span><span id="so">0</span></div>
   <div id="feed"></div>
-  <canvas id="radar" width="110" height="170"></canvas>
   <div id="xh"></div>
   <div id="arrow" hidden></div>
   <div id="hurt"></div>
@@ -100,13 +99,13 @@
         <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
 
 
-        <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
+        <kbd>R</kbd><span>Reset your drone (Freeplay only) · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
 
 
-        <kbd>E</kbd><span>Flip back over now (upside down on the ground it also rolls back onto its feet by itself)</span>
+        <kbd>E</kbd><span>Flip back over. <b>Pop:</b> touch the ball with the top of your quad, inside the four motors (a faint white ring flashes, the dial shows POP for 5 s), then hold a direction (roll, pitch or yaw) and press E for a locked flip that way. Where the ball sits on you decides the pop</span>
 
 
-        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped in the Controls tab</span>
+        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y reset (Freeplay), Menu pause. Every button can be remapped in the Controls tab</span>
 
 
       </div></div>
@@ -126,15 +125,18 @@
   </div>
 </div>
 <div id="labintro" class="modal" hidden><div class="sbox wide"><div class="mhead"><b>Calibration Lab</b><span class="note" style="margin:0">a training pack that tunes your rates while you fly</span></div>
-  <p class="note">Seven short drills, each measuring one thing. After every rep the tuner nudges your rates, deadband, throttle curve and assist toward the preset's targets, and you feel it straight away. Flies in Acro. Esc pauses.</p>
+  <p class="note">Six short drills, each measuring one thing. Every overshoot, undershoot and wobble is measured and weighted by how big it was; the tuner adjusts your rates, deadband, throttle curve and assist as you go, so you feel the improvement within the same drill. Flies in Acro. Esc pauses.</p>
   <h3>1 · Controls</h3><div class="mp"><button class="sm" id="lbind">Choose your controls…</button><span class="note" style="margin:0;align-self:center">or keep your current ones</span></div>
-  <h3>2 · Preset</h3><div id="lpre" class="lpre"></div>
+  <h3>2 · Preset</h3><div id="lpre" class="lpre"></div><div id="lspeed" class="lspeed"></div>
   <h3>3 · Drills</h3><ol id="ldrills" class="ldrills"></ol>
   <div class="mp"><button class="go sm" id="lgo">Start</button><button class="sm" id="lquit">Leave Lab</button></div></div></div>
-<div id="labsum" class="modal" hidden><div class="sbox wide"><div class="mhead"><b>Pack complete</b><span class="note" id="lstitle" style="margin:0"></span></div>
+<div id="labsum" class="modal" hidden><div class="sbox wide"><div class="mhead"><b>Training complete</b><span class="note" id="lstitle" style="margin:0"></span></div>
   <table class="rt lsum" id="lsrows"></table><ul id="lsmet" class="note"></ul>
-  <div class="mp"><select id="lslot" aria-label="Save to rate profile"><option value="0">Rate profile 1</option><option value="1">Rate profile 2</option><option value="2">Rate profile 3</option></select><button class="sm" id="lsave">Save</button><button class="sm" id="ldisc">Don't save</button><button class="sm" id="lrev" disabled>Revert</button></div>
-  <p class="note" id="lsmsg"></p><div class="mp"><button class="sm" id="lagain">Fly again</button><button class="sm" id="lexit">Back to menu</button></div></div></div>
+  <div class="lsact"><button class="go" id="lsave">Save</button><button id="ldisc">Discard</button><button id="ltestb">Test first</button><button id="lretry">Retry training</button></div>
+  <div class="mp"><label class="note" for="lslot" style="margin:0;align-self:center">Save to</label><select id="lslot" aria-label="Save to rate profile"><option value="0">Rate profile 1</option><option value="1">Rate profile 2</option><option value="2">Rate profile 3</option></select><button class="sm" id="lrev" disabled>Undo save</button><button class="sm" id="lexit">Back to menu</button></div>
+  <p class="note" id="lsmsg"></p></div></div>
+<div id="ltest" hidden><div class="ltbar"><b>Test drive</b><span id="ltt" class="osd">1:00</span><span class="note">Freeplay with your new settings. No bots.</span><button class="go" id="lexitt">Exit test</button></div></div>
+<div id="ltip" role="tooltip" hidden></div>
 <div id="bind" class="modal" hidden><div class="sbox wide"><div class="mhead"><b id="bstep"></b><span class="note" id="bdev" style="margin:0"></span><button class="sm" id="bx" aria-label="Cancel">✕</button></div>
   <h3 id="bq"></h3><p class="note" id="bmsg"></p><div id="blive" class="blive"></div><div id="bres" class="bres"></div>
   <div class="mp"><button class="sm" id="bredo">Redo step</button><button class="sm" id="bskip">Skip</button><button class="go sm" id="bsave" hidden>Save</button></div></div></div>

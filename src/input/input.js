@@ -9,6 +9,7 @@ import {calib} from './calibration.js';
 import {showMenu} from '../modes/match.js';
 import {_f,_v} from '../scratch.js';
 import {GS,SB} from '../state.js';
+import {MODES} from '../modes/registry.js';
 import {LAB} from '../tuner/labstate.js';
 import {banner} from '../ui/hud.js';
 import {syncUI} from '../ui/menu.js';
@@ -48,12 +49,11 @@ export function humanControl(d,dt,acro){const g=pad(),bz=SB()?BZ:0;let thr=null,
  // self-level blend that fades out as the roll/pitch stick moves away from centre
  const as=assist();if(as>0){const f=1-Math.exp(-dt/(as*.07));ss[0]+=(rol-ss[0])*f;ss[1]+=(pit-ss[1])*f;ss[2]+=(yaw-ss[2])*f;rol=ss[0];pit=ss[1];yaw=ss[2]}else{ss[0]=rol;ss[1]=pit;ss[2]=yaw}
  stk[3]=cl(thr,0,1);d.thr=thrCurve(Math.min(1,stk[3]/(1-bz||1)));d.boosting=bz>0&&stk[3]>1-bz+1e-4||SB()&&!!(keys.ShiftLeft||keys.ShiftRight||keys.Space||g&&btnOn(g,padX?S.xboost:S.boostBtn));
- stk[0]=rol;stk[1]=pit;stk[2]=yaw;if(S.mode==='acro'||acro){d.wt.set(-rate(1,pit),-rate(2,yaw),-rate(0,rol));
-  if(as>0){const lv=as*(1-Math.max(Math.abs(rol),Math.abs(pit)))**2;if(lv>.002){_wa.copy(d.wt);attitude(d,UP,heading(d),5,6,0);d.wt.multiplyScalar(lv).add(_wa)}}}
+ stk[0]=rol;stk[1]=pit;stk[2]=yaw;if(S.mode==='acro'||acro){d.wt.set(-rate(1,pit),-rate(2,yaw),-rate(0,rol))}  // Acro holds whatever attitude you leave it in: no self-level (assist only smooths the sticks)
  else{const f=heading(d);
   const ch=Math.atan2(-f.x,-f.z);if(d.hd==null||Math.abs(wrapA(d.hd-ch))>1.2)d.hd=ch;d.hd=wrapA(d.hd-rate(2,yaw)*.7*dt);f.set(-Math.sin(d.hd),0,-Math.cos(d.hd));  // heading follows the yaw stick only
   const r=_r.crossVectors(f,UP),T=1.5;const u=_v.copy(UP).addScaledVector(f,pit*T).addScaledVector(r,rol*T).normalize();attitude(d,u,f,16,18,1);d.wt.y-=rate(2,yaw)*.7}
- const fl=flipIn();if(fl&&!flipPrev)d.flipUp();flipPrev=fl}
+ const fl=flipIn();if(fl&&!flipPrev&&!d.tryPop(stk))d.flipUp();flipPrev=fl}  // flip button: spend a pop if one is held and a direction is in, else flip back over
 // the quad's heading as a level unit vector (_f)
 function heading(d){const f=_f.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,-1,0).applyQuaternion(d.q);f.y=0}if(f.lengthSq()<1e-4)f.set(0,0,-1);return f.normalize()}
 let flipPrev=false;const flipIn=()=>{if(keys.KeyE)return true;const g=pad();return!!btnOn(g,padX?S.xflip:S.flipBtn)};
@@ -63,11 +63,13 @@ function cycleCam(){if(LAB.on)return;GS.camMode=(GS.camMode+1)%3;S.cam=GS.camMod
 function togglePause(){if(GS.demo)return;showMenu(!GS.menuOpen)}
 addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!GS.menuOpen)e.preventDefault();if(e.repeat)return;
  if(e.code==='Escape'||e.code==='KeyP')togglePause();if(GS.menuOpen)return;
- if(e.code==='KeyC')cycleCam();if(e.code==='KeyM'&&!LAB.on){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}if(e.code==='KeyR'&&GS.player&&GS.player.dead<=0)GS.player.spawn();if(e.code==='KeyO'){S.osd=!S.osd;save();syncUI();banner('OSD '+(S.osd?'ON':'OFF'),'',.8)}});
+ if(e.code==='KeyC')cycleCam();if(e.code==='KeyM'&&!LAB.on){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}if(e.code==='KeyR'&&canReset())GS.player.spawn();if(e.code==='KeyO'){S.osd=!S.osd;save();syncUI();banner('OSD '+(S.osd?'ON':'OFF'),'',.8)}});
 addEventListener('keyup',e=>keys[e.code]=false);addEventListener('blur',()=>{for(const k in keys)keys[k]=false;mouseFire=false});
 addEventListener('mousedown',e=>{if(e.button===0&&!GS.menuOpen&&!e.target.closest?.('#mod,#menu,#lab,#bind,button,input,select,textarea'))mouseFire=true});addEventListener('mouseup',e=>{if(e.button===0)mouseFire=false});
 // gamepad shortcut buttons (Menu pause, LB camera, Y respawn) skip any button bound to flight, fire, flip or boost
 export function padEdges(){const g=pad();if(!g||RADIO.test(g.id))return;const u=new Set();if(padX){for(const c of S.xcal){if(c.a>=100)u.add(c.a-100);if(c.b!=null)u.add(c.b);if(c.nb?.a>=100)u.add(c.nb.a-100)}
   for(const b of[S.xfire,S.xflip,S.xboost,S.lookBtn])if(typeof b==='number'&&b>=0)u.add(b)}
  const b=g.buttons.map(x=>x.pressed),e=i=>b[i]&&!prevBtn[i]&&!u.has(i);
- if(e(9)&&!calib)togglePause();if(!GS.menuOpen&&!GS.demo){if(e(4))cycleCam();if(e(3)&&GS.player&&GS.player.dead<=0)GS.player.spawn()}prevBtn=b}
+ if(e(9)&&!calib)togglePause();if(!GS.menuOpen&&!GS.demo){if(e(4))cycleCam();if(e(3)&&canReset())GS.player.spawn()}prevBtn=b}
+// reset (R / Xbox Y) only in Freeplay; in matches you fly yourself out of trouble
+const canReset=()=>!!(GS.player&&GS.player.dead<=0&&!GS.demo&&MODES[GS.GM]?.free);

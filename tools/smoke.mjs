@@ -56,7 +56,7 @@ const benign = t => /fonts\.(googleapis|gstatic)\.com|favicon\.ico/i.test(t);
 async function open(browser, url, errors) {
   const p = await browser.newPage();
   await p.setViewport({width: 960, height: 540});
-  p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e)));
+  p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e) + (e?.stack ? ' @ ' + String(e.stack).split(String.fromCharCode(10)).slice(1, 4).map(t => t.trim()).join(' < ') : '')));
   p.on('console', m => { if (m.type() === 'error' && !benign(m.text() + ' ' + (m.location()?.url || ''))) errors.push('console.error: ' + m.text()); });
   p.on('requestfailed', q => { if (!benign(q.url())) errors.push('request failed: ' + q.url() + ' ' + (q.failure()?.errorText || '')); });
   await p.goto(url, {waitUntil: 'domcontentloaded'});
@@ -203,7 +203,7 @@ function pilot() {
     else if (L.drill === 'dodge') { const p = L.proj.find(q => q.st !== 'gone'); s[0] = p ? (Math.sin(now / 300) > 0 ? .9 : -.9) : cl(-L.tilt / 20); }
     set([0, 0, s[0], -s[1], -1, -1]); yaw(s[2]);
     if (L.drill === 'still') set([null, L.t < 5 ? 0 : -cl((8 - L.y) * .12)]);
-    if (L.drill === 'alt') thr((L.band[0] + L.band[1]) / 2);
+    if (L.drill === 'alt' && L.band) thr((L.band[0] + L.band[1]) / 2);  // the band is null for a moment as the drill starts
   }, 8);
 }
 async function labScenario(url) {
@@ -211,7 +211,7 @@ async function labScenario(url) {
   try {
     const p = await browser.newPage();
     await p.setViewport({width: 960, height: 540});
-    p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e)));
+    p.on('pageerror', e => errors.push('pageerror: ' + (e?.message || e) + (e?.stack ? ' @ ' + String(e.stack).split(String.fromCharCode(10)).slice(1, 4).map(t => t.trim()).join(' < ') : '')));
     p.on('console', m => { if (m.type() === 'error' && !benign(m.text() + ' ' + (m.location()?.url || ''))) errors.push('console.error: ' + m.text()); });
     await p.evaluateOnNewDocument(fakePad);
     await p.goto(url, {waitUntil: 'domcontentloaded'});
@@ -238,7 +238,7 @@ async function labScenario(url) {
     await click(p, '#lpre [data-p=pro]'); await click(p, '#lgo');
     await p.evaluate(pilot);
     out.drills = [];
-    for (const [id, secs] of [['still', 7], ['roll', 9], ['pitch', 5], ['yaw', 5], ['track', 9], ['dodge', 7], ['alt', 7]]) {
+    for (const [id, secs] of [['still', 7], ['roll', 9], ['pitch', 5], ['yaw', 5], ['track', 9], ['alt', 7]]) {
       const L0 = await p.waitForFunction(i => { const L = window.__dl.lab(); return L.drill === i && L.st === 'drill'; }, {timeout: 20000}, id).then(() => true, () => false);
       await sleep(secs * 1000);
       const L = await p.evaluate(() => window.__dl.lab()), s = await snap(p);
@@ -284,7 +284,7 @@ chk(n.demo?.menuOpen && n.demo.moved > 0.5, 'menu demo: bots should be flying be
 chk(n.league && n.league.sim >= 9 && !n.league.nan, 'League: sim should run 10 s without NaN');
 chk(n.league && n.league.ballPath > 1 && n.league.botPathMin > 5, 'League: ball and every bot should move');
 chk(n.menuAfterEsc, 'Esc should open the menu');
-chk(n.garage?.open && n.garage.closed && n.garage.parts === 20 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch/ram', 'garage: opens, cycles all 20 parts, saves the loadout, closes');
+chk(n.garage?.open && n.garage.closed && n.garage.parts === 21 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch/ram', 'garage: opens, cycles all 21 parts, saves the loadout, closes');
 chk(n.league?.player === 'stretch/plank/punch/ram', 'League: the player should fly the garage loadout');
 chk(n.league?.botLoadouts >= 2, 'League: bots should spawn with varied loadouts');
 chk(n.dogfight && n.dogfight.sim >= 3 && !n.dogfight.nan && n.dogfight.botPathMin > 5 && n.dogfight.title === 'DOGFIGHT', 'Dogfight: should start and bots should fly');
@@ -297,8 +297,8 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
 {
   let s = null; try { s = JSON.parse(set.new.saved); } catch {}
   chk(s && s.loadout?.join('/') === 'stock/stock/stock/none', 'v15 settings: the loadout should migrate to Stock');
-  chk(s && s.physV === 4 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 4 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
-    'v15 settings: migrations (physV 4, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
+  chk(s && s.physV === 5 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 4 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
+    'v15 settings: migrations (physV 5, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
 }
 // controls + Calibration Lab
 {
@@ -313,7 +313,7 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(x[2]?.a === 3 && x[2].s < 0 && x[3]?.a === 2 && x[3].s > 0, 'binding: pitch and roll on the right stick');
   chk(L.bound?.xfire === 7, 'binding: fire on RT reported as an analog button');
   chk(L.bound?.xflip === 'a5', 'binding: flip on RT reported as an axis that reads 0 until its first press');
-  chk(L.introOpen && L.drills?.length === 7 && L.drills.every(d => d.started && d.finite && d.t > 2), 'Lab: every drill should start and run with finite state');
+  chk(L.introOpen && L.drills?.length === 6 && L.drills.every(d => d.started && d.finite && d.t > 2), 'Lab: every drill should start and run with finite state');
   chk(L.drills?.reduce((a, d) => Math.max(a, d.reps), 0) > 0 && L.drills.at(-1).changes > 0, 'Lab: reps should be measured and the tuner should change something');
   chk(L.sumOpen && L.working?.type === 'ACTUAL', 'Lab: summary should open; Pro tunes in Actual rates');
   chk(L.saved && L.saved.rpi === 2 && eq(L.saved.rprof[2], L.working) && L.saved.assist === 0 && eq(L.saved.rprof.slice(0, 2), L.before.rprof.slice(0, 2)), 'Lab: Save should write the tuned profile into slot 3 only, Pro assist 0');
@@ -327,7 +327,7 @@ if (set.old) {
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
   else {
     // settings added after v15 (with defaults) are left out of the comparison
-    const NEWKEYS = ['gfx', 'assist', 'loadout'], ns = (() => { try { const o = JSON.parse(set.new.saved); for (const k of NEWKEYS) delete o[k]; return JSON.stringify(o); } catch { return set.new.saved; } })();
+    const NEWKEYS = ['gfx', 'assist', 'loadout'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
     chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check
