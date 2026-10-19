@@ -276,7 +276,7 @@ export function initZombies(api){
  // ---------- harness hooks (tools/zombies-test.mjs) ----------
  window.__z={G,Z,api,KIND,ITEMS,REFIT,expCost,integrity,
   sim(sec,h=1/120){const n=Math.round(sec/h);for(let i=0;i<n;i++){api.step(h);if(i%12===11)api.visuals(h*12,performance.now())}},
-  cont:()=>Z.continue(),make:(k,x,z)=>make(k,x,z),plan:w=>plan(w),jump(w,cash){G.wave=w-1;if(cash!=null)G.cash=cash},
+  cont:()=>Z.continue(),make:(k,x,z,s)=>make(k,x,z,s),plan:w=>plan(w),jump(w,cash){G.wave=w-1;if(cash!=null)G.cash=cash},
   // helper rack trials: one track of a kind runs in toward a site, one drone of the given tier is launched at it from that site's north slot.
   // Returns kill / damage / miss counts. Sites and money are left as they were.
   trials(tier,kind,n=100,mark=false){const save={cash:G.cash,earned:G.earned,kills:{...G.kills},st:G.state,hp:SITES.map(s=>s.hp)},res={kill:0,damage:0,miss:0};G.state='trial';

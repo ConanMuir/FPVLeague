@@ -42,7 +42,7 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.on && __z.G.state === 'bas
   ok(s[1].rows.map(r => r[1]).join() === 'Hosty,Ash,Bea', `Roster on a client: ${s[1].rows.map(r => r[1]).join(', ')}`); }
 if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-base.png'});
 // loadouts: the host's doctrine is everyone's; each pilot's kit is their own, and a kit helper is in the whole team's shop
-{ const lo = await Promise.all(all.map(P => ev(P, () => ({doc: __z.Z.meta.doc().n, own: __z.Z.meta.load().doc, team: __z.Z.meta.teamKit().sort().join(), cards: __z.G.cards.filter(c => __z.ITEMS[c.k].kit).map(c => c.k).join(), strip: document.querySelector('.zcoop span')?.textContent || ''}))));
+{ const lo = await Promise.all(all.map(P => ev(P, () => ({doc: __z.Z.meta.doc().n, own: __z.Z.meta.load().doc, team: __z.Z.meta.teamKit().sort().join(), cards: __z.G.cards.filter(c => __z.ITEMS[c.k].kit).map(c => c.k).join(), strip: document.querySelector('#zbase .zcoop span')?.textContent || ''}))));
   ok(lo.every(x => x.doc === 'Partisan') && lo[2].own === 'fortress', `Doctrine: the host's Partisan on every screen (Bea's own pick, ${lo[2].own}, waits for her solo games); strip "${lo[1].strip}"`);
   ok(lo.every(x => x.team === 'lrack,lure'), `Team kit on every screen: ${lo.map(x => x.team).join(' / ')}`);
   ok(lo[0].cards === 'lrack' && lo[1].cards === 'lrack' && lo[2].cards === 'lrack,lure', `Kit in the shops: host [${lo[0].cards}], Ash [${lo[1].cards}], Bea [${lo[2].cards}] (the lure beacon is Bea's own perk)`); }
