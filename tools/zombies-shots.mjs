@@ -23,6 +23,13 @@ if (want('kinds')) {
   await sleep(600); await p.screenshot({path: OUT + '/z-kinds.png'});
   await p.evaluate(() => { clearInterval(window.__freeze); const {api} = __z; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; while (__z.G.state === 'wave') __z.sim(1); });
 }
+if (want('rocket')) {
+  // Rocket Assist mid-burn from the chase camera: flame, smoke trail, HUD burn bar
+  await p.evaluate(() => { const {api, G, Z} = __z; if (G.state === 'base') __z.cont(); G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.perks.rocket = 1; api.launch(); });
+  await p.keyboard.down('KeyW');
+  await p.evaluate(() => { const {api} = __z, V = api.THREE.Vector3, d = api.player; __z.sim(.05); d.p.set(0, api.gh(0, 900) + 300, 900); d.q.setFromAxisAngle(new V(1, 0, 0), -80 * Math.PI / 180); d.w.set(0, 0, 0); d.v.set(0, 0, -90); });
+  await sleep(3500); await p.screenshot({path: OUT + '/z-rocket.png'}); await p.keyboard.up('KeyW');
+}
 if (want('chaos')) {
   const W = +(process.env.ZWAVE || 28);
   await p.evaluate(W => {

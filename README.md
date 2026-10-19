@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `underground-calm`   Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main 062ff04 (Interceptor + Zombies + launcher, PR #33)
-Doing: a calmer Dogfight underground (Riley found PR #30 too cluttered). Fewer, wider tunnels: the hall to each half, one ring tunnel through both halves, and a lower level reached by a central shaft and one ramp per half. Removed: the second hall route with its corners, the S-bend branch loop, both crawl-ways, the spiral ramps, the deep ring, the shaft chambers. Round drum caverns with clean tunnel mouths, one dim floor strip per tunnel, one dim floor ring per cavern, less blotchy rock. The six entrances, the entrance rings and the bot graph stay; no light beams.
-Touches: src/world/caves.js, src/world/highlands.js (solid entrance rings), src/render/camera.js (chase cam kept out of rock), tools/physics-check.mjs (section h: off-axis flights, chase-cam, lip and stuck-bot probes), tools/pop-check.mjs (opens app.html, not the launcher), Drone League/claude-project/drone-league-notes.md (cave note re-added: it was lost in the PR #33 merge), rebuilt games/jared-league/index.html.
-Fixed geometry bugs: 0.35 m seam flaps/lips at every junction and round each entrance (seam overlap now 0.1 m), the chase cam lagging into rock in steep shafts/ramps, entrance rings drawn but not solid. Open items / help wanted: not flown by a pilot yet. The obstacle/detail work (pipes, ribs, lamps, signs) is shelved by request and not pushed.
-Overlaps: none known on these files.
+Branch: `bots-freestyle`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
+Based on: origin/main c47a7e4 (underground calm, PR #37)
+Doing: an eighth bot level, **Freestyler** (`src/bots/freestyle.js`, new DIFF entry next to Dribbler): gets the ball the Dribbler's way, then chooses its pops on purpose (lob forward / straight up / sideways past a defender / drive at goal, from where it holds the ball on its top), chains pops (catch, re-earn, pop again), air dribbles (bumps the ball up off its top toward the goal, then pops out of it), tries double taps (planned strike at the backboard, then follows the rebound) and spin shots (cuts across the ball). Same limits as players.
+Touches: src/bots/freestyle.js (new), src/bots/dribble.js (exports steer; Freestyler carry hook; scoop retuned for the current parts: higher, gentler, longer run-up; catch fallback stays under the ball; roof cap), src/bots/league.js (Freestyler routing; plan/strikeV exported; aim override flag), src/config/constants.js (DIFF), tools/bot-match.mjs (touches via onHit so bots still see ball.last; chains, air-dribble touches, double taps, spin, trick attempts, ring counts).
+Open items / help wanted: tricks are visible but not constant (~1-3 pops/min, a chain every 1-4 min in solo); the ground pickup (scoop) and catching a ball dropping from 20+ m are the weak links. Planned double taps rarely land; spin shots reach ~5-12 rad/s. Remote pilots' pops show as hit rings (popT is not networked).
+Overlaps: none known on src/bots.
 
 ## How to play
 
