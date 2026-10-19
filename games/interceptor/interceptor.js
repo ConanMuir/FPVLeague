@@ -17,6 +17,8 @@ import {mountMod,initModPanel,toggleMod,tab,modMsg} from '../../engine/modpanel.
 import {startLoop} from '../../engine/loop.js';
 import {initZombies} from './zombies.js';
 import {strelaBody} from './strela.js';
+import {FA,CW,CH,CROPS,fieldLayout,partRects,fieldData,groundMaterial} from './ground.js';
+import {initBuildings,houseTex,houseWallGeo,houseRoofGeo,houseNight} from './buildings.js';
 mountMod();setFeedTime(5500);
 
 // ---------- world constants (metres, seconds; real scale) ----------
@@ -88,53 +90,73 @@ function gh(x,z){const fx=cl((x+TW/2)/SEG,0,TN-1e-6),fz=cl((z+TW/2)/SEG,0,TN-1e-
  return u+v<=1?A+(D-A)*u+(B-A)*v:C+(B-C)*(1-u)+(D-C)*(1-v)}
 const GT=4096,KP=GT/TW,gx=x=>(x+TW/2)*KP,TREES=[],HOUSES=[],PYL=[];
 const nearSite=(x,z,m)=>SOLG.some(s=>Math.hypot(x-s.x,z-s.z)<s.r+m);
+// field layout (ground.js) shared by the painted texture and the ground shader; mg paints the mask where the shader's field detail is allowed
+// (white = farmland; roads, river, forests, villages and the sites are black)
+let GSNOW=null;  // the ground's snow-cover uniform (api.groundSnow, set by Zombies weather)
+const FCELLS=fieldLayout(seeded(11)),MK=1024/TW,mx=x=>(x+TW/2)*MK,mkC=document.createElement('canvas');mkC.width=mkC.height=1024;
+const mg=mkC.getContext('2d');mg.fillStyle='#fff';mg.fillRect(0,0,1024,1024);mg.fillStyle=mg.strokeStyle='#000';mg.lineCap=mg.lineJoin='round';
 const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
  g.fillStyle='#6a7444';g.fillRect(0,0,GT,GT);
- // big steppe fields on a slightly rotated grid (wheat, stubble, sunflower, green crops, black-earth ploughland); windbreak tree belts along many edges
- const FC=['#c4ad5f','#b8a25a','#d2bf73','#7e8c48','#66793a','#4d3e2e','#5e4a35','#9d9a5c','#a08f4a','#59723a'],A=.17,ca=Math.cos(A),sa=Math.sin(A),CW=620,CH=380;
- for(let u=-6200;u<6200;u+=CW)for(let v=-6200;v<6200;v+=CH){const cx=u*ca-v*sa,cz=u*sa+v*ca;if(Math.abs(cx)>TW/2+400||Math.abs(cz)>TW/2+400)continue;
-  g.save();g.translate(gx(cx),gx(cz));g.rotate(A);const w=CW*KP,h=CH*KP,split=rnd()<.35;
-  for(let k=0;k<(split?2:1);k++){const ww=split?w/2:w,ox=split?(k?w/4:-w/4):0;g.fillStyle=FC[rnd()*FC.length|0];g.fillRect(ox-ww/2+2,-h/2+2,ww-4,h-4);
-   g.globalAlpha=.09;g.strokeStyle=rnd()<.5?'#000':'#fff';g.lineWidth=1;g.beginPath();if(rnd()<.5)for(let s=-ww/2+4;s<ww/2-4;s+=3){g.moveTo(ox+s,-h/2+3);g.lineTo(ox+s,h/2-3)}else for(let s=-h/2+4;s<h/2-4;s+=3){g.moveTo(ox-ww/2+3,s);g.lineTo(ox+ww/2-3,s)}g.stroke();g.globalAlpha=1}
-  g.fillStyle='rgba(120,110,80,.5)';g.fillRect(-w/2,-h/2,w,1.5);g.fillRect(-w/2,-h/2,1.5,h);  // dirt tracks between fields
-  for(const[on,lx0,lz0,lx1,lz1]of[[rnd()<.5,-CW/2,-CH/2,CW/2,-CH/2],[rnd()<.3,-CW/2,-CH/2,-CW/2,CH/2]]){if(!on)continue;g.strokeStyle='#2c3f1f';g.lineWidth=11*KP;g.beginPath();g.moveTo(lx0*KP,lz0*KP);g.lineTo(lx1*KP,lz1*KP);g.stroke();
+ // big steppe fields on a slightly rotated grid: each cell holds one to three fields (wheat, barley, stubble, sunflower, maize, black-earth ploughland,
+ // harrowed soil, meadow) with soft moisture patches, inside a grass corridor; windbreak tree belts and two-rut dirt tracks along many edges
+ const ca=Math.cos(FA),sa=Math.sin(FA),VC=['#6a7049','#656b45','#70764d'];
+ for(const c of FCELLS){const cx=c.u*ca-c.v*sa,cz=c.u*sa+c.v*ca;if(Math.abs(cx)>TW/2+400||Math.abs(cz)>TW/2+400)continue;
+  g.save();g.translate(gx(cx),gx(cz));g.rotate(FA);g.scale(KP,KP);g.fillStyle=VC[(c.i*7+c.j*3)%3];g.fillRect(-CW/2-1,-CH/2-1,CW+2,CH+2);
+  partRects(c).forEach(([x0,y0,x1,y1],k)=>{const p=c.parts[k],C=CROPS[p.t].c;g.fillStyle=C[p.shade*C.length|0];g.fillRect(x0,y0,x1-x0,y1-y0);
+   g.save();g.beginPath();g.rect(x0,y0,x1-x0,y1-y0);g.clip();
+   for(let n=0,m=2+rnd()*4|0;n<m;n++){const x=R(x0,x1),y=R(y0,y1),r=R(40,170),gr=g.createRadialGradient(x,y,0,x,y,r),d=rnd()<.6;gr.addColorStop(0,d?'rgba(30,24,10,.14)':'rgba(255,245,210,.1)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x-r,y-r,2*r,2*r)}
+   if(p.t>5&&p.t<8){g.strokeStyle='rgba(0,0,0,.08)';g.lineWidth=14;g.strokeRect(x0+7,y0+7,x1-x0-14,y1-y0-14)}
+   g.restore()});
+  for(const[on,lx0,lz0,lx1,lz1]of[[c.beltT,-CW/2,-CH/2,CW/2,-CH/2],[c.beltL,-CW/2,-CH/2,-CW/2,CH/2]]){if(!on)continue;g.strokeStyle='#2c3f1f';g.lineWidth=7;g.beginPath();g.moveTo(lx0,lz0);g.lineTo(lx1,lz1);g.stroke();
    const L=Math.hypot(lx1-lx0,lz1-lz0);for(let s=0;s<L;s+=6+rnd()*4){const lx=lx0+(lx1-lx0)*s/L,lz=lz0+(lz1-lz0)*s/L,o=(rnd()-.5)*5,x=cx+lx*ca-lz*sa-o*sa,z=cz+lx*sa+lz*ca+o*ca;
     if(TREES.length<15000&&Math.abs(x)<4300&&Math.abs(z)<4300&&Math.abs(z-rivZ(x))>90&&!nearSite(x,z,30))TREES.push([x,z,R(9,17)])}}
+  g.fillStyle='rgba(138,120,88,.6)';if(c.trkT)g.fillRect(-CW/2,-CH/2+1.9,CW,2.6);if(c.trkL)g.fillRect(-CW/2+1.9,-CH/2,2.6,CH);
   g.restore()}
  // forest patches along the river and on the hills
- for(let k=0;k<14;k++){const cx=R(-3800,3800),cz=k<6?rivZ(cx)+R(-260,260):R(-3800,2600);if(nearSite(cx,cz,250))continue;for(let i=0;i<300&&TREES.length<17000;i++){const a=rnd()*6.3,d=Math.sqrt(rnd())*180,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d*.7;if(Math.abs(z-rivZ(x))<75)continue;
+ for(let k=0;k<14;k++){const cx=R(-3800,3800),cz=k<6?rivZ(cx)+R(-260,260):R(-3800,2600);if(nearSite(cx,cz,250))continue;mg.beginPath();mg.ellipse(mx(cx),mx(cz),200*MK,140*MK,0,0,7);mg.fill();
+  for(let i=0;i<300&&TREES.length<17000;i++){const a=rnd()*6.3,d=Math.sqrt(rnd())*180,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d*.7;if(Math.abs(z-rivZ(x))<75)continue;
   g.fillStyle='#283b1c';g.beginPath();g.arc(gx(x),gx(z),6*KP,0,7);g.fill();TREES.push([x,z,R(10,20)])}}
  // river: flood meadow, sand, water
  for(const[wd,c]of[[380,'#6f8045'],[150,'#b2a57c'],[110,'#3b6577']]){g.strokeStyle=c;g.lineWidth=wd*KP;g.lineJoin='round';g.beginPath();for(let x=-TW/2;x<=TW/2;x+=25)g.lineTo(gx(x),gx(rivZ(x)));g.stroke()}
+ mg.lineWidth=420*MK;mg.beginPath();for(let x=-TW/2;x<=TW/2;x+=25)mg.lineTo(mx(x),mx(rivZ(x)));mg.stroke();
  // roads: a main road north-south, one east-west past the sites, spurs to each site
- const road=(pts,w,c)=>{g.strokeStyle=c;g.lineWidth=w*KP;g.beginPath();pts.forEach(([x,z])=>g.lineTo(gx(x),gx(z)));g.stroke()};
+ const road=(pts,w,c)=>{g.strokeStyle=c;g.lineWidth=w*KP;g.beginPath();pts.forEach(([x,z])=>g.lineTo(gx(x),gx(z)));g.stroke();mg.lineWidth=(w+16)*MK;mg.beginPath();pts.forEach(([x,z])=>mg.lineTo(mx(x),mx(z)));mg.stroke()};
  const NS=[],EW=[];for(let z=-TW/2;z<=TW/2;z+=25)NS.push([120+90*Math.sin(z/700),z]);for(let x=-TW/2;x<=TW/2;x+=25)EW.push([x,1990+30*Math.sin(x/420)]);
  road(NS,13,'#77756d');road(NS,9,'#8e8b82');road(EW,11,'#77756d');road(EW,7,'#8e8b82');for(const s of SOLG)road([[s.x,s.z],[s.x,1990+30*Math.sin(s.x/420)]],6,'#8a877d');
  // villages: yards and houses along a street
  for(let k=0,n=0;k<90&&n<14;k++){const cx=R(-4000,4000),cz=R(-4000,3800);if(Math.abs(cz-rivZ(cx))<260||nearSite(cx,cz,420))continue;n++;
-  road([[cx-320*ca,cz-320*sa],[cx+320*ca,cz+320*sa]],6,'#8e8b82');
+  road([[cx-320*ca,cz-320*sa],[cx+320*ca,cz+320*sa]],6,'#8e8b82');mg.lineWidth=260*MK;mg.beginPath();mg.moveTo(mx(cx-330*ca),mx(cz-330*sa));mg.lineTo(mx(cx+330*ca),mx(cz+330*sa));mg.stroke();
   for(let i=0,m=30+rnd()*45;i<m;i++){const s=R(-300,300),o=(rnd()<.5?-1:1)*R(20,48),x=cx+s*ca-o*sa,z=cz+s*sa+o*ca;
-   g.save();g.translate(gx(x),gx(z));g.rotate(A);g.fillStyle='#788a4b';g.fillRect(-16*KP,-24*KP,32*KP,48*KP);g.fillStyle='#4e6a35';g.fillRect(-14*KP,4*KP,28*KP,18*KP);g.restore();HOUSES.push([x,z,A,rnd()])}}
- for(const s of SOLG){g.fillStyle=s.fob?'#5d5340':s===PADP?'#8a8b84':'#86857c';g.fillRect(gx(s.x-s.r),gx(s.z-s.r*.8),s.r*2*KP,s.r*1.6*KP);if(s.fob)road([[s.x,s.z],[s.x+40,s.z+260]],5,'#7a6f58')}
- const im=g.getImageData(0,0,GT,GT),D=im.data;for(let i=0;i<D.length;i+=4){const n=.9+Math.random()*.2;D[i]*=n;D[i+1]*=n;D[i+2]*=n}g.putImageData(im,0,0)});
+   // yard round the house, then the long vegetable garden behind it (beds of dark soil and green rows, away from the street)
+   g.save();g.translate(gx(x),gx(z));g.rotate(FA);g.scale(KP,KP);const sg=Math.sign(o),gl=60+(i*37%32);g.fillStyle=['#6f7a4c','#77804f','#68724a'][i%3];g.fillRect(-14,-14,28,28);
+   g.fillStyle=i%4?'#655a42':'#6f6e4a';g.fillRect(-9,sg>0?14:-14-gl,18,gl);g.fillStyle='rgba(98,110,66,.4)';for(let b=2;b<gl-2;b+=3.2)g.fillRect(-8,sg>0?14+b:-14-b-1.4,16,1.4);g.restore();HOUSES.push([x,z,FA,rnd()])}}
+ for(const s of SOLG){g.fillStyle=s.fob?'#5d5340':s===PADP?'#8a8b84':'#86857c';g.fillRect(gx(s.x-s.r),gx(s.z-s.r*.8),s.r*2*KP,s.r*1.6*KP);if(s.fob)road([[s.x,s.z],[s.x+40,s.z+260]],5,'#7a6f58');mg.fillRect(mx(s.x-s.r-30),mx(s.z-s.r*.8-30),(s.r*2+60)*MK,(s.r*1.6+60)*MK)}
+ const im=g.getImageData(0,0,GT,GT),D=im.data;for(let i=0;i<D.length;i+=4){const n=.95+Math.random()*.1;D[i]*=n;D[i+1]*=n;D[i+2]*=n}g.putImageData(im,0,0)});
 {const g=new THREE.PlaneGeometry(TW,TW,TN,TN);g.rotateX(-Math.PI/2);const p=g.attributes.position;for(let k=0;k<p.count;k++)p.setY(k,HF[k]);g.computeVertexNormals();
- const m=new THREE.Mesh(g,detail(new THREE.MeshStandardMaterial({map:groundTex,roughness:1}),7,53,1,.45));m.receiveShadow=true;scene.add(m);
+ const mT=new THREE.CanvasTexture(mkC);mT.anisotropy=4;
+ const m=new THREE.Mesh(g,groundMaterial(groundTex,fieldData(FCELLS),mT));m.receiveShadow=true;scene.add(m);GSNOW=m.material.userData.snow;
  // river surface: a ribbon along the river line only (the low ground elsewhere stays dry)
  const rv=[];for(let x=-TW/2;x<=TW/2;x+=25){const z=rivZ(x),dz=(rivZ(x+1)-z),n=Math.hypot(1,dz),ox=-dz/n*68,oz=1/n*68;rv.push(x+ox,-10.5,z+oz,x-ox,-10.5,z-oz)}
  const ri=[];for(let k=0;k<rv.length/6-1;k++){const a=k*2;ri.push(a,a+2,a+1,a+1,a+2,a+3)}const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rv,3));rg.setIndex(ri);rg.computeVertexNormals();
  scene.add(new THREE.Mesh(rg,new THREE.MeshStandardMaterial({color:0x2f5562,roughness:.08,metalness:.1,side:THREE.DoubleSide})))}
 // trees (trunk + two-lobed crown), village houses, power line from the substation
-{const m4=new THREE.Matrix4(),q=new QT(),s=new V3(),c=new THREE.Color(),N=TREES.length,
-  trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(.2,.35,1,7).translate(0,.5,0),detail(new THREE.MeshStandardMaterial({color:0x4a3b2c,roughness:1}),.6,3,0,.25),N),
-  crown=new THREE.InstancedMesh(crownGeo(),detail(new THREE.MeshStandardMaterial({roughness:.9,vertexColors:true}),1.3,5,0,.6),N*2);
- TREES.forEach(([x,z,h],i)=>{const y=gh(x,z)-.3,r=h*.26;m4.compose(_t.set(x,y,z),q.identity(),s.set(1+h*.03,h*.55,1+h*.03));trunk.setMatrixAt(i,m4);
-  c.setHSL(.23+Math.random()*.08,.38+Math.random()*.15,.12+Math.random()*.08,THREE.SRGBColorSpace);
-  for(let k=0;k<2;k++){q.setFromAxisAngle(UP,x*z+k);m4.compose(_t.set(x+(k?r*.4:-r*.3),y+h*(k?.72:.55),z+(k?-r*.3:r*.3)),q,s.set(r*(k?.8:1),r*(k?.9:1.15),r*(k?.8:1)));crown.setMatrixAt(i*2+k,m4);crown.setColorAt(i*2+k,c)}});
- for(const o of[trunk,crown]){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;scene.add(o)}
- const W=['#e9e4d6','#d8d2c0','#c9d6dc','#e6dcc0','#d9c7a8'],RF=['#5a5f66','#7d3b2e','#4f6a4a','#6b6f74','#8a8f96'],walls=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1).translate(0,.5,0),new THREE.MeshStandardMaterial({roughness:.9}),HOUSES.length),
-  roofs=new THREE.InstancedMesh(new THREE.ConeGeometry(1,1,4).rotateY(Math.PI/4).translate(0,.5,0),new THREE.MeshStandardMaterial({roughness:.7,metalness:.2,flatShading:true}),HOUSES.length);
+// The forest is cut into 1125 m tiles (one trunk + one crown InstancedMesh each, frustum-culled by their bounding spheres): the sun's 440 m
+// shadow box then only redraws the few tiles under it instead of all 17k trees, and the view only draws the tiles in front of the camera.
+{const m4=new THREE.Matrix4(),q=new QT(),s=new V3(),c=new THREE.Color(),CK=TW/8,tiles=new Map(),
+  tGeo=new THREE.CylinderGeometry(.2,.35,1,7).translate(0,.5,0),tMat=detail(new THREE.MeshStandardMaterial({color:0x4a3b2c,roughness:1}),.6,3,0,.25),
+  cGeo=crownGeo(),cMat=detail(new THREE.MeshStandardMaterial({roughness:.9,vertexColors:true}),1.3,5,0,.6);
+ for(const t of TREES){const k=Math.floor((t[0]+TW/2)/CK)+Math.floor((t[1]+TW/2)/CK)*64;let a=tiles.get(k);if(!a)tiles.set(k,a=[]);a.push(t)}
+ for(const L of tiles.values()){const trunk=new THREE.InstancedMesh(tGeo,tMat,L.length),crown=new THREE.InstancedMesh(cGeo,cMat,L.length*2);
+  L.forEach(([x,z,h],i)=>{const y=gh(x,z)-.3,r=h*.26;m4.compose(_t.set(x,y,z),q.identity(),s.set(1+h*.03,h*.55,1+h*.03));trunk.setMatrixAt(i,m4);
+   c.setHSL(.23+Math.random()*.08,.38+Math.random()*.15,.12+Math.random()*.08,THREE.SRGBColorSpace);
+   for(let k=0;k<2;k++){q.setFromAxisAngle(UP,x*z+k);m4.compose(_t.set(x+(k?r*.4:-r*.3),y+h*(k?.72:.55),z+(k?-r*.3:r*.3)),q,s.set(r*(k?.8:1),r*(k?.9:1.15),r*(k?.8:1)));crown.setMatrixAt(i*2+k,m4);crown.setColorAt(i*2+k,c)}});
+  for(const o of[trunk,crown]){o.castShadow=o.receiveShadow=true;o.userData.forest=1;o.computeBoundingSphere();scene.add(o)}}}
+{const m4=new THREE.Matrix4(),q=new QT(),s=new V3(),c=new THREE.Color();
+ // village houses: plastered walls with windows (one texture, tinted per house) and gable ends, a gable roof with a chimney (buildings.js)
+ const W=['#e9e4d6','#d8d2c0','#c9d6dc','#e6dcc0','#d9c7a8'],RF=['#5a5f66','#7d3b2e','#4f6a4a','#6b6f74','#8a8f96'],walls=new THREE.InstancedMesh(houseWallGeo(),houseNight(new THREE.MeshStandardMaterial({map:houseTex(),roughness:.9})),HOUSES.length),
+  roofs=new THREE.InstancedMesh(houseRoofGeo(),detail(new THREE.MeshStandardMaterial({roughness:.75,metalness:.15,side:THREE.DoubleSide}),.9,4,0,.3),HOUSES.length);
  HOUSES.forEach(([x,z,a,k],i)=>{const y=gh(x,z)-.3;q.setFromAxisAngle(UP,-a);m4.compose(_t.set(x,y,z),q,s.set(8,3.2,11));walls.setMatrixAt(i,m4);walls.setColorAt(i,c.set(W[i%5]));
-  m4.compose(_t.set(x,y+3.2,z),q,s.set(6.4,3,8.4));roofs.setMatrixAt(i,m4);roofs.setColorAt(i,c.set(RF[(k*5)|0]))});
+  m4.compose(_t.set(x,y+3.1,z),q,s.set(9.2,2.5,12));roofs.setMatrixAt(i,m4);roofs.setColorAt(i,c.set(RF[(k*5)|0]))});
  for(const o of[walls,roofs]){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;scene.add(o)}
  // 110 kV line: lattice pylons every 320 m with sagging conductors (visual only)
  const mS=new THREE.MeshStandardMaterial({color:0x8c9298,roughness:.5,metalness:.6}),leg=new THREE.BoxGeometry(.35,1,.35),arm=new THREE.BoxGeometry(14,.5,.5),wp=[];
@@ -211,21 +233,11 @@ const sdCyl=(x,y,z,r,y0,y1)=>{const dx=Math.hypot(x,z)-r,dy=Math.abs(y-(y0+y1)/2
 const MS={conc:detail(new THREE.MeshStandardMaterial({color:0x9b9d97,roughness:.9}),3,19),met:new THREE.MeshStandardMaterial({color:0x66705f,roughness:.5,metalness:.5}),steel:new THREE.MeshStandardMaterial({color:0xa7adb3,roughness:.4,metalness:.7}),
  brick:new THREE.MeshStandardMaterial({color:0x9a6a4d,roughness:.9}),tank:new THREE.MeshStandardMaterial({color:0xdfe1dc,roughness:.45,metalness:.3}),roof:new THREE.MeshStandardMaterial({color:0x55575a,roughness:.9}),
  dark:new THREE.MeshStandardMaterial({color:0x1d1f21,roughness:.6,metalness:.4})};
-const facade=tex(256,256,g=>{g.fillStyle='#c9c4b8';g.fillRect(0,0,256,256);for(let r=0;r<4;r++)for(let c=0;c<4;c++){g.fillStyle=Math.random()<.2?'#d9c48e':'#2c3440';g.fillRect(c*64+14,r*64+16,36,30);g.fillStyle='#b0ab9f';g.fillRect(c*64+10,r*64+48,44,5)}},true);
-const MF=new THREE.MeshStandardMaterial({map:facade,roughness:.85});
 function part(s,geo,mat,x,y,z){const m=new THREE.Mesh(geo,mat);m.position.set(s.x+x,s.y+y,s.z+z);m.castShadow=m.receiveShadow=true;scene.add(m);return m}
 function boxS(s,w,h,d,mat,x,y0,z,solid=true){part(s,new THREE.BoxGeometry(w,h,d),mat,x,y0+h/2,z);if(solid)s.sol.push({x:s.x+x,y:s.y+y0+h/2,z:s.z+z,hx:w/2,hy:h/2,hz:d/2})}
-function cylS(s,r,h,mat,x,y0,z){part(s,new THREE.CylinderGeometry(r,r,h,32),mat,x,y0+h/2,z);s.sol.push({c:1,x:s.x+x,z:s.z+z,r,y0:s.y+y0,y1:s.y+y0+h})}
-function block(s,w,h,d,x,z){const g=new THREE.BoxGeometry(w,h,d),uv=g.attributes.uv;for(let i=0;i<24;i++){const f=i>>2;if(f===2||f===3)continue;uv.setXY(i,uv.getX(i)*(f<2?d:w)/16,uv.getY(i)*h/12)}
- part(s,g,[MF,MF,MS.roof,MS.roof,MF,MF],x,h/2,z);s.sol.push({x:s.x+x,y:s.y+h/2,z:s.z+z,hx:w/2,hy:h/2,hz:d/2});s.aims.push(new V3(s.x+x,s.y+h,s.z+z))}
 SITES.forEach(s=>{s.aims=[];s.max=3;s.hp=3});
-{const s=SITES[0];boxS(s,120,.4,90,MS.conc,0,0,0);  // substation: transformers, gantries, control building
- for(const x of[-36,-12,12,36]){boxS(s,8,7,6,MS.met,x,0,-12);boxS(s,10,5,1.4,MS.met,x,.8,-7.6,false);for(const bx of[-2.5,0,2.5])part(s,new THREE.CylinderGeometry(.25,.35,3,8),MS.steel,x+bx,8.5,-12);s.aims.push(new V3(s.x+x,s.y+7,s.z-12))}
- for(const z of[10,22])for(const x of[-46,46])boxS(s,.8,18,.8,MS.steel,x,0,z);for(const z of[10,22])boxS(s,93,1,1,MS.steel,0,17.5,z,false);
- boxS(s,26,8,12,MS.brick,0,0,34)}
-{const s=SITES[1];boxS(s,120,.4,90,MS.conc,0,0,0);  // fuel depot: six storage tanks
- for(const x of[-34,0,34])for(const z of[-17,17]){cylS(s,11,15,MS.tank,x,0,z);part(s,new THREE.ConeGeometry(11.2,2,32),MS.tank,x,16,z);s.aims.push(new V3(s.x+x,s.y+16,s.z+z))}}
-{const s=SITES[2];for(const[x,z]of[[-46,-34],[46,-34],[-46,34],[46,34]])block(s,66,27,14,x,z);block(s,22,48,22,0,0)}  // nine-storey panel blocks and a tower
+// substation, fuel depot and apartment blocks (buildings.js): stage 0 now; Zombies adds the damage stages and follows each site's HP (step in visuals)
+const BLD=initBuildings({scene,renderer,camera,psys,MS});BLD.build(SITES[0],'substation');BLD.build(SITES[1],'depot');BLD.build(SITES[2],'apartments');
 // radar site: a container and a mast with the ground radar (the old catapult pad)
 {const s=PADP;boxS(s,40,.3,30,MS.conc,0,0,0);boxS(s,6,2.6,2.4,MS.met,-14,0,8);boxS(s,.5,9,.5,MS.steel,12,0,8);part(s,new THREE.BoxGeometry(2.8,1.1,.2),MS.dark,12,9.5,8).userData.spin=1}
 const RADM=scene.children.find(o=>o.userData.spin);
@@ -587,7 +599,7 @@ function visuals(dt,now){const me=player;
  if(me){me.mesh.position.copy(me.p);me.mesh.quaternion.copy(me.q);me.mesh.scale.setScalar(MSZ);const sp=(me.dead>0?0:25+me.thr*90)*dt;me.props.forEach((p,i)=>p.rotation.y+=i%3?sp:-sp)}
  for(const t of TH){t.mesh.position.copy(t.p);t.mesh.lookAt(_t.copy(t.p).add(t.v));t.mesh.rotateZ(t.st==='fall'?t.roll:t.bank);if(t.prop)t.prop.rotation.z+=dt*90}
  for(let i=TH.length-1;i>=0;i--)if(TH[i].st==='dead'){scene.remove(TH[i].mesh);TH.splice(i,1)}
- if(RADM)RADM.rotation.y+=dt*2;boomL.intensity*=Math.exp(-dt*9);FX.upd(dt);SMK.upd(dt);
+ if(RADM)RADM.rotation.y+=dt*2;boomL.intensity*=Math.exp(-dt*9);FX.upd(dt);SMK.upd(dt);BLD.step(dt,Z.on,Z.plume);
  if(Z.on)Z.visuals(dt);if(audioOn())audioTick(dt)}
 
 // ---------- input events ----------
@@ -630,14 +642,14 @@ function step(dt){const me=player;
  if(me&&!demo){if(me.dead>0){if((me.dead-=dt)<=0&&wstate!=='over')launch()}else{humanControl(me,dt);if(me.mah>=BCAP)me.thr=0;const h=me.step(dt);if(h>CRASH)lose('crash');else if(me.mah>=BCAP&&me.gt>0)lose('bat');else fuse()}}
  for(const t of TH)threatStep(t,dt);waves(dt);fires(dt);if(Z.on)Z.step(dt)}
 // Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
-const Z=initZombies({THREE,scene,camera,renderer,S,save,TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
+const Z=initZombies({THREE,scene,camera,renderer,S,save,TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
- setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
+ setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
 startDemo();
 startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD*(Z.on?Z.tsc:1),slow:()=>Z.on&&Z.tsc<1,paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now)=>{
  if(!menuOpen&&!demo)switches();
- const fpvOn=!demo&&camMode===0&&player&&player.dead<=0,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
+ const fpvOn=!demo&&camMode===0&&player&&player.dead<=0&&!Z.cine,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
  sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.04-.18*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
- weather(vd,now);visuals(vd,now);updateCam(dt,now);hud(vd);overlay();if(Z.on)Z.overlay(oc)}});
+ weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);hud(vd);overlay();if(Z.on)Z.overlay(oc)}});

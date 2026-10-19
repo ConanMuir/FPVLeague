@@ -29,7 +29,7 @@ export function initDefences(api,G,Z){
    const t=new THREE.Group();t.position.set(0,2.3,-.4);g.add(t);d.aim=t;const add=(geo,m,x,y,z,rx=0)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.rotation.x=rx;o.castShadow=true;t.add(o)};
    add(new THREE.BoxGeometry(2.2,1.1,2.2),M.olive,0,0,0);for(const x of[-1.35,1.35]){add(new THREE.BoxGeometry(.5,.6,1.2),M.olive,x,.1,-.4);add(new THREE.CylinderGeometry(.06,.06,3.2,8).rotateX(Math.PI/2),M.dark,x,.15,-2.4)}
    add(new THREE.CylinderGeometry(.5,.5,.1,16),M.dark,0,1.1,.6,.4);return g},
-  sam(d){const g=kit();g.add$(new THREE.BoxGeometry(2.6,1.2,7),M.olive,0,1,0);wheels(g,1.2,2.4);const r=new THREE.Group();r.position.set(0,1.7,1);r.rotation.x=-.75;g.add(r);d.aim=r;d.cells=[];
+  sam(d){const g=kit();g.add$(new THREE.BoxGeometry(2.6,1.2,7),M.olive,0,1,0);wheels(g,1.2,2.4);const r=new THREE.Group();r.position.set(0,1.7,1);r.rotation.x=.75;g.add(r);d.aim=r;d.cells=[];
    for(let i=0;i<8;i++){const o=new THREE.Mesh(new THREE.BoxGeometry(.55,.55,4.2),M.tube);o.position.set(-.85+(i%4)*.57,(i>>2)*.6,-1.8);o.castShadow=true;r.add(o);d.cells.push(o)}return g},
   ew(d){const g=kit();g.add$(new THREE.BoxGeometry(2.4,2.2,5),M.olive,0,1.5,0);wheels(g,1.1,1.8);g.add$(new THREE.CylinderGeometry(.08,.12,9,8),M.dark,0,7,1.6);for(let i=0;i<3;i++)g.add$(new THREE.BoxGeometry(1.4,.12,.12),M.dark,0,9+i*.8,1.6,0,i);
    const b=new THREE.Mesh(new THREE.SphereGeometry(1,24,10,0,Math.PI*2,0,Math.PI/2),M.bubble);b.renderOrder=2;d.bubble=b;b.userData.free=1;return g},
@@ -105,10 +105,12 @@ export function initDefences(api,G,Z){
  function splash(d,p,r,pk,skip){for(const u of TH)if(u!==skip&&u.k==='swarm'&&api.live(u)&&u.p.distanceTo(p)<r&&Math.random()<pk){d.kills++;Z.helperKill(u)}}
 
  // ---------- each helper's logic ----------
+ // launch point on a helper's mesh: the end of tube / cell i (local x, y, z), and its pointing direction in dir; null before the mesh is deployed
+ const mouth=(d,i,x,y,z,dir)=>{const c=d.cells?.[i];if(!d.mesh||!c)return null;d.mesh.updateMatrixWorld(true);if(dir)dir.set(0,y?1:0,z?-1:0).transformDirection(c.matrixWorld);return c.localToWorld(new V3(x,y,z))};
  const sl=d=>SLOTS[d.slot],aimAt=(d,t)=>{if(!d.aim||!d.mesh)return;const s=sl(d);d.mesh.rotation.y=Math.atan2(t.p.x-s.x,t.p.z-s.z)+Math.PI};
  const LOGIC={
   rack(d,dt){if(d.ready<d.cap&&(d.rearm+=dt)>=RACK_REARM){d.rearm=0;d.ready++}d.cells?.forEach((c,i)=>c.visible=i<d.ready);
-   if((d.cd-=dt)>0||d.ready<=0)return;const s=sl(d),t=pickTarget('rack',s.x,s.z,RACK_RANGE,{smart:d.tier>=4});if(t){fire(d,t,'drone',_a.set(s.x,s.y+2.5,s.z));d.ready--;d.cd=1.2}},
+   if((d.cd-=dt)>0||d.ready<=0)return;const s=sl(d),t=pickTarget('rack',s.x,s.z,RACK_RANGE,{smart:d.tier>=4});if(t){fire(d,t,'drone',mouth(d,Math.min(d.ready,4)-1,0,.85,0)||_a.set(s.x,s.y+2.5,s.z));d.ready--;d.cd=1.2}},
   // mortar: aims a time-fused shell at where the track will be; the burst can catch others nearby
   flak(d,dt){if((d.cd-=dt)>0)return;const s=sl(d),l=L(d),t=pickTarget('flak',s.x,s.z,HELP.flak.rng,{only:u=>u.p.y-gh(u.p.x,u.p.z)<900});if(!t)return;
    const tof=Math.hypot(t.p.x-s.x,t.p.z-s.z)/300+1.5,at=t.p.clone().addScaledVector(t.v,tof);const sh={d,t,at,time:tof,p:new V3(s.x,s.y+2,s.z),from:new V3(s.x,s.y+2,s.z),T:tof,claim:null};claim(t,sh);shells.push(sh);
@@ -121,14 +123,14 @@ export function initDefences(api,G,Z){
    d.cd=1.1;d.shots++;api.FX.emit(from,0xffd080,6,4,.15,null,2.5);
    const p=l.p*(RESIST.gepard[t.k]??1)*(1-.5*dist/rng);pend.push({t:tof,fn:()=>{if(!api.live(t)||!G.on)return;const o=Z.helperHit(t,p,.5);if(o==='kill'){d.kills++;Z.helperKill(t);if(l.ahead&&t.k==='swarm')splash(d,t.p,14,.5,t);release(d)}else if(o==="damage"&&t.k!=="boss")api.damage(t)}})},
   sam(d,dt){if((d.cd-=dt)>0||d.ammo<=0)return;const s=sl(d),l=L(d),t=pickTarget('sam',s.x,s.z,HELP.sam.rng,{smart:l.smart,prio:u=>u.k==='swarm'?-80:0});if(!t)return;
-   aimAt(d,t);fire(d,t,'sam',_a.set(s.x,s.y+3,s.z),{pk:l.p,direct:1,v:new V3(0,120,0)});d.ammo--;d.cd=3.5;d.cells?.forEach((c,i)=>c.visible=i<d.ammo)},
+   aimAt(d,t);const dv=new V3(),mz=mouth(d,Math.min(d.ammo,8)-1,0,0,-2.15,dv);fire(d,t,'sam',mz||_a.set(s.x,s.y+3,s.z),{pk:l.p,direct:1,v:mz?dv.multiplyScalar(120):new V3(0,120,0)});d.ammo--;d.cd=3.5;d.cells?.forEach((c,i)=>c.visible=i<d.ammo)},
   // jammer: tracks entering the bubble get one roll; spoofed ones lose their aim and hit an empty field
   ew(d){const s=sl(d),l=L(d),r=l.rng||HELP.ew.rng;for(const t of TH){if(!api.live(t)||d.jam.has(t.id))continue;const e=RESIST.ew[t.k]??0;if(e<=0)continue;
    if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)continue;d.jam.add(t.id);if(Math.random()<l.p*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
     api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}}},
   idome(d,dt){if((d.cd-=dt)>0||d.ammo<=0)return;const s=sl(d),l=L(d),hard=u=>KIND[u.k].armor==='hard'||u.k==='cruise';
    const t=pickTarget('idome',s.x,s.z,HELP.idome.rng,{over:l.over,only:u=>hard(u)?u.p.distanceTo(_c.set(s.x,s.y,s.z))<14000:(l.over&&u.p.distanceTo(_c.set(s.x,s.y,s.z))<5000),prio:u=>hard(u)?200:0});if(!t)return;
-   fire(d,t,'tamir',_a.set(s.x,s.y+3,s.z),{pk:l.p,direct:1,dome:true,v:new V3(rnd(-10,10),160,rnd(-10,10))});d.ammo--;d.cd=1.6},
+   const dv=new V3(),mz=mouth(d,d.ammo%2,rnd(-.8,.8),1.25,0,dv);fire(d,t,'tamir',mz||_a.set(s.x,s.y+3,s.z),{pk:l.p,direct:1,dome:true,v:mz?dv.multiplyScalar(160):new V3(rnd(-10,10),160,rnd(-10,10))});d.ammo--;d.cd=1.6},
   // space interceptors: come down from orbit onto the fast tracks anywhere on the map
   gdome(d,dt){if((d.cd-=dt)>0||d.ammo<=0)return;const l=L(d),dome=D.some(e=>e.type==='idome'&&e.ammo>0);
    // saves its magazine for what only it can stop; a ballistic track only as a last-ditch shot when no Iron Dome has interceptors left

@@ -2,11 +2,11 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `bots-freestyle`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main c47a7e4 (underground calm, PR #37)
-Doing: an eighth bot level, **Freestyler** (`src/bots/freestyle.js`, new DIFF entry next to Dribbler): gets the ball the Dribbler's way, then chooses its pops on purpose (lob forward / straight up / sideways past a defender / drive at goal, from where it holds the ball on its top), chains pops (catch, re-earn, pop again), air dribbles (bumps the ball up off its top toward the goal, then pops out of it), tries double taps (planned strike at the backboard, then follows the rebound) and spin shots (cuts across the ball). Same limits as players.
-Touches: src/bots/freestyle.js (new), src/bots/dribble.js (exports steer; Freestyler carry hook; scoop retuned for the current parts: higher, gentler, longer run-up; catch fallback stays under the ball; roof cap), src/bots/league.js (Freestyler routing; plan/strikeV exported; aim override flag), src/config/constants.js (DIFF), tools/bot-match.mjs (touches via onHit so bots still see ball.last; chains, air-dribble touches, double taps, spin, trick attempts, ring counts).
-Open items / help wanted: tricks are visible but not constant (~1-3 pops/min, a chain every 1-4 min in solo); the ground pickup (scoop) and catching a ball dropping from 20+ m are the weak links. Planned double taps rarely land; spin shots reach ~5-12 rad/s. Remote pilots' pops show as hit rings (popT is not networked).
+Branch: `bots-freestyle-2`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
+Based on: origin/main 699c022 (zombies terrain, PR #43; includes Freestyler pass 1, PR #40)
+Doing: Freestyler pass 2: steadier pickup and catching (about 6 pops/min in solo, ~25% of the time scooping), double taps that land, Grand Champion regression check.
+Touches: src/bots/freestyle.js, src/bots/dribble.js (apex catch for `apex` levels, wall/ramp repulsion in steer, `topR`, `nr`, scoop params per level), src/config/constants.js (Freestyler entry), tools/bot-match.mjs (tapdrill mode).
+Open items / help wanted: spin shots are weak (2-6 rad/s); no wall pops yet; about 1 run in 6 still gets stuck re-scooping a ball near a wall for a while; chains are 2-3 pops on average (max 6).
 Overlaps: none known on src/bots.
 
 ## How to play

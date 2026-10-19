@@ -11,6 +11,8 @@
 // Cost: every particle set is a fixed, preallocated pool (rain 5000 streaks shared with Classic, snow 2400, dust 500, stars 900, glows 160,
 // two lightning bolts, four searchlight beams), and the per-frame counts halve when Zombies' performance governor sees slow frames.
 import {dot,tex} from '../../engine/render.js';
+import {NIGHT} from './buildings.js';
+import {SNOW} from '../../engine/render.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initWeather(api,G,Z){
  const {THREE,scene,S,TH}=api,_c1=new THREE.Color(),_c2=new THREE.Color(),_a=new THREE.Vector3();
@@ -71,13 +73,18 @@ export function initWeather(api,G,Z){
   stars.g.setAttribute('color',new THREE.BufferAttribute(C,3))}
  // glows: site lamps (static) and a dim red engine / nav light on every live track near the camera (the hot kinds already glow in zenemy.js)
  const GN=160,glow=pts(GN,new THREE.PointsMaterial({size:6,sizeAttenuation:false,map:dot,color:new THREE.Color(0xff5a3c).multiplyScalar(2),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));
- const LP=[];for(const s of[...api.SITES,api.PADP,...api.FOBS]){const n=s.fob?2:6,r=s.r*.85;for(let i=0;i<n;i++){const a=i/n*6.283+.4,x=s.x+Math.cos(a)*r,z=s.z+Math.sin(a)*r;LP.push(x,api.gh(x,z)+7,z)}}
+ const LP=[],LS=[];for(const s of[...api.SITES,api.PADP,...api.FOBS]){const n=s.fob?2:6,r=s.r*.85;for(let i=0;i<n;i++){LS.push([s,i*.618%1]);const a=i/n*6.283+.4,x=s.x+Math.cos(a)*r,z=s.z+Math.sin(a)*r;LP.push(x,api.gh(x,z)+7,z)}}
  const lamps=pts(LP.length/3,new THREE.PointsMaterial({size:5,sizeAttenuation:false,map:dot,color:new THREE.Color(0xffcf86).multiplyScalar(2.2),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));lamps.P.set(LP);
  // searchlights: four additive cones from the sites, sweeping slowly; bright at the lamp, fading out along the beam
  const beamTex=tex(4,128,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#fff');gr.addColorStop(.25,'rgba(255,255,255,.45)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,w,h)});
  const BL=2600,beamGeo=new THREE.ConeGeometry(110,BL,20,1,true).rotateX(Math.PI).translate(0,BL/2,0),beamMat=new THREE.MeshBasicMaterial({color:0xc9d6ff,alphaMap:beamTex,transparent:true,opacity:.055,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
  const BS=[api.SITES[0],api.SITES[1],api.SITES[2],api.PADP],beams=BS.map((s,i)=>{const m=add(new THREE.Mesh(beamGeo,beamMat));m.position.set(s.x+(i%2?-1:1)*s.r*.6,s.y+12,s.z-s.r*.5);m.userData.ph=i*1.7;return m});
- const UP=new THREE.Vector3(0,1,0);
+ const UP=new THREE.Vector3(0,1,0);let beamOn=false;
+ // a site's lamps and searchlight die with it: the lamps go out one by one as it loses HP, the beam when it's destroyed (the radar pad's go with the command bunker)
+ const hpF=s=>{if(s.fob)return 1;if(s===api.PADP){const b=api.SITES.find(q=>q.n==='COMMAND BUNKER');return b&&b.max?Math.max(0,b.hp)/b.max:1}return s.max?Math.max(0,s.hp)/s.max:1};
+ let lampSig='';
+ function lampsTick(){const F=new Map();let sig='',n=0;for(const[s]of LS)if(!F.has(s)){const f=hpF(s);F.set(s,f);sig+=(f*40|0)+','}if(sig===lampSig)return;lampSig=sig;
+  LS.forEach(([s,k],i)=>{if(F.get(s)>k*.95){lamps.P[n*3]=LP[i*3];lamps.P[n*3+1]=LP[i*3+1];lamps.P[n*3+2]=LP[i*3+2];n++}});lamps.g.setDrawRange(0,n);lamps.g.attributes.position.needsUpdate=true}
  // lightning: two jagged bolts (with a branch), re-shaped and shown when Riley's storm flash fires
  const BN=2,BSEG=26,bolts=Array.from({length:BN},()=>{const P=new Float32Array((BSEG+8)*6),g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));
   const o=add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:new THREE.Color(0xe4ebff).multiplyScalar(6),toneMapped:false,fog:false,transparent:true})));o.userData.t=0;return{P,g,o}});
@@ -91,13 +98,16 @@ export function initWeather(api,G,Z){
 
  // visibility per weather; th = thermal camera on (stars, beams, lamps, glows and dust hidden, like the clouds)
  function hook(th){const W=api.WX,z=on()&&W&&W.z;
-  stars.o.visible=!!(z&&!th&&W.stars);lamps.o.visible=!!(z&&!th&&W.lamps);glow.o.visible=!!(z&&!th&&W.glow);for(const b of beams)b.visible=!!(z&&!th&&W.beams);
-  snow.o.visible=!!(z&&W.snow>.02);dust.o.visible=!!(z&&!th&&W.dust);if(!z)for(const b of bolts)b.o.visible=false;
+  stars.o.visible=!!(z&&!th&&W.stars);lamps.o.visible=!!(z&&!th&&W.lamps);glow.o.visible=!!(z&&!th&&W.glow);beamOn=!!(z&&!th&&W.beams);beams.forEach((b,i)=>b.visible=beamOn&&hpF(BS[i])>0);
+  snow.o.visible=!!(z&&W.snow>.02);api.groundSnow=SNOW.value=z?cl(W.snow||0,0,1):0;dust.o.visible=!!(z&&!th&&W.dust);if(!z)for(const b of bolts)b.o.visible=false;
   api.deck.material.opacity=.97*(z&&W.deckA!=null?W.deckA:1);api.rainL.material.opacity=z&&W.rain>1.5?.5:.35;api.rainL.visible=!!W?.rain&&W.rain>.02;api.rainN=api.RN*(z?cl(W.rain||0,0,1)*q():1);
   if(z&&th&&W.thermLift){api.sun.intensity=2.4;api.hemi.intensity=api.hemi.userData.base=1.1}  // thermal needs no light: the night picture comes out like the day one
   if(z&&W.mix&&cur&&W.deckA<1&&!th){const o=cur.A.deck?cur.B:cur.A;api.sky.visible=!o.nosky&&o.id!=='fog';scene.background=api.sky.visible?null:new THREE.Color(W.hz)}}  // while a cloud deck fades in or out, the sky of the deck-less side stays up behind it
  api.wxHook=hook;
- function step(dt,now){shift(dt);const W=api.WX;if(!on()||!W||!W.z)return;const c=api.camera.position,t=now*.001,WI=api.WIND,k=q();
+ function step(dt,now){shift(dt);const W=api.WX,nw=on()&&W&&W.z&&W.lamps&&!api.thermLook;NIGHT.w.value=nw?1:0;
+  if(nw){const sub=hpF(api.SITES[0]),apt=hpF(api.SITES[2]);NIGHT.apt.value=.55*apt**.8*(.25+.75*sub);NIGHT.vil.value=.5*sub**1.2}  /* lit windows (buildings.js): the blocks' own damage and the substation's power take them down */
+  if(!on()||!W||!W.z)return;if(lamps.o.visible)lampsTick();api.groundSnow=SNOW.value=cl(W.snow||0,0,1);  /* the fields whiten under snow (ground.js), and the roofs, yards and tree tops (engine detail / snowy) */
+const c=api.camera.position,t=now*.001,WI=api.WIND,k=q();
   if(snow.o.visible){const n=Math.round(SN*cl(W.snow,0,1)*k),h=SB/2;snow.g.setDrawRange(0,n);const P=snow.P,wx=WI.x*.8,wz=WI.z*.8;for(let j=0;j<64;j++){SW[j]=Math.sin(t*1.3+j)*.5;SW[j+64]=Math.cos(t*1.1+j)*.5}  // flutter: 64 phases a frame, not two trig calls per flake
    for(let i=0;i<n;i++){const i3=i*3;let x=P[i3]+(wx+SW[i&63])*dt,y=P[i3+1]-(1.1+(i&3)*.15)*dt,z=P[i3+2]+(wz+SW[64+(i*7&63)])*dt;
     P[i3]=((x-c.x+h)%SB+SB)%SB-h+c.x;P[i3+1]=((y-c.y+h)%SB+SB)%SB-h+c.y;P[i3+2]=((z-c.z+h)%SB+SB)%SB-h+c.z}snow.g.attributes.position.needsUpdate=true}
@@ -107,8 +117,8 @@ export function initWeather(api,G,Z){
   if(stars.o.visible)stars.o.position.copy(c);
   if(glow.o.visible){let g=0;const P=glow.P;for(const u of TH){if(g>=GN)break;if(!api.live(u)||u.k==='jet'||u.k==='cruise'||u.k==='ballistic'||u.k==='hyper'||u.k==='icbm'||u.p.distanceToSquared(c)>36e6)continue;P[g*3]=u.p.x;P[g*3+1]=u.p.y;P[g*3+2]=u.p.z;g++}
    glow.g.setDrawRange(0,g);glow.g.attributes.position.needsUpdate=true}
-  if(beams[0].visible)beams.forEach((b,i)=>{const ph=b.userData.ph,a=ph+.7*Math.sin(t*.11+ph),e=1.05+.3*Math.sin(t*.17+ph*2);b.quaternion.setFromUnitVectors(UP,_a.set(Math.cos(e)*Math.sin(a),Math.sin(e),-Math.cos(e)*Math.cos(a)))});
+  beams.forEach((b,i)=>{b.visible=beamOn&&hpF(BS[i])>0;if(!b.visible)return;const ph=b.userData.ph,a=ph+.7*Math.sin(t*.11+ph),e=1.05+.3*Math.sin(t*.17+ph*2);b.quaternion.setFromUnitVectors(UP,_a.set(Math.cos(e)*Math.sin(a),Math.sin(e),-Math.cos(e)*Math.cos(a)))});
   if(W.bolts){const f=api.hemi.userData.f||0;if(f>lastF+.5)bolt();lastF=f}
   for(const b of bolts)if(b.o.visible){b.o.userData.t-=dt;b.o.material.opacity=Math.random()<.3?.35:1;if(b.o.userData.t<=0)b.o.visible=false}}
- function stop(){cur=null}
+ function stop(){cur=null;NIGHT.w.value=0;SNOW.value=0}
  return{T,plan,start,step,note,stop,mix,get cur(){return cur},set:id=>{const p={id};start(p);return p}}}
