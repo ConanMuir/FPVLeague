@@ -35,6 +35,10 @@ export function updateCam(dt,now){const me=GS.player;bfov+=((me?.boostOn?14:0)-b
   const foc=GS.OBSON?nearestFoe(me)?.p||_ip.set(0,10,0):ball.p;if(GS.camMode===2||me.dead>0)f.subVectors(foc,me.p).setY(0).normalize();if(f.lengthSq()<.5)f.copy(camFwd);camFwd.lerp(f,1-Math.exp(-dt*5)).normalize();
   const ck=1+.35*(DRAD/.6-1);_cp.copy(me.p).addScaledVector(camFwd,-10*ck).add(_t.set(0,3.6*ck,0));  // chase cam backs off for a bigger quad
 if(GS.OBSON){_cp.x=cl(_cp.x,-DHW+1,DHW-1);_cp.z=cl(_cp.z,-DHL+1,DHL-1);if(me.p.y<dfHt(me.p.x,me.p.z)){let k=1;for(let i=1;i<=10;i++){const t=i/10;if(sdf(me.p.x+(_cp.x-me.p.x)*t,me.p.y+(_cp.y-me.p.y)*t,me.p.z+(_cp.z-me.p.z)*t)>-1.5){k=(i-1)/10;break}}_cp.lerpVectors(me.p,_cp,k)}else _cp.y=cl(_cp.y,dfHt(_cp.x,_cp.z)+1.5,DCEIL-1)}else{_cp.x=cl(_cp.x,-HW+1,HW-1);_cp.y=cl(_cp.y,.8,H-1);_cp.z=cl(_cp.z,-HL-GD+1,HL+GD-1)}  // underground: stay inside the cave, between the quad and the wall
-  camPos.lerp(_cp,1-Math.exp(-dt*9));camera.position.copy(camPos);camera.lookAt(GS.camMode===2||me.dead>0?foc:_t.copy(me.p).addScaledVector(camFwd,8).setY(me.p.y+1));setFov(100+bfov)}
+  camPos.lerp(_cp,1-Math.exp(-dt*9));
+  // the smoothed position lags the clamped target and can cut through rock (a steep shaft or ramp, a tight turn): clamp it the same way
+  if(GS.OBSON){if(me.p.y<dfHt(me.p.x,me.p.z)){let k=1;for(let i=1;i<=12;i++){const t=i/12;if(sdf(me.p.x+(camPos.x-me.p.x)*t,me.p.y+(camPos.y-me.p.y)*t,me.p.z+(camPos.z-me.p.z)*t)>-1){k=(i-1)/12;break}}if(k<1)camPos.lerpVectors(me.p,camPos,k)}
+   else camPos.y=Math.max(camPos.y,dfHt(camPos.x,camPos.z)+1.5)}
+  camera.position.copy(camPos);camera.lookAt(GS.camMode===2||me.dead>0?foc:_t.copy(me.p).addScaledVector(camFwd,8).setY(me.p.y+1));setFov(100+bfov)}
  if(GS.OBSON){sun.target.position.set(camera.position.x,0,camera.position.z);sun.position.copy(sun.target.position).add(LOOKS.df.sp);dfAtmos(camera,dt)}  // dfAtmos: fog closes in underground
  if(GS.shake>.01){camera.position.add(_t.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(GS.shake*.7*SHK));GS.shake*=Math.exp(-dt*4)}}

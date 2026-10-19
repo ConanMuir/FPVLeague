@@ -35,7 +35,10 @@ export const OBS=[],OGRID=new Map(),OC=40;
   for(let ix=Math.floor((o.x-r+DHW)/OC);ix<=Math.floor((o.x+r+DHW)/OC);ix++)for(let iz=Math.floor((o.z-r+DHL)/OC);iz<=Math.floor((o.z+r+DHL)/OC);iz++){const k=ix*1000+iz;(OGRID.get(k)||OGRID.set(k,[]).get(k)).push(o)}})}
 const sdBox=(x,y,z,hx,hy,hz)=>{const qx=Math.abs(x)-hx,qy=Math.abs(y)-hy,qz=Math.abs(z)-hz;return Math.hypot(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0)};
 const sdCyl=(x,y,z,r,y0,y1)=>{const dx=Math.hypot(x,z)-r,dy=Math.abs(y-(y0+y1)/2)-(y1-y0)/2;return Math.min(Math.max(dx,dy),0)+Math.hypot(Math.max(dx,0),Math.max(dy,0))};
-function sdObs(x,y,z){const L=OGRID.get(Math.floor((x+DHW)/OC)*1000+Math.floor((z+DHL)/OC));let m=10;if(!L)return m;
+// the glowing rings round the cave entrances: tori (axis n) that are solid too (they used to be drawn only, and half of each stands in the air)
+const ERING=CAVE.entrances.map(e=>({c:e.p,n:e.d,R:e.r+1.5,r:.035*(e.r+1.5)}));
+const sdRing=(x,y,z)=>{let m=10;for(const o of ERING){const dx=x-o.c[0],dy=y-o.c[1],dz=z-o.c[2];if(dx*dx+dy*dy+dz*dz>(o.R+12)**2)continue;const h=dx*o.n[0]+dy*o.n[1]+dz*o.n[2],q=Math.hypot(dx-o.n[0]*h,dy-o.n[1]*h,dz-o.n[2]*h);m=Math.min(m,Math.hypot(q-o.R,h)-o.r)}return m};
+function sdObs(x,y,z){const L=OGRID.get(Math.floor((x+DHW)/OC)*1000+Math.floor((z+DHL)/OC));let m=sdRing(x,y,z);if(!L)return m;
  for(const o of L){const lx=x-o.x,lz=z-o.z;let d;
   if(o.t==='cyl')d=sdCyl(lx,y,lz,o.r,o.y0,o.y1);
   else if(o.t==='box')d=sdBox(lx,y-o.y,lz,o.hx,o.hy,o.hz);
@@ -79,7 +82,9 @@ export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC)
  {CAVES=buildCaves();const geo=M=>{const q=new THREE.BufferGeometry();q.setAttribute('position',new THREE.Float32BufferAttribute(M.p,3));q.setAttribute('color',new THREE.Float32BufferAttribute(M.c,3));q.setIndex(M.i);return q};
   dfG.add(new THREE.Mesh(geo(CAVES.walls),new THREE.MeshBasicMaterial({vertexColors:true})),new THREE.Mesh(geo(CAVES.strips),new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,side:THREE.DoubleSide})));
   const ring=new THREE.TorusGeometry(1,.035,6,48);
-  for(const e of CAVE.entrances){const r=new THREE.Mesh(ring,glow(0xffd36a,1.6)),d=new V3(...e.d);r.scale.setScalar(e.r+1.5);r.position.set(...e.p);r.quaternion.setFromUnitVectors(new V3(0,0,1),d);dfG.add(r)}}
+  for(const e of CAVE.entrances){const r=new THREE.Mesh(ring,glow(0xffd36a,1.6)),d=new V3(...e.d);r.scale.setScalar(e.r+1.5);r.position.set(...e.p);r.quaternion.setFromUnitVectors(new V3(0,0,1),d);dfG.add(r);
+   r.updateMatrix();const N=36,pt=i=>new V3(Math.cos(i/N*Math.PI*2),Math.sin(i/N*Math.PI*2),0).applyMatrix4(r.matrix);  // collision: a ring of capsules along the torus
+   for(let i=0;i<N;i++){const a=pt(i),b=pt(i+1),dv=b.clone().sub(a),cq=new QT().setFromUnitVectors(UP,dv.clone().normalize());DFOBS.push({s:'cap',hh:dv.length()/2,r:.035*(e.r+1.5),p:a.add(b).multiplyScalar(.5).toArray(),q:[cq.x,cq.y,cq.z,cq.w]})}}}
  {const T=dfGrid(),n1=T.nx+1,y=CANY+.6,P=[],I=[];for(let z=0;z<T.nz;z++)for(let x=0;x<T.nx;x++){const i=z*n1+x;if(Math.min(T.h[i],T.h[i+1],T.h[i+n1],T.h[i+n1+1])>y)continue;const b=P.length/3,x0=-T.w/2+x*T.w/T.nx,z0=-T.l/2+z*T.l/T.nz,x1=x0+T.w/T.nx,z1=z0+T.l/T.nz;
   P.push(x0,y,z0,x1,y,z0,x1,y,z1,x0,y,z1);I.push(b,b+2,b+1,b,b+3,b+2)}const WC=clipIndexed(P,I,[],(x,y,z)=>sdCave(x,y,z,null,1)),wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(WC.p,3));wg.setIndex(WC.idx);wg.computeVertexNormals();
   dfG.add(new THREE.Mesh(wg,new THREE.MeshStandardMaterial({color:0x2f6f8a,roughness:.15,metalness:.2,transparent:true,opacity:.82})))}  // the river: only the grid cells that dip below it (an infinite plane showed up inside the cave entrances)

@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `interceptor-zombies`   Owner: Jared   Last updated: 2026-10-18 by Claude
-Based on: origin/riley-test-2, last merged at 444fc50 (Riley's Interceptor + engine/games split, with Jared's main up to PR #30)
-Doing: a Zombies mode for Riley's Interceptor (endless growing waves, money, base screen between waves, helpers, perks, bosses). Riley's game stays as is under "Classic"; the start menu picks the mode. All five checkpoints are in; see games/interceptor/README.md#zombies-mode.
-Touches: games/interceptor/ (new zombies.js, zdata.js, zenemy.js, zdef.js, zperk.js, zbase.js, zombies.css; one-line hooks in interceptor.js and a mode switch in index.html, every hook behind `Z.on` so Classic is unchanged; Classic's AO constant became a `let`, battery sag got a multiplier that stays 1 in Classic), tools/zlib.mjs, zombies-test.mjs, zombies-shots.mjs, zombies-perf.mjs (headless Edge harnesses).
-Open items / help wanted: not yet flown by a pilot; balance comes from scripted players (casual and good both fall around wave 32-33, at the hypersonic waves); helper and dome outcomes are game-balance kill chances, not a flight/guidance simulation; the standalone interceptor/ copy has no Zombies mode.
-Overlaps: Riley's Interceptor (games/interceptor/interceptor.js). The hooks are one-liners at the start of functions (threatStep, impact, killThreat, detonate, waves, urgent, boom, hud, radar, overlay, step, visuals, input) plus an API object before startDemo(); merge Riley's later changes around them.
+Branch: `underground-calm`   Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
+Based on: origin/main 062ff04 (Interceptor + Zombies + launcher, PR #33)
+Doing: a calmer Dogfight underground (Riley found PR #30 too cluttered). Fewer, wider tunnels: the hall to each half, one ring tunnel through both halves, and a lower level reached by a central shaft and one ramp per half. Removed: the second hall route with its corners, the S-bend branch loop, both crawl-ways, the spiral ramps, the deep ring, the shaft chambers. Round drum caverns with clean tunnel mouths, one dim floor strip per tunnel, one dim floor ring per cavern, less blotchy rock. The six entrances, the entrance rings and the bot graph stay; no light beams.
+Touches: src/world/caves.js, src/world/highlands.js (solid entrance rings), src/render/camera.js (chase cam kept out of rock), tools/physics-check.mjs (section h: off-axis flights, chase-cam, lip and stuck-bot probes), tools/pop-check.mjs (opens app.html, not the launcher), Drone League/claude-project/drone-league-notes.md (cave note re-added: it was lost in the PR #33 merge), rebuilt games/jared-league/index.html.
+Fixed geometry bugs: 0.35 m seam flaps/lips at every junction and round each entrance (seam overlap now 0.1 m), the chase cam lagging into rock in steep shafts/ramps, entrance rings drawn but not solid. Open items / help wanted: not flown by a pilot yet. The obstacle/detail work (pipes, ribs, lamps, signs) is shelved by request and not pushed.
+Overlaps: none known on these files.
 
 ## How to play
 
