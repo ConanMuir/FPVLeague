@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import {mergeGeometries,toCreasedNormals} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {RoundedBoxGeometry} from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import {ConvexGeometry} from 'three/examples/jsm/geometries/ConvexGeometry.js';
+import {rootOf} from './arms.js';
 
 const PI=Math.PI,_m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new THREE.Vector3(),_s=new THREE.Vector3();
 // strip to position + normal, non-indexed, so everything merges
@@ -27,7 +29,10 @@ function armShape(L,w0,w1,pr){const s=new THREE.Shape(),r0=-.05;
  s.moveTo(r0,-w0/2);s.lineTo(L-pr*1.7,-w1/2);s.quadraticCurveTo(L-pr*.9,-pr,L,-pr);s.absarc(L,0,pr,-PI/2,PI/2,false);s.quadraticCurveTo(L-pr*.9,pr,L-pr*1.7,w1/2);s.lineTo(r0,w0/2);s.lineTo(r0,-w0/2);
  if(L>.3)s.holes.push(slot(L*.45,0,L*.16,Math.min(w0,w1)*.17));return s}
 const ARM={
- x(K,a,sp,pr){for(const[x,z]of sp.motors){const L=Math.hypot(x,z);K.add('carbon',slab(armShape(L,a.arm.w0,a.arm.w1,pr),a.arm.t,.007),[0,0,0],[0,Math.atan2(-z,x),0],[1,1,1],.7)}},
+ x(K,a,sp,pr){for(const[x,z]of sp.motors){const[rx,rz]=rootOf(a,x,z),L=Math.hypot(x-rx,z-rz),ang=Math.atan2(rz-z,x-rx);K.add('carbon',slab(armShape(L,a.arm.w0,a.arm.w1,pr),a.arm.t,.007),[rx,0,rz],[0,ang,0],[1,1,1],.7);
+  K.add('led',rbox(L*.42,.008,.016,.004,2),[rx+(x-rx)*.5,-a.arm.t/2-.005,rz+(z-rz)*.5],[0,ang,0])}  // LED strip under the arm
+  if(a.plate){const[w,f,r]=a.plate,s=new THREE.Shape();s.moveTo(-w*.7,-f);s.lineTo(w*.7,-f);s.lineTo(w,-f+.06);s.lineTo(w,r-.04);s.lineTo(w*.8,r);s.lineTo(-w*.8,r);s.lineTo(-w,r-.04);s.lineTo(-w,-f+.06);s.lineTo(-w*.7,-f);
+   for(const zc of[-f*.55,-f*.2,r*.2,r*.55])s.holes.push(slot(0,zc,w*.4,.035));K.add('carbon',slab(s,.014,.004),[0,-a.arm.t/2-.007,0],[0,0,0],[1,1,1],.7)}},  // dead-cat: long unibody bottom plate
  h(K,a,sp,pr){const xm=a.front[0],zf=a.front[1],zr=a.rear[1],w=a.arm.w1;
   for(const sx of[-1,1]){const s=new THREE.Shape();s.moveTo(-zf,-w/2);s.lineTo(zr,-w/2);s.absarc(zr,0,pr,-PI/2,PI/2,false);s.lineTo(-zf,w/2);s.absarc(-zf,0,pr,PI/2,PI*1.5,false);
    s.holes.push(slot((zr-zf)/2-.1,0,.1,w*.17),slot((zr-zf)/2+.13,0,.07,w*.17));K.add('carbon',slab(s,a.arm.t,.007),[sx*xm,0,0],[0,-PI/2,0],[1,1,1],.7)}
@@ -38,7 +43,7 @@ function bellGeo(r,h){const P=[[0,0],[r*.9,0],[r*.9,h*.18],[r*.97,h*.2],[r,h*.26
  return new THREE.LatheGeometry(P.map(([x,y])=>new THREE.Vector2(x,y)),28)}
 function motors(K,sp,a){const{r,h}=sp.power.motor,y0=a.arm.t/2,bell=tint('bell',sp.power.look?.bell);
  for(const[x,z]of sp.motors){K.add(bell,bellGeo(r,h),[x,y0,z],[0,0,0],[1,1,1],.9);K.add('carbon',cyl(r*.93,r*.93,h*.2,24),[x,y0+h*.1,z]);
-  K.add('team',cyl(r*1.012,r*1.012,h*.14,28),[x,y0+h*.58,z]);K.add('metal',cyl(.017,.02,.022,12),[x,y0+h+.02,z]);
+  K.add('team',cyl(r*1.012,r*1.012,h*.14,28),[x,y0+h*.58,z]);K.add('led',cyl(r*1.15,r*1.15,.008,24),[x,-y0-.004,z]);K.add('metal',cyl(.017,.02,.022,12),[x,y0+h+.02,z]);
   K.add('copper',cyl(r*.95,r*.95,h*.07,24),[x,y0+h*.235,z]);  // stator windings showing under the bell
   for(let i=0;i<6;i++){const v=i*PI/3+PI/6;K.add('chip',rbox(.005,h*.26,r*.36,.002,1),[x+Math.cos(v)*r*.995,y0+h*.4,z+Math.sin(v)*r*.995],[0,-v,0])}  // cooling vents
   const L=Math.hypot(x,z),px=z/L*.007,pz=-x/L*.007,wy=y0+.005;for(const s of[-1,1])K.add('rubber',cyl(.0045,.0045,L*.62,6).rotateX(PI/2),[x*.5+s*px,wy,z*.5+s*pz],[0,Math.atan2(x,z),0])}}  // motor wires along the arm
@@ -46,8 +51,8 @@ function motors(K,sp,a){const{r,h}=sp.power.motor,y0=a.arm.t/2,bell=tint('bell',
 // ---------- props: a twisted, tapered, cambered blade lofted along the span; mirrored for the other spin direction ----------
 const tint=(base,hex)=>hex==null?base:base+'#'+hex.toString(16).padStart(6,'0');  // material key: a tinted copy of a shared material
 const _blades=new Map();
-function bladeGeo(R,twist,dir){const k=R+'/'+twist+'/'+dir;if(_blades.has(k))return _blades.get(k);
- const N=12,rh=.034,cmax=R*.21,th=.007,sec=[[-.5,0],[-.32,.75],[-.05,1],[.25,.6],[.5,0],[.25,-.15],[-.05,-.25],[-.32,-.2]],m=sec.length,pos=[],idx=[];
+function bladeGeo(R,twist,dir,ch=.21){const k=R+'/'+twist+'/'+dir+'/'+ch;if(_blades.has(k))return _blades.get(k);
+ const N=12,rh=.034,cmax=R*ch,th=.007,sec=[[-.5,0],[-.32,.75],[-.05,1],[.25,.6],[.5,0],[.25,-.15],[-.05,-.25],[-.32,-.2]],m=sec.length,pos=[],idx=[];
  for(let i=0;i<=N;i++){const s=i/N,rr=rh+(R-rh)*s,c=cmax*(s<.28?.5+1.8*s:1-.62*((s-.28)/.72)**1.5)*(i===N?.55:1),tw=twist*(1-.6*s),sw=.18*cmax*s*s;
   for(const[u,v]of sec){const z=u*c+sw,y=v*th*(1-.4*s),y2=y*Math.cos(tw)-z*Math.sin(tw),z2=z*Math.cos(tw)+y*Math.sin(tw);pos.push(rr,y2,z2*dir)}}
  const q=(a,b,c)=>dir>0?idx.push(a,b,c):idx.push(a,c,b);
@@ -103,7 +108,7 @@ const BATT={
  lipo(K,b,y,L){const[x,h,z]=b.half,lab=tint('label',L?.label);K.add(tint('pack',L?.wrap),rbox(2*x,2*h,2*z,.014,3),[0,y,0]);K.add(lab,rbox(2*x+.004,2*h*.6,2*z*.42,.006,2),[0,y,-z*.12]);
   for(const sz of z>.14?[-.45,.45]:[0])K.add('strap',rbox(2*x+.012,2*h+.01,.03,.006,2),[0,y,sz*z]);
   K.add('label',rbox(.05,.03,.035,.006,2),[0,y+h*.2,z+.04]);K.add('rubber',cyl(.006,.006,.05,6),[.012,y,z+.02],[PI/2,0,0]);K.add('rubber',cyl(.006,.006,.05,6),[-.012,y,z+.02],[PI/2,0,0])},
- liion(K,b,y,L){const[x,h,z]=b.half,rc=x/3;for(const i of[-1,0,1])for(const j of[-1,1])K.add(tint('packLR',L?.wrap),new THREE.CapsuleGeometry(rc*.98,2*z-2*rc,6,16),[i*rc*2,y+j*(h-rc)*.85,0],[PI/2,0,0],[1,1,1]);
+ liion(K,b,y,L){const[x,h,z]=b.half,rc=x/3,nr=Math.max(2,Math.round(h/rc));for(const i of[-1,0,1])for(let j=0;j<nr;j++)K.add(tint('packLR',L?.wrap),new THREE.CapsuleGeometry(rc*.98,2*z-2*rc,6,16),[i*rc*2,y-(h-rc)+j*2*(h-rc)/(nr-1),0],[PI/2,0,0],[1,1,1]);  // rows of cells stacked to fill the pack height
   for(const sz of[-.5,0,.5])K.add('strap',rbox(2*x+.014,2*h+.012,.03,.006,2),[0,y,sz*z]);
   K.add('label',rbox(.05,.03,.035,.006,2),[0,y,z+.045]);
   K.add('carbon',cyl(.006,.006,.08,8),[0,y+h+.04,z*.6]);K.add('carbon',cyl(.045,.045,.016,24),[0,y+h+.085,z*.6]);K.add(tint('label',L?.label),cyl(.03,.03,.018,20),[0,y+h+.087,z*.6])}};
@@ -129,7 +134,7 @@ function geometryOf(sp){const key=[sp.arms.id,sp.chassis.id,sp.power.id,sp.attac
  const K=new Kit(),a=sp.arms,pr=sp.power.motor.r+.014;
  ARM[a.arm.style](K,a,sp,pr);motors(K,sp,a);CHASSIS[sp.chassis.shape](K,sp.chassis,sp);
  BATT[sp.power.batt.style](K,sp.power.batt,sp.battY,sp.power.look);(ATT[sp.attach?.id]||ATT.none)(K,sp);
- const o={frame:K.merged(),props:sp.motors.map((m,i)=>({blade:bladeGeo(a.prop.r,a.prop.twist,i===1||i===2?1:-1),disc:disc(a.prop.r),pos:[m[0],sp.propY,m[1]]}))};
+ const o={frame:K.merged(),props:sp.motors.map((m,i)=>({blade:bladeGeo(a.prop.r,a.prop.twist,i===1||i===2?1:-1,a.prop.chord),disc:disc(a.prop.r),pos:[m[0],sp.propY,m[1]]}))};
  _cache.set(key,o);return o}
 const _tints=new Map(),BASE={bell:'metal',ant:'team'};  // cosmetic keys fall back to the stock material (cosmetics: render/cos-mat.js)
 // M: material set {carbon, metal, lens, prop, team[t], led[t], blade[t], pack, packLR, label, strap, rubber, board}; optional bell, ant (else metal, team)
@@ -142,13 +147,14 @@ export function buildPartsMesh(sp,t,M){const G=geometryOf(sp),g=new THREE.Group(
  return {group:g,props}}
 
 // ---------- hitbox overlay: the collider descriptors drawn as wireframes (garage) ----------
-const TAGC={chassis:0x7dff9a,arm:0x9fe8ff,prop:0xffc640,camera:0xff6a6a,other:0xc89bff};
+const TAGC={hull:0xffffff,chassis:0x7dff9a,arm:0x9fe8ff,prop:0xffc640,camera:0xff6a6a,other:0xc89bff};
 export function colliderWire(cols,opacity=.9){const g=new THREE.Group();
  for(const c of cols){const s=c.size;let geo;
   if(c.shape==='box')geo=new THREE.EdgesGeometry(new THREE.BoxGeometry(2*s[0],2*s[1],2*s[2]));
   else if(c.shape==='capsule')geo=new THREE.WireframeGeometry(new THREE.CapsuleGeometry(s[1],2*s[0],3,12));
   else if(c.shape==='cylinder')geo=new THREE.EdgesGeometry(new THREE.CylinderGeometry(s[1],s[1],2*s[0],28),30);
   else if(c.shape==='sphere')geo=new THREE.WireframeGeometry(new THREE.SphereGeometry(s[0],12,8));
+  else if(c.shape==='hull')geo=new THREE.EdgesGeometry(new ConvexGeometry(c.points.map(p=>new THREE.Vector3(...p))),20);
   else continue;
   const l=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:TAGC[c.tag]||0xffffff,transparent:true,opacity,depthTest:false,toneMapped:false}));
   l.position.set(...c.pos);l.quaternion.set(...c.rot);l.renderOrder=10;g.add(l)}

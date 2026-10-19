@@ -15,7 +15,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWid
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;
 export const scene=new THREE.Scene();scene.background=new THREE.Color(0x04060c);scene.fog=new THREE.Fog(0x04060c,300,900);
-export const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.08,1800);
+export const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.15,1800)  // near .15: twice the depth precision far away (FPV hides your own quad);
 // post (High/Med): scene -> HalfFloat target (multisampled on High) -> bloom -> tone map + sRGB (OutputPass) -> SMAA (Med, or High without WebGL2 MSAA)
 // Low skips the composer: the scene renders straight to the canvas, which has its own (cheap) MSAA, with no bloom
 const cap=renderer.capabilities;
