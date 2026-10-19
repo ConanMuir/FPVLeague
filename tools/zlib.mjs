@@ -5,7 +5,8 @@ import http from 'node:http';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-import puppeteer from 'puppeteer-core';
+import {launchBrowser} from './browser.mjs';
+export {frames, until} from './browser.mjs';
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -26,15 +27,8 @@ export async function serve() {
   return {server, origin: `http://127.0.0.1:${server.address().port}`};
 }
 
-function findEdge() {
-  const c = [process.env.EDGE_PATH, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'];
-  const f = c.find(p => p && fs.existsSync(p));
-  if (!f) { console.error('Microsoft Edge (msedge.exe) not found; set EDGE_PATH'); process.exit(2); }
-  return f;
-}
-// Edge exits at once if it inherits some host variables (e.g. __COMPAT_LAYER or VS Code's CHROME_CRASHPAD_PIPE_NAME)
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
-export const launch = ({w = 1280, h = 720, sw = false} = {}) => puppeteer.launch({executablePath: findEdge(), headless: true, env, protocolTimeout: 600000,
+// the browser (Edge / Chrome, EDGE_PATH / CHROME_PATH) and CI flags come from tools/browser.mjs
+export const launch = ({w = 1280, h = 720, sw = false} = {}) => launchBrowser({protocolTimeout: 600000,
   args: [`--window-size=${w},${h}`, '--autoplay-policy=no-user-gesture-required', '--enable-unsafe-swiftshader', ...(sw ? ['--use-angle=swiftshader'] : ['--ignore-gpu-blocklist', '--enable-gpu'])]});
 
 // a page in its own headless window: tabs behind the active one get no frames (no requestAnimationFrame, clicks never finish),

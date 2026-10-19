@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
 // game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR]
-import {serve, launch, open, sleep} from './zlib.mjs';
+import {serve, launch, open, sleep, frames} from './zlib.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
 const {server, origin} = await serve();
 const browser = await launch();
@@ -14,20 +14,22 @@ async function page(mode) {
   await p.evaluate(m => { localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: m, wx: 'clear'})); }, mode);
   await p.reload({waitUntil: 'load'});
   await p.waitForFunction(() => window.__z, {timeout: 60000});
-  await sleep(500);
+  await frames(p, 5);
   return {p, errs};
 }
+// waits are state-driven (the game's own state, or frames drawn), not wall-clock, so a slow machine only makes the run longer
+async function play(p) { await p.click('#play'); await p.waitForFunction(() => !__z.api.demo && !!__z.api.player, {timeout: 30000}); await frames(p, 3); }
 
 // ---------- Classic ----------
 if (!ONLY) {
   const {p, errs} = await page('classic');
   ok(await p.$eval('#play', b => b.textContent) === 'Defend', 'Classic: start button reads Defend');
-  await p.click('#play'); await sleep(1500);
+  await play(p);
   const r = await p.evaluate(() => { const {api} = __z; __z.sim(60); return {th: api.TH.length, wave: api.wave, kinds: api.TH.map(t => t.k || (t.jet ? 'jet' : 'shahed')), zhud: document.getElementById('zhud').hidden, score: getComputedStyle(document.getElementById('score')).display}; });
   ok(r.wave === 1 && r.th >= 1, `Classic: wave 1 running with ${r.th} track(s) [${r.kinds}]`);
   ok(r.kinds.every(k => k === 'shahed' || k === 'jet') && !r.kinds.some(k => k === undefined), 'Classic: only Shahed / Geran tracks, no Zombies kinds');
   ok(r.zhud && r.score !== 'none', 'Classic: Classic HUD shown, Zombies HUD hidden');
-  await sleep(1500);
+  await frames(p, 30);  // let the real frame loop run a while (errors show up here)
   if (SHOTS) await p.screenshot({path: SHOTS + '/classic.png'});
   ok(!errs.length, 'Classic: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
@@ -53,16 +55,16 @@ if (!ONLY) {
   ok(await p.$eval('#play', b => b.textContent) === 'Hold the line', 'Zombies: mode choice switches the start button');
   ok(await p.evaluate(() => !document.getElementById('zdiff').hidden && document.querySelectorAll('#zdiff button').length === 4 && document.querySelector('#zdiff button.on')?.textContent === 'Normal'), 'Zombies menu: difficulty selector Easy / Normal / Hard / Nightmare, Normal by default');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-menu.png'});
-  await p.click('#zdiff button[data-d="3"]'); await sleep(100);
+  await p.click('#zdiff button[data-d="3"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '3', {timeout: 5000}).catch(() => {});
   const dm = await p.evaluate(() => ({on: document.querySelector('#zdiff button.on')?.textContent, desc: document.getElementById('gmdesc').textContent, zd: JSON.parse(localStorage.getItem('dl-interceptor')).zdiff}));
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-menu-nightmare.png'});
-  await p.click('#zdiff button[data-d="1"]'); await sleep(100);
+  await p.click('#zdiff button[data-d="1"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '1', {timeout: 5000}).catch(() => {});
   ok(dm.on === 'Nightmare' && dm.zd === 3 && /Nightmare/.test(dm.desc), `Zombies menu: picking Nightmare highlights it, saves it and describes it ("${dm.desc.split('Nightmare: ')[1]?.slice(0, 50)}")`);
-  await p.click('#play'); await sleep(800);
+  await play(p);
   const s0 = await p.evaluate(() => ({base: !document.getElementById('zbase').hidden, cash: __z.G.cash, st: __z.G.state, integ: __z.integrity()}));
   ok(s0.base && s0.st === 'base' && s0.cash === 1500, `Zombies: opens on the base screen with $${s0.cash}, integrity ${s0.integ.hp}/${s0.integ.max}`);
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-1.png'});
-  await p.click('#zgo'); await sleep(300);
+  await p.click('#zgo'); await p.waitForFunction(() => __z.G.state === 'wave', {timeout: 10000}).catch(() => {});
   // wave 1 with a scripted player that runs down every track
   const w1 = await p.evaluate(() => { const out = []; for (let i = 0; i < 400 && __z.G.state === 'wave'; i++) { __z.sim(.5); const pl = __z.api.player; if (pl.dead <= 0 && Math.random() < .5) { const k = __z.botKill(.8); if (k) out.push(k); } } return {out, st: __z.G.state, cash: __z.G.cash, kills: __z.G.kills, streak: __z.G.streak}; });
   ok(w1.kills.p >= 2 && w1.cash > 1500, `Zombies wave 1: scripted player killed ${w1.kills.p} (${w1.out}), cash $${w1.cash}, streak ${w1.streak}`);
@@ -86,7 +88,7 @@ if (!ONLY) {
   ok(fz.paid === 900 && fz.lvl === 1 && fz.still, 'Shop: buying a perk charges its price and keeps it listed for the next level');
   await p.evaluate(() => { __z.G.cash = 6000; }); await p.click('[data-tab="sites"]');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-sites.png'});
-  await p.click('[data-tab="shop"]'); await sleep(200);
+  await p.click('[data-tab="shop"]'); await frames(p, 2);
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-shop.png'});
   // wave 2 with the rack: helper drones launch, claim (yellow), kill
   const w2 = await p.evaluate(() => { __z.cont(); let claimed = 0, both = 0, launched = 0; for (let i = 0; i < 600 && __z.G.state === 'wave'; i++) { __z.sim(.25); const L = __z.api.TH.filter(__z.api.live); const c = L.filter(t => t.claim).length; if (c) claimed++; if (c && L.length > c) both++; launched = Math.max(launched, __z.Z.def.D[0].shots); } return {claimed, both, launched, hk: __z.G.kills.h, st: __z.G.state}; });
@@ -121,7 +123,7 @@ if (!ONLY) {
 // ---------- roster: every kind flies in and hits, unlocks by wave, boss stages and swarm launches, bunker, direct hit on a fast track ----------
 if (!ONLY) {
   const {p, errs} = await page('z');
-  await p.click('#play'); await sleep(500);
+  await play(p);
   const r = await p.evaluate(() => {
     const {api, G, KIND} = __z, out = {};
     __z.cont(); G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0;
@@ -179,7 +181,7 @@ if (!ONLY) {
 // ---------- helpers and perks: every helper engages its kinds; Mark, Freeze, Airstrike and the passives do what the cards say ----------
 if (!ONLY) {
   const {p, errs} = await page('z');
-  await p.click('#play'); await sleep(500);
+  await play(p);
   const r = await p.evaluate(() => {
     const {api, G, Z, KIND} = __z, def = Z.def, out = {};
     // a defence with one of everything; waves 20 and 30 (cruise, ballistic, hyper) with an idle player
@@ -234,7 +236,8 @@ if (!ONLY) {
     const k0 = G.kills.p; for (let i = 0; i < 40 && api.live(t); i++) api.step(1 / 120); const kill = G.kills.p > k0;
     d = go(); const u = __z.make('shahed', 0, -1500); u.p.copy(d.p).add(new V(0, 0, -2500)); api.pickT = u;  // a track ahead for the HUD check
     return {kill, kmh}; });
-  await sleep(400);  // let the real frame loop draw the HUD at speed
+  // let the real frame loop draw the HUD at speed: wait until it shows the speed, the burn bar and the track box
+  await p.waitForFunction(() => +((document.getElementById('osd').textContent.match(/(\d+)\s*km\/h\s+HDG/) || [])[1] || 0) > 1000 && !document.getElementById('zrk').hidden && /T\d\d/.test(document.getElementById('trk').textContent), {timeout: 30000, polling: 50}).catch(() => {});
   const rkHud = await p.evaluate(() => ({osd: document.getElementById('osd').textContent, trk: document.getElementById('trk').textContent, bar: !document.getElementById('zrk').hidden}));
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-rocket.png'});
   const rkEnd = await p.evaluate(() => { const {api, Z} = __z, d = api.player; for (let i = 0; i < 12 * 120; i++) api.step(1 / 120); return {burn: +Z.rk.st.t.toFixed(1), boost: d.boost || 0, alive: d.dead <= 0}; });
@@ -254,7 +257,7 @@ if (!ONLY) {
 // ---------- weather and look: per-wave forecasts, every Zombies weather, a mid-wave change, the Strela-2 body; Classic keeps Riley's weather and dart ----------
 if (!ONLY) {
   const {p, errs} = await page('z');
-  await p.click('#play'); await sleep(600);
+  await play(p);
   const r = await p.evaluate(() => { const {api, G, Z} = __z, w = Z.wx, me = api.player, out = {};
     out.strela = me.strela.visible && !me.dart.visible && !!me.nozzle;
     out.forecast = /visibility/.test(document.querySelector('#zbase footer')?.textContent || '');
@@ -273,7 +276,7 @@ if (!ONLY) {
   ok(!errs.length, 'Weather: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
   const c = await page('classic');
-  await c.p.click('#play'); await sleep(800);
+  await play(c.p);
   const k = await c.p.evaluate(() => { const {api} = __z, me = api.player; return {dart: me.dart.visible && !me.strela.visible, wx: !api.WX.z, rain: api.rainN === api.RN}; });
   ok(k.dart && k.wx && k.rain, 'Classic: Riley\'s dart look and Classic weather by default');
   ok(!c.errs.length, 'Classic look: no errors' + (c.errs.length ? '\n  ' + c.errs.join('\n  ') : ''));
@@ -284,7 +287,7 @@ if (!ONLY) {
 if (argv.includes('--balance')) {  // about 10 minutes
   for (const skill of [.01, .025]) {  // chance per half second of a player kill: about one kill every 50 s (casual) or 20 s (good)
     const {p, errs} = await page('z');
-    await p.click('#play'); await sleep(400);
+    await play(p);
     const r = await p.evaluate(skill => {
       const {api, G, Z, KIND} = __z, def = Z.def, log = [];
       const PRIO = ['gdome', 'idome', 'sam', 'gepard', 'rack', 'flak', 'ew', 'mark', 'air', 'warhead', 'freeze', 'radar', 'aid', 'relaunch', 'battery', 'optics'];
@@ -317,7 +320,7 @@ if (argv.includes('--balance')) {  // about 10 minutes
 // ---------- helper rack tiers: kill rate per tier and enemy kind (balance check) ----------
 if (argv.includes('--tiers')) {
   const {p, errs} = await page('z');
-  await p.click('#play'); await sleep(500);
+  await play(p);
   const N = +(argv[argv.indexOf('--tiers') + 1]) || 120, kinds = ['shahed', 'jet', 'decoy', 'swarm', 'heavy', 'cruise'];
   const rows = [];
   for (let tier = 0; tier < 5; tier++) {

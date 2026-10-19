@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import puppeteer from 'puppeteer-core';
+import {launchBrowser} from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -16,9 +16,7 @@ const page0 = fs.readFileSync(html, 'utf8');
 const server = http.createServer((q, r) => { r.writeHead(q.url.startsWith('/g') ? 200 : 404, {'content-type': 'text/html; charset=utf-8'}); r.end(q.url.startsWith('/g') ? page0 : ''); });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/g`;
-const EDGE = [process.env.EDGE_PATH, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find(p => p && fs.existsSync(p));
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
-const browser = await puppeteer.launch({executablePath: EDGE, headless: true, env, args: ['--window-size=1280,720', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader']});
+const browser = await launchBrowser({args: ['--window-size=1280,720', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader']});
 // arena half sizes for the default (Big) arena: HW 140, HL 180
 const V = {
   meadow: {aerial: [[320, 200, 520], [0, 0, 0]], lake: [[330, 70, -20], [470, -2, -150]], hills: [[-250, 25, 260], [-520, 30, 520]], stand: [[80, 9, 120], [150, 14, 150]]},

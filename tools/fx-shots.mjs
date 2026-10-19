@@ -3,15 +3,14 @@
 //   node tools/fx-shots.mjs [--only boost,hover,tumble,hit] [--maps arena,meadow,canyon,alpine] [--q high] [--no-perf] [--no-shots]
 // Writes shots/fx-<scenario>-<cam>.png (shots/ is gitignored) and prints frame times per quality.
 import fs from 'node:fs';
-import puppeteer from 'puppeteer-core';
+import {launchBrowser} from './browser.mjs';
 const {createServer} = await import('vite');
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const ONLY = arg('only', 'boost,hover,tumble,hit').split(','), MAPS = arg('maps', 'arena,meadow,canyon,alpine').split(','), Q = arg('q', 'high');
 const PERF = !process.argv.includes('--no-perf'), SHOTS = !process.argv.includes('--no-shots');
 fs.mkdirSync('shots', {recursive: true});
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
 const server = await createServer({root: process.cwd(), logLevel: 'error', server: {port: 0, host: '127.0.0.1'}}); await server.listen();
-const b = await puppeteer.launch({executablePath: process.env.EDGE_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true, env, protocolTimeout: 300000,
+const b = await launchBrowser({protocolTimeout: 300000,
   args: ['--window-size=1280,720', '--ignore-gpu-blocklist', '--disable-gpu-vsync', '--disable-frame-rate-limit']});
 const p = await b.newPage(); await p.setViewport({width: 1280, height: 720}); const errs = [];
 p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/fonts\.g|favicon|peerjs|Failed to load resource/i.test(m.text())) errs.push(m.text()); });

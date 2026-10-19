@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import puppeteer from 'puppeteer-core';
+import {launchBrowser} from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tag = (i => i > 0 ? process.argv[i + 1] : 'now')(process.argv.indexOf('--tag'));
@@ -13,9 +13,7 @@ const page0 = fs.readFileSync(path.join(root, 'dist', 'index.html'), 'utf8'), sl
 const server = http.createServer((q, r) => { r.writeHead(200, {'content-type': 'text/html; charset=utf-8'}); r.end(page0); });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/`;
-const EDGE = [process.env.EDGE_PATH, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find(p => p && fs.existsSync(p));
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
-const browser = await puppeteer.launch({executablePath: EDGE, headless: true, env, args: ['--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required']});
+const browser = await launchBrowser({args: ['--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required']});
 const snap = p => p.evaluate(() => window.__dl?.snap() ?? null);
 async function waitFor(p, f) { for (let t = 0; t < 600; t++) { const s = await snap(p); if (s && f(s)) return; await sleep(100); } throw new Error('timeout'); }
 const shot = (p, n) => p.screenshot({path: path.join(out, `ui-${tag}-${n}.png`)});
