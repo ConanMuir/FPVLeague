@@ -3,9 +3,11 @@
 // the attitude at its end, as v15). physics/world.js then integrates p, q from v, w on the drone's Rapier body (built from its parts
 // loadout, buildDroneBody) and resolves ground/wall contact; pivot() is the turtle / self-righting lever over the lowest touching point.
 import {noise,tone} from '../audio/audio.js';
+import {popWhoosh} from '../audio/sfx.js';
 import {HL,QT,UP,V3,cl} from '../config/constants.js';
 import {BKICK,BOOST,DB,DL,DQ,DRAD,DRAIN,G,GF,HOV,MAXV,SPOOL,START,TAU,TE,THR,TURT,VP,WASH,onTune} from '../config/tune.js';
 import {STOCK,computeLoadout,seededLoadout} from '../parts/index.js';
+import {COS_DEF,cleanCos,seededCos} from '../parts/cosmetics.js';
 import {_an,sdN,sdf} from '../physics/sdf.js';
 import {buildDroneBody,freeDroneBody} from '../physics/world.js';
 import {TN,buildDrone,rebuildDrone} from '../render/drone-mesh.js';
@@ -17,11 +19,13 @@ import {sm} from '../world/noise.js';
 export const NAMES=[['Nova','Ace','Vortex'],['Blaze','Rotor','Kestrel']],SLOTS=[[0,4,HL*.72],[-34,4,HL*.82],[34,4,HL*.82]];
 export class Drone{
  constructor(team,i,bot,key){Object.assign(this,{team,i,bot,key,remote:false,net:null,seen:0,name:NAMES[team][i],p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:HOV,ms:HOV,gt:0,wn:new V3(),boost:33,boostOn:false,boosting:false,dead:0,role:'attack',hp:100,life:0,fcd:0,firing:false,
-  ai:{t:0,tg:new V3(),tv:new V3(),look:new V3(),nz:new V3()},ph:0,hit:0});this.setLoadout(isBot(key)?seededLoadout(key,GS.lseed):STOCK);this.build();this.spawn();buildDroneBody(this)}
+  ai:{t:0,tg:new V3(),tv:new V3(),look:new V3(),nz:new V3()},ph:0,hit:0});this.setLoadout(isBot(key)?seededLoadout(key,GS.lseed):STOCK);this.cos=isBot(key)?seededCos(key,GS.lseed):{...COS_DEF};this.build();this.spawn();buildDroneBody(this)}
  build(){buildDrone(this)}  // mesh, FPV mark and trail: render/drone-mesh.js
  // ---- parts (src/parts): the loadout sets this drone's flight multipliers (this.fl), ground hull, ball box, inertia and hit radius ----
  setLoadout(ids){const lo=computeLoadout(ids,DRAD/.6),re=this.lo&&this.lo.ids.join()!==lo.ids.join();this.lo=lo;this.fl=lo.flight;
   this.hbp=lo.hbp.map(a=>new V3(...a));this.hbr=lo.hbr;this.bbx=lo.bbx;this.di=lo.di;this.hitR=lo.hitR;this.popM=lo.colliders.filter(c=>c.tag==='prop').map(c=>c.pos).sort((a,b)=>Math.atan2(a[0],a[2])-Math.atan2(b[0],b[2]));this.rad=DRAD*lo.size;if(re)rebuildDrone(this);if(this.rb)buildDroneBody(this)}  // Rapier body from the loadout's colliders
+ // ---- cosmetics (parts/cosmetics.js): looks only; this.cos ids, this.trailCol/trailCol2/trailStyle for trail effects (render/cos-mat.js) ----
+ setCos(c){c=cleanCos(c);if(this.cos&&Object.keys(c).every(k=>c[k]===this.cos[k]))return;this.cos=c;rebuildDrone(this)}
  spawn(spread){const s=(GS.OBSON?DSLOTS:SLOTS)[this.i],k=this.team?-1:1;this.hd=null;this.flipT=0;this.p.set(s[0]*k,s[1],s[2]*k);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);this.q.setFromAxisAngle(UP,this.team?Math.PI:0);
   if(spread&&GS.OBSON){const r=dfSpawnPoint(GS.drones.filter(o=>o!==this&&o.dead<=0));this.p.set(r[0],r[1],r[2]);this.q.setFromAxisAngle(UP,r[3])}  // Dogfight respawn: far from everyone alive
   this.boost=START;this.dead=0;this.hp=100;this.firing=false;this.thr=this.ms=HOV;this.gt=0;for(let j=0;j<TN;j++)this.p.toArray(this.tp,j*3);this.mesh.visible=true}
@@ -32,7 +36,7 @@ export class Drone{
  // a shove that way (pitch: forward/back, roll: sideways, yaw: spin in place), then back to the exact attitude it started from.
  tryPop(st){if(!(this.popC>0)||this.popT>0||this.dead>0)return false;const v=[st[1],st[2],st[0]],a=v.map(Math.abs),i=a.indexOf(Math.max(...a));if(a[i]<.5)return false;
   const s=-Math.sign(v[i]);this.popC=0;this.popT=POP_D;this.popAx=i;this.popS=s;this.popQ=(this.popQ||new QT()).copy(this.q);this.popThr=this.thr;
-  if(i!==1)this.v.addScaledVector(_pz.set(i===2?-s:0,0,i===0?s:0).applyQuaternion(this.q),POP_V);return true}
+  if(i!==1)this.v.addScaledVector(_pz.set(i===2?-s:0,0,i===0?s:0).applyQuaternion(this.q),POP_V);if(this===GS.player)popWhoosh(POP_D);return true}
  // is world point P on top of the quad and inside the square of its four motors (inset 10%)?
  popZone(P){const c=_pz.copy(P).sub(this.p).applyQuaternion(_qb.copy(this.q).invert()),M=this.popM;if(c.y<-.05||!M||M.length<3)return false;let sg=0;
   for(let i=0;i<M.length;i++){const A=M[i],B=M[(i+1)%M.length],cr=(B[0]-A[0])*.9*(c.z-A[2]*.9)-(B[2]-A[2])*.9*(c.x-A[0]*.9);if(Math.abs(cr)<1e-9)continue;const s=cr>0?1:-1;if(sg&&s!==sg)return false;sg=s}return true}

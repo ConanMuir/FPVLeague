@@ -1,4 +1,5 @@
 // ---------- menu / settings ----------
+import {setVolumes} from '../audio/audio.js';
 import {$,AI,ARENAS,DIFF} from '../config/constants.js';
 import {S,save} from '../config/settings.js';
 import {BTN,CAL,PAIR,RADIO,axv,pad,padBlocked,padX} from '../input/input.js';
@@ -16,15 +17,16 @@ import {tab} from './rates.js';
 import {OUT,setMap} from '../world/maps.js';
 const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['arena','Arena size','sel',ARENAS.map((a,i)=>[i,`${a[0]} (${a[1]}×${a[2]} m)`])],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],['gfx','Graphics quality','sel',[['auto','Auto'],['high','High'],['med','Medium'],['low','Low (integrated GPUs)']]],
  ['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
- ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['assist','Flight assist','rng',0,1,.05],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]]];
+ ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['assist','Flight assist','rng',0,1,.05],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]],
+ ['vMaster','Master volume','rng',0,100,5],['vMotor','Your motors and prop wash','rng',0,100,5],['vWind','Wind','rng',0,100,5],['vOther','Other drones','rng',0,100,5],['vFx','Effects (ball, goals, hits, boost)','rng',0,100,5],['vCrowd','Crowd','rng',0,100,5]];
 // settings tab for each field (the rest go on Match); Controls and Keys tabs hold the controller block and the key list
-const FTAB={mode:'flight',thrMode:'flight',dz:'flight',assist:'flight',map:'video',ball:'video',gfx:'video',tilt:'video',fov:'video'};
+const FTAB={mode:'flight',thrMode:'flight',dz:'flight',assist:'flight',map:'video',ball:'video',gfx:'video',tilt:'video',fov:'video',vMaster:'audio',vMotor:'audio',vWind:'audio',vOther:'audio',vFx:'audio',vCrowd:'audio'};
 // builds the settings and controller-mapping rows and wires the menu buttons (v15 ran this at load)
 export function initMenu(){
 for(const[k,lab,type,...o]of FIELDS){const setEl=FTAB[k]?$('set_'+FTAB[k]):$('set');const l=document.createElement('label');l.textContent=lab;l.htmlFor='f_'+k;setEl.append(l);let inp;
  if(type==='sel'){inp=document.createElement('select');for(const[v,t]of o[0])inp.add(new Option(t,JSON.stringify(v)))}else{inp=document.createElement('input');inp.type='range';[inp.min,inp.max,inp.step]=o}
  inp.id='f_'+k;const out=document.createElement('output');out.id='o_'+k;setEl.append(inp,out);
- inp.addEventListener('input',()=>{S[k]=type==='sel'?JSON.parse(inp.value):+inp.value;save();syncUI();if(k==='map'&&!GS.OBSON)setMap(S.map);if(k==='ball')setBall(S.ball);if(k==='gfx')setQuality(S.gfx);if(k==='arena'&&S.arena!==AI&&!GS.net){mpMsg('Building the '+ARENAS[S.arena][0]+' arena…');setTimeout(()=>location.reload(),60)}})}  // arena geometry is built at load, so a new size reloads the page
+ inp.addEventListener('input',()=>{S[k]=type==='sel'?JSON.parse(inp.value):+inp.value;save();syncUI();if(k==='map'&&!GS.OBSON)setMap(S.map);if(k==='ball')setBall(S.ball);if(FTAB[k]==='audio')setVolumes();if(k==='gfx')setQuality(S.gfx);if(k==='arena'&&S.arena!==AI&&!GS.net){mpMsg('Building the '+ARENAS[S.arena][0]+' arena…');setTimeout(()=>location.reload(),60)}})}  // arena geometry is built at load, so a new size reloads the page
 const map=$('map');['Throttle','Yaw','Pitch','Roll'].forEach((n,i)=>{const l=document.createElement('label');l.textContent=n;l.htmlFor='ax'+i;const s=document.createElement('select');s.id='ax'+i;for(let a=0;a<8;a++)s.add(new Option('Axis '+a,a));BTN.forEach((n,j)=>s.add(new Option(n+(j>3&&j<8?'':' button'),100+j)));
  const c=document.createElement('label');c.innerHTML=`<input type="checkbox" id="inv${i}"> invert`;map.append(l,s,c);
  s.onchange=()=>{const a=+s.value,C=CAL(),sg=C[i].s<0?-1:1;C[i]=a<100?{a,c:0,s:sg}:i?{a,c:0,s:sg,...(PAIR[a-100]!=null?{b:PAIR[a-100]}:{})}:{a,c:.5,s:.5*sg};save()};c.firstChild.onchange=()=>{CAL()[i].s=-CAL()[i].s;save()}});
@@ -51,7 +53,7 @@ $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','
 {const m=location.hash.match(/^#([a-z0-9]{2,6})$/i);if(m)$('code').value=m[1]}
 }
 export function syncUI(){for(const[k,,type]of FIELDS){const inp=$('f_'+k);inp.value=type==='sel'?JSON.stringify(S[k]):S[k];
- $('o_'+k).textContent=type==='rng'?(k==='tilt'||k==='fov'?S[k]+'°':(+S[k]).toFixed(2)):''}
+ $('o_'+k).textContent=type==='rng'?(k==='tilt'||k==='fov'?S[k]+'°':FTAB[k]==='audio'?S[k]+'%':(+S[k]).toFixed(2)):''}
  for(let i=0;i<4;i++){$('ax'+i).value=CAL()[i].a;$('inv'+i).checked=CAL()[i].s<0}$('fireb').value=String(padX?S.xfire:S.fireBtn);$('flipb').value=String(padX?S.xflip:S.flipBtn)}
 function pickGame(m){if(GS.net){mpMsg('Leave the online game to switch modes.');return}const lab=LAB.on;exitLab();S.game=m;save();setGame(m);if(GS.demo||lab)startDemo();else startMatch()}
 export function menuScreen(id){for(const s of document.querySelectorAll('#menu .scr'))s.hidden=s.id!=='scr-'+id;$('home').hidden=!!id;(id?document.querySelector('#scr-'+id+' .back'):$(GS.demo?'play':'resume'))?.focus({preventScroll:true})}

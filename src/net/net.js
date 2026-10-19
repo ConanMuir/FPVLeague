@@ -13,6 +13,7 @@ import {ball} from '../physics/ball.js';
 import {ballMesh} from '../render/ball.js';
 import {TN} from '../render/drone-mesh.js';
 import {cleanLoadout} from '../parts/index.js';
+import {cleanCos,cosIds} from '../parts/cosmetics.js';
 import {emit} from '../render/particles.js';
 import {_t} from '../scratch.js';
 import {GS,esc,isBot,nick} from '../state.js';
@@ -27,8 +28,8 @@ function hostSlots(){const hs=[{k:'h',tp:S.tp}];for(const p of[...GS.net.peers].
  const size=Math.min(3,Math.max(S.size,Math.ceil(hs.length/2))),T=[[],[]];
  for(const h of hs){let t=h.tp==='0'?0:h.tp==='1'?1:T[0].length<=T[1].length?0:1;if(T[t].length>=size)t=1-t;if(T[t].length<size)T[t].push(h.k)}
  if(S.bots)for(const t of[0,1])for(let i=T[t].length;i<size;i++)T[t].push('b'+t+i);return T}
-// lo: the pilot's part ids (untrusted; cleanLoadout checks them against the known list)
-function setNet(d,a,now,dead,bo,fi,ti,lo){if(!okArr(a,10))return;const L=lo&&cleanLoadout(lo);if(L&&L.join()!==d.lo.ids.join())d.setLoadout(L);d.firing=!!fi&&!dead;d.tilt=Number.isFinite(+ti)?cl(+ti,0,60):30;const n=d.net||(d.net={p:new V3(),q:new QT(),v:new V3(),at:0});n.p.fromArray(a,0);n.q.fromArray(a,3).normalize();n.v.fromArray(a,7);n.at=now;
+// lo: the pilot's part ids, co: cosmetic ids (untrusted; cleanLoadout / cleanCos check them against the known lists)
+function setNet(d,a,now,dead,bo,fi,ti,lo,co){if(!okArr(a,10))return;const L=lo&&cleanLoadout(lo);if(L&&L.join()!==d.lo.ids.join())d.setLoadout(L);if(Array.isArray(co))d.setCos(cleanCos(co));d.firing=!!fi&&!dead;d.tilt=Number.isFinite(+ti)?cl(+ti,0,60):30;const n=d.net||(d.net={p:new V3(),q:new QT(),v:new V3(),at:0});n.p.fromArray(a,0);n.q.fromArray(a,3).normalize();n.v.fromArray(a,7);n.at=now;
  const was=d.dead>0;d.dead=dead?1:0;d.boostOn=!!bo;d.thr=bo?1:.5;
  if(!d.seen||was&&!dead){d.seen=1;d.p.copy(n.p);d.q.copy(n.q);for(let j=0;j<TN;j++)d.p.toArray(d.tp,j*3)}
  if(!was&&dead){emit(d.p,COL[d.team],160,30,1.2);noise(.6,200,.7*near(d.p))}}
@@ -40,7 +41,7 @@ function onHostState(g,now){if(!g||typeof g!=='object')return;if(g.ar!=null&&g.a
  if(g.st==='end'&&GS.state!=='end')endFx();
  if(g.ot&&!GS.overtime)banner('OVERTIME','',1.6);
  if(['kickoff','play','goal','end'].includes(g.st))GS.state=g.st;GS.stT=+g.t||0;GS.clock=+g.ck||0;GS.overtime=!!g.ot;
- if(g.bots&&typeof g.bots==='object')for(const k in g.bots){const d=GS.drones.find(x=>x.key===k),a=g.bots[k];if(d&&d.remote&&Array.isArray(a))setNet(d,a,now,a[11],a[10],a[12],undefined,a[13])}
+ if(g.bots&&typeof g.bots==='object')for(const k in g.bots){const d=GS.drones.find(x=>x.key===k),a=g.bots[k];if(d&&d.remote&&Array.isArray(a))setNet(d,a,now,a[11],a[10],a[12],undefined,a[13],a[14])}
  if(GS.OBSON)dfState(g)
  const ack=+(g.ack&&g.ack[GS.myPeer])||0;
  if(okArr(g.bl,6)&&GS.state!=='goal'&&(GS.net.seq<=ack||now-GS.net.hitT>600)){ball.v.fromArray(g.bl,3);ball.p.lerp(_t.fromArray(g.bl).addScaledVector(ball.v,.05),.5)}
@@ -48,15 +49,15 @@ function onHostState(g,now){if(!g||typeof g!=='object')return;if(g.ar!=null&&g.a
 export function netSync(now){if(!GS.net)return;
  for(const p of GS.net.peers){if(p.sameTab)continue;const pr=p.presence;if(!pr||pr===GS.net.last[p.peer])continue;GS.net.last[p.peer]=pr;
   if(pr.g&&!GS.net.host){GS.net.hostPeer=p.peer;onHostState(pr.g,now)}
-  const d=GS.drones.find(x=>x.key===(pr.g?'h':p.peer));if(d&&d.remote){d.name=nameOf(d.key,d.team,d.i);setNet(d,pr.s,now,pr.d,pr.b,pr.f,pr.ti,pr.lo)}
+  const d=GS.drones.find(x=>x.key===(pr.g?'h':p.peer));if(d&&d.remote){d.name=nameOf(d.key,d.team,d.i);setNet(d,pr.s,now,pr.d,pr.b,pr.f,pr.ti,pr.lo,pr.co)}
   if(GS.net.host&&GS.OBSON&&Array.isArray(pr.hs))for(const h of pr.hs)if(Array.isArray(h)&&+h[0]>(GS.net.hk[p.peer]||0)){GS.net.hk[p.peer]=+h[0];if(GS.state==='play'&&d&&d.dead<=0)applyHit(h[1],cl(+h[2]||0,0,10),d)}
   if(GS.net.host&&pr.h&&+pr.h.s>(GS.net.ack[p.peer]||0)){GS.net.ack[p.peer]=+pr.h.s;if(GS.state==='play'&&okArr(pr.h.p,3)&&okArr(pr.h.v,3)){ball.p.fromArray(pr.h.p);ball.v.fromArray(pr.h.v).clampLength(0,MAXB);if(d)ball.last=d}}}
  if(GS.net.host){const T=hostSlots(),j=JSON.stringify(T);if(j!==GS.net.slotsJ){GS.net.slotsJ=j;GS.net.slots=T;applySlots(T)}return}
  const gone=GS.net.hostPeer?!GS.net.peers.some(p=>p.peer===GS.net.hostPeer):now-GS.net.t0>8000;
  if(!gone)GS.net.gone=0;else if(!GS.net.gone)GS.net.gone=now;else if(now-GS.net.gone>3000){mpMsg(GS.net.hostPeer?'The host left the game.':'No game found with that code.');leaveGame();startDemo()}}
 export function netSend(now){if(!GS.net||now-GS.net.sendT<33)return;GS.net.sendT=now;const me=GS.player,P={n:nick(),tp:S.tp};
- if(me){P.s=pack(me);P.d=me.dead>0?1:0;P.b=me.boostOn?1:0;P.lo=me.lo.ids;if(GS.OBSON){P.f=me.firing?1:0;P.ti=S.tilt}}
- if(GS.net.host){const bots={};for(const d of GS.drones)if(d.bot)bots[d.key]=[...pack(d),d.boostOn?1:0,d.dead>0?1:0,d.firing?1:0,d.lo.ids];
+ if(me){P.s=pack(me);P.d=me.dead>0?1:0;P.b=me.boostOn?1:0;P.lo=me.lo.ids;P.co=cosIds(me.cos);if(GS.OBSON){P.f=me.firing?1:0;P.ti=S.tilt}}
+ if(GS.net.host){const bots={};for(const d of GS.drones)if(d.bot)bots[d.key]=[...pack(d),d.boostOn?1:0,d.dead>0?1:0,d.firing?1:0,d.lo.ids,cosIds(d.cos)];
   P.g={st:GS.state,t:+GS.stT.toFixed(2),sc:GS.score,ck:+GS.clock.toFixed(1),ot:GS.overtime?1:0,ko:GS.koN,gs:GS.goalSide,sl:GS.net.slots,bl:[...r2(ball.p),...r2(ball.v)],ack:GS.net.ack,bots,lt:ball.last?.key||null,tu:S.mod,m:GS.GM,sb:S.sboost?1:0,ar:AI};
   if(GS.OBSON){P.g.hp={};P.g.lf={};for(const d of GS.drones){P.g.hp[d.key]=Math.round(d.hp);P.g.lf[d.key]=d.life}P.g.tg=TUR.map(t=>t.re>0?0:Math.max(1,Math.round(t.hp)));P.g.kf=GS.net.kf}
   if(now-GS.net.lobT>2000){GS.net.lobT=now;GS.room.presence({game:GS.net.code,m:GS.GM,host:nick(),pl:GS.net.slots.flat().filter(k=>!isBot(k)).length,sz:GS.net.slots[0].length}).catch(()=>{})}}
