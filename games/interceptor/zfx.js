@@ -24,7 +24,7 @@ export function initFX(api,G,Z){
  const rt=()=>performance.now()/1000;
  function slowmo(lo,hold,ease,stop=.06){const t=rt();if(TS.s<1&&lo>TS.lo)return;Object.assign(TS,{t0:t,lo,hold,ease,stop})}
  function tsTick(){const t=rt()-TS.t0;TS.s=t<TS.stop?.04:t<TS.stop+TS.hold?TS.lo:t<TS.stop+TS.hold+TS.ease?TS.lo+(1-TS.lo)*sm((t-TS.stop-TS.hold)/TS.ease):1;au.dilate(TS.s)}
- Object.defineProperty(Z,'tsc',{get:()=>G.on&&(G.state==='wave'||G.state==='clear')&&!api.menuOpen?TS.s:1,configurable:true});
+ Object.defineProperty(Z,'tsc',{get:()=>G.on&&!Z.online&&(G.state==='wave'||G.state==='clear')&&!api.menuOpen?TS.s:1,configurable:true});  // co-op: no slow-mo, the host's clock is everyone's
 
  // ---------- kill cam: after your own burst the dead-cam follows the wreck down and slowly orbits it ----------
  const KC={on:false,t:null,p:new V3(),off:new V3()};
@@ -128,7 +128,7 @@ export function initFX(api,G,Z){
 
  // ---------- kills: grouped per frame (one burst, one airstrike) so a multi-kill is one call ----------
  const KB=[];
- const k0=Z.kill;Z.kill=(t,cat)=>{const c0=G.cash,hb=t.claim;k0(t,cat);if(!G.on||api.demo||G.state==='trial'||!t.paid||t._kf)return;t._kf=1;KB.push({t,c:G.cash-c0,ply:t.by!=='h',by:HN[hb&&(hb.type||hb.d?.type)]})};
+ const k0=Z.kill;Z.kill=(t,cat)=>{const c0=G.cash,hb=t.claim;k0(t,cat);if(!G.on||api.demo||G.state==='trial'||!t.paid||t._kf||t.by==='o')return;t._kf=1;KB.push({t,c:G.cash-c0,ply:t.by!=='h',by:HN[hb&&(hb.type||hb.d?.type)]})};
  const HN={rack:'DRONE RACK',flak:'FLAK',gepard:'GEPARD',sam:'SAM',idome:'IRON DOME',gdome:'GOLDEN DOME'};
  let hRad=0;
  function flushKills(){if(!KB.length)return;const P=[],H=[];for(const k of KB)(k.ply?P:H).push(k);KB.length=0;W.you+=P.length;W.help+=H.length;

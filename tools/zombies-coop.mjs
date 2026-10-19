@@ -1,0 +1,138 @@
+// Zombies co-op harness: one headless Edge, three pages of the game (a host and two clients) talking over the ?netloop transport
+// (engine/net.js: a BroadcastChannel stand-in for the room, with a one-way delay), driven through the real menu, base screen and the
+// window.__z hooks. Checks: lobby (host / join by code), ready-up and forced start, waves and tracks in sync, a client's kill counts,
+// shared purse and shop requests (helper, personal perk, team perk, repair), site hit points in sync, late join, a client leaving,
+// the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS]
+import {serve, launch, open, sleep, newWindow} from './zlib.mjs';
+const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
+const DELAY = argv.includes('--delay') ? +argv[argv.indexOf('--delay') + 1] : 40;
+const {server, origin} = await serve();
+const browser = await launch();
+let fails = 0;
+const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fails++; };
+const URL = `${origin}/games/interceptor/?mode=zombies&netloop=${DELAY}`;
+async function page(name) {
+  const errs = [], p = await open(browser, URL, errs, {page: await newWindow(browser)});
+  await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: 'z', wx: 'clear', zwx: 'menu', zdiff: 1})));
+  await p.reload({waitUntil: 'load'});
+  await p.waitForFunction(() => window.__z && window.__z.net, {timeout: 60000});
+  await p.$eval('#zname', (e, n) => { e.value = n; }, name);
+  return {p, errs, name};
+}
+const until = async (P, fn, arg, ms = 10000) => { try { await P.p.waitForFunction(fn, {timeout: ms, polling: 50}, arg); return true; } catch (e) { return false; } };
+const ev = (P, fn, arg) => P.p.evaluate(fn, arg);
+const st = P => ev(P, () => { const {G, api} = __z, n = __z.net.n; return {on: G.on, state: G.state, wave: G.wave, cash: G.cash, rows: __z.net.rows(), late: !!n?.late, code: n?.code, me: n?.me,
+  hp: api.SITES.map(s => Math.ceil(s.hp)), live: api.TH.filter(api.live).map(t => t.id).sort((a, b) => a - b), defs: __z.Z.def.D.map(d => d.type + '/' + (d.by || '')), perks: {...G.perks}, kills: G.kills}; });
+
+console.log('opening pages');const H = await page('Hosty');console.log('host page up');const A = await page('Ash'), B = await page('Bea');console.log('client pages up');
+const all = [H, A, B];
+
+// ---------- lobby: host from the Zombies start menu, two clients join with the code ----------
+await H.p.click('#zhost');
+ok(await until(H, () => __z.G.on && __z.G.state === 'base' && __z.net.n?.code), 'Host: Host co-op starts a Zombies game on the base screen');
+const code = (await st(H)).code;
+for (const C of [A, B]) { await C.p.$eval('#zcode', (e, c) => { e.value = c; }, code); await C.p.click('#zjoin'); }
+ok(await until(H, () => __z.net.rows().length === 3), `Lobby: two clients joined game ${code.toUpperCase()}`);
+for (const C of [A, B]) ok(await until(C, () => __z.G.on && __z.G.state === 'base' && __z.net.rows().length === 3 && !document.getElementById('zbase').hidden), `${C.name}: on the base screen with the 3-pilot roster`);
+{ const s = await Promise.all(all.map(st)); ok(s.every(x => x.cash === s[0].cash), `Purse: everyone sees the same shared purse ($${s.map(x => x.cash).join(' / ')})`);
+  ok(s[1].rows.map(r => r[1]).join() === 'Hosty,Ash,Bea', `Roster on a client: ${s[1].rows.map(r => r[1]).join(', ')}`); }
+if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-base.png'});
+
+// ---------- ready-up: the wave waits for everyone ----------
+await H.p.click('#zgo'); await A.p.click('#zgo'); await sleep(600);
+ok((await st(H)).state === 'base' && await ev(H, () => document.getElementById('zgo').textContent.includes('2/3')), 'Ready-up: 2 of 3 ready, the wave has not started (button reads 2/3)');
+await B.p.click('#zgo');
+ok(await until(H, () => __z.G.state === 'wave' && __z.G.wave === 1), 'Ready-up: the third pilot readies, wave 1 starts on the host');
+for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'wave' && __z.G.wave === 1 && document.getElementById('zbase').hidden), `${C.name}: wave 1 started (base screen closed)`);
+
+// ---------- waves sync: the same tracks, close to where the host has them ----------
+await ev(H, () => __z.sim(30)); await sleep(800);
+{ const sync = async () => { const h = await ev(H, () => __z.api.TH.filter(__z.api.live).map(t => [t.id, t.p.x, t.p.y, t.p.z])); const c = await ev(A, () => __z.api.TH.filter(__z.api.live).map(t => [t.id, t.p.x, t.p.y, t.p.z, t.k]));
+    const m = new Map(c.map(a => [a[0], a])); let worst = 0; for (const a of h) { const b = m.get(a[0]); worst = Math.max(worst, b ? Math.hypot(a[1] - b[1], a[2] - b[2], a[3] - b[3]) : 1e9); } return {h: h.map(a => a[0]), c: c.map(a => a[0]), kinds: c.map(a => a[4]), worst}; };
+  const s = await sync();
+  ok(s.h.length >= 2 && s.h.join() === s.c.join(), `Waves sync: host tracks [${s.h}] = client tracks [${s.c}] (${s.kinds})`);
+  ok(s.worst < 30, `Waves sync: worst track position gap host vs client ${s.worst.toFixed(1)} m (snapshots 10 Hz, ${DELAY} ms delay, dead reckoning)`); }
+
+// a screenshot of another pilot's drone with its name tag: Ash parks 18 m in front of the host's camera (held idle so it stays put)
+if (SHOTS) {
+  const at = await ev(H, () => { const c = __z.api.camera, f = new __z.api.THREE.Vector3(0, 0, -1).applyQuaternion(c.quaternion); return [c.position.x + f.x * 18, c.position.y + f.y * 18 + 1, c.position.z + f.z * 18]; });
+  await ev(A, at => { const me = __z.api.player; __z.net.n.late = true; me.p.set(...at); me.v.set(0, 0, 0); }, at); await sleep(700);
+  await H.p.screenshot({path: SHOTS + '/coop-host-sees-ash.png'});
+  await ev(A, () => { __z.net.n.late = false; __z.api.launch(); });
+}
+
+// ---------- a client's kill counts: Ash detonates 1 m behind a track as Ash sees it; the host rolls it and pays the purse ----------
+{ const h0 = await st(H);
+  const k = await ev(A, () => { const {api, Z} = __z, me = api.player, t = api.TH.filter(api.live).sort((a, b) => a.p.y - b.p.y)[0]; if (!t || me.dead > 0) return null; me.p.copy(t.p).addScaledVector(t.v.clone().normalize(), -1); me.v.copy(t.v); Z.detonate(); return t.id; });
+  ok(k != null, `Ash detonates behind T${k}`);
+  ok(await until(H, id => !__z.api.TH.some(t => t.id === id && __z.api.live(t)), k), `Host: T${k} is down`);
+  ok(await until(A, () => /^HIT/.test(__z.G.det?.txt || '')), 'Ash: the host\'s result comes back as a HIT readout');
+  const h1 = await st(H), ash = h1.rows.find(r => r[1] === 'Ash');
+  ok(ash && ash[2] === 1 && h1.kills.p === h0.kills.p + 1 && h1.cash > h0.cash, `Kill counts: Ash 1 kill on the roster, pilot kills ${h0.kills.p} -> ${h1.kills.p}, purse $${h0.cash} -> $${h1.cash}`);
+  ok(await until(B, id => !__z.api.TH.some(t => t.id === id && __z.api.live(t)) && __z.net.rows().find(r => r[1] === 'Ash')?.[2] === 1, k), 'Bea: sees the track go down and Ash\'s kill on the roster');
+  if (SHOTS) { await sleep(300); await A.p.screenshot({path: SHOTS + '/coop-ash-kill.png'}); } }
+
+// ---------- the host clears the wave; everyone goes back to the base screen ----------
+await ev(H, () => { for (let i = 0; i < 400 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0) __z.botKill(.8); } __z.sim(4); });
+ok(await until(H, () => __z.G.state === 'base'), 'Host: wave 1 cleared, base screen');
+for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden && __z.G.wave === 1), `${C.name}: back on the base screen after wave 1`);
+
+// ---------- shop on the shared purse: a helper (Ash), a personal perk and a team perk (Bea), a repair (Ash) ----------
+{ await ev(H, () => { __z.G.cash = 6000; }); await until(A, () => __z.G.cash === 6000); await until(B, () => __z.G.cash === 6000);
+  await ev(A, () => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); document.querySelector(`[data-buy="${i}"]`).click(); });
+  await A.p.waitForSelector('[data-slot]'); await A.p.click('[data-slot]');
+  ok(await until(H, () => __z.Z.def.D.length === 1 && __z.Z.def.D[0].by === 'Ash' && __z.G.cash === 5300), 'Shop: Ash buys a drone rack, the host places it (bought by Ash), purse $6,000 -> $5,300');
+  ok(await until(B, () => __z.Z.def.D.length === 1 && __z.Z.def.D[0].type === 'rack' && __z.G.cash === 5300), 'Shop: Bea sees the rack and the new purse');
+  const warhead = async () => ev(B, () => { const i = __z.G.cards.findIndex(c => c.k === 'warhead'); document.querySelector(`[data-buy="${i}"]`)?.click(); });
+  await warhead();
+  ok(await until(B, () => __z.G.perks.warhead === 1 && __z.api.LETH === __z.api.S.mod.leth + 1 && __z.G.cash === 4600), 'Shop: Bea buys Bigger warhead (personal): her warhead radius +1 m, purse -$700');
+  const hp = await st(H), ap = await st(A);
+  ok(!hp.perks.warhead && !ap.perks.warhead, 'Shop: the host and Ash do not get Bea\'s personal perk');
+  await ev(B, () => { const i = __z.G.cards.findIndex(c => c.k === 'radar'); document.querySelector(`[data-buy="${i}"]`)?.click(); });
+  ok(await until(H, () => __z.G.perks.radar === 1) && await until(A, () => __z.G.perks.radar === 1 && __z.Z.radarK() === 1.3), 'Shop: Bea buys Long-range radar, a team perk: the host and Ash have it too');
+  await ev(H, () => { __z.api.SITES[0].hp -= 120; });
+  ok(await until(A, () => __z.api.SITES[0].hp === __z.api.SITES[0].max - 120), 'Site HP sync: damage on the host shows on the clients');
+  const c0 = (await st(H)).cash;
+  await A.p.click('[data-tab="sites"]'); await A.p.click('[data-rep="0"]');
+  ok(await until(H, () => __z.api.SITES[0].hp === __z.api.SITES[0].max) && (await st(H)).cash === c0 - 360, `Shop: Ash repairs the substation (+120 hp, $${c0} -> $${(await st(H)).cash})`);
+  ok(await until(B, () => __z.api.SITES[0].hp === __z.api.SITES[0].max), 'Site HP sync: the repair shows on Bea\'s screen');
+  if (SHOTS) { await A.p.click('[data-tab="armory"]'); await sleep(400); await A.p.screenshot({path: SHOTS + '/coop-shop.png'}); } }
+
+// ---------- forced start: the host starts wave 2 with nobody else ready ----------
+await H.p.click('#zforce');
+ok(await until(H, () => __z.G.state === 'wave' && __z.G.wave === 2), 'Host: Start now begins wave 2 without the others ready');
+for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'wave' && __z.G.wave === 2), `${C.name}: wave 2 started`);
+ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is deployed on the client too');
+
+// ---------- site hit points in a wave: a Shahed hits the fuel depot on the host ----------
+{ const r = await ev(H, () => { const {api, G} = __z; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); const s = api.SITES[1], aim = s.aims[0], t = __z.make('shahed', aim.x, aim.z - 300); t.tgt = s; t.aim = aim; t.wps.length = 0; t.p.set(aim.x, aim.y + 120, aim.z - 200); t.st = 'dive';
+    for (let i = 0; i < 400 && api.live(t); i++) api.step(1 / 60); return {id: t.id, hp: Math.ceil(s.hp), impacted: !!t.impacted}; });
+  ok(r.impacted, `Host: T${r.id} impacted the fuel depot (hp ${r.hp})`);
+  for (const C of [A, B]) ok(await until(C, hp => Math.ceil(__z.api.SITES[1].hp) === hp, r.hp), `${C.name}: fuel depot hp ${r.hp} matches the host`);
+  ok(await until(A, id => __z.api.TH.every(t => t.id !== id || t.impacted), r.id), 'Ash: saw the impact as an event (track marked impacted)'); }
+
+// ---------- helpers fire on the clients' screens: the host's rack drones show up as shots ----------
+{ await ev(H, () => { const {api, G} = __z; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); const s = __z.Z.def.SLOTS[__z.Z.def.D[0].slot]; for (let i = 0; i < 2; i++) { const t = __z.make('shahed', s.x + 300 * i, s.z - 2400); t.p.y = api.gh(t.p.x, t.p.z) + 300; } __z.sim(3); });
+  ok(await until(A, () => __z.Z.def.shots.length > 0 && __z.Z.def.shots.some(h => h.tgt)), 'Helpers: the host\'s rack drones fly on Ash\'s screen with their claimed targets', 6000);
+  if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-client-wave.png'}); }
+
+// ---------- a client leaves; then rejoins mid-wave (late join), comes in at the next base screen ----------
+await ev(B, () => __z.api.showMenu(true)); await B.p.click('#leave');
+ok(await until(H, () => __z.net.rows().length === 2), 'Leave: Bea quits, the host roster drops to 2');
+ok(await until(A, () => __z.net.rows().length === 2 && __z.net.n.pil.size === 1), 'Leave: Ash sees the roster drop and Bea\'s drone go');
+ok(!(await st(B)).on && await ev(B, () => !document.getElementById('menu').hidden), 'Leave: Bea is back on the start menu');
+await B.p.$eval('#zcode', (e, c) => { e.value = c; }, code); await B.p.click('#zjoin');
+ok(await until(B, () => __z.G.on && __z.G.state === 'wave' && __z.net.n?.late), 'Late join: Bea rejoins during wave 2 and waits (spectating, idle on the mat)');
+ok(await ev(B, () => __z.Z.idle() && document.getElementById('zinb').textContent.includes('NEXT BASE')) || await until(B, () => document.getElementById('zinb').textContent.includes('NEXT BASE'), null, 3000), 'Late join: the HUD says she joins at the next base screen');
+await ev(H, () => { __z.G.wq.length = 0; for (let i = 0; i < 600 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0) __z.botKill(.8); } __z.sim(4); });
+ok(await until(B, () => __z.G.state === 'base' && !__z.net.n.late && __z.net.rows().length === 3), 'Late join: at the base screen Bea is in, roster back to 3');
+
+// ---------- the host leaves: every client's game ends with a message ----------
+await ev(H, () => __z.api.showMenu(true)); await H.p.click('#leave');
+for (const C of [A, B]) ok(await until(C, () => !__z.G.on && /host left/i.test(document.getElementById('zmpnote').textContent) && !document.getElementById('menu').hidden), `${C.name}: host left -> back on the menu with "${'The host left the game'}"`);
+if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-host-left.png'});
+
+for (const P of all) ok(!P.errs.length, `${P.name}: no errors` + (P.errs.length ? '\n  ' + P.errs.slice(0, 6).join('\n  ') : ''));
+await browser.close(); server.close();
+console.log(fails ? `${fails} FAILED` : 'all ok');
+process.exit(fails ? 1 : 0);
