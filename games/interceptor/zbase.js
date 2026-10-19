@@ -122,7 +122,7 @@ export function initBase(Z,api,G){
    <button class="go" id="zgo">${Z.goTxt?.()||`Start wave ${G.wave+1} ▸`}</button>
    <div class="zdoc">Doctrine <b>${D.n}</b>${U&&U.total?` · upkeep <b>${money(U.total)}</b> after this wave`:''}${sh?` · <span class="co">${sh} short of ammo (upkeep unpaid)</span>`:''}${G.lastUp?` · last upkeep ${money(G.lastUp)}`:''}</div></header>${Z.coopHTML?.()||''}
    <div class="zcols"><div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
-    <div class="zleg"><span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lt"></i>next wave's approach</span></div></div>
+    <div class="zleg"><span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lx">+</i>position to open (Base tab)</span><span><i class="lt"></i>next wave's approach</span></div></div>
    <div class="zside"><nav class="ztabs">${[['shop','Shop'],['armory','Armory'],['sites','Base']].map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
    <footer class="zfc"><h3>Wave ${G.wave+1}${fc.boss?' · <span class="cr">BOSS</span>':''}${Z.wx?.note(G.next.wx)||''}</h3>${fc.html}</footer></div>`;
   $('zgo').onclick=()=>{if(!G.placing)Z.continue()};$('zcancel')&&($('zcancel').onclick=cancelPlace);

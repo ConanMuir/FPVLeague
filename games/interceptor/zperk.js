@@ -53,7 +53,7 @@ export function initPerks(api,G,Z){
    api.feed(`${who}<span class="co">Lure beacon: ${L.length} drone${L.length>1?'s':''} turning toward it for 8 s</span>`);api.tone(300,700,.4,.08,'square')}
   if(!o)G.ch[k]--;return true}
  function step(dt){for(const t of TH){if(t.frz>0&&(t.frz-=dt)<=0){t.frz=0;t.spd*=2;t.cs*=2}if(t.mark>0&&(t.mark-=dt)<=0)t.mark=0;
-   if(t.lure>0&&(t.lure-=dt)<=0){t.lure=0;if(api.live(t)&&t.st==='cruise'&&t.aim0&&!t.net){t.aim=t.aim0;t.wps.length=0}}}
+   if(t.lure>0&&t.lure<1e8&&(t.lure-=dt)<=0){if(t.st==='dive')t.lure=1e9;else{t.lure=0;if(api.live(t)&&t.aim0&&!t.net){t.aim=t.aim0;t.wps.length=0}}}}  /* already diving at the beacon: it stays lured */
   const s=G.strike;if(s){s.p.addScaledVector(s.v,dt);if((s.t-=dt)<=0&&s.n<6){s.t=.12;const p=_a.copy(s.p).addScaledVector(s.v,(s.n-2.5)*.6);api.boom(p,3);s.n++;
     if(s.n===3)for(const t of TH)if(api.live(t)&&KIND[t.k]?.armor!=='hard'&&t.p.distanceTo(s.p)<260){t.by=s.by?'o':'p';t.byN=s.by;if(t.k==='boss')Z.bossHit(t);else api.killThreat(t,Math.random()<.5)}}
    if(s.n>=6)G.strike=null}

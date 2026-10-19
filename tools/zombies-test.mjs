@@ -315,7 +315,7 @@ if (!ONLY) {
     const r = B.act.place('rack', 14); out.placed = !!r;
     B.refit(r.id, 'swarm'); out.swarm = [def.effOf(r, 'swarm'), def.effOf(r, 'jet')]; B.refit(r.id, 'range'); out.range = [def.capOf(r), def.rangeOf(r), r.refit];
     const c2 = G.cash; B.startMove(r.id); B.place(20); out.moved = [r.slot, c2 - G.cash];
-    const sam = B.act.place('sam', 0); B.setTab('shop'); G.wave = 8;
+    G.wave = 8; const sam = B.act.place('sam', 0); B.setTab('shop');
     for (const k of ['reload', 'harden']) { const i = G.cards.findIndex(c => c.k === k); B.buy(i); }
     out.sup = Object.keys(G.sup).sort().join();
     Z.continue(); out.ammo = [sam.ammo, def.magOf(sam)]; sam.ammo = 0; r.ready = 0;

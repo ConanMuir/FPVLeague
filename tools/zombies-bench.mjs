@@ -20,12 +20,13 @@ const {server, origin} = await serve();
 const browser = await launch({w: 640, h: 360});
 
 async function run(L, zd, idx) {
-  const errs = [], p = await open(browser, origin + '/games/interceptor/', errs, {w: 640, h: 360});
+  // each run in its own browser context: the pages share one origin, and a shared localStorage would let parallel runs read each other's difficulty
+  const ctx = await browser.createBrowserContext(), errs = [], p = await open(browser, origin + '/games/interceptor/', errs, {w: 640, h: 360, page: await ctx.newPage()});
   try {
     await p.evaluate((zd, load, meta, goals) => { const s = {gmode: 'z', zdiff: zd, wx: 'clear', zwx: 'menu', zmus: 0};
       if (load) s.zload = JSON.parse(load); if (meta === 'full') s.zmeta = {v: 1, g: Object.fromEntries(goals.map(g => [g, 15]))};
       localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, zd, LOAD, META, GOALS);
-    await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 120000});
+    await p.reload({waitUntil: 'load', timeout: 180000}); await p.waitForFunction(() => window.__z, {timeout: 180000});
     if (LOAD) { const lo = await p.evaluate(() => JSON.stringify(__z.Z.meta.load())); if (lo !== JSON.stringify({doc: 'std', kit: [], ...JSON.parse(LOAD)})) throw new Error('loadout not accepted: ' + lo); }
     await p.evaluate(() => { const Z = __z.Z, i0 = Z.impact; window.__dmg = {}; Z.impact = t => { const s = t.tgt, h = s ? s.hp : 0; i0(t); const l = h - (s ? s.hp : 0); if (l > 0) { const w = __z.G.wave, D = __dmg[w] || (__dmg[w] = {}); D[t.k] = (D[t.k] | 0) + l; } }; });
     await p.evaluate(() => { document.getElementById('play').click(); });
@@ -42,9 +43,9 @@ async function run(L, zd, idx) {
       log.push([a.w, a.integ, b.cash, b.defs]);
       if (st === 'over' || a.w >= CAP || st === 'wave') break;
     }
-    const end = await p.evaluate(() => ({wave: __z.G.wave, earned: Math.round(__z.G.earned), kills: __z.G.kills, spend: __z.G.spend || null, exp: __z.G.exp | 0, dmg: window.__dmg}));
+    const end = await p.evaluate(() => ({wave: __z.G.wave, earned: Math.round(__z.G.earned), kills: __z.G.kills, spend: __z.G.spend || null, exp: __z.G.exp | 0, dmg: window.__dmg, diff: __z.Z.diff().n, bal: __z.Z.kindFrom ? __z.Z.kindFrom('ballistic') : __z.KIND.ballistic.from}));
     return {lv: L.n, zd, idx, ...end, full, log, errs: errs.slice(0, 3)};
-  } finally { await p.close().catch(() => {}); }
+  } finally { await ctx.close().catch(() => {}); }
 }
 
 // jobs interleaved so slow (deep) and quick runs share the pool
@@ -53,7 +54,7 @@ for (let i = 0; i < RUNS; i++) for (const L of LV) for (const zd of DIFFS) jobs.
 const results = [], T0 = Date.now();
 let next = 0;
 async function worker() { while (next < jobs.length) { const j = jobs[next++]; try { const r = await run(...j); results.push(r);
-  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}, positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
+  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}, positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
   catch (e) { console.log('  run failed', j[0].n, DN[j[1]], String(e.message || e).split('\n')[0]); } } }
 await Promise.all(Array.from({length: Math.min(PAR, jobs.length)}, worker));
 

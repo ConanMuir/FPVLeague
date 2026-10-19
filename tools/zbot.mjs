@@ -3,8 +3,10 @@
 //   rate      chance per half second of running a track down (reaction, finding the next target)
 //   miss      share of those runs where the burst is badly timed (a 7 m miss instead of 0.8 m)
 //   dodgeK    how often an evading track shakes this pilot off, relative to the difficulty's base (flight quality)
+//   fast      chance per half second of sitting on a ballistic / hypersonic / ICBM track's line for a direct hit (inside 8 km of impact)
 //   relaunch  chance per half second of getting the next interceptor off the mat after losing one
 //   shop      'naive' cheapest helpers first, few upgrades, domes only once the missiles have come; 'basic' a sound order; 'smart' the best order
+//   spend     share of the purse it's willing to spend on a base screen (the rest sits idle: new players hoard or hesitate)
 //   up        chance per defence per base screen of buying its next upgrade
 //   repairAt / repairShare   repair a site below this share of its hit points, spending at most this share of the purse
 //   perks     'none' / 'random' (fires its active perks now and then) / 'smart' (Freeze the closest danger, Mark armor and the boss, Airstrike crowds, Lure packs)
@@ -14,13 +16,14 @@
 // DODGE[evade mode] x dodgeK instead (a model, not a measurement).
 export const DODGE = {none: 0, some: .3, all: .45};
 export const LEVELS = [
-  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -1, perkBuy: ['battery', 'warhead']},
-  {n: 'Pro', rate: .007, miss: .4, dodgeK: 1.2, relaunch: .1, shop: 'basic', up: .5, repairAt: .45, repairShare: .35, perks: 'random', domes: 0, perkBuy: ['warhead', 'freeze', 'radar']},
-  {n: 'All-Star', rate: .01, miss: .28, dodgeK: 1, relaunch: .15, shop: 'smart', up: .8, repairAt: .6, repairShare: .45, perks: 'random', domes: 2, sell: 1, expand: 1},
-  {n: 'Champion', rate: .015, miss: .18, dodgeK: .85, relaunch: .22, shop: 'smart', up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, rebuild: 1},
-  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, shop: 'smart', up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1},
-  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, shop: 'smart', up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1}];
-export const level = n => LEVELS.find(l => l.n.toLowerCase().replace(/\s+/g, '') === String(n).toLowerCase().replace(/[\s-]+/g, ''));
+  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -1, perkBuy: ['battery', 'warhead']},
+  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .8, up: .6, repairAt: .45, repairShare: .35, perks: 'random', domes: 0, perkBuy: ['warhead', 'freeze', 'radar']},
+  {n: 'All-Star', rate: .01, miss: .28, dodgeK: 1, relaunch: .15, shop: 'smart', spend: .9, up: .8, repairAt: .6, repairShare: .45, perks: 'random', domes: 2, sell: 1, expand: 1},
+  {n: 'Champion', rate: .015, miss: .18, dodgeK: .85, relaunch: .22, fast: .004, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, rebuild: 1},
+  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .01, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1},
+  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .02, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1}];
+const key = s => String(s).toLowerCase().replace(/[\s-]+/g, '');
+export const level = n => LEVELS.find(l => key(l.n) === key(n));
 
 // in-page source: the base-screen shopper. (P) = a level.
 export const SHOP = `(function(P){
@@ -33,16 +36,16 @@ export const SHOP = `(function(P){
   const domeOK = k => k === 'idome' ? nw >= kf('ballistic') - P.domes : k === 'gdome' ? nw >= kf('hyper') - P.domes : true;
   for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp > 0 && s.hp < s.max * P.repairAt) B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)); }
   if (P.rebuild && B.act.rebuild) api.SITES.forEach((s, i) => { if (s.hp <= 0 && G.cash > 9000) B.act.rebuild(i); });
-  const open = () => def.SLOTS.some((_, j) => def.slotFree(j));
+  const open = () => def.SLOTS.some((_, j) => def.slotFree(j)), keep = G.cash * (1 - (P.spend ?? 1)), afford = c => G.cash - c >= keep;
   for (let pass = 0; pass < 3; pass++) {
     const cards = G.cards.map((c, i) => ({...c, i})).filter(c => PRIO.includes(c.k) && nw >= from(c.k) && IT[c.k].type !== 'supply' && !(IT[c.k].type === 'perk' && Z.perkMaxed(c.k))).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));
-    for (const c of cards) { const it = IT[c.k], price = cost(c.k); if (G.cash < price || !domeOK(c.k)) continue;
+    for (const c of cards) { const it = IT[c.k], price = cost(c.k); if (!afford(price) || !domeOK(c.k)) continue;
       if (it.type === 'helper' && !open()) {
         if (P.expand && def.canOpen && PRIO.indexOf(c.k) <= top) { const j = def.SLOTS.findIndex((_, j) => def.canOpen(j, Z.meta.doc())); if (j >= 0 && G.cash > price + __z.expCost(G.exp | 0, Z.meta.k('expK'))) B.act.expand(j); }
         if (!open()) { if (!P.sell) continue; const w = def.D.filter(d => d.type === 'flak' || d.type === 'ew' || d.type === 'lrack').sort((a, b) => a.kills - b.kills)[0]; if (!w || PRIO.indexOf(c.k) > top) continue; B.act.sell(w.id); } }
       if (it.type === 'helper') { const j = def.SLOTS.findIndex((_, j) => def.slotFree(j)); if (j >= 0) B.act.place(c.k, j); }
       else B.buy(c.i); }
-    for (const d of def.D) if (Math.random() < P.up) { const rk = def.isRack ? def.isRack(d) : d.type === 'rack'; B.act.upgrade(d.id, rk ? 'tier' : 'lvl'); if (d.type === 'rack') B.act.upgrade(d.id, 'cap'); }
+    for (const d of def.D) if (Math.random() < P.up && G.cash > keep + 600) { const rk = def.isRack ? def.isRack(d) : d.type === 'rack'; B.act.upgrade(d.id, rk ? 'tier' : 'lvl'); if (d.type === 'rack') B.act.upgrade(d.id, 'cap'); }
   }
   if (P.refit && B.act.refit) for (const d of def.D) { const R = __z.REFIT[d.type]; if (!R || d.refit) continue;
     const want = {rack: nw >= kf('swarm') ? 'swarm' : 'range', flak: 'prox', gepard: nw >= kf('heavy') ? 'ap' : 'radar', sam: 'reload', ew: 'wide', idome: 'bal'}[d.type], r = R.find(x => x.id === want);
@@ -53,9 +56,11 @@ export const SHOP = `(function(P){
 // in-page source: one wave of play. (P, dodge) = a level and the difficulty's base dodge chance. Returns the state at the end.
 export const WAVE = `(function(P, dodge){
   const {api, G, Z, KIND} = __z; let n = 0;
-  const evades = t => Z.evades ? Z.evades(t) : false, live = () => api.TH.filter(api.live), tti = t => Math.hypot(t.aim.x - t.p.x, t.aim.z - t.p.z) / Math.max(1, t.spd);
+  const evades = t => { if (Z.evades) return Z.evades(t); const m = Z.evadeMode(); return m !== 'none' && KIND[t.k].armor !== 'hard' && (m === 'all' || ['jet', 'heavy', 'cruise', 'swarm', 'boss'].includes(t.k)); }, live = () => api.TH.filter(api.live), tti = t => Math.hypot(t.aim.x - t.p.x, t.aim.z - t.p.z) / Math.max(1, t.spd);
   while (G.state === 'wave' && n++ < 2400) { __z.sim(.5); const me = api.player, alive = me && me.dead <= 0;
     if (Math.random() < P.rate) { const t = Z.urgent(); if (t && KIND[t.k].armor !== 'hard' && alive) { const off = Math.random() < P.miss || evades(t) && Math.random() < Math.min(.9, dodge * P.dodgeK) ? 7 : .8; __z.botKill(off); } }
+    if (P.fast && alive && Math.random() < P.fast) { const h = api.TH.filter(t => api.live(t) && KIND[t.k].armor === 'hard' && t.p.distanceTo(t.aim) < 8000).sort((a, b) => a.p.distanceTo(a.aim) - b.p.distanceTo(b.aim))[0];
+      if (h) { me.p.copy(h.p).addScaledVector(h.v.clone().normalize(), -.5); me.v.set(0, 0, 0); Z.detonate(); } }
     if (me && me.dead > 0 && Math.random() < P.relaunch) api.launch();
     if (P.perks === 'random' && Math.random() < .02) ['freeze', 'mark', 'air', 'lure'].forEach(k => Z.pk.use(k));
     if (P.perks === 'smart') { const L = live();
