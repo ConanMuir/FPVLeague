@@ -17,6 +17,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = new Set(process.argv.slice(2));
 const SW = argv.has('--swiftshader') || SOFTWARE_GL, BASELINE = !argv.has('--no-baseline');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const T0 = Date.now(), log = m => console.log(`[${((Date.now() - T0) / 1000).toFixed(0).padStart(4)} s] ${m}`);  // progress, so a slow run shows where it is
+const fps = p => p.evaluate(() => new Promise(r => { let n = 0; const t0 = performance.now(); (function f() { n++; const t = performance.now() - t0; if (t < 2000) requestAnimationFrame(f); else r(+(n * 1000 / t).toFixed(1)); })(); }));
 
 // ---------- browser ----------
 findBrowser();
@@ -93,10 +95,12 @@ async function scenario(label, url) {
   try {
     const p = await open(browser, url, errors);
     await waitFor(p, s => s.drones.length > 0, BOOT, 'the game to boot');
+    out.fps = await fps(p); log(`${label}: booted, ${out.fps} fps`);
     out.renderer = await p.evaluate(() => { const g = document.querySelector('canvas#gl')?.getContext('webgl2'); const d = g?.getExtension('WEBGL_debug_renderer_info'); return d ? g.getParameter(d.UNMASKED_RENDERER_WEBGL) : '?'; });
     // menu demo: bots play behind the menu
     const d0 = await waitFor(p, s => s.state === 'play', wall, 'the demo kickoff to end'), d1 = await settle(p, s => moved(s, d0) > 1, wall);
     out.demo = {menuOpen: !(await hidden(p, '#menu')), moved: +moved(d1, d0).toFixed(1)};
+    log(`${label}: garage`);
     // Garage: open it, cycle every part in every slot, toggle the hitbox overlay, leave a non-stock loadout on
     if (await p.$('#garbtn')) {
       await click(p, '#garbtn'); const g = {open: !(await hidden(p, '#garage')), parts: 0, stats: []};
@@ -116,11 +120,13 @@ async function scenario(label, url) {
       g.name = await text(p, '#gname'); g.saved = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').loadout?.join('/'));
       await click(p, '#gok'); g.closed = await hidden(p, '#garage'); g.stats = new Set(g.stats).size; out.garage = g;
     }
+    log(`${label}: League`);
     // League vs bots (default settings: 2v2, bots fill, Legend)
     await click(p, '#play');
     await waitFor(p, s => !s.demo && s.state === 'play', wall, 'League kickoff to end');
     out.league = await run(p, 10, wall * 2);
     { const s = await snap(p); out.league.player = s.drones.find(d => d.key === 'h')?.lo; out.league.botLoadouts = [...new Set(s.drones.filter(d => d.bot).map(d => d.lo))].length; out.league.cos = await p.evaluate(() => window.__dl.cosInfo?.()); }
+    log(`${label}: Dogfight`);
     // Dogfight: open the menu, press the Dogfight mode button (starts a new match)
     await key(p, 'Escape'); out.menuAfterEsc = !(await hidden(p, '#menu'));
     await click(p, '#m_df');
@@ -129,6 +135,7 @@ async function scenario(label, url) {
     out.dogfight.title = await text(p, '#h1o');
     // camera / flight-mode keys while flying
     await key(p, 'c'); await key(p, 'c'); await key(p, 'c'); await key(p, 'm'); await key(p, 'm');
+    log(`${label}: panels`);
     // mod panel (T): Physics tab sliders, a slider change and reset, export
     await key(p, 't'); out.mod = {open: !(await hidden(p, '#mod'))};
     await click(p, '#tabp');
@@ -245,6 +252,7 @@ async function labScenario(url) {
     await click(p, '#bsave');
     out.bound = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {xcal: s.xcal, xfire: s.xfire, xflip: s.xflip}; });
     out.bindClosed = await hidden(p, '#bind');
+    log('Lab: binding done, drills');
     // Calibration Lab, Pro preset; run every drill a few seconds with the scripted pilot, then skip
     out.before = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {rprof: s.rprof, rpi: s.rpi, dz: s.dz, assist: s.assist}; });
     await click(p, '#trainbtn'); out.hubOpen = !(await hidden(p, '#scr-training'));  // Training hub -> Calibration Lab
@@ -313,11 +321,15 @@ async function trainScenario(url) {
 let failed = false;
 const fail = m => { failed = true; console.log('FAIL ' + m); };
 const results = {new: await scenario('new (dist/index.html)', origin + '/new/')};
+log('settings');
 const set = {new: await settings('new', origin + '/new/')};
+log('controls + Lab');
 const lab = await labScenario(origin + '/new/');
+log('training packs');
 const train = await trainScenario(origin + '/new/');
 if (BASELINE) {
   results.old = await scenario('v15 baseline', origin + '/old/');
+  log('v15 settings');
   set.old = await settings('v15 baseline', origin + '/old/');
 }
 
@@ -418,7 +430,7 @@ if (results.old) {
 if (pages['/artifact/']) {
   const browser = await launch(), errors = [];
   try {
-    const p = await open(browser, origin + '/artifact/', errors);
+    log('artifact form'); const p = await open(browser, origin + '/artifact/', errors);
     const a = await waitFor(p, s => s.state === 'play', SW ? 240000 : 60000, 'the artifact demo to start');
     const mv = moved(await settle(p, s => moved(s, a) > 1), a);
     console.log(`

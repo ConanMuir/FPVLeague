@@ -41,10 +41,8 @@ jobs:
         run: npm run build
 
       - name: Committed built game is up to date (warn-only)
-        # postbuild writes games/jared-league/index.html; if the build changed it, src/ and the committed build disagree
-        run: |
-          if git diff --quiet -- games/jared-league/index.html; then echo "games/jared-league/index.html matches the build"
-          else echo "::warning file=games/jared-league/index.html::The committed build is stale: run npm run build and commit games/jared-league/index.html"; fi
+        # postbuild writes games/jared-league/index.html; compare it with the committed one (ignoring CRLF vs LF builds)
+        run: node tools/check-build.mjs
 
       - name: Unit tests (node:test)
         run: npm test
@@ -61,13 +59,14 @@ jobs:
   browser:
     name: Browser check (${{ matrix.check }})
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: ${{ matrix.timeout || 30 }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - check: smoke
             build: true
+            timeout: 75
             run: node tools/smoke.mjs
           - check: physics-check
             run: node tools/physics-check.mjs

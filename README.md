@@ -5,7 +5,7 @@ Rocket league but with drones
 Branch: `ci`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
 Based on: origin/main 9cfd268 (Zombies game feel, PR #42)
 Doing: CI (GitHub Actions: build, unit tests, parts balance, comment lint, and the headless-browser checks on Chrome + SwiftShader); one shared browser picker (tools/browser.mjs); state-driven waits in smoke, the Vite checks and zombies-test; a lint for `//` comments that swallow code.
-Touches: .github/workflows/ci.yml (new), tools/browser.mjs (new), tools/lint-comments.mjs (new), test/lint-comments.test.mjs (new), tools/smoke.mjs, tools/zombies-test.mjs, tools/zlib.mjs, tools/physics-check.mjs, tools/pop-check.mjs, tools/sound-check.mjs, tools/training-check.mjs; every other puppeteer tool's launch line (tools/*-shots.mjs, bot-match, map-views, probe-bots); src/modes/training.js (trainSnap also reports `rt`, the ready time, so smoke presses the stick after the shot has read the resting sticks; the old 500 ms sleep could lose that race on a slow machine) and the rebuilt games/jared-league/index.html; README (Checks and CI, Comment lint).
+Touches: .github/workflows/ci.yml (new), tools/browser.mjs (new), tools/lint-comments.mjs (new), tools/check-build.mjs (new), test/lint-comments.test.mjs (new), tools/smoke.mjs, tools/zombies-test.mjs, tools/zlib.mjs, tools/physics-check.mjs, tools/pop-check.mjs, tools/sound-check.mjs, tools/training-check.mjs; every other puppeteer tool's launch line (tools/*-shots.mjs, bot-match, map-views, probe-bots); src/modes/training.js (trainSnap also reports `rt`, the ready time, so smoke presses the stick after the shot has read the resting sticks; the old 500 ms sleep could lose that race on a slow machine) and the rebuilt games/jared-league/index.html; README (Checks and CI, Comment lint).
 Open items / help wanted: make the comment lint strict once it has run quietly for a while; the Prettier/lint item of the architecture plan needs Riley.
 Overlaps: any branch that edits a tool's launch line (`puppeteer.launch({executablePath: ...})`): on merge, keep the branch's change but launch through `launchBrowser()` from tools/browser.mjs.
 
@@ -76,7 +76,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request,
 
 | Job | What runs |
 |---|---|
-| **fast** | `npm ci`, `npm run build` (warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs` (warn-only) |
+| **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs` (warn-only) |
 | **browser** | one entry each: `tools/smoke.mjs` (after a build), `physics-check`, `pop-check`, `sound-check`, `training-check`, `zombies-test`, on the runner's Chrome with software WebGL |
 
 Run the same things locally (all headless; nothing pops up): `npm test`, `node tools/parts-balance.mjs`, `npm run smoke`, `node tools/physics-check.mjs` and so on.
