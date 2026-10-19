@@ -10,18 +10,18 @@
 //   up        chance per defence per base screen of buying its next upgrade
 //   repairAt / repairShare   repair a site below this share of its hit points, spending at most this share of the purse
 //   perks     'none' / 'random' (fires its active perks now and then) / 'smart' (Freeze the closest danger, Mark armor and the boss, Airstrike crowds, Lure packs)
-//   domes     how many waves before the ballistic / hypersonic threats it buys Iron Dome / Golden Dome (-1: the wave after they first appear)
+//   domes     how many waves before the ballistic / hypersonic threats it buys Iron Dome / Golden Dome (-1: the wave after they first appear; -99: never)
 //   sell, expand, refit, supply, rebuild   the late-game choices it knows how to use
 // The bots teleport behind their track, so they can't feel evasion; an attempt on a track that evades on this difficulty is shaken off with
 // DODGE[evade mode] x dodgeK instead (a model, not a measurement).
 export const DODGE = {none: 0, some: .3, all: .45};
 export const LEVELS = [
-  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -1, perkBuy: ['battery', 'warhead']},
-  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .8, up: .6, repairAt: .45, repairShare: .35, perks: 'random', domes: 0, perkBuy: ['warhead', 'freeze', 'radar']},
-  {n: 'All-Star', rate: .01, miss: .28, dodgeK: 1, relaunch: .15, shop: 'smart', spend: .9, up: .8, repairAt: .6, repairShare: .45, perks: 'random', domes: 2, sell: 1, expand: 1},
+  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead']},
+  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .65, up: .45, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar']},
+  {n: 'All-Star', rate: .01, miss: .28, dodgeK: 1, relaunch: .15, shop: 'smart', spend: .85, up: .8, repairAt: .6, repairShare: .45, perks: 'random', domes: 1, sell: 1},
   {n: 'Champion', rate: .015, miss: .18, dodgeK: .85, relaunch: .22, fast: .004, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, rebuild: 1},
-  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .01, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1},
-  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .02, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1}];
+  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1},
+  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .03, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1}];
 const key = s => String(s).toLowerCase().replace(/[\s-]+/g, '');
 export const level = n => LEVELS.find(l => key(l.n) === key(n));
 

@@ -86,9 +86,9 @@ jobs:
           - check: training-check
             area: league
             run: node tools/training-check.mjs
-          - check: zombies-test (classic, saves)
+          - check: zombies-test (classic, saves, meta)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=classic,saves
+            run: node tools/zombies-test.mjs --sections=classic,saves,meta
           - check: zombies-test (zombies, roster)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=zombies,roster
