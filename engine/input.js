@@ -5,14 +5,13 @@ import {feed,banner} from './hud.js';
 import {tone} from './audio.js';
 import {syncUI} from './menu.js';
 import {toggleMod} from './modpanel.js';
+// controller detection (RADIO; pad() = the most recently used gamepad; padX: Xbox-style gamepad, with its own calibration profile so a
+// radio's stays untouched; BTN, PAIR) is the shared stick code, src/input/sticks.js, the same code Jared's League uses
+import {BTN,PAIR,RADIO,pad,padBlocked,padX} from '../src/input/sticks.js';
+export {BTN,PAIR,RADIO,pad,padBlocked,padX};
 export const keys={},inp={mouseFire:false};
-export let padBlocked=false,padX=false,calib=null;  // padX: Xbox-style gamepad, with its own calibration profile so a radio's stays untouched
-export const RADIO=/edgetx|opentx|radiomaster|frsky|taranis|jumper|tbs|tango|mambo|boxer|zorro|spektrum|betafpv|literadio|flysky|ethos|stm32|dji|interlink|realflight|usb joystick/i;
-const isX=g=>!RADIO.test(g.id)&&(g.mapping==='standard'||/xbox|xinput|045e/i.test(g.id));
-// the most recently used gamepad
-export const pad=()=>{let ps=[];try{ps=navigator.getGamepads?navigator.getGamepads():[]}catch(e){padBlocked=true}let best=null;for(const g of ps)if(g&&g.connected&&(!best||(g.timestamp||0)>(best.timestamp||0)))best=g;if(best)padX=isX(best);return best};
-export const CAL=()=>padX?S.xcal:S.cal,thrFull=()=>padX?CAL()[0].m!=='spring':S.thrMode==='full',BTN=['A','B','X','Y','LB','RB','LT','RT','View','Menu','LS','RS','D-up','D-down','D-left','D-right','Xbox'];
-export const PAIR={4:5,5:4,6:7,7:6};  // a bumper or trigger on yaw/pitch/roll gets its partner for the other direction
+export let calib=null;
+export const CAL=()=>padX?S.xcal:S.cal,thrFull=()=>padX?CAL()[0].m!=='spring':S.thrMode==='full';
 // sources 0-99 are axes, 100+ are buttons/triggers (analog 0..1); b = paired button pulling the other way (RB/LB, RT/LT)
 const src=(g,a,f=0)=>a>=100?(g.buttons[a-100]?.value??f):(g.axes[a]??f);
 // calibrated channel: (raw - centre) / signed half-range, so direction is baked in

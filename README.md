@@ -3,7 +3,7 @@ Rocket league but with drones
 
 ## Branch status
 Branch: `bots-pass-4`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main e16770d (QA soak, PR #51)
+Based on: origin/main e16770d (QA soak, PR #51), with origin/main 6cd99fd (shared engine, PR #53) merged in
 Doing: bot pass 4: the Dribbler gets the Freestyler's apex catch and quicker pops (about 5 pops/min, was about 3); Freestyler flip resets (a pop earned upside down on top of the ball in mid-air) and ceiling plays (carry the ball straight up beside a side wall onto the ceiling, pop it off the ceiling, drop and strike it); double taps also set up from any of its own touches that is heading for the backboard.
 Touches: src/bots/freestyle.js, src/bots/dribble.js (`fly`, split out of `steer` for any-attitude flight; `ai.roof` lifts the roof limit for a ceiling play; the spin-pop yaw), src/config/constants.js (Dribbler and Freestyler entries), tools/bot-match.mjs (flip resets, reset dodges, ceiling pops and shots, finishers chosen).
 Open items / help wanted: flip resets rarely land (about 1 in 12 attempts in solo): after its own pop the quad has dropped ~19 m/s, upright it cannot brake against a falling ball, so it has about a second to get above the ball and push down onto it upside down; the dodge that spends the reset pop has not landed yet. Planned double taps in normal play are still rare (0-2 per 6 min). Ceiling plays are slow (about 8 s of climbing) and so kept rare (15% of carries near a side wall).
@@ -76,14 +76,16 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request,
 
 | Job | What runs |
 |---|---|
-| **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs` (warn-only) |
-| **browser** | one entry each, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, `zombies-test` |
+| **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs --strict` |
+| **browser** | nine entries side by side, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, and `zombies-test` in three shards (`--sections=...`) |
 
-SwiftShader draws the game at about 1 fps, so each smoke half takes about 20 minutes on CI; the other checks take 1 to 15 minutes. Locally a full `npm run smoke` takes about 4 minutes.
+- **No-render mode.** SwiftShader draws the games at about 1 fps on a runner, so in CI (`DL_NORENDER=1`) every page gets a WebGL stub that skips draw calls, clears and blits. Shaders still compile and link, buffers and textures still upload, and three.js still walks the scene, so GL errors still show; only the pixels are skipped, and the sim runs at full speed. Where a check wants real pixels it calls `drawFrames(page)`: smoke draws the menu demo, the garage view, League, Dogfight, every graphics quality, the Lab, a training pack and the artifact form; zombies-test draws each menu and each start of play.
+- **Only what changed.** Each browser entry first runs `tools/ci-scope.mjs`: the League checks are skipped when nothing under `src/`, `app.html`, `Drone League/` or their tools changed, and the zombies-test shards when nothing under `engine/`, `games/interceptor/`, `interceptor/` or their tools changed. Shared files (package-lock, the workflow, `tools/browser.mjs`) run both, and main always runs everything.
+- The runner's preinstalled Chrome is used (a stable Chrome is downloaded only if it has none); npm's cache is restored by setup-node.
 
 Run the same things locally (all headless; nothing pops up): `npm test`, `node tools/parts-balance.mjs`, `npm run smoke`, `node tools/physics-check.mjs` and so on.
 - **Browser:** every tool picks it in `tools/browser.mjs`: `EDGE_PATH`, then `CHROME_PATH`, then the usual Edge / Chrome / Chromium install for the platform.
-- **Flags:** `DL_SWIFTSHADER=1` forces software WebGL (on by default in CI). `DL_TIMING_WARN=1` turns wall-clock budgets (physics-check's ms per tick) into warnings. They are warnings in CI, because shared runners are too noisy to time.
+- **Flags:** `DL_SWIFTSHADER=1` forces software WebGL (on by default in CI). `DL_NORENDER=1` skips draw calls outside `drawFrames()` (on by default in CI). `DL_TIMING_WARN=1` turns wall-clock budgets (physics-check's ms per tick) into warnings. They are warnings in CI, because shared runners are too noisy to time.
 - **Waits are state-driven.** The checks wait on the game's own state (`window.__dl` snapshots, the Lab, training and binding state, `__z` in the Interceptor) or on frames drawn, not on fixed sleeps. A slow machine makes a run take longer, but it doesn't fail. Keep new checks that way.
 - Dev-server tools load `app.html`, because the root `index.html` is the games launcher.
 
@@ -93,7 +95,7 @@ The code here packs many statements onto one line, often with a `// note` at the
 node tools/lint-comments.mjs                 # lines changed since the merge base with origin/main
 node tools/lint-comments.mjs --base <ref>    # ... since another ref
 node tools/lint-comments.mjs --all           # every line (it is tuned to report nothing on the current code)
-node tools/lint-comments.mjs --strict        # exit 1 on findings (CI runs it warn-only for now)
+node tools/lint-comments.mjs --strict        # exit 1 on findings (CI runs it this way: a finding fails the fast job)
 ```
 Fix a finding by moving the comment to the end of the line or using `/* */`. If a comment really means to quote code, put `lint-ok` in it.
 

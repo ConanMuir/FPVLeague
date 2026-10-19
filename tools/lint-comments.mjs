@@ -77,7 +77,9 @@ export function looksLikeCode(text, code = '') {
     // a whole-line comment is often an API note ("o.step(dt) physics; o.paused(); o.draw(dt) visuals"): flag it only when most of
     // its ;-separated pieces are code
     const segs = t.split(';').slice(1).map(s => s.trim()).filter(Boolean), START = new RegExp(String.raw`^(?:${CODE.join('|')})`);
-    if (segs.length && segs.filter(s => START.test(s + ';')).length * 2 > segs.length) return 'statements after ";" inside the comment';
+    // ... and a piece that runs on into a sentence ("sn=0: the material does its own") is prose
+    const isCode = s => START.test(s + ';') && !/\b[a-z]+ [a-z]+ [a-z]+ [a-z]+\b/.test(s);
+    if (segs.length && segs.filter(isCode).length * 2 > segs.length) return 'statements after ";" inside the comment';
   }
   if (/\S/.test(code) && STATEMENT.test(t) && /;\s*$/.test(t)) return 'a statement inside a comment after code';  // dense line: x();// note y();
   return null;
