@@ -4,7 +4,7 @@
 // loadout, buildDroneBody) and resolves ground/wall contact; pivot() is the turtle / self-righting lever over the lowest touching point.
 import {noise,tone} from '../audio/audio.js';
 import {emitEv} from '../core/events.js';
-import {HL,QT,UP,V3,cl} from '../config/constants.js';
+import {HL,QT,UP,V3} from '../config/constants.js';
 import {BKICK,BOOST,DB,DL,DQ,DRAD,DRAIN,G,GF,HOV,MAXV,SPOOL,START,TAU,TE,THR,TURT,VP,WASH,onTune} from '../config/tune.js';
 import {STOCK,computeLoadout,seededLoadout} from '../parts/index.js';
 import {COS_DEF,cleanCos,seededCos} from '../parts/cosmetics.js';
@@ -12,7 +12,8 @@ import {_an,sdN,sdf} from '../physics/sdf.js';
 import {buildDroneBody,freeDroneBody} from '../physics/world.js';
 import {TN,buildDrone,rebuildDrone} from '../render/drone-mesh.js';
 import {scene} from '../render/renderer.js';
-import {_q,_qb,_u,_v,_x,_z} from '../scratch.js';
+import {quadAir,rightUp,wrapA} from './core.js';
+import {_qb,_u} from '../scratch.js';
 import {GS,isBot} from '../state.js';
 import {DSLOTS,dfSpawnPoint} from '../world/highlands.js';
 import {sm} from '../world/noise.js';
@@ -54,20 +55,13 @@ export class Drone{
   if(!lk&&gd&&uy<.93&&(this.pr?vt<9+(this.pw*DRAD*1.6)**2:cn.y>.6&&uy<-.6&&vt<9)){const up=_u;this.pr=1;const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
    const tg=PEND*(.5+.5*sm((1-up.y)/2))*(this.thr>.3?1.3:1);this.pw=(this.pw||0)+(tg-(this.pw||0))*(1-Math.exp(-dt/.35));
    if(this.pw>.15){_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw);if(this.pivot(_pw,dt,-1))return;wt=_pw}}else this.pw=this.pr=0  // past the edge (the pivot lost the ground): keep rolling under motor power until upright, so grip can't leave it on its side
-  if(lk);else if(gd&&F.wheels)this.w.lerp(wt,1-Math.exp(-dt/.09));else{const r=F.rmax,am=gd&&this.v.lengthSq()>16?Math.min(1,.02+this.ms*1.5):1,a=[F.acc[0]*am,F.acc[1]*am,F.acc[2]*am],k=1-Math.exp(-dt/(gd?.09:TAU));  // parts: the airframe tops out at rmax and its torque/inertia caps angular acceleration; on the ground (no wheels), sliding faster than 4 m/s, the motors only fight a tumble as hard as their spin allows
-   this.w.x+=cl((cl(wt.x,-r[0],r[0])-this.w.x)*k,-a[0]*dt,a[0]*dt);this.w.y+=cl((cl(wt.y,-r[1],r[1])-this.w.y)*k,-a[1]*dt,a[1]*dt);this.w.z+=cl((cl(wt.z,-r[2],r[2])-this.w.z)*k,-a[2]*dt,a[2]*dt)}const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
-  if(!lk&&WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
-  const qn=_qn.copy(this.q),wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);qn.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(qn)}  // where this tick ends up
-  this.ms+=(this.thr-this.ms)*(1-Math.exp(-dt/Math.max(1e-3,this.thr>this.ms?SPOOL*F.spool:SPOOL*F.spool*1.6)));  // motor spool-up / spin-down
-  const was=this.boostOn;this.boostOn=this.boosting&&this.boost>0;let acc=THR*F.thr*this.ms**(TE*F.te);  // thrust ~ rpm², shaped by the thrust curve
-  acc*=cl(1-va/(VP*F.vp),0,1.15);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
-  // super boost: instant (no spool, no inflow loss), with a kick the moment it lights
-  if(this.boostOn){acc+=BOOST*F.boost;this.boost=Math.max(0,this.boost-DRAIN*F.drain*dt);if(!was){this.v.addScaledVector(up,BKICK);if(this===GS.player){GS.shake=Math.max(GS.shake,.25);noise(.35,140,.5);tone(110,320,.3,.12,'sawtooth')}}}
-  this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;
-  const s=this.v.length();if(s>1e-4){const bx=_x.set(1,0,0).applyQuaternion(qn),bz=_z.set(0,0,1).applyQuaternion(qn),k=DQ*s,vx=this.v.dot(bx),vy=this.v.dot(up),vz=this.v.dot(bz);
-   const dl=DL*F.dl;_gw.copy(bx).multiplyScalar(vx*(dl+k*.9*F.dq[0])).addScaledVector(up,vy*(dl+k*1.8*F.dq[1])).addScaledVector(bz,vz*(dl+k*.7*F.dq[2]));const dd=_gw.length()*dt;this.v.addScaledVector(_gw,-dt*(dd>s?s/dd:1))}  // body-axis drag: the disc face has ~2x the frontal area
-  const vm=MAXV*F.maxv*(this.boostOn?1.5:1),s2=this.v.length();if(s2>vm)this.v.multiplyScalar(Math.max(vm/s2,1-dt*2));
+  // in the air (flight/core.js, shared with Riley's games): rate loop (parts: the airframe tops out at F.rmax and its torque/inertia caps
+  // angular acceleration at F.acc; on the ground, no wheels, sliding faster than 4 m/s, the motors only fight a tumble as hard as their
+  // spin allows), prop wash, spool, thrust curve and prop inflow, super boost (onBoost below), gravity, body-axis drag, top speed.
+  // Thrust and drag use the attitude at the end of the tick (_qn); q itself stays put
+  quadAir(this,dt,K,F,wt,gd,lk,_qn);
   this.ph=1}  // Rapier moves it: p += v*dt, q turned by w*dt (the same integration as v15), then contacts
+ onBoost(){if(this===GS.player){GS.shake=Math.max(GS.shake,.25);noise(.35,140,.5);tone(110,320,.3,.12,'sawtooth')}}  // super boost just lit (quadAir)
  pivot(wt,dt,deep=-.15){const ww=_ww.copy(wt).applyQuaternion(this.q);let bv=-.05,ok=false;
   for(const C of this.pts){const r=_br.copy(C.p).applyQuaternion(this.q),P=_bp2.copy(this.p).add(r);if(sdf(P.x,P.y,P.z)+C.r<deep)continue;  // the ground hull's outline (physics/world.js: the loadout's hbp/hbr)
    const n=sdN(P,_an);r.addScaledVector(n,C.r);const s=_vp.crossVectors(ww,r).dot(n);if(-s<bv){bv=-s;_pv.copy(r);ok=true}}  // corner the rotation would push hardest into the ground = pivot
@@ -78,7 +72,9 @@ export class Drone{
 const _pv=new V3(),_qn=new QT(),_pa=new V3(),_pw=new V3(),PEND=3.6,_pz=new V3();
 export const POP_T=5,POP_D=.42,POP_V=12,POP_W=Math.PI*2/POP_D;  // pop: charge lifetime s, locked turn s, shove m/s, turn rate rad/s
 const E_POPF={d:null,dur:0};  // the 'popFire' event payload (core/events.js), reused
-export const _rf=new V3(),_qr=new QT(),wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
-function rightUp(d,k){const f=_rf.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,1,0).applyQuaternion(d.q);f.y=0}_qr.setFromAxisAngle(UP,f.lengthSq()>1e-4?Math.atan2(-f.x,-f.z):0);d.q.slerp(_qr,k)}  // level, keeping the heading
+export {wrapA};  // input/input.js imports it from here; rightUp (flip-over levelling) and wrapA live in flight/core.js
 const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new V3();
+// the tune for flight/core.js, read live from config/tune.js (its values change only in applyTune)
+const K={get G(){return G},get THR(){return THR},get TE(){return TE},get VP(){return VP},get TAU(){return TAU},get SPOOL(){return SPOOL},get WASH(){return WASH},
+ get BOOST(){return BOOST},get BKICK(){return BKICK},get DRAIN(){return DRAIN},get DL(){return DL},get DQ(){return DQ},get MAXV(){return MAXV}};
 onTune(()=>GS.drones.forEach(d=>d.setLoadout(d.lo.ids)));  // parts: drone size changed, refit hull/box/radius

@@ -95,6 +95,10 @@ jobs:
           - check: zombies-test (helpers, weather)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=helpers,weather
+          # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
+          - check: flight-golden
+            area: interceptor
+            run: node tools/flight-golden.mjs
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

@@ -2,25 +2,13 @@
 import {$,cl} from './util.js';
 import {S,save} from './settings.js';
 import {pad,axv,thrFull,calib,keys} from './input.js';
-// axis 0 roll, 1 pitch, 2 yaw; returns rad/s
-export const RT=()=>S.rprof[S.rpi],stk=[0,0,0,0];const P3=x=>x*x*x;
-export function rate(axis,x){const R=RT(),[rc,sr,ex]=R.ax[axis],a=Math.abs(x);let r;
- switch(R.type){
-  case'ACTUAL':{const e=ex/100,ef=a*(Math.pow(x,5)*e+x*(1-e)),cs=rc*10;r=x*cs+Math.max(0,sr*10-cs)*ef;break}
-  case'QUICK':{const rr=rc*2,md=Math.max(sr*10,rr),e=ex/100,sf=(md/rr-1)/(md/rr),c=P3(a)*e+a*(1-e);r=x*rr/cl(1-c*sf,.01,1);break}
-  case'KISS':{const c=ex/100;r=2000/cl(1-a*sr/100,.01,1)*(P3(x)*c+x*(1-c))*(rc/1000);break}
-  case'RACEFLIGHT':{r=10*rc*(1+.01*ex*(x*x-1))*x*(1+a*sr*.01);break}
-  default:{const e=ex/100,y=x*P3(a)*e+x*(1-e);let rr=rc/100;if(rr>2)rr+=14.54*(rr-2);r=200*rr*y/cl(1-a*sr/100,.01,1)}}
- return cl(r,-1998,1998)*Math.PI/180}
-export function thrCurve(t){const R=RT(),m=R.thrMid/100,e=R.thrExpo/100,d=t-m,y=d>0?1-m:m;return cl((m+d*(1-e+e*d*d/(y*y||1)))*R.thrLimit/100,0,1)}
-
-// f: [display multiplier, min, max] in the units Configurator shows; stored values are Betaflight's raw CLI integers
-const RTYPES={BETAFLIGHT:{h:['RC Rate','Super Rate','RC Expo'],f:[[.01,.01,2.55],[.01,0,1],[.01,0,1]],d:[100,70,0]},
- ACTUAL:{h:['Center Sens.','Max Rate','Expo'],f:[[10,10,2000],[10,10,2000],[.01,0,1]],d:[7,67,0]},
- QUICK:{h:['RC Rate','Max Rate','Expo'],f:[[.01,.01,2.55],[10,0,2000],[.01,0,1]],d:[100,67,0]},
- KISS:{h:['RC Rate','Rate','RC Curve'],f:[[.01,.01,2.55],[.01,0,.99],[.01,0,1]],d:[100,70,0]},
- RACEFLIGHT:{h:['Rate','Acro+','Expo'],f:[[10,10,2550],[1,0,255],[1,0,100]],d:[37,80,50]}};
-const defRates=(type='BETAFLIGHT')=>({type,ax:[0,1,2].map(()=>[...RTYPES[type].d]),thrMid:50,thrExpo:0,thrLimit:100});
+// the rate maths (rateR: axis 0 roll, 1 pitch, 2 yaw, returns rad/s; thrCurveR) and the rates types (RTYPES: f = [display multiplier,
+// min, max] in the units Configurator shows, stored values are Betaflight's raw CLI integers) are the shared flight core,
+// src/flight/core.js, the same code Jared's League uses; this file applies them to the profile in use and runs the Rates tab
+import {RTYPES,defRates,rateR,thrCurveR} from '../src/flight/core.js';
+export const RT=()=>S.rprof[S.rpi],stk=[0,0,0,0];
+export function rate(axis,x){return rateR(RT(),axis,x)}
+export function thrCurve(t){return thrCurveR(RT(),t)}
 const AXN=['ROLL','PITCH','YAW'],AXC=['#ff5a5a','#5ad46a','#4aa8ff'],deg=r=>r*180/Math.PI;
 function rMsg(t){$('rmsg').textContent=t;clearTimeout(rMsg.t);rMsg.t=setTimeout(()=>$('rmsg').textContent='',3000)}
 export function syncRates(){const R=RT(),T=RTYPES[R.type];$('rpi').value=S.rpi;$('rtype').value=R.type;T.h.forEach((h,j)=>$('rh'+j).textContent=h);
