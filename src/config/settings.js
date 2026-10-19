@@ -1,6 +1,6 @@
 // Settings S: defaults (DEF), load from localStorage 'droneleague', and every migration, in the order v15 ran them.
 // S is a live `export let`, assigned only here; everyone else mutates its properties and calls save().
-import {ARENAS,cl} from './constants.js';
+import {ARENAS,DIFF,cl} from './constants.js';
 import {MDEF,cleanMod} from './mods.js';
 import {RTYPES} from './ratetypes.js';
 import {STOCK,cleanLoadout} from '../parts/index.js';
@@ -10,6 +10,7 @@ if(!Array.isArray(S.cal)||S.cal.length!==4||!S.cal.every(c=>c&&Number.isFinite(c
 if(!Array.isArray(S.xcal)||S.xcal.length!==4||!S.xcal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.xcal=DEF.xcal.map(c=>({...c}));if(S.bots!==0)S.bots=1;if(!ARENAS[S.arena])S.arena=1;
 S.loadout=cleanLoadout(S.loadout)||[...STOCK];  // drone parts [arms, chassis, power]; older saves get Stock
 if(!['arena','meadow','canyon','alpine'].includes(S.map))S.map='arena';if(!['classic','soccer','plasma','beach'].includes(S.ball))S.ball='classic';if(typeof S.game!=='string'||!/^[a-z0-9_]{1,16}$/.test(S.game))S.game='league';  // modes register at load; setGame() falls back to League for an unknown id
+S.diff=Number.isInteger(+S.diff)&&DIFF[+S.diff]?+S.diff:DEF.diff;  // bot skill: any level in DIFF (Champion and Grand Champion were added after Legend)
 if(!['auto','high','med','low'].includes(S.gfx))S.gfx='auto';  // graphics quality (added after v15; older saves get Auto)
 export const save=()=>{try{localStorage.setItem('droneleague',JSON.stringify(S))}catch(e){}};
 // physics mod values (v15 ran these when the mod panel was built)

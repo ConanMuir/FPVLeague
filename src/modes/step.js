@@ -41,7 +41,7 @@ export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);ph
  if(!frozen)for(let i=0;i<GS.drones.length;i++){const a=GS.drones[i];if(a.dead>0)continue;
   let tb;if(live&&!a.remote&&!GS.OBSON&&(tb=ballTouch(a,_v))){const n=_v,pen=tb.pen,ib=1/BM,id=1/a.fl.mass;ball.p.addScaledVector(n,pen*ib/(ib+id));a.p.addScaledVector(n,-pen*id/(ib+id));
    // pop: the ball on the top of the quad, inside its four motors, earns (or refreshes) a pop; the faint ring shows when a new one is earned
-   if(!a.bot&&!(a.popT>0)&&n.dot(_pu.set(0,1,0).applyQuaternion(a.q))>.75&&a.popZone(_pc.copy(ball.p).addScaledVector(n,-BR))){if(!(a.popC>0)){popFx(_pc,n,BR*.75);if(a===GS.player)tone(1500,2200,.08,.05)}a.popC=POP_T}
+   if((!a.bot||a.pops)&&!(a.popT>0)&&n.dot(_pu.set(0,1,0).applyQuaternion(a.q))>.75&&a.popZone(_pc.copy(ball.p).addScaledVector(n,-BR))){if(!(a.popC>0)){popFx(_pc,n,BR*.75);if(a===GS.player)tone(1500,2200,.08,.05)}a.popC=POP_T}
    // during a pop the spinning frame's own speed at the contact point counts, so where the ball meets the turning quad decides the pop
    const av=a.popT>0?_pw2.copy(a.w).applyQuaternion(a.q).cross(_pr.copy(ball.p).addScaledVector(n,-BR).sub(a.p)).add(a.v):a.v;
    // touch bounce: one smooth curve from soft (2 x Touch bounce) to lively (0.6) with hit speed, no dead zone
