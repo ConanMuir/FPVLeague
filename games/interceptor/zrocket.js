@@ -1,10 +1,10 @@
 // Zombies perk: Rocket Assist. Each new interceptor carries a strap-on booster that lights once you lift off the mat and burns for 15 s:
-// extra thrust along the airframe's nose axis, with Riley's body-axis drag doing the rest, so it settles at a high but flyable top speed
-// and steers exactly like the normal dart (it just gets there much faster). Numbers are game-feel values, picked so the burst roughly
-// doubles your speed without making the dart unflyable; they are not modelled on any real motor.
+// extra thrust along the airframe's nose axis that eases in over about a second, taking the dart to about 3x its normal top speed
+// (roughly 1,200 km/h), then tails off at burn-out. Stick rates are untouched, so it steers like the normal dart, just much faster.
+// Game-feel numbers, not modelled on any real motor.
 // Effects: exhaust flame on the tail, a lingering smoke trail, a synthesized roar, light camera shake, and a HUD bar for the burn left.
 import {glow,dot} from '../../engine/render.js';
-export const RK={burn:15,acc:95,extraTop:130,lift:4};  // burn s; extra thrust m/s² along the nose; speed cap raised by m/s while burning; ignites above this AGL
+export const RK={burn:15,top:333,acc:340,ramp:1.2,fade:1.2,lift:4};  // burn s; top speed while burning (m/s, about 1,200 km/h); extra thrust m/s² along the nose; ramp-in s; burn-out tail s; ignites above this AGL
 export function initRocket(api,G,Z){
  const {THREE,gh}=api,V3=THREE.Vector3,_a=new V3(),_q=new THREE.Quaternion();
  const st={t:0,armed:false,lastT:1e9,smk:0,snd:null};
@@ -25,7 +25,8 @@ export function initRocket(api,G,Z){
   if(me.t<st.lastT){st.armed=owned();if(st.t>0)stop()}st.lastT=me.t;  // a fresh interceptor on the mat: arm the booster
   if(me.dead>0){if(st.t>0)stop();return}
   if(st.armed&&me.p.y-gh(me.p.x,me.p.z)>RK.lift){st.armed=false;st.t=RK.burn;sound(true);api.banner('ROCKET','co',.8)}
-  if(st.t>0){st.t-=dt;me.boost=RK.acc;me.bmax=RK.extraTop;api.shake=.06;
+  if(st.t>0){st.t-=dt;const e=Math.min(1,(RK.burn-st.t)/RK.ramp),k=e*e*(3-2*e)*Math.min(1,Math.max(0,st.t)/RK.fade);  /* smooth ramp-in, then a short tail at burn-out */
+   me.boost=RK.acc*k;me.bmax=Math.max(0,RK.top-(api.S.mod?.maxv||115))*k;api.shake=.03+.05*k;
    if((st.smk-=dt)<=0){st.smk=.03;const tail=_a.set(0,-.55,0).applyQuaternion(me.q).add(me.p);api.SMK.emit(tail,0xcfcac2,1,1.2,7,null,1,.6);api.FX.emit(tail,0xffa040,2,3,.25,null,2.5)}  // smoke lingers ~7 s
    if(st.t<=0)stop()}}
  function visuals(){const me=api.player,on=st.t>0&&me&&me.dead<=0;

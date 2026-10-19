@@ -409,7 +409,7 @@ function threatStep(t,dt){if(t.st==='dead')return;if(t.k&&Z.tstep(t,dt))return;
   const ad=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z);
   if(!t.wps.length&&ad<Math.max(350,(t.p.y-t.aim.y)*1.1)){t.st='dive';t.spd*=1.15}  // terminal dive, about 45°
   _tl.copy(t.p).addScaledVector(t.v,5);const gy=Math.max(gh(t.p.x,t.p.z),gh(_tl.x,_tl.z))+t.alt;  // holds altitude above the ground
-  _td.setLength(t.spd);_td.y=cl((gy-t.p.y)*.4,-7,7);turn(t,_td.normalize(),.35,dt)}
+  _td.setLength(t.spd);if(t.ev)_td.applyAxisAngle(UP,t.ev);_td.y=cl((gy-t.p.y)*.4,-7,7);turn(t,_td.normalize(),t.evr||.35,dt)}  // t.ev / t.evr: Zombies evasion (heading offset, turn rate); never set in Classic
  else{t.spd=Math.min(t.spd+4*dt,t.cs*1.45);turn(t,_td.subVectors(t.aim,t.p).normalize(),1.1,dt);if(t.p.distanceTo(t.aim)<4||t.p.y<=gh(t.p.x,t.p.z)+.6){impact(t);return}}
  t.p.addScaledVector(t.v,dt).addScaledVector(WIND,dt*.6)}  // wind drift
 function impact(t){if(Z.on)return Z.impact(t);t.st='dead';boom(t.aim,4);if(demo||wstate==='over')return;const s=t.tgt;

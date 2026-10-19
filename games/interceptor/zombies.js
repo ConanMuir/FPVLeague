@@ -142,7 +142,7 @@ export function initZombies(api){
   const kills=G.burst.n;G.burst=null;G.streak=kills?G.streak+1:0;G.detFlag=true;
   // big readout of how good the timing was: the closest track's miss distance at the moment of the burst, plus a result sound
   let nr=1e9;for(const t of TH)nr=Math.min(nr,t.p.distanceTo(d.p));  // includes the tracks this burst just killed (they leave TH later)
-  const dmg=out.some(s=>s.includes('damaged')),txt=kills?`HIT · ${nr.toFixed(1)} m`:dmg?`DAMAGED · ${nr.toFixed(1)} m`:nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';
+  const dmg=out.some(s=>s.includes('damaged')),txt=kills?`HIT — ${nr.toFixed(1)} m`:dmg?`DAMAGED — ${nr.toFixed(1)} m`:nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';
   banner(txt,kills?'cg':dmg?'co':'cr',1.4);G.det={txt,t:performance.now()};
   if(kills)tone(520,1040,.22,.14,'triangle');else if(dmg)tone(440,520,.2,.1,'triangle');else tone(300,140,.35,.12,'sawtooth');
   api.lose('det');feed(out.join('<br>')||'Detonated: nothing in range')};
@@ -177,8 +177,8 @@ export function initZombies(api){
   if(G.wasAlive&&!alive&&!G.detFlag&&G.streak)G.streak=0;  // crashed or flat battery: streak over
   pk.step(dt);rk.step(dt);if(alive){G.detFlag=false;if(G.pp)directHits(me);(G.pp||(G.pp=new V3())).copy(me.p)}else G.pp=null;G.wasAlive=alive;def.step(dt);
   for(const t of TH)if(t.k==='decoy'&&!t.ident&&api.live(t)&&(alive&&me.p.distanceTo(t.p)<900||Z.ident?.(t)))t.ident=1};
- // fast tracks move metres per step, faster than the fuse's sampling: check the closest approach over the step itself. Only a direct hit counts.
- function directHits(me){for(const t of TH){if(!api.live(t)||!t.pp||t.spd<150)continue;const K=KIND[t.k];
+ // fast tracks (or your interceptor under Rocket Assist) move metres per step, faster than the fuse's sampling: check the closest approach over the step itself. Only a direct hit counts.
+ function directHits(me){const fast=me.v.lengthSq()>150*150;for(const t of TH){if(!api.live(t)||!t.pp||t.spd<150&&!fast)continue;const K=KIND[t.k];
    const r0=_a.subVectors(t.pp,G.pp),dr=_b.subVectors(t.p,me.p).sub(r0),L=dr.lengthSq(),s=L>1e-9?cl(-r0.dot(dr)/L,0,1):0,d=r0.addScaledVector(dr,s).length();
    if(d<K.hitR+.4){t.by='p';G.burst={n:0};api.killThreat(t,true);G.burst=null;G.streak++;G.detFlag=true;feed(`<span class="cg">DIRECT HIT: ${Z.tname(t)} destroyed</span>`);banner('DIRECT HIT','cg',1.6);api.lose('det');return}}}
 

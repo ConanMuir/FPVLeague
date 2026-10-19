@@ -74,15 +74,18 @@ export function initEnemies(api,G,Z){
   Z.earn(300,t.p,' STAGE');api.feed(`<span class="cg">${Z.tname(t)}: stage down, ${t.stages} left</span>`)};
 
  // Z.tstep: true = handled here. Riley's code flies Shahed, Geran-3, decoys, heavies, cruise missiles and the boss; falling wrecks too.
- // evasion (Hard: some kinds, Nightmare: all but the fast missiles): a constant jink, and a hard break away when your interceptor closes in.
- // Applied to the velocity before the track's own steering runs, which then pulls it back onto its route.
+ // evasion (Hard: some kinds, Nightmare: all but the fast missiles), in cruise only: a constant weave, and a hard break to one side (and down) when your
+ // interceptor closes inside 350 m. Riley-flown kinds get it as a heading offset (t.ev, rad) that their own steering follows at t.evr rad/s;
+ // swarm drones get a sideways push on their velocity instead.
  const _e=new V3();
- function evade(t,dt){const mode=Z.evadeMode?.()||'none',K=KIND[t.k];if(mode==='none'||K.armor==='hard'||t.st!=='cruise'&&t.st!=='dive')return;if(mode==='some'&&!EVADE_SOME.includes(t.k))return;
-  const vh=Math.hypot(t.v.x,t.v.z);if(vh<1)return;const lx=-t.v.z/vh,lz=t.v.x/vh,A=(t.k==='jet'||t.k==='cruise'?14:t.k==='swarm'?16:8)*(mode==='all'?1:.8);
-  t.jph=(t.jph??Math.random()*6)+dt*(1+(t.id%5)*.15);const j=Math.sin(t.jph)*A*dt;t.v.x+=lx*j;t.v.z+=lz*j;t.v.y+=Math.cos(t.jph*1.3)*A*.3*dt;
+ function evade(t,dt){const mode=Z.evadeMode?.()||'none',K=KIND[t.k];t.ev=0;t.evr=0;if(mode==='none'||K.armor==='hard'||t.st!=='cruise')return;if(mode==='some'&&!EVADE_SOME.includes(t.k))return;
+  const vh=Math.hypot(t.v.x,t.v.z);if(vh<1)return;const lx=-t.v.z/vh,lz=t.v.x/vh,m=mode==='all'?1:.8;
+  t.jph=(t.jph??Math.random()*6)+dt*(.9+(t.id%5)*.15);let ev=Math.sin(t.jph)*(t.k==='jet'||t.k==='cruise'?.3:.35)*m;
   t.brkCd=(t.brkCd||0)-dt;const me=api.player;
-  if(t.st==='cruise'&&me&&me.dead<=0&&!(t.brk>0)&&t.brkCd<=0){_e.subVectors(me.p,t.p);const d=_e.length();if(d<350&&_e.dot(t.v)>0){t.brk=1.6;t.brkCd=5;t.brkDir=(_e.x*lx+_e.z*lz)>0?-1:1}}
-  if(t.brk>0){t.brk-=dt;const b=28*t.brkDir*dt;t.v.x+=lx*b;t.v.z+=lz*b;t.v.y-=6*dt}}
+  if(me&&me.dead<=0&&!(t.brk>0)&&t.brkCd<=0){_e.subVectors(t.p,me.p);const d=_e.length();if(d<350&&_e.dot(me.v)-_e.dot(t.v)>0){t.brk=1.6;t.brkCd=5;t.brkDir=(_e.x*lx+_e.z*lz)>0?1:-1}}  // closing on it: break away from your side
+  if(t.brk>0){t.brk-=dt;ev+=t.brkDir*.9*m*Math.sin(Math.PI*cl(1-t.brk/1.6,0,1));t.alt=Math.max(30,t.alt-18*dt)}
+  if(K.riley){t.ev=ev;t.evr=1.1;return}
+  const j=ev*vh*1.5*dt;t.v.x+=lx*j;t.v.z+=lz*j}
  function tstep(t,dt){if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();const K=KIND[t.k];if(!K)return false;evade(t,dt);
   if(t.k==='boss')bossTick(t,dt);if(K.riley||t.st==='fall')return false;return mover(t,dt)}
 
