@@ -1,7 +1,9 @@
 // Interceptor: Zombies mode. Endless, growing waves from the map edges against the defended sites; money per intercept, a base screen between
 // waves, helpers and perks. interceptor.js stays Riley's Classic game: it calls the hooks below only while Z.on is true.
 // api = live access to interceptor.js internals (see the initZombies call there).
-import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,speedK,HELPER_SHARE,ZDIFF,earlyK,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP} from './zdata.js';
+import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,kindFrom,speedK,HELPER_SHARE,ZDIFF,EVADE_SOME,earlyK,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP,UPKEEP_FROM,UPKEEP_K,FWD_UPKEEP,REFIT,expCost} from './zdata.js';
+import {initMeta} from './zmeta.js';
+import {initBoard} from './zboard.js';
 import {initBase} from './zbase.js';
 import {initDefences} from './zdef.js';
 import {initEnemies} from './zenemy.js';
@@ -34,6 +36,9 @@ export function initZombies(api){
   for(const b of dbox.querySelectorAll('button'))b.onclick=()=>{S.zdiff=+b.dataset.d;save();sync()};
   const qm=new URLSearchParams(location.search).get('mode');if(qm==='zombies'||qm==='z')S.gmode='z';else if(qm==='classic')S.gmode='classic';  /* Drone League's menu links here with ?mode= */
   if(S.gmode!=='z')S.gmode='classic';save();sync();Z.syncMode=sync}
+ // doctrine & unlocks between runs (zmeta.js): the start-menu panel, the loadout, goals. DOC = the doctrine in play, dk = one of its numbers (default 1)
+ initMeta(api,G,Z);const DOC=()=>Z.meta.doc(),dk=(k,d=1)=>Z.meta.k(k,d);
+ initBoard(api,G,Z);  // leaderboard: the bot benchmark and your runs (zboard.js)
 
  // ---------- HUD ----------
  const hudEl=document.createElement('div');hudEl.id='zhud';hudEl.className='osd';hudEl.hidden=true;
@@ -55,10 +60,12 @@ export function initZombies(api){
  const rk=Z.rk=initRocket(api,G,Z);
  const base=Z.base=initBase(Z,api,G);
  const wx=Z.wx=initWeather(api,G,Z);  // per-wave weather forecast and effects (zwx.js)
- const openBase=()=>{rk.stop();G.next=plan(G.wave+1);base.open()};
- // Zombies widens the AO, adds the far-field terrain and long radar ranges (25 / 100 / 250 km) for the fast threats
- Z.start=()=>{G.on=true;G.state='base';G.wave=0;G.cash=DF().start;G.earned=0;G.kills={p:0,h:0};G.streak=0;G.wq.length=0;G.pops.length=0;G.perfect=true;
-  bunker(false);for(const s of SITES){s.max=s.hp=Math.round((SITE_HP[s.n]||400)*DF().hp)}def.clear();pk.reset();en.farRing().visible=true;if(api.RRS.length===3)api.RRS.push(25000,100000,250000);
+ const openBase=()=>{rk.stop();G.sup={};G.next=plan(G.wave+1);base.open()};  // supplies last one wave
+ // Zombies widens the AO, adds the far-field terrain and long radar ranges (25 / 100 / 250 km) for the fast threats.
+ // The loadout (doctrine + kit) is fixed for the run: this pilot's from the start menu; in co-op the doctrine is the host's (G.docO, znet.js).
+ Z.start=()=>{G.on=true;G.state='base';G.wave=0;const lo=Z.meta.load();G.doc=G.docO||lo.doc;G.kit=lo.kit;
+  G.cash=Math.round(DF().start*dk('startK'));G.earned=0;G.kills={p:0,h:0};G.streak=0;G.wq.length=0;G.pops.length=0;G.perfect=true;G.exp=0;G.rebuilds=0;G.sup={};G.lastUp=0;G.spend={};Z.meta.reset();
+  bunker(false);for(const s of SITES){s.max=s.hp=Math.round((SITE_HP[s.n]||400)*DF().hp*dk('hpK'))}def.clear();def.layout(DOC());pk.reset();en.farRing().visible=true;if(api.RRS.length===3)api.RRS.push(25000,100000,250000);
   api.AW=4300;api.wave=0;api.wstate='wave';$('hud').classList.add('z');hudEl.hidden=false;$('zover').hidden=true;
   openBase();wx.start(G.next.wx)};
  Z.stop=()=>{if(!G.on&&G.state==='off')return;G.on=false;G.state='off';rk.stop();Z.shadowsBack();bunker(false);for(const s of SITES){s.max=s.hp=3}api.AW=3000;api.applyTune();def.clear();en.hide();en.farRing().visible=false;
@@ -66,24 +73,38 @@ export function initZombies(api){
  Z.hold=()=>G.on&&!api.demo&&(G.state==='base'||G.state==='over');
 
  // ---------- wave director ----------
- // a wave = a threat-point budget spent on unlocked kinds, split into raids from different edges; each raid spawns over a few seconds
- function compose(w){const out=[];let b=budget(w,DF().wave);if(w===1)return['shahed','jet'];
+ // a wave = a threat-point budget spent on unlocked kinds, split into raids from different edges; each raid spawns over a few seconds.
+ // The difficulty shifts when each kind arrives (ZDIFF shift) and, on Hard and Nightmare, adds decoy escorts to the Shahed raids (tac.escort).
+ Z.kindFrom=k=>kindFrom(k,DF().shift|0);
+ // the wave a shop item unlocks: the domes come earlier when the fast missiles do; Air Mobile has Rocket Assist from wave 1
+ Z.itemFrom=k=>{const f=ITEMS[k].from;if(k==='rocket')return dk('rocketFrom',f);if(k==='idome'||k==='gdome')return Math.max(2,f-Math.max(0,DF().shift|0));return f};
+ function compose(w){const D=DF(),sh=D.shift|0,out=[];let b=budget(w,D.wave);if(w===1)return['shahed','jet'];
   if(isBoss(w)){out.push('boss');b=Math.round(b*.6)}
-  for(const k of ORDER)if(KIND[k].from===w&&k!=='swarm'){out.push(k);b-=KIND[k].pts}  // a new kind always shows up in its first wave
-  const ks=ORDER.filter(k=>weight(k,w)>0);
-  while(b>0){let tot=0;for(const k of ks)tot+=weight(k,w);let r=Math.random()*tot,k=ks[0];for(const q of ks){r-=weight(q,w);if(r<=0){k=q;break}}
+  for(const k of ORDER)if(kindFrom(k,sh)===w&&k!=='swarm'){out.push(k);b-=KIND[k].pts}  // a new kind always shows up in its first wave
+  const ks=ORDER.filter(k=>weight(k,w,sh)>0);
+  while(b>0){let tot=0;for(const k of ks)tot+=weight(k,w,sh);let r=Math.random()*tot,k=ks[0];for(const q of ks){r-=weight(q,w,sh);if(r<=0){k=q;break}}
    if(k==='swarm'){const n=6+(Math.random()*Math.min(10,2+w/3)|0);out.push('swarm:'+n);b-=n*KIND.swarm.pts}else{out.push(k);b-=KIND[k].pts}}
+  const esc=D.tac?.escort;if(esc&&w>=kindFrom('decoy',sh)){const n=Math.round(out.filter(k=>k==='shahed').length*esc);for(let i=0;i<n;i++)out.push('decoy')}
   return out}
- // the next wave is planned when the base screen opens, so it can show what is coming and from where
- function plan(w){const list=compose(w),raids=w===1?1:1+Math.min(4,w/4|0),win=w===1?30:Math.min(100,25+3*w);
+ // the next wave is planned when the base screen opens, so it can show what is coming and from where.
+ // Time on target (tac.tot): the raids' start times squeeze together and every kind is held back so it lands about when a Shahed from the edge would.
+ const TOT_T=5200/KIND.shahed.spd;
+ function plan(w){const tot=DF().tac?.tot||0,list=compose(w),raids=w===1?1:1+Math.min(4,w/4|0),win=w===1?30:Math.min(100,25+3*w);
   const brgs=[];for(let i=0;i<raids;i++)brgs.push(w===1?(Math.random()-.5)*.6:(Math.random()-.5)*2.6);  // edge bearing per raid: 0 = north, ±1.3 rad = west/east
-  const q=list.map((k,i)=>{const ri=w===1?0:i%raids;return{k,at:w===1?(i?25:0):(k==='boss'?5:ri*win/raids+rnd(0,10)),brg:brgs[ri]+rnd(-.12,.12)}}).sort((a,b)=>a.at-b.at);
+  const q=list.map((k,i)=>{const ri=w===1?0:i%raids,K=KIND[k.split(':')[0]];let at=w===1?(i?25:0):(K===KIND.boss?5:ri*win/raids*(1-tot)+rnd(0,10));
+   if(tot&&w>1&&K!==KIND.boss)at+=tot*Math.max(0,TOT_T-(K.far||5200)/K.spd);return{k,at,brg:brgs[ri]+rnd(-.12,.12)}}).sort((a,b)=>a.at-b.at);
   return{list,brgs,q,wx:wx.plan(w)}}
+ // what the next wave's raids will do (base-screen forecast), on the difficulties that use tactics
+ Z.tacNote=()=>{const t=DF().tac||{},a=[];if(t.tot)a.push('raids timed to arrive together');if(t.escort)a.push('decoys escort the Shaheds');if(t.focus)a.push('they go for your weakest site');if(t.feint)a.push('some switch targets on the way in');if(t.jink)a.push('evading kinds dodge your helpers too');
+  return a.length?`<p class="zhint"><b>${DF().n} tactics</b>: ${a.join(' · ')}.</p>`:''};
+ // the weakest site: fewest defences within 2.5 km, then least hit points left
+ const weakest=L=>{let b=L[0],bs=1e9;for(const s of L){let n=0;for(const d of def.D){const q=def.SLOTS[d.slot];if(Math.hypot(q.x-s.x,q.z-s.z)<2500)n++}const sc=n+3*s.hp/s.max;if(sc<bs){bs=sc;b=s}}return b};
+ const target=()=>{const L=api.liveSites(),f=DF().tac?.focus;return L.length?(f&&G.state!=='trial'&&Math.random()<f?weakest(L):pick(L)):null};
  // command bunker: a fourth defended site on the radar pad from wave 10 (its hit points add to Defense Integrity)
  const BK={n:'COMMAND BUNKER',x:api.PADP.x,z:api.PADP.z+20,r:20,aims:[],sol:[],max:SITE_HP['COMMAND BUNKER'],hp:0,zb:1};
  {const y=api.PADP.y+.3;BK.y=y;BK.mesh=api.buildBunker(BK);BK.mesh.visible=false;BK.aims.push(new V3(BK.x,y+4.6,BK.z),new V3(BK.x+4,y+4.6,BK.z+2));  /* earth-covered bunker with damage stages (buildings.js) */
   BK.box={x:BK.x,y:y+2.3,z:BK.z,hx:9,hy:2.3,hz:6}}
- function bunker(on){const i=SITES.indexOf(BK);if(on&&i<0){SITES.push(BK);BK.max=Math.round(SITE_HP['COMMAND BUNKER']*DF().hp);BK.hp=BK.max;BK.mesh.visible=true;api.PADP.sol.push(BK.box);feed('<span class="cg">Command bunker online</span>: a fourth site to defend (+'+BK.max+' integrity)')}
+ function bunker(on){const i=SITES.indexOf(BK);if(on&&i<0){SITES.push(BK);BK.max=Math.round(SITE_HP['COMMAND BUNKER']*DF().hp*dk('hpK'));BK.hp=BK.max;BK.mesh.visible=true;api.PADP.sol.push(BK.box);feed('<span class="cg">Command bunker online</span>: a fourth site to defend (+'+BK.max+' integrity)')}
   if(!on&&i>=0){SITES.splice(i,1);BK.mesh.visible=false;const j=api.PADP.sol.indexOf(BK.box);if(j>=0)api.PADP.sol.splice(j,1)}}
  Z.bunker=bunker;
  function startWave(){G.wave++;api.wave=G.wave;G.state='wave';G.perfect=true;G.wt=0;if(G.wave>=BUNKER_WAVE)bunker(true);const P=G.next||plan(G.wave);G.next=null;G.wq=P.q;wx.start(P.wx);
@@ -96,15 +117,24 @@ export function initZombies(api){
   ballistic:'very fast and steep. Only a dome-class defence or a direct hit stops it.',hyper:'extremely fast. Only Golden Dome stops it.',icbm:'the fastest thing in the sky. Golden Dome only.',boss:'a carrier that launches swarms until destroyed. Breaks apart in stages.'})[k]||'';
  Z.waves=dt=>{if(api.demo||Z.mirror)return;if(G.state==='wave'){G.wt+=dt;  /* Z.mirror: a co-op client, the host runs the director */
    while(G.wq.length&&G.wq[0].at<=G.wt){const q=G.wq.shift();spawn(q)}
-   if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn(clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0),null,null);
-    banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);feed(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`)}}
+   if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn((clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0))*dk('clearK'),null,null);
+    banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);feed(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`);payUpkeep()}}
   else if(G.state==='clear'&&(G.clearT-=dt)<=0)openBase()};
+ // upkeep: from UPKEEP_FROM each defence costs UPKEEP_K of what was spent on it per wave (forward positions FWD_UPKEEP times; doctrines scale it).
+ // w = the wave being paid for (default: the next one, for the base screen). per = each defence's share.
+ Z.upkeep=(w=G.wave+1)=>{const per=new Map();let total=0;if(w<UPKEEP_FROM)return{total,per};const k=dk('upkeepK'),fk=FWD_UPKEEP*dk('fwdUpK');
+  for(const d of def.D){const c=Math.round((d.spent||ITEMS[d.type].price)*UPKEEP_K*k*(def.SLOTS[d.slot]?.fwd?fk:1));if(c>0){per.set(d,c);total+=c}}return{total,per}};
+ // paid from the purse when a wave is cleared; what it can't cover leaves the dearest defences short of ammo (half load) next wave
+ function payUpkeep(){for(const d of def.D)d.short=0;const U=Z.upkeep(G.wave);G.lastUp=0;if(!U.total)return;const paid=Math.min(Math.floor(G.cash),U.total);G.cash-=paid;G.lastUp=paid;Z.tally('upkeep',paid);let owe=U.total-paid;
+  if(owe<=0){feed(`Upkeep: <span class="co">−${money(paid)}</span>`);return}const sh=[];
+  for(const d of[...U.per.keys()].sort((a,b)=>U.per.get(b)-U.per.get(a))){if(owe<=0)break;d.short=1;owe-=U.per.get(d);sh.push(ITEMS[d.type].n)}
+  feed(`<span class="cr">Upkeep short by ${money(U.total-paid)}</span>: ${sh.join(', ')} go${sh.length>1?'':'es'} into the next wave with half a load`)}
 
  // spawn points sit on a ring around the defended area at the given bearing; fast kinds come from much farther out (the map extends past the AO)
  function spawn(q){const[k,n]=q.k.split(':'),K=KIND[k],R=K.far||5200,x=SITE_C.x+Math.sin(q.brg)*R,z=SITE_C.z-Math.cos(q.brg)*R;
-  if(k==='swarm'){const s=pick(api.liveSites()),g=++G.gid;for(let i=0;i<+n;i++){const u=make(k,x+rnd(-60,60),z+rnd(-60,60),s);if(u)u.grp=g}return}
-  make(k,x,z)}
- function make(k,x,z,site){const K=KIND[k],L=api.liveSites();if(!L.length)return null;const s=site||pick(L),aim=pick(s.aims),alt=K.alt?rnd(K.alt[0],K.alt[1]):800;
+  if(k==='swarm'){const s=target(),g=++G.gid;if(!s)return;for(let i=0;i<+n;i++){const u=make(k,x+rnd(-60,60),z+rnd(-60,60),s);if(u)u.grp=g}return}
+  const t=make(k,x,z),fe=DF().tac?.feint;if(t&&fe&&K.armor!=='hard'&&k!=='boss'&&Math.random()<fe)t.feint=1}
+ function make(k,x,z,site){const K=KIND[k],L=api.liveSites();if(!L.length)return null;const s=site||target(),aim=pick(s.aims),alt=K.alt?rnd(K.alt[0],K.alt[1]):800;
   const p=new V3(x,gh(x,z)+alt,z),dx=aim.x-x,dz=aim.z-z,d=Math.hypot(dx,dz),px=-dz/d,pz=dx/d;
   const wps=[new V3(x+dx*.35+px*rnd(-900,900),0,z+dz*.35+pz*rnd(-900,900)),new V3(x+dx*.72+px*rnd(-500,500),0,z+dz*.72+pz*rnd(-500,500))];
   const spd=K.spd*(K.spd<150?speedK(G.wave):1)*rnd(.94,1.06);
@@ -112,25 +142,33 @@ export function initZombies(api){
   en.dress(t);TH.push(t);return t}
  Z.make=make;Z.plan=plan;Z.integrity=integrity;Z.openBase=openBase;
  // movers for the kinds Riley's flight code doesn't cover (zenemy.js); true = handled there
- Z.tstep=(t,dt)=>en.tstep(t,dt);
+ // Nightmare feints (tac.feint): a track marked at spawn switches to another site (the weakest) about 2.2 km out, straight in from there
+ Z.tstep=(t,dt)=>{if(t.feint===1&&t.st==='cruise'&&Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)<2200){t.feint=2;const L=api.liveSites().filter(s=>s!==t.tgt);
+   if(L.length&&!t.spoof&&!(t.lure>0)){const s=weakest(L);t.tgt=s;t.aim=pick(s.aims);t.wps.length=0}}
+  return en.tstep(t,dt)};
 
  // ---------- impacts, kills, money ----------
+ // a track the jammer spoofed (t.spoof) or a lure beacon pulled (t.lure) comes down in a field: no damage. Sandbags (supply) take 25% off.
  Z.impact=t=>{t.st='dead';t.impacted=1;if(G.state==='trial')return;const K=KIND[t.k]||KIND.shahed;if(!Z.mirror)api.boom(t.aim,K.dmg>100?6:K.dmg>20?4:K.dmg?1.5:.8);if(api.demo||G.state==='over')return;const s=t.tgt;  /* a co-op client gets the host's explosion as an event */
+  if(K.dmg&&(t.spoof||t.lure>0)){feed(`<span class="cb">${K.n} came down in an empty field (${t.spoof?'jammed':'lured'})</span>`);return}
   if(!K.dmg){feed(`<span class="co">${K.n} hit the ${s.n.toLowerCase()}: a decoy, no damage</span>`);return}
-  if(s.hp>0){const was=s.hp;s.hp=Math.max(0,s.hp-K.dmg);G.perfect=false;
-   feed(`<span class="cr">${K.n} hit the ${s.n.toLowerCase()}</span> −${K.dmg}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(220,110,.6,.12,'sawtooth');
+  const dmg=Math.round(K.dmg*(G.sup?.harden?.75:1));
+  if(s.hp>0){const was=s.hp;s.hp=Math.max(0,s.hp-dmg);G.perfect=false;
+   feed(`<span class="cr">${K.n} hit the ${s.n.toLowerCase()}</span> −${dmg}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(220,110,.6,.12,'sawtooth');
    if(was>0&&!s.hp)banner(s.n+' DESTROYED','cr',2)}
-  pop(t.aim,'−'+K.dmg,'#ff4d4d');
+  pop(t.aim,'−'+dmg,'#ff4d4d');
   if(integrity().hp<=0&&!Z.mirror)gameOver()};
- // every kill comes through here (Riley's killThreat calls it): pays out to the player (t.by==='p') or the helpers
+ // Salvage crews (kit perk): a pilot's kill near a site pays more, far out less. lv: that pilot's level (another co-op pilot's comes from znet.js)
+ const salvK=t=>{const lv=t.by==='o'?Z.pilotPerk?.(t.byN,'salvage')|0:Z.perkLevel('salvage');if(!lv)return 1;let d=1e9;for(const s of api.liveSites())d=Math.min(d,Math.hypot(s.x-t.p.x,s.z-t.p.z));return d<1200?1.4:d>3000?.7:1};
+ // every kill comes through here (Riley's killThreat calls it): pays out to the player (t.by==='p') or the helpers. The doctrine scales pilots' and helpers' pay.
  Z.kill=t=>{if(api.demo||t.paid)return;t.paid=1;const K=KIND[t.k]||KIND.shahed,ply=t.by!=='h';
   if(ply)G.kills.p++;else G.kills.h++;
-  let c=K.cash*(ply?streakMult((t.by==='o'?t.sk|0:G.streak)+1):HELPER_SHARE),why='';  /* t.by 'o': another co-op pilot (t.sk = their streak) */
-  const da=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z);if(da<CLUTCH_R&&K.dmg){c+=K.cash*CLUTCH_K;why=' CLUTCH'}
+  let c=ply?K.cash*streakMult((t.by==='o'?t.sk|0:G.streak)+1,dk('streakMax',2))*dk('youK')*salvK(t):K.cash*dk('helperShare',HELPER_SHARE),why='';  /* t.by 'o': another co-op pilot (t.sk = their streak) */
+  const da=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z),clutch=da<CLUTCH_R&&!!K.dmg;if(clutch){c+=K.cash*CLUTCH_K;why=' CLUTCH'}
   if(ply&&G.burst){G.burst.n++;if(G.burst.n>1){c+=MULTI_BONUS;why=why||' MULTI'}}
-  earn(c,t.p,why)};
- // every payout is scaled by the difficulty and the early-wave boost (x2.2 on wave 1, x1 from wave 10)
- function earn(c,p,why){c=Math.round(c*DF().cash*earlyK(Math.max(1,G.wave)));G.cash+=c;G.earned+=c;if(p)pop(p,`+${money(c)}${why||''}`,why?'#ffe23c':'#3ddc84',c);return c}
+  Z.meta.onKill(t,clutch);earn(c,t.p,why)};
+ // every payout is scaled by the difficulty, the doctrine and the early-wave boost (x2.2 on wave 1, x1 from wave 10)
+ function earn(c,p,why){c=Math.round(c*DF().cash*dk('cashK')*earlyK(Math.max(1,G.wave)));G.cash+=c;G.earned+=c;if(p)pop(p,`+${money(c)}${why||''}`,why?'#ffe23c':'#3ddc84',c);return c}
  Z.earn=earn;
  const pop=Z.pop=(p,txt,col,amt=0)=>{if(G.pops.length>40)G.pops.shift();G.pops.push({p:p.clone(),txt,col,t:0,amt,t0:performance.now()})};  // amt: money, which flies into the cash counter (Z.flyPop, zannounce.js)
 
@@ -152,6 +190,9 @@ export function initZombies(api){
  // manual timing is the default in Zombies; the Proximity fuse perk brings back Classic's automatic fuse (contact always fires)
  Z.autoFuse=()=>Z.perkLevel?.('fuse')>0;
  Z.evadeMode=()=>G.state==='trial'?'none':DF().evade;Z.diff=DF;
+ // does this track evade on this difficulty, and how much of a helper drone's or gun's kill chance it keeps (tac.jink)
+ Z.evades=t=>{const m=Z.evadeMode(),K=KIND[t.k];if(m==='none'||!K||K.armor==='hard')return false;return m==='all'||EVADE_SOME.includes(t.k)};
+ Z.jink=t=>{const j=DF().tac?.jink;return j&&Z.evades(t)?1-j:1};
  // one-hit rules: a direct hit always kills; proximity uses pkill; armor 1 turns a proximity kill into damage; 'hard' needs a direct hit
  function outcome(t,r,cv){const K=KIND[t.k]||KIND.shahed;if(r<K.hitR)return'kill';if(K.armor==='hard')return'miss';
   const p=api.pkill(r,cv);if(Math.random()<p)return K.armor===1||K.armor==='boss'?'damage':'kill';
@@ -165,11 +206,13 @@ export function initZombies(api){
  Z.helperKill=t=>{if(!api.live(t))return;t.by='h';if(KIND[t.k]?.armor==='boss'&&Z.bossHit)return Z.bossHit(t);api.killThreat(t,Math.random()<.4)};
 
  // ---------- game over ----------
- function gameOver(){G.state='over';api.wstate='over';const D=DF(),nb=G.wave>bestOf(D);
+ function gameOver(){G.state='over';api.wstate='over';const D=DF(),nb=G.wave>bestOf(D),cur=Z.board.record(ZDIFF.indexOf(D),G.wave,Z.online);
   if(nb){S.zbests={...(S.zbests||{}),[D.n]:{wave:G.wave,kills:G.kills.p+G.kills.h,earned:G.earned}};save();G.best=G.wave}
   banner('');
   $('zover').innerHTML=`<div class="zpanel zgo"><h2>Defense collapsed</h2><div class="zbig">WAVE ${G.wave}</div>
    <div class="zstats"><span>Intercepts</span><b>${G.kills.p+G.kills.h}</b><span>by ${Z.online?'pilots':'you'}</span><b>${G.kills.p}</b><span>by helpers</span><b>${G.kills.h}</b><span>Money earned</span><b>${money(G.earned)}</b><span>Best on ${D.n}</span><b>${nb?'NEW BEST · ':''}wave ${G.best}</b></div>
+   ${Z.board.overHTML(cur)}
+   ${G.run?.got?.length?`<p class="zhint">Goals met this run: ${G.run.got.map(g=>Z.meta.GOALS[g].txt).join(' ')} See <b>Doctrine &amp; unlocks</b> on the menu.</p>`:''}
    <div class="btns">${Z.overBtns?.()||'<button class="go" id="zagain">Try again</button><button id="zmenu">Menu</button>'}</div>${Z.overNote?.()||''}</div>`;
   $('zover').hidden=false;const ag=$('zagain'),mn=$('zmenu');if(ag)ag.onclick=()=>{$('zover').hidden=true;banner('');api.startMatch()};if(mn)mn.onclick=()=>{$('zover').hidden=true;api.startDemo()};
   Z.syncMode?.();setTimeout(()=>($('zagain')||$('zmenu'))?.focus(),50)}
@@ -178,6 +221,8 @@ export function initZombies(api){
  // ---------- per-step ----------
  Z.step=dt=>{const me=api.player;if(!me)return;const alive=me.dead<=0;
   if(G.wasAlive&&!alive&&!G.detFlag&&G.streak)G.streak=0;  // crashed or flat battery: streak over
+  if(G.state!==G.st0){if(G.state==='wave'&&G.st0!=='wave')Z.meta.waveStart();if(G.state==='clear'&&G.st0==='wave')Z.meta.waveClear();G.st0=G.state}  /* goals (zmeta.js); also on a co-op client, which mirrors the state */
+  if(G.streak>=8)Z.meta.onStreak(G.streak);
   pk.step(dt);rk.step(dt);if(alive){G.detFlag=false;if(G.pp)directHits(me);(G.pp||(G.pp=new V3())).copy(me.p)}else G.pp=null;G.wasAlive=alive;def.step(dt);
   for(const t of TH)if(t.k==='decoy'&&!t.ident&&api.live(t)&&(alive&&me.p.distanceTo(t.p)<900||Z.ident?.(t)))t.ident=1};
  // fast tracks (or your interceptor under Rocket Assist) move metres per step, faster than the fuse's sampling: check the closest approach over the step itself. Only a direct hit counts.
@@ -229,9 +274,9 @@ export function initZombies(api){
  Z.pad=e=>base.el.hidden&&$('zover').hidden?pk.pad(e):base.pad(e);
 
  // ---------- harness hooks (tools/zombies-test.mjs) ----------
- window.__z={G,Z,api,KIND,ITEMS,integrity,
+ window.__z={G,Z,api,KIND,ITEMS,REFIT,expCost,integrity,
   sim(sec,h=1/120){const n=Math.round(sec/h);for(let i=0;i<n;i++){api.step(h);if(i%12===11)api.visuals(h*12,performance.now())}},
-  cont:()=>Z.continue(),make:(k,x,z)=>make(k,x,z),plan:w=>plan(w),jump(w,cash){G.wave=w-1;if(cash!=null)G.cash=cash},
+  cont:()=>Z.continue(),make:(k,x,z,s)=>make(k,x,z,s),plan:w=>plan(w),jump(w,cash){G.wave=w-1;if(cash!=null)G.cash=cash},
   // helper rack trials: one track of a kind runs in toward a site, one drone of the given tier is launched at it from that site's north slot.
   // Returns kill / damage / miss counts. Sites and money are left as they were.
   trials(tier,kind,n=100,mark=false){const save={cash:G.cash,earned:G.earned,kills:{...G.kills},st:G.state,hp:SITES.map(s=>s.hp)},res={kill:0,damage:0,miss:0};G.state='trial';

@@ -11,9 +11,11 @@ const browser = await launch();
 let fails = 0;
 const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fails++; };
 const URL = `${origin}/games/interceptor/?mode=zombies&netloop=${DELAY}`;
+// each pilot's own unlocks and loadout (zmeta.js): the host picks the Partisan doctrine, Ash brings the light rack, Bea the lure beacon
+const LOADS = {Hosty: {zmeta: {v: 1, g: {night15: 8}}, zload: {doc: 'partisan', kit: []}}, Ash: {zmeta: {v: 1, g: {helpers: 2}}, zload: {doc: 'std', kit: ['lrack']}}, Bea: {zmeta: {v: 1, g: {boss: 2, w10: 2}}, zload: {doc: 'fortress', kit: ['lure']}}};
 async function page(name) {
   const errs = [], p = await open(browser, URL, errs, {page: await newWindow(browser)});
-  await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: 'z', wx: 'clear', zwx: 'menu', zdiff: 1})));
+  await p.evaluate(lo => localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: 'z', wx: 'clear', zwx: 'menu', zdiff: 1, ...lo})), LOADS[name]);
   await p.reload({waitUntil: 'load'});
   await p.waitForFunction(() => window.__z && window.__z.net, {timeout: 60000});
   await p.$eval('#zname', (e, n) => { e.value = n; }, name);
@@ -39,6 +41,11 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.on && __z.G.state === 'bas
 { const s = await Promise.all(all.map(st)); ok(s.every(x => x.cash === s[0].cash), `Purse: everyone sees the same shared purse ($${s.map(x => x.cash).join(' / ')})`);
   ok(s[1].rows.map(r => r[1]).join() === 'Hosty,Ash,Bea', `Roster on a client: ${s[1].rows.map(r => r[1]).join(', ')}`); }
 if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-base.png'});
+// loadouts: the host's doctrine is everyone's; each pilot's kit is their own, and a kit helper is in the whole team's shop
+{ const lo = await Promise.all(all.map(P => ev(P, () => ({doc: __z.Z.meta.doc().n, own: __z.Z.meta.load().doc, team: __z.Z.meta.teamKit().sort().join(), cards: __z.G.cards.filter(c => __z.ITEMS[c.k].kit).map(c => c.k).join(), strip: document.querySelector('#zbase .zcoop span')?.textContent || ''}))));
+  ok(lo.every(x => x.doc === 'Partisan') && lo[2].own === 'fortress', `Doctrine: the host's Partisan on every screen (Bea's own pick, ${lo[2].own}, waits for her solo games); strip "${lo[1].strip}"`);
+  ok(lo.every(x => x.team === 'lrack,lure'), `Team kit on every screen: ${lo.map(x => x.team).join(' / ')}`);
+  ok(lo[0].cards === 'lrack' && lo[1].cards === 'lrack' && lo[2].cards === 'lrack,lure', `Kit in the shops: host [${lo[0].cards}], Ash [${lo[1].cards}], Bea [${lo[2].cards}] (the lure beacon is Bea's own perk)`); }
 
 // ---------- ready-up: the wave waits for everyone ----------
 await tap(H, '#zgo'); await tap(A, '#zgo'); await sleep(600);
@@ -100,7 +107,21 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !docum
   await tap(A, '[data-tab="sites"]'); await tap(A, '[data-rep="0"]');
   ok(await until(H, () => __z.api.SITES[0].hp === __z.api.SITES[0].max) && (await st(H)).cash === c0 - 360, `Shop: Ash repairs the substation (+120 hp, $${c0} -> $${(await st(H)).cash})`);
   ok(await until(B, () => __z.api.SITES[0].hp === __z.api.SITES[0].max), 'Site HP sync: the repair shows on Bea\'s screen');
-  if (SHOTS) { await tap(A, '[data-tab="armory"]'); await sleep(400); await A.p.screenshot({path: SHOTS + '/coop-shop.png'}); } }
+  if (SHOTS) { await tap(A, '[data-tab="armory"]'); await sleep(400); await A.p.screenshot({path: SHOTS + '/coop-shop.png'}); }
+  // the new purchases go through the host too: a kit helper, a kit perk, a forged perk request, opening a position, a refit
+  await ev(H, () => { __z.G.cash = 20000; }); await until(A, () => __z.G.cash === 20000);
+  await tap(A, '[data-tab="shop"]'); await ev(A, () => { const i = __z.G.cards.findIndex(c => c.k === 'lrack'); document.querySelector(`[data-buy="${i}"]`).click(); });
+  await A.p.waitForSelector('[data-slot]'); await tap(A, '[data-slot]');
+  ok(await until(H, () => __z.Z.def.D.some(d => d.type === 'lrack' && d.by === 'Ash') && __z.G.cash === 19600), 'Kit helper: Ash places a light rack ($400) on the host');
+  await tap(B, '[data-tab="shop"]'); await ev(B, () => { const i = __z.G.cards.findIndex(c => c.k === 'lure'); document.querySelector(`[data-buy="${i}"]`).click(); });
+  ok(await until(H, () => __z.net.n.perks[Object.keys(__z.net.n.names).find(k => __z.net.n.names[k] === 'Bea')]?.lure === 1) && await until(B, () => __z.G.perks.lure === 1 && __z.G.ch.lure === 1), 'Kit perk: Bea buys her lure beacon (one charge)');
+  await ev(A, () => __z.Z.req(['p', 'lure'])); await sleep(800);
+  ok(await ev(H, () => !__z.net.n.perks[Object.keys(__z.net.n.names).find(k => __z.net.n.names[k] === 'Ash')]?.lure), 'Kit perk: a forged request from Ash for the lure beacon (not in his kit) is refused');
+  await tap(A, '[data-tab="sites"]'); await tap(A, '[data-ex="14"]');
+  ok(await until(H, () => __z.G.open[14] && __z.G.exp === 1) && await until(B, () => __z.G.open[14] && __z.Z.def.slotFree(14)), 'Expansion: Ash opens the substation rear position; the host and Bea see it open');
+  const rid = await ev(H, () => __z.Z.def.D.find(d => d.type === 'rack').id);
+  await tap(B, '[data-tab="armory"]'); await tap(B, `[data-fit="${rid}:range"]`);
+  ok(await until(H, id => __z.Z.def.D.find(d => d.id === id)?.refit === 'range', rid) && await until(A, id => __z.Z.def.D.find(d => d.id === id)?.refit === 'range', rid), 'Refit: Bea fits long-range drones to the rack; the host and Ash see it'); }
 
 // ---------- forced start: the host starts wave 2 with nobody else ready ----------
 await tap(H, '#zforce');
@@ -116,8 +137,9 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   ok(await until(A, id => __z.api.TH.every(t => t.id !== id || t.impacted), r.id), 'Ash: saw the impact as an event (track marked impacted)'); }
 
 // ---------- helpers fire on the clients' screens: the host's rack drones show up as shots ----------
-{ await ev(H, () => { const {api, G} = __z; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); const s = __z.Z.def.SLOTS[__z.Z.def.D[0].slot]; for (let i = 0; i < 2; i++) { const t = __z.make('shahed', s.x + 300 * i, s.z - 2400); t.p.y = api.gh(t.p.x, t.p.z) + 300; } __z.sim(3); });
-  ok(await until(A, () => __z.Z.def.shots.length > 0 && __z.Z.def.shots.some(h => h.tgt)), 'Helpers: the host\'s rack drones fly on Ash\'s screen with their claimed targets', 6000);
+{ await ev(H, () => { const {api, G} = __z; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); const s = __z.Z.def.SLOTS[__z.Z.def.D[0].slot]; for (let i = 0; i < 2; i++) { const t = __z.make('shahed', s.x + 300 * i, s.z - 1700); t.p.y = api.gh(t.p.x, t.p.z) + 300; } __z.sim(3); });
+  const hs = await ev(H, () => JSON.stringify({shots: __z.Z.def.shots.length, st: __z.G.state, th: __z.api.TH.filter(__z.api.live).length, D: __z.Z.def.D.map(d => [d.type, d.slot, d.ready, d.cap, d.refit, d.shots])}));
+  ok(await until(A, () => __z.Z.def.shots.length > 0 && __z.Z.def.shots.some(h => h.tgt)), 'Helpers: the host\'s rack drones fly on Ash\'s screen with their claimed targets (host ' + hs + ')');
   const u = await ev(A, () => ({used: __z.Z.pk.use('freeze'), left: __z.G.ch.freeze}));
   ok(u.used && u.left === 0 && await until(H, () => __z.api.TH.some(t => __z.api.live(t) && t.frz > 0)) && await until(B, () => __z.api.TH.some(t => __z.api.live(t) && t.frz > 0)), 'Perks: Ash uses Freeze (charge spent); the host slows a track and Bea sees it frozen');
   if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-client-wave.png'}); }

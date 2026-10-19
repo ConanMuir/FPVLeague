@@ -44,6 +44,7 @@ const benign = t => /fonts\.(googleapis|gstatic)\.com|favicon\.ico|net::ERR_FAIL
 // open a page with three.js routed to the local copy; errors collects page errors and console errors
 export async function open(browser, url, errors, {w = 1280, h = 720, page = null} = {}) {  // page: an already created page (e.g. its own window, see newWindow)
   const p = page || await browser.newPage();
+  p.setDefaultNavigationTimeout(90000);  // a page load or reload is ~10 s on CI's software GL and can pass puppeteer's 30 s default on a busy runner
   await p.setViewport({width: w, height: h});
   await p.setRequestInterception(true);
   p.on('request', q => {

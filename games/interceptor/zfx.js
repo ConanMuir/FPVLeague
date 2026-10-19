@@ -152,7 +152,7 @@ export function initFX(api,G,Z){
  // ---------- impacts on the sites ----------
  const lastHit={};
  const i0=Z.impact;Z.impact=t=>{const s=t.tgt,hp0=s?s.hp:0;i0(t);if(!G.on||api.demo||G.state==='trial'||G.state==='over'&&!s)return;const K=KIND[t.k]||KIND.shahed;
-  if(K.dmg)fire(t.aim,K.dmg>100?2:K.dmg>=40?1.4:.6,K.dmg>100?60:K.dmg>=40?45:25);if(!s||!K.dmg||hp0<=0)return;const lost=hp0-s.hp;W.dmg+=lost;
+  if(K.dmg)fire(t.aim,K.dmg>100?2:K.dmg>=40?1.4:.6,K.dmg>100?60:K.dmg>=40?45:25);if(!s||!K.dmg||hp0<=0)return;const lost=hp0-s.hp;if(lost<=0)return;W.dmg+=lost;
   an.hit(cl(lost/150,.3,1));au.siteHit(lost>100);const d=t.aim.distanceTo(cam());api.shake=Math.max(api.shake,cl(1-d/3000,0,1)*.6);
   const I=integ();if(s.hp<=0)an.radio('OVERLORD',`We've lost the ${s.n.toLowerCase()}!`,2);
   else if(rt()-(lastHit[s.n]||0)>6){lastHit[s.n]=rt();an.radio('OVERLORD',pick([`${cap(s.n.toLowerCase())} is hit!`,`Impact on the ${s.n.toLowerCase()}!`,`${cap(s.n.toLowerCase())} took a hit.`])+` ${Math.round(s.hp)} left.`,1)}
