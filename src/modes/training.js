@@ -17,7 +17,7 @@ import {showMenu} from './match.js';
 import {registerMode} from './registry.js';
 import {leaveGame} from '../net/net.js';
 import {ball,ballPhys} from '../physics/ball.js';
-import {onHit} from '../physics/world.js';
+import {onEv} from '../core/events.js';
 import {ballMesh} from '../render/ball.js';
 import {emit} from '../render/particles.js';
 import {GS} from '../state.js';
@@ -72,7 +72,7 @@ export function goShot(){if(!TR.on||TR.ph!=='ready')return;ball.v.copy(TR.sp.bv)
 function hold(){const d=GS.player,s=TR.sp;if(!d||!s)return;d.p.copy(s.dp);d.q.copy(s.dq);d.v.set(0,0,0);d.w.set(0,0,0);d.wt.set(0,0,0);d.flipT=0;d.popT=0;d.popC=0;d.dead=0;
  ball.p.copy(s.bp);ball.v.set(0,0,0);ball.w.set(0,0,0);ball.c=false;ball.last=null}
 // latest touch by the player: height of the ball's underside and whether it was a pop
-onHit(e=>{if(!TR.on||TR.ph!=='live'||e.type!=='ball'||e.d!==GS.player)return;TR.touched=true;TR.tt=TR.t;TR.last={y:+(ball.p.y-BR).toFixed(2),pop:e.d.popT>0};if(TR.last.pop)TR.popped=true});
+onEv('touch',e=>{if(!TR.on||TR.ph!=='live'||e.d!==GS.player)return;TR.touched=true;TR.tt=TR.t;TR.last={y:+(ball.p.y-BR).toFixed(2),pop:e.d.popT>0};if(TR.last.pop)TR.popped=true});
 // ---- per physics step. true = handled (step.js only runs the Rapier step), false = run the normal game step
 export function trainPre(dt){const d=GS.player;if(!TR.on||!d)return false;
  if(TR.ph==='ready'){humanControl(d,dt);hold();TR.rt+=dt;const s=[stk[0],stk[1],stk[2],stk[3]];

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {camTilt} from '../render/camera.js';
 import {near,noise,tone} from '../audio/audio.js';
 import {dfBot} from '../bots/dogfight.js';
+import {emitEv} from '../core/events.js';
 import {$,COL,TEAM,V3,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {btnOn,keys,mouseFire,pad,padX} from '../input/input.js';
@@ -45,7 +46,8 @@ export function hitDrone(d,dmg,by){if(d.lock>performance.now())return;if(by===GS
 export function hitTurret(t,dmg,by){if(by===GS.player)hitMark();if(GS.net&&!GS.net.host){if(by===GS.player)GS.net.hits.push([++GS.net.hseq,keyOf(t),dmg]);return}
  if((t.hp-=dmg)<=0){t.re=25;boom(t);scored(by,t)}}
 function kill(d,by){d.hp=100;d.life++;d.lock=performance.now()+800;if(!d.remote){boom(d);d.dead=3;d.mesh.visible=false}scored(by,d)}
-function scored(by,v){const bt=by?.isTurret?by.t:by?.team;if(GS.state==='play'&&bt!=null&&bt!==(v.isTurret?v.t:v.team))GS.score[bt]++;
+const E_KILL={d:null,by:null};  // the 'kill' event payload (core/events.js), reused
+function scored(by,v){E_KILL.d=v;E_KILL.by=by??null;emitEv('kill',E_KILL);const bt=by?.isTurret?by.t:by?.team;if(GS.state==='play'&&bt!=null&&bt!==(v.isTurret?v.t:v.team))GS.score[bt]++;
  if(!GS.demo)feed(`${who(by)} ${v.isTurret?'destroyed':'shot down'} ${who(v)}`);if(GS.net?.host)GS.net.kf.push([++GS.net.kfId,by?keyOf(by):'',keyOf(v)]),GS.net.kf.splice(0,GS.net.kf.length-6);
  if(GS.overtime&&auth()&&GS.state==='play')endMatch()}
 export function applyHit(k,dmg,by){const o=objOf(k);if(!o||!by||o.team===by.team)return;if(o.isTurret){if(o.re<=0)hitTurret(o,dmg,by)}else if(o.dead<=0)hitDrone(o,dmg,by)}

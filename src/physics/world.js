@@ -21,6 +21,7 @@ import {sdN,sdf} from './sdf.js';
 import {ball,ballContact,ballRoll} from './ball.js';
 import {dfCollision,sdDFt} from '../world/highlands.js';
 import {bodyOf} from '../parts/index.js';
+import {emitEv,hasEv,onEv} from '../core/events.js';
 export let R=null,world=null;
 export const PHYS={ballMesh:false,net:true,ccd:'soft',stats:{escapes:0,steps:0,ms:0}};  // net: the escape safety net (checks switch it off for free flight); ccd 'soft': never swept CCD (its time-of-impact sweeps against the Highlands trimeshes cost 3-6 ms a tick per drone using it); moving near the map (the SDF: something within 4 ticks of travel + 3 m) predictive contacts 1.5 ticks of travel ahead (at least 0.4 m); in open air or below 3 m/s nothing extra. Any other value: Rapier's swept CCD always
 // collision groups: membership<<16 | filter. QRY is only ever a query's membership, so query-only colliders never form solver pairs.
@@ -135,7 +136,7 @@ function groundContacts(d,dt){let touch=false,jn=0,hit=0;d.slide=0;const DI=d.di
    for(let i=0;i<k&&np<CP.length;i++){const p=m.solverContactPoint(i);CP[np++].set(p.x,p.y,p.z)}
    hit=Math.max(hit,-(d.v0.x*nn.x+d.v0.y*nn.y+d.v0.z*nn.z)*s)})})}
  if(!touch)return 0;d.gt=.12;if(n.lengthSq()<1e-12||!np)return hit;n.normalize();(d.cn||(d.cn=new V3())).copy(n);jn*=im;  // d.cn: contact normal (floor up, wall sideways, ceiling down) for the self-righting pendulum; impulse -> velocity change
- if(hitFns.length)groundHit(d,n,np,hit);  // contact event for effects / sound (onHit type 'ground')
+ if(hasEv('ground'))groundHit(d,n,np,hit);  // contact event for effects / sound (core/events.js 'ground')
  if(d.piv)return hit;  // pivoting over an edge (self-righting, turtle): pivot() already moves it as a roll about that edge
  // Coulomb friction at every contact point, each with its share of the normal impulse (capped at G*.05 so thrusting into the ground
  // doesn't add grip). Per point, so rolling over an edge has no slip there and isn't braked. No wheels: the frame scrapes and grips
@@ -152,12 +153,12 @@ function groundContacts(d,dt){let touch=false,jn=0,hit=0;d.slide=0;const DI=d.di
  if(!wh&&slide>12&&_s2.set(0,1,0).applyQuaternion(d.q).dot(n)<.97)ww.addScaledVector(_f2.crossVectors(n,sd).normalize(),Math.min(30,(slide-12)*1.8)*dt);  // tilted at speed: the leading edge catches and it tumbles over it
  d.w.copy(ww).applyQuaternion(_q.copy(d.q).invert());return hit}
 const CP=Array.from({length:24},()=>new V3()),_d3=new V3();
-// onHit {type:'ground', d, tag:'chassis', speed: impact speed into the surface, slide: sliding speed at the contact, p: contact point (mean), n: surface normal}
+// event 'ground' (core/events.js) {type:'ground', d, tag:'chassis', speed: impact speed into the surface, slide: sliding speed at the contact, p: contact point (mean), n: surface normal}
 // sent every tick a stepped drone touches the map; the event object and its p/n are reused, so copy them to keep them
 const GEV={type:'ground',d:null,tag:'chassis',speed:0,slide:0,p:new V3(),n:new V3()},_gw=new V3(),_gr=new V3(),_gv=new V3();
 function groundHit(d,n,np,hit){const P=GEV.p.set(0,0,0);for(let i=0;i<np;i++)P.add(CP[i]);P.divideScalar(np);
  const vp=_gv.crossVectors(_gw.copy(d.w).applyQuaternion(d.q),_gr.subVectors(P,d.p)).add(d.v);vp.addScaledVector(n,-vp.dot(n));
- GEV.d=d;GEV.speed=hit;GEV.slide=vp.length();GEV.n.copy(n);emitHit(GEV)}
+ GEV.d=d;GEV.speed=hit;GEV.slide=vp.length();GEV.n.copy(n);emitEv('ground',GEV)}
 // League arena or Highlands colliders, swapped with the mode (Highlands built on first use)
 function setMap(df){if(df===mapDF)return;mapDF=df;if(df&&!dfCols)buildDF();arenaCol.forEach(c=>c.setEnabled(!df));dfCols?.forEach(c=>c.setEnabled(df))}
 function buildDF(){const D=dfCollision(),add=(cd,x,y,z,q)=>{cd.setTranslation(x,y,z).setCollisionGroups(grp(GW_,GHULL|GB_|QRY)).setFriction(1).setFrictionCombineRule(R.CoefficientCombineRule.Min).setRestitution(0).setRestitutionCombineRule(R.CoefficientCombineRule.Max);
@@ -204,5 +205,6 @@ export function droneTouch(a,b,n){if(!a.rb||!b.rb||a.p.distanceToSquared(b.p)>(a
  for(const ea of a.cols){if(!ea.use.includes('drone'))continue;for(const eb of b.cols){if(!eb.use.includes('drone'))continue;const c=ea.c.contactCollider(eb.c,BUMP);
   if(c&&c.distance<BUMP&&(!best||c.distance<best.distance))best={distance:c.distance,n:c.normal1,ta:ea.tag,tb:eb.tag}}}
  if(!best)return null;n.set(best.n.x,best.n.y,best.n.z);if(n.lengthSq()<.5)n.subVectors(b.p,a.p).normalize();return{pen:BUMP-best.distance,ta:best.ta,tb:best.tb}}
-// contact / hit events for gameplay code (track D: zone hits): {type:'ball'|'drone'|'bullet'|'ground', d, tag, other, otherTag, speed}; 'ball' also has p (contact point) and n, 'ground' p, n and slide (see groundHit)
-const hitFns=[];export const onHit=f=>{hitFns.push(f)},emitHit=e=>{for(const f of hitFns)f(e)};
+// the old contact-event API, now on the event bus (core/events.js): onHit(f) listens to touch, bump, bullet and ground (e.type 'ball', 'drone',
+// 'bullet', 'ground'); emitHit(e) sends e as the event its type maps to. tools/bot-match.mjs uses onHit.
+const HIT_EV={ball:'touch',drone:'bump',bullet:'bullet',ground:'ground'};export const onHit=f=>{for(const k in HIT_EV)onEv(HIT_EV[k],f)},emitHit=e=>emitEv(HIT_EV[e.type],e);

@@ -39,3 +39,33 @@ mode's, and any flag they define wins over the mode's (`modeFlag(name)`). Overla
 2. Import it in `src/main.js` next to `./modes/league.js`. The menu button, saved `S.game`, lobby label and `setGame()` pick it up.
 3. Need a new kind of world? Add a `world` id and handle it in `setGame()` (`modes/dogfight.js`) and `setMap()`.
 4. Per-frame UI goes in `src/ui/<name>.js` with `addHud('keepy', fn)`.
+5. React to game events (touches, goals, ...) with `onEv` from `src/core/events.js` rather than new calls inside `step.js`.
+
+## Game events (`src/core/events.js`)
+
+Gameplay code *emits* events; sound (`audio/sfx.js`), effects (`render/effects.js`, `render/popfx.js`, `render/goalfx.js`),
+training judging, bots and tools *listen*. The full list of types and payloads is the comment at the top of `events.js`: `touch`,
+`bump`, `bullet`, `ground`, `bounce`, `popEarn`, `popFire`, `save`, `shot`, `goal`, `demo`, `kill`, `kickoff`, `count`, `orb`, `end`.
+
+```js
+import {onEv} from '../core/events.js';
+const off=onEv('goal',e=>{log.push({team:e.team,x:e.p.x})});  // copy what you keep; off() unsubscribes
+```
+
+Rules, because several of these fire every physics tick:
+
+- **Payloads are reused.** Each producer owns one payload object per type (and its vectors) and overwrites it for every event. Read
+  what you need inside the listener and copy anything you keep. Never store the payload or its `p` / `n`.
+- **No allocation on emit.** `emitEv` walks a plain array; listener lists are copied only when someone subscribes or unsubscribes.
+- Listeners run synchronously inside the producer, in subscription order, and see the world as the producer left it.
+- Hot producers check `hasEv(type)` before doing extra work to build a payload.
+- `onEv` throws on an unknown type; add new types to `EVENTS` with a one-line payload description.
+- `physics/world.js` still exports the old `onHit(fn)` / `emitHit(e)` for the four contact events (`e.type` is `'ball'`, `'drone'`,
+  `'bullet'`, `'ground'`), which `tools/bot-match.mjs` uses.
+
+### Adding an event
+
+1. Add the type and its payload line to the comment and `EVENTS` in `src/core/events.js`.
+2. In the producer: a module-level payload object, filled and sent with `emitEv('type', P)` at the moment it happens.
+3. Listeners subscribe once at module load (or in an init function, like `sfxInit`, if they must not run before it).
+
