@@ -1,0 +1,34 @@
+/* Interceptor Zombies: mode choice, wave HUD, base screen, game over. Same glass panels, Chakra Petch / JetBrains Mono and colours as the engine. */
+.gmode{display:inline-flex;border:1px solid var(--edge);border-radius:6px;overflow:hidden;margin:4px 0 8px}
+.gmode button{border:0;border-radius:0;padding:8px 20px;font-size:15px;background:rgba(255,255,255,.04);color:var(--dim)}
+.gmode button.on{background:rgba(255,198,64,.18);color:#fff;box-shadow:inset 0 -2px 0 var(--amber)}
+.gmdesc{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.45;max-width:52ch}.gmdesc b{color:var(--ink)}
+
+/* in-wave HUD: replaces Classic's score strip and site row */
+#hud.z #score,#hud.z #sites{display:none}
+#zhud{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:5px;pointer-events:none}
+#zhud .zt{display:flex;align-items:stretch;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.5);font:700 18px var(--mono)}
+#zhud .zt>span{padding:5px 12px;background:var(--panel);white-space:nowrap;display:flex;align-items:center}
+#zw{color:#fff}#zc{color:var(--green)}#zs{background:rgba(255,198,64,.22)!important;color:var(--amber)}
+.zi{position:relative;min-width:220px;padding:0!important;background:rgba(8,12,22,.84)}
+.zi i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#1f8f55,#3ddc84);transition:width .3s}.zi i.mid{background:linear-gradient(90deg,#9b7a18,#ffc640)}.zi i.lo{background:linear-gradient(90deg,#8f1f1f,#ff4d4d)}
+.zi em{position:relative;font-style:normal;font-size:13px;padding:0 12px;width:100%;text-align:center;text-shadow:0 0 3px #000}
+#zsites{display:flex;gap:14px;font-size:12px;white-space:nowrap}#zsites span{color:#7fd0ff}#zsites .lo{color:var(--amber)}#zsites .dead{color:#8a8f99;text-decoration:line-through}
+#zinb{font-size:12px;color:var(--dim)}
+
+/* base screen and game over */
+#zbase,#zover{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(ellipse at center,rgba(5,7,13,.35),rgba(5,7,13,.85));z-index:3;overflow:auto}
+.zpanel{width:min(1180px,100%);max-height:100%;overflow:auto;box-sizing:border-box;background:var(--panel);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(8px);padding:20px 24px;display:grid;gap:16px}
+.zpanel header{display:flex;flex-wrap:wrap;align-items:center;gap:18px 28px}
+.zpanel h2{margin:0}.zpanel h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.zbig{font:700 34px var(--mono);color:var(--green);line-height:1}.zgo .zbig{color:var(--amber)}
+.zint{flex:1;min-width:220px;display:grid;gap:6px;font:12px var(--mono);color:var(--dim)}
+.zint b,.zhp b{display:block;height:10px;background:rgba(0,0,0,.45);border:1px solid var(--edge);border-radius:5px;overflow:hidden}
+.zint i,.zhp i{display:block;height:100%;background:var(--green)}.zint i.mid{background:var(--amber)}.zint i.lo{background:var(--red)}
+.zpanel button.go{background:linear-gradient(90deg,#3a6b3a,#6b7d2a 50%,var(--red));border:0;margin-left:auto}
+.zsites{display:grid;gap:6px}
+.zrow{display:grid;grid-template-columns:minmax(120px,1fr) minmax(140px,1.4fr) auto;gap:12px;align-items:center;font-size:14px}
+.zhp{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font:12px var(--mono)}
+.zgo{width:min(520px,100%);text-align:center}.zgo .btns{justify-content:center}
+.zstats{display:grid;grid-template-columns:1fr auto;gap:6px 18px;text-align:left;font-size:15px;margin:6px 0 8px}.zstats span{color:var(--dim)}.zstats b{font-family:var(--mono)}
+@media (max-width:760px){.zpanel{padding:14px}.zrow{grid-template-columns:1fr auto}.zrow .zhp{grid-column:1/-1}#zhud .zt{font-size:14px}.zi{min-width:140px}}

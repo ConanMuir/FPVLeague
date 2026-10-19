@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Owner: Riley   Last updated: 2026-10-19 by Claude
-Based on: riley-test-0u2krq (Riley's test build: long line mode, sling cam, look-down, audio tab, jitter fixes) + origin/main 5c965f2 (Jared's PRs #12-#21)
-Doing: second test build so Riley can try Jared's latest main (freeplay, pop, caves, ground grip, ball feel) together with Riley's test-build features.
-Touches: merge only; conflicts resolved by hand in src/flight/drone.js, src/input/input.js, src/modes/match.js, src/modes/step.js, src/parts/index.js, src/ui/hud.js, app.html.
-Open items / help wanted: long line mode with Jared's new ball feel and ground grip is unverified by a pilot.
-Overlaps: riley-test-0u2krq (this branch's parent, left as it was); main.
+Branch: `interceptor-zombies`   Owner: Jared   Last updated: 2026-10-18 by Claude
+Based on: origin/riley-test-2 58297c5 (Riley's Interceptor + engine/games split, merged with Jared's main)
+Doing: a Zombies mode for Riley's Interceptor (endless growing waves, money, base screen between waves, helpers, perks). Riley's game stays as is under "Classic"; the start menu picks the mode.
+Touches: games/interceptor/ (new zombies.js, zbase.js, zdata.js, zombies.css; small hooks in interceptor.js and index.html, every one behind `Z.on` so Classic is unchanged), tools/zlib.mjs and tools/zombies-test.mjs (headless Edge harness).
+Open items / help wanted: work in progress, checkpoint by checkpoint (see commits). Not yet flown by a pilot.
+Overlaps: Riley's Interceptor (games/interceptor/interceptor.js). The hooks there are one-liners at the start of functions (threatStep, impact, killThreat, detonate, waves, urgent, hud, radar, overlay, step, visuals, input); merge Riley's later changes around them.
 
 ## How to play
 

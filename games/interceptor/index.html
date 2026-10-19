@@ -6,6 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;1,700&family=JetBrains+Mono:wght@500;700&display=swap">
 <link rel="stylesheet" href="../../engine/engine.css">
+<link rel="stylesheet" href="zombies.css">
 <style>
 /* Layout: full-bleed WebGL countryside; Betaflight-style OSD, target brackets and a heading-up radar scope on top; glass menu over a live demo wave */
 #ov{position:absolute;inset:0;width:100%;height:100%}
@@ -49,6 +50,8 @@ button.go{background:linear-gradient(90deg,#3a6b3a,#6b7d2a 50%,var(--red));borde
     <div>
       <h1><span class="b">DRONE LEAGUE</span><br><span class="o">INTERCEPTOR</span></h1>
       <p class="sub">Fly a Ukrainian-style tail-sitter dart interceptor (about 360 km/h level at 85° of pitch, hover around 32% throttle) against Shahed-136 and jet Geran-3 attack drones before they reach the substation, the fuel depot and the apartment blocks. You sit on the launch mat at a forward position on the river line, take off vertically, flip the camera to 90° and run them down. Same acro flight model, rates and radio setup as Drone League, at real scale, with weather and wind.</p>
+      <div class="gmode" id="gmode" role="group" aria-label="Game mode"><button data-m="classic">Classic</button><button data-m="z">Zombies</button></div>
+      <p class="gmdesc" id="gmdesc"></p>
       <div class="btns"><button class="go" id="play">Defend</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Quit to menu</button><button id="modbtn">Mod panel</button></div>
       <div class="keys">
         <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
