@@ -69,3 +69,13 @@ Rules, because several of these fire every physics tick:
 2. In the producer: a module-level payload object, filled and sent with `emitEv('type', P)` at the moment it happens.
 3. Listeners subscribe once at module load (or in an init function, like `sfxInit`, if they must not run before it).
 
+## Settings (`src/config/settings.js`, `src/config/schema.js`)
+
+`S` is loaded once at startup from localStorage `droneleague`: the saved JSON merged over `DEF`, then the `SCHEMA` list runs in order.
+Each `field(key, clean)` checks and clamps one setting (`oneOf`, `num`, `int`, `isTrue` cover most); `version('physV', MIGRATIONS)`
+runs every migration newer than the save's `physV`, once, and writes the settings out after each. The list order is the saved JSON's
+key order, which `tools/smoke.mjs` compares with v15's, so append new fields at the end. `test/settings.test.mjs` replays 65 recorded
+old saves (`test/fixtures/settings-golden.json`) and checks the result and every write bit-for-bit.
+
+- New setting: append a `field()` (its default goes in the field's clean function; `DEF` is v15's list and stays as it is).
+- Changing what old saves mean: append `{v: next, run(S){...}}` to `MIGRATIONS`.
