@@ -102,11 +102,19 @@ async function scenario(label, url) {
     // Garage: open it, cycle every part in every slot, toggle the hitbox overlay, leave a non-stock loadout on
     if (await p.$('#garbtn')) {
       await click(p, '#garbtn'); const g = {open: !(await hidden(p, '#garage')), parts: 0, stats: []};
-      for (const [s, id] of await p.$$eval('#gslots button', l => l.map(b => [b.dataset.s, b.dataset.id]))) {
+      for (const [s, id] of await p.$$eval('#gslots button:not([data-c])', l => l.map(b => [b.dataset.s, b.dataset.id]))) {
         await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`); g.parts++; g.stats.push(await text(p, '#gstats div:first-child span:last-child'));
       }
       await click(p, '#ghit'); await sleep(300); await click(p, '#ghit');
       for (const [s, id] of [['0', 'stretch'], ['1', 'plank'], ['2', 'punch'], ['3', 'ram']]) await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`);
+      // cosmetics: open every Style tab, wear every item, then leave a look on (saved in S.cos, worn in the match)
+      g.cos = 0; for (const s of await p.$$eval('#gtabs button', l => l.map(b => +b.dataset.s).filter(s => s >= 4))) {
+        await p.$eval(`#gtabs button[data-s="${s}"]`, e => e.click());
+        for (const [c, id] of await p.$$eval(`#gslots .gcat[data-s="${s}"] button[data-c]`, l => l.map(b => [b.dataset.c, b.dataset.id]))) { await click(p, `#gslots button[data-c="${c}"][data-id="${id}"]`); g.cos++; }
+      }
+      for (const [c, id] of [['paint', 'candy'], ['decal', 'n23'], ['props', 'smoke'], ['bell', 'oil'], ['led', 'green'], ['trail', 'plasma']]) await click(p, `#gslots button[data-c="${c}"][data-id="${id}"]`);
+      g.cosSaved = await p.evaluate(() => Object.values(JSON.parse(localStorage.getItem('droneleague') || '{}').cos || {}).join('/'));
+      await p.$eval('#gtabs button[data-s="0"]', e => e.click());
       g.name = await text(p, '#gname'); g.saved = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').loadout?.join('/'));
       await click(p, '#gok'); g.closed = await hidden(p, '#garage'); g.stats = new Set(g.stats).size; out.garage = g;
     }
@@ -114,7 +122,7 @@ async function scenario(label, url) {
     await click(p, '#play');
     await waitFor(p, s => !s.demo && s.state === 'play', wall, 'League kickoff to end');
     out.league = await run(p, 10, wall * 2);
-    { const s = await snap(p); out.league.player = s.drones.find(d => d.key === 'h')?.lo; out.league.botLoadouts = [...new Set(s.drones.filter(d => d.bot).map(d => d.lo))].length; }
+    { const s = await snap(p); out.league.player = s.drones.find(d => d.key === 'h')?.lo; out.league.botLoadouts = [...new Set(s.drones.filter(d => d.bot).map(d => d.lo))].length; out.league.cos = await p.evaluate(() => window.__dl.cosInfo?.()); }
     // Dogfight: open the menu, press the Dogfight mode button (starts a new match)
     await key(p, 'Escape'); out.menuAfterEsc = !(await hidden(p, '#menu'));
     await click(p, '#m_df');
@@ -220,20 +228,28 @@ async function labScenario(url) {
     const R = [0, 0, 0, 0, -1];  // everything at rest (axis 5 left alone: it reads 0 until its first press)
     // choose your controls: one function at a time
     await click(p, '#calbtn'); out.bindOpen = !(await hidden(p, '#bind'));
-    const press = async (ax, bt, rel = R, relB = {6: 0, 7: 0}) => { await sleep(900); await pad(ax, bt); await sleep(550); await pad(rel, relB); await sleep(500); };
+    // each phase waits its time AND until the page has drawn a few more frames: binding is detected per frame, so a loaded machine
+    // (slow frames) must not let a press start and end between two frames
+    await p.evaluate(() => { window.__frN = 0; (function f() { window.__frN++; requestAnimationFrame(f); })(); });
+    const phase = async ms => { const f0 = await p.evaluate(() => window.__frN); await sleep(ms); for (let i = 0; i < 100 && (await p.evaluate(() => window.__frN)) - f0 < 6; i++) await sleep(50); };
+    // wait on the wizard's own state (window.__dl.bind): listening -> press -> it moves on -> release -> next step listening
+    const bst = () => p.evaluate(() => window.__dl.bind?.()), until = async (f, ms = 8000) => { const t0 = Date.now(); for (;;) { const s = await bst(); if (!s || f(s) || Date.now() - t0 > ms) return s; await sleep(40); } };
+    const press = async (ax, bt, rel = R, relB = {6: 0, 7: 0}) => { const s0 = await until(s => s.ph === 'wait' || s.done); const k = s0 && (s0.i + ':' + s0.sub); await pad(ax, bt);
+      await until(s => s.ph === 'release' || s.ph === 'done' || s.done || (s.i + ':' + s.sub) !== k); await phase(300); await pad(rel, relB); await until(s => s.done || (s.i + ':' + s.sub) !== k); await phase(200); };
     await press([0, -1, 0, 0, -1]);                 // throttle: left stick up (centre-sprung)
     await press([0, 0, 0, 0, 1]);                   // yaw right: LT reported as an axis resting at -1
     await press(R, {6: .9});                        // yaw left: LT as an analog button
     await press([0, 0, 0, -1, -1]);                 // pitch forward: right stick up
     await press([0, 0, 1, 0, -1]);                  // roll right: right stick right
     await press(R, {7: 1});                         // fire: RT as an analog button
-    await sleep(900); await pad([0, 0, 0, 0, -1, 1]); await sleep(550); await pad([0, 0, 0, 0, -1, 0]); await sleep(60); await pad([0, 0, 0, 0, -1, -1]); await sleep(600);  // flip: RT axis that read 0 until pressed
+    await phase(900); await pad([0, 0, 0, 0, -1, 1]); await phase(550); await pad([0, 0, 0, 0, -1, 0]); await sleep(60); await pad([0, 0, 0, 0, -1, -1]); await phase(600);  // flip: RT axis that read 0 until pressed
     out.bindText = await text(p, '#bres');
     await click(p, '#bsave');
     out.bound = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {xcal: s.xcal, xfire: s.xfire, xflip: s.xflip}; });
     out.bindClosed = await hidden(p, '#bind');
     // Calibration Lab, Pro preset; run every drill a few seconds with the scripted pilot, then skip
     out.before = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {rprof: s.rprof, rpi: s.rpi, dz: s.dz, assist: s.assist}; });
+    await click(p, '#trainbtn'); out.hubOpen = !(await hidden(p, '#scr-training'));  // Training hub -> Calibration Lab
     await click(p, '#labbtn'); out.introOpen = !(await hidden(p, '#labintro'));
     await click(p, '#lpre [data-p=pro]'); await click(p, '#lgo');
     await p.evaluate(pilot);
@@ -261,12 +277,45 @@ async function labScenario(url) {
   return out;
 }
 
+// ---------- skill training packs: hub, pack browser, a pack with keyboard controls, summary, pause menu, leave ----------
+async function trainScenario(url) {
+  const browser = await launch(), errors = [], out = {errors};
+  try {
+    const p = await open(browser, url, errors);
+    await waitFor(p, s => s.state === 'play', SW ? 240000 : 60000, 'the demo to start');
+    const tr = () => p.evaluate(() => window.__dl.train());
+    await click(p, '#trainbtn'); out.hub = !(await hidden(p, '#scr-training')) && (await p.$$eval('#scr-training .ttile', l => l.length));
+    await click(p, '#packsbtn'); out.browser = {open: !(await hidden(p, '#scr-packs')), tabs: await p.$$eval('#ptabs button', l => l.length), tiles: await p.$$eval('#ptiles .ptile', l => l.length)};
+    await click(p, '#ptabs [data-c=goalie]'); out.browser.goalie = await p.$$eval('#ptiles .ptile', l => l.map(b => b.dataset.id).join());
+    await click(p, '#ptabs [data-c=striker]'); await click(p, '#ptiles [data-id=striker-rookie]'); await sleep(500);
+    const s0 = await tr(); out.start = {on: s0.on, ph: s0.ph, i: s0.i, hud: !(await hidden(p, '#train')), menu: await hidden(p, '#menu'), num: await text(p, '#trnum')};
+    await p.keyboard.down('ArrowUp'); await sleep(400); await p.keyboard.up('ArrowUp'); await sleep(1200);  // pitch: any stick starts the shot
+    const s1 = await tr(), sn = await snap(p); out.live = {ph: s1.ph, t: s1.t, finite: finite(sn)};
+    const steps = [];
+    await key(p, 'n'); steps.push((await tr()).i); await key(p, 'n'); steps.push((await tr()).i); await key(p, 'b'); steps.push((await tr()).i);
+    await key(p, 'r'); const r = await tr(); steps.push(r.i + ':' + r.ph); await key(p, 'Backspace'); steps.push((await tr()).ph);
+    await click(p, '#trnext'); steps.push((await tr()).i); await click(p, '#trprev'); steps.push((await tr()).i); out.steps = steps.join();
+    for (let i = 0; i < 9; i++) await key(p, 'n');
+    await sleep(400); const s2 = await tr(); out.summary = {ph: s2.ph, open: !(await hidden(p, '#trsum')), rows: await p.$$eval('#trslist li', l => l.length), score: s2.score, saved: s2.saved};
+    await click(p, '#trsretry'); await sleep(300); const s3 = await tr(); out.retryPack = {ph: s3.ph, i: s3.i, sumHidden: await hidden(p, '#trsum')};
+    await key(p, 'Escape'); out.pause = {menu: !(await hidden(p, '#menu')), play: await p.$eval('#play', e => e.textContent), leave: await p.$eval('#leave', e => e.textContent)};
+    await click(p, '#resume'); await sleep(300);
+    await click(p, '#trnext'); await sleep(200); await key(p, 'Escape'); await click(p, '#leave'); await sleep(800);
+    const e = await snap(p); out.leave = {on: (await tr()).on, demo: e.demo, packs: !(await hidden(p, '#scr-packs')), hud: await hidden(p, '#train'), stored: await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').train?.['striker-rookie'] ?? null)};
+    await click(p, '#packsback'); await click(p, '#labbtn'); out.labFromHub = await p.waitForFunction(() => !document.getElementById('labintro').hidden, {timeout: 5000}).then(() => true, () => false); await click(p, '#lquit'); await sleep(500);
+    out.after = (await snap(p)).demo;
+  } catch (e) { errors.push('training: ' + e.message); }
+  await browser.close();
+  return out;
+}
+
 // ---------- run ----------
 let failed = false;
 const fail = m => { failed = true; console.log('FAIL ' + m); };
 const results = {new: await scenario('new (dist/index.html)', origin + '/new/')};
 const set = {new: await settings('new', origin + '/new/')};
 const lab = await labScenario(origin + '/new/');
+const train = await trainScenario(origin + '/new/');
 if (BASELINE) {
   results.old = await scenario('v15 baseline', origin + '/old/');
   set.old = await settings('v15 baseline', origin + '/old/');
@@ -287,6 +336,8 @@ chk(n.menuAfterEsc, 'Esc should open the menu');
 chk(n.garage?.open && n.garage.closed && n.garage.parts === 21 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch/ram', 'garage: opens, cycles all 21 parts, saves the loadout, closes');
 chk(n.league?.player === 'stretch/plank/punch/ram', 'League: the player should fly the garage loadout');
 chk(n.league?.botLoadouts >= 2, 'League: bots should spawn with varied loadouts');
+chk(n.garage?.cos === 69 && n.garage.cosSaved === 'candy/n23/smoke/oil/green/plasma', 'garage: cycles all 69 cosmetics and saves the look');
+chk(n.league?.cos?.you === 'candy/n23/smoke/oil/green/plasma' && n.league.cos.trail === 'plasma' && n.league.cos.botLooks >= 1, 'League: the player should wear the garage look (bots: random looks)');
 chk(n.dogfight && n.dogfight.sim >= 3 && !n.dogfight.nan && n.dogfight.botPathMin > 5 && n.dogfight.title === 'DOGFIGHT', 'Dogfight: should start and bots should fly');
 chk(n.mod?.open && n.mod.sliders === 34 && /^20\.0 /.test(n.mod.changed) && /^34\.5 /.test(n.mod.reset) && n.mod.export === '{}', 'mod panel: 34 sliders, change, reset, export');
 chk(n.rates?.inputs === 9 && +n.rates.maxRoll > 0 && n.rates.cliExport >= 15 && /^Imported 6 values/.test(n.rates.cliImport) && n.rates.typeAfter === 'ACTUAL', 'rates panel: table, CLI export/import');
@@ -297,6 +348,7 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
 {
   let s = null; try { s = JSON.parse(set.new.saved); } catch {}
   chk(s && s.loadout?.join('/') === 'stock/stock/stock/none', 'v15 settings: the loadout should migrate to Stock');
+  chk(s && Object.values(s.cos || {}).join('/') === 'carbon/none/team/stock/team/team', 'v15 settings: cosmetics should migrate to the stock look');
   chk(s && s.physV === 5 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 4 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
     'v15 settings: migrations (physV 5, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
 }
@@ -313,6 +365,7 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(x[2]?.a === 3 && x[2].s < 0 && x[3]?.a === 2 && x[3].s > 0, 'binding: pitch and roll on the right stick');
   chk(L.bound?.xfire === 7, 'binding: fire on RT reported as an analog button');
   chk(L.bound?.xflip === 'a5', 'binding: flip on RT reported as an axis that reads 0 until its first press');
+  chk(L.hubOpen, 'Lab: the Training hub should open from the main menu');
   chk(L.introOpen && L.drills?.length === 6 && L.drills.every(d => d.started && d.finite && d.t > 2), 'Lab: every drill should start and run with finite state');
   chk(L.drills?.reduce((a, d) => Math.max(a, d.reps), 0) > 0 && L.drills.at(-1).changes > 0, 'Lab: reps should be measured and the tuner should change something');
   chk(L.sumOpen && L.working?.type === 'ACTUAL', 'Lab: summary should open; Pro tunes in Actual rates');
@@ -321,13 +374,29 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(L.reverted && eq(L.reverted, L.before), 'Lab: Revert should restore the rate profiles, active profile, deadband and assist');
   chk(L.exit?.demo && !L.exit.lab && L.exit.drones > 0, 'Lab: Back to menu should leave the Lab for the menu demo');
 }
+// skill training packs
+{
+  const T = train;
+  console.log('\n== skill training packs\n ' + JSON.stringify({hub: T.hub, browser: T.browser, start: T.start, live: T.live, steps: T.steps, summary: T.summary, retryPack: T.retryPack, pause: T.pause, leave: T.leave, labFromHub: T.labFromHub}) +
+    (T.errors.length ? '\n  errors:\n   ' + T.errors.slice(0, 20).join('\n   ') : '\n  no errors'));
+  if (T.errors.length) fail(`${T.errors.length} error(s) in the training run`);
+  chk(T.hub === 2 && T.browser?.open && T.browser.tabs === 5 && T.browser.tiles === 3 && T.browser.goalie === 'goalie-rookie,goalie-pro,goalie-allstar', 'training: hub with two tiles, pack browser with 5 categories x 3 tiers');
+  chk(T.start?.on && T.start.ph === 'ready' && T.start.i === 0 && T.start.hud && T.start.menu && T.start.num === '1 / 8', 'training: a pack starts on its first shot, waiting, with the HUD');
+  chk(T.live?.ph === 'live' && T.live.t > .5 && T.live.finite, 'training: a stick input starts the shot and the timer runs');
+  chk(T.steps === '1,2,1,1:ready,ready,2,1', 'training: next / previous / retry (keys and buttons)');
+  chk(T.summary?.ph === 'sum' && T.summary.open && T.summary.rows === 8 && T.summary.score?.of === 8 && T.summary.saved?.of === 8, 'training: Next past the last shot shows the summary and stores the result');
+  chk(T.retryPack?.ph === 'ready' && T.retryPack.i === 0 && T.retryPack.sumHidden, 'training: Retry pack restarts at shot 1');
+  chk(T.pause?.menu && /restart pack/i.test(T.pause.play) && /leave training/i.test(T.pause.leave), 'training: the pause menu offers Restart pack / Leave training');
+  chk(T.leave && !T.leave.on && T.leave.demo && T.leave.packs && T.leave.hud && T.leave.stored?.of === 8, 'training: Leave goes back to the pack browser and the best result is saved');
+  chk(T.labFromHub && T.after, 'training: the Calibration Lab is still reachable from the hub');
+}
 console.log('\n== settings from a v15 save\n new: ' + set.new.ui);
 if (set.old) {
   console.log(' v15: ' + set.old.ui);
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
   else {
     // settings added after v15 (with defaults) are left out of the comparison
-    const NEWKEYS = ['gfx', 'assist', 'loadout'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
+    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd', 'cos', 'train'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
     chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check

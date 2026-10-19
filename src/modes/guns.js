@@ -2,6 +2,7 @@
 // bullets: pooled tracers drawn as additive line segments
 import * as THREE from 'three';
 import {near,noise} from '../audio/audio.js';
+import {bulletRock} from '../audio/sfx.js';
 import {COL,DIFF,QT,V3,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {TUR,hitDrone,hitTurret} from './dogfight.js';
@@ -30,7 +31,7 @@ const _bd=new V3();
 export function bullets(dt){for(const b of BUL){if(b.life<=0)continue;b.life-=dt;b.dist+=b.v.length()*dt;const p0=_gp.copy(b.p);_bd.copy(b.v).multiplyScalar(dt);b.p.add(_bd);
  const h=bulletCast(p0,_bd,b.team,b.by);let tt=h?h.t:2,tur=null;for(const t of TUR){if(t.re>0||t.t===b.team)continue;const s=segT(p0,b.p,t.p,2.6);if(s!=null&&s<tt){tt=s;tur=t}}
  if(tur){b.life=0;b.p.copy(p0).addScaledVector(_bd,tt);emit(b.p,0xffc640,10,8,.4);if(b.real)hitTurret(tur,b.dmg,b.by)}
- else if(h){b.life=0;b.p.copy(h.p);if(h.d){emit(b.p,COL[h.d.team],10,8,.4);emitHit({type:'bullet',d:h.d,tag:h.tag,other:b.by});if(b.real)hitDrone(h.d,b.dmg,b.by)}else emit(b.p,0xffd0a0,4,6,.3)}}}
+ else if(h){b.life=0;b.p.copy(h.p);if(h.d){emit(b.p,COL[h.d.team],10,8,.4);emitHit({type:'bullet',d:h.d,tag:h.tag,other:b.by});if(b.real)hitDrone(h.d,b.dmg,b.by)}else{emit(b.p,0xffd0a0,4,6,.3);bulletRock(b.p)}}}}
 const _bc=new THREE.Color(),_bm4=new THREE.Matrix4(),_bq=new QT(),_bz=new V3(0,0,1),_bs=new V3();
 export function dfDraw(now){for(const t of TUR){t.head.visible=t.re<=0;t.g.scale.y=t.re>0?.45:1;if(t.re<=0){t.head.rotation.y=Math.atan2(-t.aim.x,-t.aim.z);t.br.rotation.x=Math.asin(cl(t.aim.y,-1,1))}}
  let ns=0;const m4=_bm4,q=_bq;for(const b of BUL){if(b.life<=0)continue;_gd.copy(b.v).normalize();const w=Math.max(.06,b.p.distanceTo(camera.position)*.005),L2=Math.min(b.col===2?5:10,b.dist);

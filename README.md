@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main 5c965f2 (ball feel, PR #21)
-Doing: two bot skill levels above Legend, Champion and Grand Champion, in League and Dogfight (same flight model and thrust limits as the player). Champion: a shot planner (contact normal aimed so ball + touch heads for the goal, timed run through the contact point, quickest-touch when contested, roles by reach time, angle-cutting keeper). Grand Champion adds open-corner shot placement, demolishing the keeper during an attack, and pops on a carry. Dogfight: exact bullet-intercept lead with target acceleration, getting on the target's six, jinking out of a firing solution.
-Touches: src/bots/league.js, src/bots/dogfight.js, src/config/constants.js (DIFF), src/config/settings.js (diff validated against DIFF), src/modes/step.js (one condition: bots with DIFF[].pop earn pops), src/modes/guns.js (bot spread per drone skill), tools/bot-match.mjs (new: bot-vs-bot harness).
-Open items / help wanted: how the new levels feel against a human pilot (unverified); Grand Champion demos are frequent, tone down (`demo` in DIFF) if they feel unfair.
-Overlaps: none known on src/bots; step.js/guns.js changes are single-condition edits.
+Based on: origin/main 5c965f2 (ball feel, PR #21), merged with 4a49f56 (goal explosions, PR #23)
+Doing: Gameplay effects (`src/render/effects.js`): boost flame jets under every motor + boost ribbon trail + embers, motor-wash glow at high throttle, prop-wash dust off the ground/walls tinted per map (arena haze, Meadow grass clippings, Canyon dust, Alpine snow powder, Highlands grass/dirt), sparks + fading scuff decals when the frame scrapes/tumbles, a speed-based ball trail and a flash + shock ring + sparks on hard ball hits. Scaled by the graphics quality, all pooled.
+Touches: src/render/effects.js (new), src/render/visuals.js (calls `gameFx`, old boost embers removed), src/physics/world.js (`onHit` type `'ground'` event from `groundContacts`), src/modes/step.js (ball `onHit` event carries `p`/`n`; the old hit emit removed), tools/fx-shots.mjs (new: scenario screenshots + frame time with effects on/off).
+Open items / help wanted: remote (online) drones don't send ground contacts, so they get no sparks/scuffs; boost trail colour is `d.trailCol` (0xRRGGBB, null = team colour) for a cosmetic to set; sound can listen to `onHit` `'ground'` (`speed` impact, `slide` scrape speed).
+Overlaps: goal explosions (`src/render/goalfx.js`, merged) and sound may also use `onHit`; event types were only extended, none renamed.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.
