@@ -3,7 +3,7 @@ Rocket league but with drones
 
 ## Branch status
 Branch: `interceptor-zombies`   Owner: Jared   Last updated: 2026-10-18 by Claude
-Based on: origin/riley-test-2 58297c5 (Riley's Interceptor + engine/games split, merged with Jared's main)
+Based on: origin/riley-test-2, last merged at 444fc50 (Riley's Interceptor + engine/games split, with Jared's main up to PR #30)
 Doing: a Zombies mode for Riley's Interceptor (endless growing waves, money, base screen between waves, helpers, perks, bosses). Riley's game stays as is under "Classic"; the start menu picks the mode. All five checkpoints are in; see games/interceptor/README.md#zombies-mode.
 Touches: games/interceptor/ (new zombies.js, zdata.js, zenemy.js, zdef.js, zperk.js, zbase.js, zombies.css; one-line hooks in interceptor.js and a mode switch in index.html, every hook behind `Z.on` so Classic is unchanged; Classic's AO constant became a `let`, battery sag got a multiplier that stays 1 in Classic), tools/zlib.mjs, zombies-test.mjs, zombies-shots.mjs, zombies-perf.mjs (headless Edge harnesses).
 Open items / help wanted: not yet flown by a pilot; balance comes from scripted players (casual and good both fall around wave 32-33, at the hypersonic waves); helper and dome outcomes are game-balance kill chances, not a flight/guidance simulation; the standalone interceptor/ copy has no Zombies mode.

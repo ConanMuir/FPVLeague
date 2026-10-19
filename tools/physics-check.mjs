@@ -330,10 +330,10 @@ const cv = await run('h', async () => {
     const seam = q => { const sc = Math.abs(CV.sdCave(q[0], q[1], q[2])), st = Math.abs(H.dfHt(q[0], q[2]) - q[1]); return st < CV.SEAM + .1 || sc < CV.SEAM + .3 || CV.CAVE.pieces.some(p => Math.abs(CV.sdPiece(p, q[0], q[1], q[2]) + CV.SEAM) < .3); };
     if (![o.a, o.b].every(i => seam([V[i * 3], V[i * 3 + 1], V[i * 3 + 2]]))) offSeam++; }  // both ends where a surface stops 0.35 m past another (the clipper places them exactly)  // open edges end a little past a seam (caves.js SEAM overlap)
   // can a round get through a seam? rays from 3 m inside the cave straight through 500 seam points into the rock must hit something within 4 m
-  let seamRays = 0, seamMiss = 0; const g = new M.V3(), P0 = new M.V3();
+  const seamAt = []; let seamRays = 0, seamMiss = 0; const g = new M.V3(), P0 = new M.V3();
   for (let i = 0; i < open.length; i += Math.max(1, Math.floor(open.length / 500))) { const m = mid(open[i]), h = .05; g.set(CV.sdCave(m[0] + h, m[1], m[2]) - CV.sdCave(m[0] - h, m[1], m[2]), CV.sdCave(m[0], m[1] + h, m[2]) - CV.sdCave(m[0], m[1] - h, m[2]), CV.sdCave(m[0], m[1], m[2] + h) - CV.sdCave(m[0], m[1], m[2] - h)).normalize();
-    P0.set(m[0] - g.x * 3, m[1] - g.y * 3, m[2] - g.z * 3); if (H.sdDFt(P0.x, P0.y, P0.z) > -.5) continue; seamRays++; const hit = W.world.castRay(new R.Ray(P0, g), 7, true, undefined, W.grp(W.QRY, W.GW_)); if ((!hit || hit.timeOfImpact > 4) && H.sdDFt(m[0] + g.x * 4, m[1] + g.y * 4, m[2] + g.z * 4) > .5) seamMiss++; }  // past the seam into rock without a hit (at a cave/cave seam the ray may rightly carry on into the next cave)
-  out.mesh = {tris: I.length / 3, open: open.length, nonManifold: non, misoriented: mis, offSeam, seamRays, seamMiss};
+    P0.set(m[0] - g.x * 3, m[1] - g.y * 3, m[2] - g.z * 3); if (H.sdDFt(P0.x, P0.y, P0.z) > -.5) continue; seamRays++; const hit = W.world.castRay(new R.Ray(P0, g), 7, true, undefined, W.grp(W.QRY, W.GW_)); if ((!hit || hit.timeOfImpact > 4) && H.sdDFt(m[0] + g.x * 4, m[1] + g.y * 4, m[2] + g.z * 4) > .5) { seamMiss++; seamAt.push(m.map(Math.round).join(',') + (hit ? ' toi ' + hit.timeOfImpact.toFixed(2) : ' no hit')); } }  // past the seam into rock without a hit (at a cave/cave seam the ray may rightly carry on into the next cave)
+  out.mesh = {tris: I.length / 3, open: open.length, nonManifold: non, misoriented: mis, offSeam, seamRays, seamMiss, seamAt};
   // SDF vs mesh: vertices and triangle centroids against the map SDF (terrain or cave)
   let mv = 0, mc = 0; const used = new Set(I); for (let i = 0; i < V.length; i += 3) if (used.has(i / 3)) if (Math.abs(V[i]) < H.DHW - 1 && Math.abs(V[i + 2]) < H.DHL - 1 && V[i + 1] < H.DCEIL) mv = Math.max(mv, Math.abs(Math.min(H.dfHt(V[i], V[i + 2]) - V[i + 1], CV.sdCave(V[i], V[i + 1], V[i + 2])) * (V[i + 1] > H.dfHt(V[i], V[i + 2]) + .01 ? 0 : 1)));
   for (let t = 0; t < I.length; t += 30) { const c = [0, 1, 2].map(j => (V[I[t] * 3 + j] + V[I[t + 1] * 3 + j] + V[I[t + 2] * 3 + j]) / 3); mc = Math.max(mc, Math.abs(Math.min((H.dfHt(c[0], c[2]) - c[1]), CV.sdCave(c[0], c[1], c[2])))); }
@@ -343,39 +343,45 @@ const cv = await run('h', async () => {
   out.roof = +roof.toFixed(1); out.entrances = CV.CAVE.entrances.map(e => e.name + '@' + e.p.map(v => Math.round(v)).join(','));
   // scripted flights: a drone steered along every tunnel and entrance axis (and back) at 60 m/s; it must never touch a wall or need the safety net
   const d = new D.Drone(0, 0, false, 'cave'); GS.drones.forEach(o => o.dispose()); GS.drones = [d]; const e0 = W.PHYS.stats.escapes; let touches = 0, worst = -99, flown = 0;
-  for (const ax of CV.caveAxes(4)) for (const pts of [ax.pts, [...ax.pts].reverse()]) { d.p.set(...pts[0]); d.v.set(0, 0, 0); d.q.set(0, 0, 0, 1); d.w.set(0, 0, 0); d.gt = 0; let k = 1;
+  const perRoute = []; for (const ax of CV.caveAxes()) for (const pts of [ax.pts, [...ax.pts].reverse()]) { const t0 = touches, w0 = worst; worst = -99; d.p.set(...pts[0]); d.v.set(0, 0, 0); d.q.set(0, 0, 0, 1); d.w.set(0, 0, 0); d.gt = 0; let k = 1;
     for (let i = 0; i < 2400 && k < pts.length; i++) { const tg = new M.V3(...pts[k]); if (tg.distanceTo(d.p) < 6) { k++; continue; } const want = tg.clone().sub(d.p).setLength(60), a = want.sub(d.v).multiplyScalar(6).clampLength(0, 200); a.y += M.T.G;
       const up = a.clone().normalize(); d.q.setFromUnitVectors(new M.V3(0, 1, 0), up); d.w.set(0, 0, 0); d.wt.set(0, 0, 0); d.thr = Math.min(1, (a.length() / (M.T.THR * d.fl.thr)) ** (1 / (M.T.TE * d.fl.te))); d.step(dt); W.physStep(dt, false);
-      flown += d.v.length() * dt; if (d.gt > 0) touches++; worst = Math.max(worst, H.sdDFt(d.p.x, d.p.y, d.p.z)); } }
-  out.flight = {km: +(flown / 1000).toFixed(1), wallTicks: touches, worstSdf: +worst.toFixed(1), escapes: W.PHYS.stats.escapes - e0};
+      flown += d.v.length() * dt; if (d.gt > 0) touches++; worst = Math.max(worst, H.sdDFt(d.p.x, d.p.y, d.p.z)); }
+    if (pts === ax.pts) perRoute.push({name: ax.name, r: ax.r, done: k >= pts.length}); else perRoute[perRoute.length - 1].back = k >= pts.length;
+    if (touches > t0 || worst > -3 || k < pts.length) perRoute[perRoute.length - 1].bad = true; worst = Math.max(worst, w0); }
+  out.flight = {km: +(flown / 1000).toFixed(1), wallTicks: touches, worstSdf: +worst.toFixed(1), escapes: W.PHYS.stats.escapes - e0, routes: perRoute.length, unfinished: perRoute.filter(r => !r.done || !r.back).map(r => r.name), bad: perRoute.filter(r => r.bad).map(r => r.name)};
   // bullets and sight: rays out of every tunnel through its wall, rays down into the ground over the tunnels, sight from a tunnel to the surface above it
-  let shots = 0, through = 0, losBad = 0, losAlong = 0, nAlong = 0; let seed = 9; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
-  for (const o of CV.CAVE.pieces) if (o.k === 'c') for (let i = 0; i < 25; i++) { const t = (.15 + .7 * rnd()) * o.L, c = new M.V3(...o.a.map((v, j) => v + o.d[j] * t)), dir = new M.V3(rnd() - .5, rnd() - .5, rnd() - .5); dir.addScaledVector(new M.V3(...o.d), -dir.dot(new M.V3(...o.d))).normalize();
+  const badAt = []; let shots = 0, through = 0, losBad = 0, losAlong = 0, nAlong = 0; let seed = 9; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+  for (const o of CV.CAVE.pieces) if (o.k === 'r') for (let i = 0; i < 25; i++) { const sg = o.segs[Math.floor(rnd() * o.segs.length)], t = rnd() * sg.L, c = new M.V3(...sg.a.map((v, j) => v + sg.d[j] * t)), dir = new M.V3(rnd() - .5, rnd() - .5, rnd() - .5); dir.addScaledVector(new M.V3(...sg.d), -dir.dot(new M.V3(...sg.d))).normalize();
     if (CV.sdCave(c.x, c.y, c.z) > -2) continue; const dv = dir.clone().multiplyScalar(o.r + 40), h = W.bulletCast(c, dv, -1, null), e = c.clone().add(dv); shots++; if (!h && H.sdDFt(e.x, e.y, e.z) > 0) through++;  // through: ended inside rock without hitting a wall
-    const above = new M.V3(c.x, H.dfHt(c.x, c.z) + 30, c.z); if (!o.ent && W.los(c, above)) losBad++; const c2 = new M.V3(...o.a.map((v, j) => v + o.d[j] * Math.min(o.L, t + 40))); if (!o.ent) { nAlong++; if (W.los(c, c2)) losAlong++; } }
-  out.bullets = {shots, through, losThroughRock: losBad, losAlongTunnel: losAlong + '/' + nAlong};
-  // a bot chasing a foe that hides in the central hall
-  const foe = new D.Drone(0, 0, false, 'foe'), bot = new D.Drone(1, 0, true, 'b10'); GS.drones = [foe, bot]; foe.p.set(...CV.CAVE.nodes.H0); bot.p.set(0, 120, -380); bot.v.set(0, 0, 0);
-  const BD = await import('/src/bots/dogfight.js'), TR = M.DF.TUR.map(t => t.re); M.DF.TUR.forEach(t => t.re = 1e9); let reachedUG = null, closest = 1e9, inside = 0; GS.state = 'play';  // turrets off: the foe is the only target
-  for (let i = 0; i < 120 * 40; i++) { foe.v.set(0, 0, 0); foe.ph = 0; BD.dfBot(bot, dt); bot.step(dt); W.physStep(dt, false); const ug = CV.inCave(bot.p.x, bot.p.y, bot.p.z); if (ug) { inside++; if (reachedUG == null) reachedUG = i * dt; } closest = Math.min(closest, bot.p.distanceTo(foe.p)); if (closest < 60) break; }
+    const above = new M.V3(c.x, H.dfHt(c.x, c.z) + 30, c.z); const shaft = CV.CAVE.pieces.some(p => p.ent && Array.from({length: 60}, (_, k) => CV.sdPiece(p, c.x, c.y + (above.y - c.y) * k / 59, c.z)).some(v => v < 0));  // under an entrance the sky is meant to be in sight
+    if (!o.ent && !shaft && W.los(c, above)) { losBad++; badAt.push(o.n + '@' + [c.x, c.y, c.z].map(Math.round).join(',')); } const c2 = new M.V3(...sg.a.map((v, j) => v + sg.d[j] * Math.min(sg.L, t + 6))); if (!o.ent) { nAlong++; if (W.los(c, c2)) losAlong++; } }  // a few metres along the axis: always in sight
+  out.bullets = {shots, through, losThroughRock: losBad, losAlongTunnel: losAlong + '/' + nAlong, badAt};
+  // bots chasing a foe that hides: in the central hall (from the surface), on the lower level (from the surface over the other half),
+  // in the far half of the deep ring and at the foot of the far spiral (from the blue cavern); the bot must get within 60 m
+  const BD = await import('/src/bots/dogfight.js'), TR = M.DF.TUR.map(t => t.re); M.DF.TUR.forEach(t => t.re = 1e9); GS.state = 'play';  // turrets off: the foe is the only target
+  const ring = CV.caveAxes().find(a => a.name === "deep-ring'"), spi = CV.caveAxes().find(a => a.name === "spiral'"), N = CV.CAVE.nodes;
+  const chases = [['hall', N.H0, [0, 120, -380]], ['deep', N["D1'"], [-150, H.dfHt(-150, 380) + 40, 380]], ['deep ring', ring.pts[ring.pts.length >> 1], N.H1], ['spiral foot', spi.pts[spi.pts.length - 1], N.H1]];
+  out.bot = []; for (const [name, fp, bp] of chases) { const foe = new D.Drone(0, 0, false, 'foe'), bot = new D.Drone(1, 0, true, 'b10'); GS.drones = [foe, bot]; foe.p.set(...fp); bot.p.set(...bp); bot.v.set(0, 0, 0);
+    let reachedUG = null, closest = 1e9, i = 0; for (; i < 120 * 60; i++) { foe.v.set(0, 0, 0); foe.ph = 0; BD.dfBot(bot, dt); bot.step(dt); W.physStep(dt, false); if (reachedUG == null && CV.inCave(bot.p.x, bot.p.y, bot.p.z)) reachedUG = i * dt; closest = Math.min(closest, bot.p.distanceTo(foe.p)); if (closest < 60) break; }
+    out.bot.push({name, underground: reachedUG == null ? null : +reachedUG.toFixed(1), closestM: +closest.toFixed(0), s: +(i * dt).toFixed(1)}); foe.dispose(); bot.dispose(); }
   M.DF.TUR.forEach((t, i) => t.re = TR[i]);
-  out.bot = {underground: reachedUG == null ? null : +reachedUG.toFixed(1), closestM: +closest.toFixed(0)};
   out.spawns = (await import('/src/world/highlands.js')).dfSpawnPoint([]).slice(0, 3).map(v => +v.toFixed(0));
-  foe.dispose(); bot.dispose(); d.dispose(); GS.drones = []; return out;
+  d.dispose(); GS.drones = []; return out;
 });
 if (cv) { const CVS = await page.evaluate(() => window.__pc.CV.SEAM);
-  console.log(`  mesh (terrain + caves, welded): ${cv.mesh.tris} triangles, ${cv.mesh.open} open edges inside the map (all on a terrain/cave or cave/cave seam: ${cv.mesh.offSeam === 0}), rays through ${cv.mesh.seamRays} seam points that got past the rock: ${cv.mesh.seamMiss}, non-manifold ${cv.mesh.nonManifold}, misoriented ${cv.mesh.misoriented}`);
+  console.log(`  mesh (terrain + caves, welded): ${cv.mesh.tris} triangles, ${cv.mesh.open} open edges inside the map (all on a terrain/cave or cave/cave seam: ${cv.mesh.offSeam === 0}), rays through ${cv.mesh.seamRays} seam points that got past the rock: ${cv.mesh.seamMiss}${cv.mesh.seamAt.length ? ' (' + cv.mesh.seamAt.join('; ') + ')' : ''}, non-manifold ${cv.mesh.nonManifold}, misoriented ${cv.mesh.misoriented}`);
   console.log(`  mesh vs SDF: vertices ${cv.sdf.vertexCm} cm, triangle centroids ${cv.sdf.centroidCm} cm; rock over the caves away from the entrances >= ${cv.roof} m`);
   console.log(`  entrances (axis meets the ground): ${cv.entrances.join('  ')}`);
-  console.log(`  scripted flights through every tunnel and entrance, both ways: ${cv.flight.km} km flown, ${cv.flight.wallTicks} ticks touching a wall, worst SDF ${cv.flight.worstSdf} m, safety-net escapes ${cv.flight.escapes}`);
-  console.log(`  bullets from inside the tunnels at the walls: ${cv.bullets.through} of ${cv.bullets.shots} got through the rock; sight from a tunnel to the surface above: ${cv.bullets.losThroughRock} clear (should be 0); sight 40 m along a tunnel: ${cv.bullets.losAlongTunnel} clear`);
-  console.log(`  bot chasing a foe in the central hall from 120 m over the orange half: underground after ${cv.bot.underground} s, closest ${cv.bot.closestM} m; a respawn point: ${cv.spawns}`);
+  console.log(`  scripted flights through all ${cv.flight.routes} routes and entrances, both ways: ${cv.flight.km} km flown, ${cv.flight.wallTicks} ticks touching a wall, worst SDF ${cv.flight.worstSdf} m, safety-net escapes ${cv.flight.escapes}; unfinished: ${cv.flight.unfinished.join(' ') || 'none'}; touching or close: ${cv.flight.bad.join(' ') || 'none'}`);
+  console.log(`  bullets from inside the tunnels at the walls: ${cv.bullets.through} of ${cv.bullets.shots} got through the rock; sight from a tunnel to the surface above: ${cv.bullets.losThroughRock} clear (should be 0)${cv.bullets.badAt.length ? ' at ' + cv.bullets.badAt.join(' ') : ''}; sight a few metres along a tunnel: ${cv.bullets.losAlongTunnel} clear`);
+  console.log(`  bots chasing a hidden foe: ${cv.bot.map(b => `${b.name}: underground after ${b.underground} s, closest ${b.closestM} m after ${b.s} s`).join('; ')}; a respawn point: ${cv.spawns}`);
   check(cv.mesh.nonManifold === 0 && cv.mesh.misoriented === 0 && cv.mesh.offSeam === 0 && cv.mesh.seamMiss === 0, 'terrain + caves: consistently wound, open only along cave seams, and no round gets through a seam');
   check(cv.sdf.vertexCm < (CVS + .3) * 100 && cv.sdf.centroidCm < (CVS + .3) * 100, 'cave and terrain mesh agree with the map SDF (to the seam overlap plus chord error)');
   check(cv.roof >= 10, 'solid rock (>= 10 m) over the caves except at the entrances');
-  check(cv.flight.escapes === 0 && cv.flight.worstSdf < -3 && cv.flight.wallTicks === 0, 'a drone flies every tunnel and entrance without touching a wall or being pushed out');
+  check(cv.flight.escapes === 0 && cv.flight.worstSdf < -3 && cv.flight.wallTicks === 0 && cv.flight.unfinished.length === 0, 'a drone flies every tunnel and entrance without touching a wall or being pushed out');
   check(cv.bullets.through === 0 && cv.bullets.losThroughRock === 0, 'bullets and line of sight stop at the cave walls');
-  check(cv.bot.underground != null && cv.bot.closestM < 150, 'a bot follows a foe into the caves');
+  check(cv.bot.every(b => b.underground != null && b.closestM <= 60), 'a bot follows a foe into the caves, down to the lower level and round the deep ring and the spiral');
 }
 
 // ---------- (f) step cost ----------

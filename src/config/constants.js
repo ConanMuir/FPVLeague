@@ -10,4 +10,7 @@ export const DIFF=[
  {n:'Rookie',kp:.9,kd:2.2,vmax:34,att:7,rate:6,thr:.72,react:.3,noise:4,slack:1.35},
  {n:'Pro',kp:1.1,kd:2.6,vmax:48,att:9,rate:8,thr:.84,react:.18,noise:2,slack:1.2},
  {n:'All-Star',kp:1.3,kd:3,vmax:62,att:11,rate:10,thr:.94,react:.12,noise:1,slack:1.08},
- {n:'Legend',kp:1.5,kd:3.4,vmax:76,att:13,rate:12,thr:1,react:.08,noise:.4,slack:1}];
+ {n:'Legend',kp:1.5,kd:3.4,vmax:76,att:13,rate:12,thr:1,react:.08,noise:.4,slack:1},
+ // iq: the smarter planner in bots/ (shot placement, ball-aware intercepts, rotations, keeper, Dogfight leading); pop: uses pops on a carry. Same flight model and thrust limits as everyone.
+ {n:'Champion',kp:1.7,kd:3.6,vmax:80,att:14,rate:13,thr:1,react:.06,noise:.3,slack:.95,iq:1,ka:1.5,fl:.55},
+ {n:'Grand Champion',kp:1.9,kd:4.2,vmax:90,att:17,rate:16,thr:1,react:.035,noise:.08,slack:.92,iq:2,ka:1.5,fl:.55,aim:1,demo:1,pop:1}];
