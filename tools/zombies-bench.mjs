@@ -3,6 +3,7 @@
 // games/interceptor/zbench.json, which the game's leaderboard shows as its bot entries. It also checks the ladder: every level beats the one
 // below it on every difficulty, and every level does worse on each harder difficulty.
 // Run: node tools/zombies-bench.mjs [--levels Rookie,Pro,...] [--diff 0,1,2,3] [--runs 5] [--cap 60] [--par 12] [--no-write] [--out FILE] [--raw FILE]
+//   the version stamped in zbench.json is package.json's plus the git commit (or ZBENCH_REV when run from a copy of the repo)
 //   --diag prints, per run, the site damage by enemy kind over the last waves (what ended the run)
 //   also for balance checks: [--load '{"doc":"fortress","kit":["lrack","lure"]}'] [--meta full]  (a loadout; full = every goal met, so everything is unlocked)
 import {serve, launch, open, root} from './zlib.mjs';
@@ -73,7 +74,7 @@ for (const r of table) for (let j = 1; j < DIFFS.length; j++) { const a = r.d[j 
 console.log(bad.length ? 'LADDER NOT MONOTONIC:\n  ' + bad.join('\n  ') : 'ladder ok: every level beats the one below on every difficulty, and every level does worse on each harder difficulty');
 if (RAW) fs.writeFileSync(RAW, JSON.stringify(results, null, 1));
 if (WRITE) {
-  let ver = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version; try { ver += '+' + execFileSync('git', ['rev-parse', '--short', 'HEAD'], {cwd: root, encoding: 'utf8'}).trim(); } catch (e) {}
+  let ver = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version; if (process.env.ZBENCH_REV) ver += '+' + process.env.ZBENCH_REV; else try { ver += '+' + execFileSync('git', ['rev-parse', '--short', 'HEAD'], {cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']}).trim(); } catch (e) {}
   const out = {date: new Date().toISOString().slice(0, 10), version: ver, runs: RUNS, cap: CAP, note: 'Median wave reached by each bot pilot level (tools/zbot.mjs) on each difficulty, fresh profile, Standard doctrine, no kit. Written by tools/zombies-bench.mjs.',
     levels: table.map(r => ({n: r.n, d: Object.fromEntries(DIFFS.map((zd, j) => [DN[zd], r.d[j] && {med: r.d[j].med, min: r.d[j].min, max: r.d[j].max}]))}))};
   fs.writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n'); console.log('wrote ' + path.relative(root, OUT));
