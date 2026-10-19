@@ -3,12 +3,13 @@
 import * as THREE from 'three';
 import {camTilt} from '../render/camera.js';
 import {near,noise,tone} from '../audio/audio.js';
-import {$,COL,TEAM,V3} from '../config/constants.js';
+import {dfBot} from '../bots/dogfight.js';
+import {$,COL,TEAM,V3,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {btnOn,keys,mouseFire,pad,padX} from '../input/input.js';
-import {BUL,gunDir,shoot} from './guns.js';
+import {BUL,bullets,droneFire,gunDir,shoot} from './guns.js';
 import {endMatch} from './match.js';
-import {MODES,modeId,registerMode} from './registry.js';
+import {registerMode,switchMode} from './registry.js';
 import {los} from '../physics/sdf.js';
 import {ballMesh} from '../render/ball.js';
 import {MAT} from '../render/drone-mesh.js';
@@ -51,11 +52,21 @@ export function applyHit(k,dmg,by){const o=objOf(k);if(!o||!by||o.team===by.team
 export const aimOk=(d,p,f,deg,r=260)=>{_gq.subVectors(p,d.p);const l=_gq.length();return l<r&&_gq.dot(f)/l>Math.cos(deg*Math.PI/180)};
 export function fireIn(d){if(keys.KeyF||mouseFire)return true;const v=btnOn(pad(),padX?S.xfire:S.fireBtn);if(v!=null&&v!==!!S.fireInv)return true;  // invert: fire with the switch/button in the other position
  if(!S.afire)return false;const f=gunDir(d,camTilt()*Math.PI/180,_gd);return GS.drones.some(e=>e.dead<=0&&e.team!==d.team&&aimOk(d,e.p,f,3.5))||TUR.some(t=>t.re<=0&&t.t!==d.team&&aimOk(d,t.p,f,4))}
+// the mode (modes/registry.js): no goals (points come from kills and turrets), Dogfight bots, the fire button, guns, turrets, and its net state
 registerMode('df',{name:'Dogfight',title:'DOGFIGHT',world:'highlands',order:1,
- sub:'Acro quad dogfighting over the Highlands: a 1.4 km valley with a river canyon, mesas, spire fields, hangars to fly through and forests to hide in. Guns on the FPV camera axis, enemy turrets on the ground, bots in the air. Most points wins.'});
-// switch game mode (any registered mode): sets the world up for it and updates the menu heading and mode buttons
-export function setGame(m){const M=MODES[modeId(m)];GS.GM=M.id;GS.OBSON=M.world==='highlands';if(GS.OBSON)buildDF();setMap(GS.OBSON?'df':S.map);dfG.visible=GS.OBSON;ORBS.forEach(o=>{o.p.copy(GS.OBSON?o.dp:o.p0);o.g.position.copy(o.p)});goalG.visible=!GS.OBSON;ballMesh.visible=!GS.OBSON;BUL.forEach(b=>b.life=0);GS.drones.forEach(d=>d.firing=false);
- $('h1o').textContent=M.title;$('sub').textContent=M.sub;for(const b of $('modes').children)b.classList.toggle('on',b.dataset.m===GS.GM)}
+ sub:'Acro quad dogfighting over the Highlands: a 1.4 km valley with a river canyon, mesas, spire fields, hangars to fly through and forests to hide in. Guns on the FPV camera axis, enemy turrets on the ground, bots in the air. Most points wins.',
+ allowGoals:false,bot:dfBot,
+ pilot:d=>{d.firing=!GS.menuOpen&&GS.state==='play'&&fireIn(d)},
+ droneTick:(d,dt,A)=>droneFire(d,dt,A||d===GS.player),
+ tick:dt=>{for(const d of GS.drones)if(d.remote)droneFire(d,dt,false);bullets(dt);turrets(dt)},
+ net:{pilot:(P,me)=>{P.f=me.firing?1:0;P.ti=camTilt()},
+  host:g=>{g.hp={};g.lf={};for(const d of GS.drones){g.hp[d.key]=Math.round(d.hp);g.lf[d.key]=d.life}g.tg=TUR.map(t=>t.re>0?0:Math.max(1,Math.round(t.hp)));g.kf=GS.net.kf},
+  joiner:P=>{if(GS.net.hits.length)P.hs=GS.net.hits.slice(-16)},
+  fromHost:g=>dfState(g),
+  fromPeer:(pr,d,peer)=>{if(Array.isArray(pr.hs))for(const h of pr.hs)if(Array.isArray(h)&&+h[0]>(GS.net.hk[peer]||0)){GS.net.hk[peer]=+h[0];if(GS.state==='play'&&d&&d.dead<=0)applyHit(h[1],cl(+h[2]||0,0,10),d)}}}});
+// switch game mode (any registered mode): runs the mode lifecycle (exit / enter), sets the world up for it and updates the menu heading and mode buttons
+export function setGame(m){switchMode(m,M=>{GS.GM=M.id;GS.OBSON=M.world==='highlands';if(GS.OBSON)buildDF();setMap(GS.OBSON?'df':S.map);dfG.visible=GS.OBSON;ORBS.forEach(o=>{o.p.copy(GS.OBSON?o.dp:o.p0);o.g.position.copy(o.p)});goalG.visible=!GS.OBSON;ballMesh.visible=!GS.OBSON;BUL.forEach(b=>b.life=0);GS.drones.forEach(d=>d.firing=false);
+ $('h1o').textContent=M.title;$('sub').textContent=M.sub;for(const b of $('modes').children)b.classList.toggle('on',b.dataset.m===GS.GM)})}
 // nearest living enemy drone (enemy cam and the off-screen arrow)
 // joining pilot: health, deaths, turrets and the kill feed all come from the host
 export function dfState(g){const now=performance.now();if(g.hp&&typeof g.hp==='object')for(const k in g.hp){const d=GS.drones.find(x=>x.key===k),v=+g.hp[k];if(!d||!Number.isFinite(v))continue;if(d===GS.player&&v<d.hp-.5&&d.dead<=0)hurt();d.hp=v}

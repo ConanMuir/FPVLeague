@@ -2,7 +2,6 @@
 // ball touches, drone-drone contact, goals, bot planning
 import {tone} from '../audio/audio.js';
 import {ballBounce,countdown} from '../audio/sfx.js';
-import {dfBot} from '../bots/dogfight.js';
 import {assignRoles,botControl,predict} from '../bots/league.js';
 import {HL,V3,cl} from '../config/constants.js';
 import {POP_T} from '../flight/drone.js';
@@ -10,9 +9,6 @@ import {popFx} from '../render/popfx.js';
 import {S} from '../config/settings.js';
 import {BM,BR,DEMO,DRAD,KICK,PBG,PSM,TB} from '../config/tune.js';
 import {humanControl} from '../input/input.js';
-import {LAB,labStep,testTick} from './lab.js';
-import {fireIn,turrets} from './dogfight.js';
-import {bullets,droneFire} from './guns.js';
 import {demolish,endMatch,goal,kickoff,startDemo} from './match.js';
 import {r2} from '../net/net.js';
 import {ball,ballPre} from '../physics/ball.js';
@@ -23,24 +19,25 @@ import {_ip,_lat,_t,_v,_w} from '../scratch.js';
 import {GS,SB,auth} from '../state.js';
 import {banner} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
-import {MODES} from './registry.js';
-import {TR,trainPost,trainPre} from './training.js';
+import {curMode,modeFlag,overlay} from './registry.js';
 const _bh=new V3(),_pu=new V3(),_pc=new V3(),_pw2=new V3(),_pr=new V3(),_fr=new V3(),_fs=new V3(),_fc=new V3(),sst=x=>{x=cl(x,0,1);return x*x*(3-2*x)};
-export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);physStep(dt,false);return}if(TR.on&&trainPre(dt)){physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state, Rapier moves it
+// The overlay that is on (the Calibration Lab) and the mode (modes/registry.js) hook in here: pre() may take the step over; then the mode's bot,
+// pilot, droneTick and tick hooks, the allowGoals flag, and post(). GS.OBSON is the world (Highlands: no ball, guns), not the mode.
+export function step(dt){const O=overlay();if(O&&O.pre&&O.pre(dt)){physStep(dt,false);return}const M=curMode();if(M.pre&&M.pre(dt)){physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state and training holds a waiting shot; Rapier moves it
  if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);countdown(n)}else{banner('GO!','',.6);countdown(0)}}}if(A&&GS.stT<=0)GS.state='play'}
  else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
  else if(GS.state==='end'){GS.stT-=dt;if(A&&GS.stT<=0){banner('');if(GS.net){GS.score=[0,0];GS.clock=S.len;GS.overtime=GS.endPending=false;kickoff()}else{startDemo();return}}}
- else if(GS.state==='play'&&!GS.demo&&A&&!MODES[GS.GM]?.free){if(!GS.overtime){GS.clock-=dt;if(GS.clock<=0){GS.clock=0;if(GS.score[0]===GS.score[1]){GS.overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else GS.clock+=dt}
+ else if(GS.state==='play'&&!GS.demo&&A&&!M.free){if(!GS.overtime){GS.clock-=dt;if(GS.clock<=0){GS.clock=0;if(GS.score[0]===GS.score[1]){GS.overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else GS.clock+=dt}
  const frozen=GS.state==='kickoff',live=GS.state==='play'||GS.state==='kickoff';
  for(const d of GS.drones){if(d.remote)continue;if(d.dead>0){if((d.dead-=dt)<=0)d.spawn(true);continue}
-  if(d.bot)(GS.OBSON?dfBot:botControl)(d,dt);else{humanControl(d,dt);if(GS.OBSON)d.firing=!GS.menuOpen&&GS.state==='play'&&fireIn(d)}if(frozen)continue;d.step(dt)}
+  if(d.bot)(M.bot||botControl)(d,dt);else{humanControl(d,dt);if(M.pilot)M.pilot(d,dt)}if(frozen)continue;d.step(dt)}
  const simBall=!frozen&&live&&!GS.OBSON;if(simBall)ballPre(ball.v,dt);
  if(S.longline&&simBall&&!GS.net)llStep(dt);  // the long line pulls ball and quad (offline only for now)
  physStep(dt,simBall);  // moves every drone and the ball, resolves their contact with the map
- for(const d of GS.drones){if(d.remote||d.dead>0||frozen)continue;if(GS.OBSON)droneFire(d,dt,A||d===GS.player);
+ for(const d of GS.drones){if(d.remote||d.dead>0||frozen)continue;if(M.droneTick)M.droneTick(d,dt,A);
   if(SB())for(const p of ORBS)if(p.cd<=0&&d.boost<100&&d.p.distanceTo(p.p)<(p.big?2.6:1.8)+DRAD+1){d.boost=Math.min(100,d.boost+(p.big?PBG:PSM));p.cd=p.big?10:4;emit(p.p,0xffc640,p.big?60:24,p.big?14:9,.6);if(d===GS.player)tone(700,1400,.15,.08)}}
  for(const p of ORBS)p.cd-=dt;
- if(GS.OBSON){for(const d of GS.drones)if(d.remote)droneFire(d,dt,false);bullets(dt);turrets(dt)}
+ if(M.tick)M.tick(dt,A);
  if(simBall&&ball.hit>3)ballBounce(ball.hit);  // landing thuds and ball touches sound from the physics hit events (audio/sfx.js)
  if(!frozen)for(let i=0;i<GS.drones.length;i++){const a=GS.drones[i];if(a.dead>0)continue;
   let tb;if(live&&!a.remote&&!GS.OBSON&&(tb=ballTouch(a,_v))){const n=_v,pen=tb.pen,ib=1/BM,id=1/a.fl.mass;ball.p.addScaledVector(n,pen*ib/(ib+id));a.p.addScaledVector(n,-pen*id/(ib+id));
@@ -68,6 +65,6 @@ export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);ph
    emitHit({type:'drone',d:a,tag:c.ta,other:b,otherTag:c.tb,speed:-rv});
    if(-rv>DEMO&&a.team!==b.team&&live&&!GS.OBSON){const as=a.v.dot(n),bs=-b.v.dot(n),[vic,by]=as>bs?[b,a]:[a,b];if(!vic.remote)demolish(vic,by)}
    else{const ma=a.fl.mass,mb=b.fl.mass,j=-1.5*rv/(1/ma+1/mb);if(!a.remote)a.v.addScaledVector(n,-j/ma);if(!b.remote)b.v.addScaledVector(n,j/mb)}}}  // parts: mass-weighted bump
- if(A&&GS.state==='play'&&!GS.OBSON&&!TR.on){if(S.longline&&!GS.net){const g=llGoal();if(g>=0)goal(g)}else if(ball.p.z<-(HL+BR))goal(0);else if(ball.p.z>HL+BR)goal(1)}  // long line: only a ball towed across the line (or through a hoop) scores
- if(TR.on)trainPost(dt);  // skill training judges its own shots (modes/training.js)
+ if(A&&GS.state==='play'&&modeFlag('allowGoals')){if(S.longline&&!GS.net){const g=llGoal();if(g>=0)goal(g)}else if(ball.p.z<-(HL+BR))goal(0);else if(ball.p.z>HL+BR)goal(1)}  // long line: only a ball towed across the line (or through a hoop) scores
+ {const o=overlay();if(o&&o.post)o.post(dt);if(M.post)M.post(dt)}  // e.g. skill training judges its own shots (modes/training.js)
  if(A&&!GS.OBSON){if(++GS.stepN%4===0)predict();if(GS.stepN%45===0)assignRoles()}}

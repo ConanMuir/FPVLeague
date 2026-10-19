@@ -5,6 +5,7 @@ import {S} from '../config/settings.js';
 import {RADIO,pad,padX} from '../input/input.js';
 import {startDemo} from '../modes/match.js';
 import {TR,exitTrain,nextShot,prevShot,restartPack,retryShot,startPack} from '../modes/training.js';
+import {addHud} from '../modes/registry.js';
 import {dot} from '../render/particles.js';
 import {scene} from '../render/renderer.js';
 import {GS,esc} from '../state.js';
@@ -74,6 +75,7 @@ function padTrain(){const g=pad();if(!g||RADIO.test(g.id)){prevB=[];return}const
  if(TR.ph==='sum'){if(edge(0))restartPack();else if(edge(1))$('trsback').click()}
  else{if(edge(15)&&!used.has(15))nextShot();if(edge(14)&&!used.has(14))prevShot()}}
 // per rendered frame
+addHud('train',()=>trainFrame());  // the Training mode's per-frame UI (modes/registry.js modeHud, every frame, training or not)
 export function trainFrame(){const on=TR.on;$('score').hidden=on;markers();
  if(!on){if(lastPh){lastPh='';$('train').hidden=$('trsum').hidden=true}return}
  padTrain();const m=GS.menuOpen,ph=TR.ph;

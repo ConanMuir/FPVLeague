@@ -2,8 +2,8 @@
 // A pack (training/packs.js) is a list of shots: a ball spawn (position, velocity or aim, spin) and a player spawn. Each shot waits
 // frozen ('ready') until you move a stick, then runs ('live') with the shot timer until training/judge.js gives a verdict; the result
 // shows for a moment ('result'), then a success moves on to the next shot and a miss resets the same one. After the last shot the
-// pack summary shows ('sum') and the best result is saved in S.train. step.js hands each physics step here while TR.on:
-// trainPre() before the flight model (holds the ready shot), trainPost() after the touches (success detection).
+// pack summary shows ('sum') and the best result is saved in S.train. The mode's hooks (modes/registry.js) run while it is the mode:
+// pre = trainPre() before the flight model (holds the ready shot), post = trainPost() after the touches (success detection); goals don't score.
 import {AC,audioInit,noise,tone} from '../audio/audio.js';
 import {$,COL,HL,HW,QT,UP,V3} from '../config/constants.js';
 import {S,save} from '../config/settings.js';
@@ -28,7 +28,8 @@ import {banner} from '../ui/hud.js';
 export {TR};
 // hidden: no mode button on the main menu (the Training hub starts packs); free: no match clock, R / Xbox Y = retry shot
 registerMode('train',{name:'Training',title:'TRAINING',world:'arena',order:90,free:true,hidden:true,
- sub:'Skill packs: striker, goalie, aerial, dribbling and pop shots with the real ball. Rookie, Pro and All-Star.'});
+ sub:'Skill packs: striker, goalie, aerial, dribbling and pop shots with the real ball. Rookie, Pro and All-Star.',
+ pre:dt=>trainPre(dt),post:dt=>trainPost(dt),allowGoals:()=>!TR.on,exit:()=>trainOff()});  // leaving the mode (setGame to another) ends the pack
 Object.assign(TR,{pack:null,i:0,t:0,rt:0,res:[],shot:null,kind:'goal',req:{},limit:10,flip:false,sp:null,base:null,last:null,verdict:null,touched:false,tt:0,carry:0,rest:0,popped:false,
  wasF:false,pred:false,pk:0,top:.6,score:null,best:null,newBest:false,ver:0,path:[]});
 const _u=new V3(),_q=new QT(),_r=new V3(),_rv=new V3(),RESULT_OK=1.7,RESULT_MISS=1.4;
@@ -51,7 +52,8 @@ export function startPack(id){const P=packById(id);if(!P)return false;leaveGame(
  GS.demo=false;GS.state='play';GS.score=[0,0];GS.timeScale=1;GS.overtime=GS.endPending=false;
  Object.assign(TR,{on:true,pack:P,flip:P.kind==='save',res:newResults(P.shots.length),top:topOf(d),score:null,newBest:false,best:S.train?.[P.id]||null});
  showMenu(false);$('hud').hidden=false;$('resume').hidden=false;loadShot(0);return true}
-export function exitTrain(){if(!TR.on)return false;TR.on=false;TR.ph='off';TR.ver++;ballMesh.visible=true;setGame(S.game);return true}
+function trainOff(){if(!TR.on)return;TR.on=false;TR.ph='off';TR.ver++;ballMesh.visible=true}
+export function exitTrain(){if(!TR.on)return false;trainOff();setGame(S.game);return true}
 export function restartPack(){if(TR.pack)startPack(TR.pack.id)}
 export function loadShot(i){const P=TR.pack;if(!P)return;i=Math.max(0,Math.min(P.shots.length-1,i));const sh=P.shots[i],k=sh.kind||P.kind;
  Object.assign(TR,{i,shot:sh,kind:k,req:k===P.kind?P.req||{}:{},limit:sh.t||P.t,ph:'ready',t:0,rt:0,base:null,verdict:null,last:null,touched:false,tt:0,carry:0,rest:0,popped:false,pred:false,pk:0});
