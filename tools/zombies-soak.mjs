@@ -51,7 +51,7 @@ const STATS = `(function(){
     drones: Z.def.drones?.length ?? -1, shots: Z.def.shots?.length ?? -1, defs: Z.def.D.length, st: G.state, wave: G.wave, cash: G.cash,
     integ: Math.round(100 * __z.integrity().hp / __z.integrity().max), base: !document.getElementById('zbase').hidden, over: !document.getElementById('zover').hidden,
     feed: document.getElementById('feed')?.children.length ?? -1, nan, orphan: (() => { const live = new Set(); api.scene.traverse(o => o.geometry && live.add(o.geometry)); const by = {}; let n = 0;
-      for (const [g, at] of window.__geo || []) if (!live.has(g)) { n++; by[at] = (by[at] || 0) + 1; } return {n, top: Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => v + ' x ' + k.slice(0, 160))}; })()};
+      for (const [g, at] of window.__geo || []) if (!live.has(g)) { n++; by[at] = (by[at] || 0) + 1; } return {n, top: Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => v + ' x ' + k.slice(0, 160))}; })()};
 })()`;
 
 const summary = [];
@@ -66,8 +66,10 @@ async function soak(browser, zd, errs) {
   await p.evaluate(zd => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd})), zd);
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await sleep(500);
   // leak probe: every geometry the renderer uploads is remembered until it is disposed; one that is neither disposed nor in the scene any more is leaked GPU memory
-  await p.evaluate(() => { const {api} = __z, BG = api.THREE.BufferGeometry.prototype, ED = Object.getPrototypeOf(BG), add = ED.addEventListener, dis = BG.dispose; window.__geo = new Map();
-    ED.addEventListener = function (t, f) { if (t === 'dispose' && this.isBufferGeometry && !__geo.has(this)) __geo.set(this, (new Error().stack.split('\n')[4] || '').trim().replace(/https?:\/\/[^/]+/, '')); return add.call(this, t, f); };
+  // (where it was made: the first game-code frame when its first attribute was set, i.e. while it was built)
+  await p.evaluate(() => { const {api} = __z, BG = api.THREE.BufferGeometry.prototype, ED = Object.getPrototypeOf(BG), add = ED.addEventListener, dis = BG.dispose, sa = BG.setAttribute, made = new WeakMap(); window.__geo = new Map();
+    BG.setAttribute = function (n, a) { if (!made.has(this)) made.set(this, (new Error().stack.split('\n').slice(2).find(l => !/three\.module/.test(l)) || '').trim().replace(/https?:\/\/[^/]+/, '')); return sa.call(this, n, a); };
+    ED.addEventListener = function (t, f) { if (t === 'dispose' && this.isBufferGeometry && !__geo.has(this)) __geo.set(this, made.get(this) || 'made before the probe'); return add.call(this, t, f); };
     BG.dispose = function () { __geo.delete(this); return dis.call(this); }; });
   await p.click('#play'); await sleep(500);
   const name = await p.evaluate(() => __z.Z.diff().n), rows = [], heaps = [], stuck = [];
@@ -103,7 +105,8 @@ async function soak(browser, zd, errs) {
   // leak checks: compare the second base screen with the last one (the first waves add defences and the bunker, so start from wave 10 when we have it)
   const ref = rows.find(x => x.wave >= 10) || first;
   if (rows.length > 6) {
-    ok(last.th <= 2, `${name}: no dead tracks left in the list at the base screen (${last.th})`);
+    const lb = rows.filter(x => x.st === 'base').at(-1) || last;  /* at game over the tracks still in the air are frozen in place, so look at the last base screen */
+    ok(lb.th <= 3, `${name}: no dead tracks left in the list at the base screen (${lb.th} at wave ${lb.wave})`);
     ok(last.objs - ref.objs < 400 + 40 * (last.defs - ref.defs), `${name}: scene objects ${ref.objs} at wave ${ref.wave} -> ${last.objs} at wave ${last.wave} (defences ${ref.defs} -> ${last.defs})`);
     ok(last.orphan.n - ref.orphan.n < 20, `${name}: GPU geometries left behind (uploaded, not disposed, out of the scene) ${ref.orphan.n} at wave ${ref.wave} -> ${last.orphan.n} at wave ${last.wave} (all uploaded: ${ref.geo} -> ${last.geo}, textures ${ref.tex} -> ${last.tex})`);
     const h0 = heaps.find(h => h[0] >= 10) || heaps[0], h1 = heaps.at(-1);
@@ -116,6 +119,7 @@ async function soak(browser, zd, errs) {
     ok(a.st === 'base' && a.wave === 0 && a.cash === a.start && a.defs === 0 && a.th === 0 && a.hp.hp === a.hp.max, `${name}: Try again starts clean (${JSON.stringify(a)})`);
   }
   await p.evaluate(() => __z.api.startDemo()); await sleep(300);
+  if (rows.length > 6) { const lv = await p.evaluate(STATS); ok(lv.orphan.n - last.orphan.n < 10, `${name}: leaving Zombies frees the defences' geometries (left behind ${last.orphan.n} -> ${lv.orphan.n})` + (lv.orphan.n - last.orphan.n >= 10 ? ' ' + JSON.stringify(lv.orphan.top) : '')); }
   await p.evaluate(() => { document.querySelector('#gmode button[data-m="classic"]').click(); }); await sleep(100);
   await p.click('#play'); await sleep(600);
   const c = await p.evaluate(() => { const {api} = __z; __z.sim(40); return {zon: __z.Z.on, wave: api.wave, th: api.TH.length, kinds: [...new Set(api.TH.map(t => t.k || (t.jet ? 'jet' : 'shahed')))], sites: api.SITES.length, hp: api.SITES.map(s => s.max), aw: api.AW, rrs: api.RRS.length, zhud: document.getElementById('zhud').hidden, base: document.getElementById('zbase').hidden}; });

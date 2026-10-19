@@ -496,7 +496,8 @@ function waves(dt){if(Z.on)return Z.waves(dt);
  if(wstate==='wave'){if(toSpawn>0&&(spawnT-=dt)<=0){toSpawn--;spawnThreat(toSpawn===0);spawnT=(25+Math.random()*20)*DIFF[demo?1:S.diff].gap}  // each wave: one piston Shahed-136, then one jet Geran-3 a little later
   if(!toSpawn&&!TH.some(live)){wstate='clear';wT=5;if(!demo){banner(`WAVE ${wave} CLEAR`,'cg',2.6);feed(`Wave ${wave}: <span class="cg">${ws} down</span> · <span class="cr">${wl} hit${wl===1?'':'s'}</span>`)}}return}
  if(wstate==='clear'&&(wT-=dt)<=0)startWave()}
-function resetWorld(){pickT=null;TH.forEach(t=>scene.remove(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
+const dropMesh=m=>{scene.remove(m);if(m?.userData.own)m.traverse(o=>o.geometry?.dispose())};  // a track mesh with its own geometry (the Mothership) frees it when the track goes
+function resetWorld(){pickT=null;TH.forEach(t=>dropMesh(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
 function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);if(S.gmode==='z')Z.start();else{Z.stop();startWave();toSpawn--;spawnThreat(false);spawnT=25+Math.random()*20}launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
 function startDemo(){Z.stop();demo=true;resetWorld();setWeather(S.wx);if(player)player.mesh.visible=false;startWave();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
 function showMenu(v){menuOpen=v;$('menu').hidden=!v;paused=v&&!demo&&!(Z.on&&Z.online)}  // a co-op game (znet.js) keeps running behind the menu
@@ -598,7 +599,7 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
 function visuals(dt,now){const me=player;
  if(me){me.mesh.position.copy(me.p);me.mesh.quaternion.copy(me.q);me.mesh.scale.setScalar(MSZ);const sp=(me.dead>0?0:25+me.thr*90)*dt;me.props.forEach((p,i)=>p.rotation.y+=i%3?sp:-sp)}
  for(const t of TH){t.mesh.position.copy(t.p);t.mesh.lookAt(_t.copy(t.p).add(t.v));t.mesh.rotateZ(t.st==='fall'?t.roll:t.bank);if(t.prop)t.prop.rotation.z+=dt*90}
- for(let i=TH.length-1;i>=0;i--)if(TH[i].st==='dead'){scene.remove(TH[i].mesh);TH.splice(i,1)}
+ for(let i=TH.length-1;i>=0;i--)if(TH[i].st==='dead'){dropMesh(TH[i].mesh);TH.splice(i,1)}
  if(RADM)RADM.rotation.y+=dt*2;boomL.intensity*=Math.exp(-dt*9/(Z.on?Math.max(Z.tsc,.04):1));FX.upd(dt);SMK.upd(dt);BLD.step(dt,Z.on,Z.plume);  // Zombies: the blast light fades in real time, so slow-mo and the impact cam do not hold a whited-out frame
  if(Z.on)Z.visuals(dt);if(audioOn())audioTick(dt)}
 
