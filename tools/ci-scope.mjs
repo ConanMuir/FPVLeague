@@ -1,0 +1,27 @@
+// CI: does this push / PR touch an area's files? Run-only-what-changed for the browser jobs.
+//   node tools/ci-scope.mjs <area> <base sha or ref>   ->  prints "run=true|false" (also to $GITHUB_OUTPUT) and why
+// Areas: league (Jared's Vite build in src/: smoke and the *-check tools), interceptor (Riley's engine/ + games/interceptor: zombies-test).
+// Shared files (package-lock, the workflow, tools/browser.mjs) count for both. Always runs when the base is unknown (new branch,
+// force push, workflow_dispatch) or on main, so main is always fully checked.
+import fs from 'node:fs';
+import {execFileSync} from 'node:child_process';
+
+const [area, base] = process.argv.slice(2), E = process.env;
+const SHARED = [/^package(-lock)?\.json$/, /^\.github\//, /^tools\/browser\.mjs$/];
+const AREAS = {
+  league: [/^src\//, /^app\.html$/, /^vite\.config\.js$/, /^Drone League\//, /^tools\/(smoke|postbuild|physics-check|pop-check|sound-check|training-check)\.mjs$/],
+  interceptor: [/^engine\//, /^games\/interceptor\//, /^interceptor\//, /^tools\/(zlib|zombies-[\w-]+)\.mjs$/]};
+if (!AREAS[area]) { console.error('area must be one of ' + Object.keys(AREAS).join(', ')); process.exit(2); }
+const out = (run, why) => { console.log(`run=${run}  (${area}: ${why})`); if (E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, `run=${run}\n`); process.exit(0); };
+
+if (E.GITHUB_REF === 'refs/heads/main') out(true, 'main is always fully checked');
+if (E.GITHUB_EVENT_NAME === 'workflow_dispatch') out(true, 'manual run');
+if (!base || /^0+$/.test(base)) out(true, 'no base to compare with');
+const git = (...a) => execFileSync('git', a, {encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']});
+let files;
+try {
+  try { git('cat-file', '-e', base + '^{commit}'); } catch { git('fetch', '--quiet', '--depth=1', 'origin', base); }
+  files = git('diff', '--name-only', base, 'HEAD').split('\n').filter(Boolean);
+} catch (e) { out(true, 'could not diff against ' + base); }
+const hit = files.filter(f => SHARED.some(r => r.test(f)) || AREAS[area].some(r => r.test(f)));
+out(hit.length > 0, hit.length ? `${hit.length} of ${files.length} changed files, e.g. ${hit.slice(0, 3).join(', ')}` : `none of the ${files.length} changed files`);
