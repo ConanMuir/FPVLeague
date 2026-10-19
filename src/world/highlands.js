@@ -78,7 +78,7 @@ export function sdObs(x,y,z){const L=OGRID.get(Math.floor((x+DHW)/OC)*1000+Math.
   else if(o.t==='bld')d=sdBld(o,lx,y,lz);
   else d=Math.hypot(lx,y-o.y,lz)-o.r;if(d<m)m=d}return m}
 export const sdDFt=(x,y,z)=>Math.max(y-DCEIL,Math.abs(x)-DHW,Math.abs(z)-DHL,Math.min((dfHt(x,z)-y)*.75,sdCave(x,y,z))),sdDF=(x,y,z)=>Math.max(sdDFt(x,y,z),-sdObs(x,y,z));  // sdDFt: without obstacles
-export const dfSpawnCount=()=>spawnPoints().length;  // checks: respawn points left in the open
+export const dfSpawnCount=()=>spawnPoints().length,dfSpawns=()=>spawnPoints();  // checks: respawn points left in the open; Dogfight turrets keep away from them
 export const DSLOTS=[[0,12,DBASE],[-26,12,DBASE+16],[26,12,DBASE+16]];
 // respawn points spread over the whole valley (built on first use): open air 30 m over the ground, nothing within sdObs's 10 m range
 let DSPAWN=null;

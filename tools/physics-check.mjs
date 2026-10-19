@@ -413,6 +413,23 @@ if (cv) { const CVS = await page.evaluate(() => window.__pc.CV.SEAM);
   check(cv.bot.every(b => b.underground != null && b.closestM <= 60), 'a bot follows a foe into the caves, round the ring and down to the lower level');
 }
 
+// ---------- (i) Dogfight turret spots ----------
+console.log('\n== (i) Dogfight turrets: open high ground, clear of buildings, caves, the river, bases and respawn points');
+const tu = await run('i', () => { const M = window.__pc, {DF, H, CV} = M, out = [];
+  const SP = H.dfSpawns(), med = (() => { const h = []; for (let i = 0; i < 400; i++) { const x = (((i * 7919) % 1000) / 1000 - .5) * (H.DW - 300), z = 100 + (((i * 104729) % 1000) / 1000) * (H.DHL - 220); h.push(H.dfH(x, z)); } return h.sort((a, b) => a - b)[200]; })();
+  for (const t of DF.TUR) { const x = t.p.x, z = t.p.z, h = H.dfH(x, z), sl = Math.max(...[[7, 0], [-7, 0], [0, 7], [0, -7]].map(([a, b]) => Math.abs(H.dfH(x + a, z + b) - h)));
+    out.push({team: t.t, x: Math.round(x), z: Math.round(z), h: Math.round(h), obs: +Math.min(H.sdObs(x, h + 2.5, z), H.sdObs(x, h + 9, z)).toFixed(1), caveBelow: +CV.sdCave(x, h - 4, z).toFixed(1), caveBeside: +CV.sdCave(x, h + 1, z).toFixed(1),
+      river: Math.round(Math.abs(x - H.cxR(z))), base: Math.round(Math.hypot(x, Math.abs(z) - H.DBASE)), spawn: Math.round(Math.min(...SP.map(p => Math.hypot(p[0] - x, p[2] - z)))), slope: +sl.toFixed(1),
+      near: Math.round(Math.min(...DF.TUR.filter(u => u !== t).map(u => Math.hypot(u.p.x - x, u.p.z - z)))) }); }
+  return {out, med: Math.round(med)}; });
+if (tu) {
+  for (const r of tu.out) console.log('  ' + JSON.stringify(r));
+  check(tu.out.length === 12, `6 turrets a side (${tu.out.length})`);
+  check(tu.out.every(r => r.obs >= 9 && r.caveBelow >= 14 && r.caveBeside >= 8), 'turrets: nothing (buildings, trees, rings) within 9 m, no cave under or beside them');
+  check(tu.out.every(r => r.river >= 45 && r.base > 150 && r.spawn > 50 && r.slope <= 3 && r.near >= 90), 'turrets: off the river, away from the base pads and respawn points, on level ground, 90 m apart');
+  check(tu.out.reduce((a, r) => a + r.h, 0) / tu.out.length > tu.med, `turrets on high ground (mean ${Math.round(tu.out.reduce((a, r) => a + r.h, 0) / tu.out.length)} m vs median ground ${tu.med} m)`);
+}
+
 // ---------- (f) step cost ----------
 console.log('\n== (f) cost per 120 Hz tick: 3v3 bots + ball, the whole step() (bots, guns, touches) and the Rapier part (physStep)');
 const cost = await run('f', () => {
