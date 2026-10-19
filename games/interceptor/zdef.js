@@ -52,7 +52,7 @@ export function initDefences(api,G,Z){
  const tr=[];const tracer=(p,v,life)=>{if(tr.length>=TN){tr.shift()}tr.push({p:p.clone(),v:v.clone(),life})};
 
  const D=[],shots=[],shells=[],pend=[];  // owned defences, guided shots in the air, mortar shells, cannon bursts on their way
- let did=0,fxBudget=0;
+ let did=0,fxBudget=0,sid=0;
  const L=d=>d.type==='rack'?null:HELP[d.type].lv[d.lvl],rangeOf=d=>d.type==='rack'?RACK_RANGE:(L(d).rng||HELP[d.type].rng);
  function add(type,slot){const d={id:++did,type,slot,tier:0,lvl:0,cap:0,ready:0,cd:0,rearm:0,mesh:null,kills:0,shots:0,ammo:0,jam:new Set()};if(type==='rack'){d.cap=RACK_CAP[0];d.ready=d.cap}D.push(d);return d}
  const slotFree=i=>!D.some(d=>d.slot===i);
@@ -71,14 +71,14 @@ export function initDefences(api,G,Z){
   for(const t of TH){if(!api.live(t)||t.claim||!Z.seen(t)&&t.k!=='swarm')continue;let e=R[t.k]??1;if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)continue;
    if(o.smart&&t.k==='decoy')continue;if(o.only&&!o.only(t))continue;
    const d=Math.hypot(t.p.x-x,t.p.z-z);if(d>range)continue;
-   if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500)continue;
+   if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)continue;  // t.pc: a co-op pilot is on it
    const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>bs){bs=sc;best=t}}
   return best}
  const claim=(t,h)=>{t.claim=h;h.tgt=t};
  const release=h=>{if(h.tgt&&h.tgt.claim===h)h.tgt.claim=null;h.tgt=null};
 
  // ---------- guided shots ----------
- function fire(d,t,kind,p0,extra={}){const P=PK[kind],h={d,kind,P,p:p0.clone(),v:extra.v||new V3(0,P.spd*.3||30,0),fuel:P.fuel,tgt:null,pd:1e9,lost:0,tier:d.tier,pk:extra.pk,direct:extra.direct??.3,dome:!!extra.dome,smk:0};
+ function fire(d,t,kind,p0,extra={}){const P=PK[kind],h={id:++sid,d,kind,P,p:p0.clone(),v:extra.v||new V3(0,P.spd*.3||30,0),fuel:P.fuel,tgt:null,pd:1e9,lost:0,tier:d.tier,pk:extra.pk,direct:extra.direct??.3,dome:!!extra.dome,smk:0};
   claim(t,h);shots.push(h);d.shots++;api.FX.emit(h.p,0xffd080,kind==='drone'?25:60,kind==='drone'?6:14,.5,null,2);if(kind!=='drone'&&kind!=='space')api.SMK.emit(h.p,0xd8d4cc,20,8,4,null,1,.7);return h}
  // rotate unit vector dir toward want by at most a radians (works when want is behind, where a lerp would stall)
  const _ax=new V3(),_tq=new THREE.Quaternion();
@@ -118,9 +118,7 @@ export function initDefences(api,G,Z){
   // cannon: bursts while it holds a track; tracers show where it is shooting
   gepard(d,dt){const s=sl(d),l=L(d),rng=l.rng||HELP.gepard.rng;let t=d.tgt;if(t&&(!api.live(t)||t.p.distanceTo(_a.set(s.x,s.y,s.z))>rng*1.05)){release(d);t=null}
    if(!t){t=pickTarget('gepard',s.x,s.z,rng);if(t)claim(t,d);else return}aimAt(d,t);if((d.cd-=dt)>0)return;
-   const from=_a.set(s.x,s.y+2.5,s.z),dist=t.p.distanceTo(from),tof=dist/1100,lead=_b.copy(t.p).addScaledVector(t.v,tof);
-   for(let i=0;i<6;i++){const v=_c.subVectors(lead,from).normalize().add(new V3(rnd(-1,1),rnd(-1,1),rnd(-1,1)).multiplyScalar(.004+dist*1.5e-6)).normalize().multiplyScalar(1100);tracer(from.clone().addScaledVector(v,i*.004),v,tof+.15)}
-   d.cd=1.1;d.shots++;api.FX.emit(from,0xffd080,6,4,.15,null,2.5);
+   const{dist,tof}=burst(d,t);d.cd=1.1;d.shots++;Z.onGun?.(d,t);
    const p=l.p*(RESIST.gepard[t.k]??1)*(1-.5*dist/rng);pend.push({t:tof,fn:()=>{if(!api.live(t)||!G.on)return;const o=Z.helperHit(t,p,.5);if(o==='kill'){d.kills++;Z.helperKill(t);if(l.ahead&&t.k==='swarm')splash(d,t.p,14,.5,t);release(d)}else if(o==="damage"&&t.k!=="boss")api.damage(t)}})},
   sam(d,dt){if((d.cd-=dt)>0||d.ammo<=0)return;const s=sl(d),l=L(d),t=pickTarget('sam',s.x,s.z,HELP.sam.rng,{smart:l.smart,prio:u=>u.k==='swarm'?-80:0});if(!t)return;
    aimAt(d,t);const dv=new V3(),mz=mouth(d,Math.min(d.ammo,8)-1,0,0,-2.15,dv);fire(d,t,'sam',mz||_a.set(s.x,s.y+3,s.z),{pk:l.p,direct:1,v:mz?dv.multiplyScalar(120):new V3(0,120,0)});d.ammo--;d.cd=3.5;d.cells?.forEach((c,i)=>c.visible=i<d.ammo)},
@@ -138,7 +136,26 @@ export function initDefences(api,G,Z){
    const p0=t.p.clone().addScaledVector(t.v,4).add(_c.set(rnd(-2000,2000),15000,rnd(-2000,2000)));fire(d,t,'space',p0,{pk:l.p,direct:1,dome:true,v:_b.subVectors(t.p,p0).setLength(PK.space.spd)});d.ammo--;d.cd=2;
    api.feed(`<span class="cb">Golden Dome: space interceptor away at ${Z.tname(t)}</span>`)}};
 
- function step(dt){fxBudget=40;for(let i=pend.length-1;i>=0;i--)if((pend[i].t-=dt)<=0){const f=pend[i].fn;pend.splice(i,1);f()}for(const d of D)LOGIC[d.type](d,dt);for(let i=shots.length-1;i>=0;i--)if(shots[i])shotStep(shots[i],dt);
+ // a burst of six tracers at the lead point (the gun's shot, and what a co-op client draws when the host says it fired)
+ function burst(d,t){const s=sl(d),from=_a.set(s.x,s.y+2.5,s.z),dist=t.p.distanceTo(from),tof=dist/1100,lead=_b.copy(t.p).addScaledVector(t.v,tof);aimAt(d,t);
+  for(let i=0;i<6;i++){const v=_c.subVectors(lead,from).normalize().add(new V3(rnd(-1,1),rnd(-1,1),rnd(-1,1)).multiplyScalar(.004+dist*1.5e-6)).normalize().multiplyScalar(1100);tracer(from.clone().addScaledVector(v,i*.004),v,tof+.15)}
+  api.FX.emit(from,0xffd080,6,4,.15,null,2.5);return{dist,tof}}
+ // co-op client (Z.mirror): no helper logic here; the host's shots are dead-reckoned between its snapshots, tracers fly, magazines show
+ function mstep(dt){for(const h of shots)if(h.np){h.fuel-=dt;h.np.addScaledVector(h.nv,dt);h.p.addScaledVector(h.v,dt).lerp(h.np,1-Math.exp(-dt*8))}
+  for(let i=tr.length-1;i>=0;i--){const q=tr[i];q.p.addScaledVector(q.v,dt);if((q.life-=dt)<=0)tr.splice(i,1)}
+  for(const d of D)d.cells?.forEach((c,i)=>c.visible=i<(d.type==='rack'?d.ready:d.ammo))}
+ // co-op snapshot pieces: S = shots in the air [id, kind, x, y, z, vx, vy, vz (m, m/s), target id], D = defences [id, type, slot, tier, lvl, cap, kills, spent, shots, ready, ammo, bought by]
+ const PKI=Object.keys(PK),HT=Object.keys(MESH),r0=Math.round;
+ function netOut(){return{S:shots.map(h=>[h.id,PKI.indexOf(h.kind),r0(h.p.x),r0(h.p.y),r0(h.p.z),r0(h.v.x),r0(h.v.y),r0(h.v.z),h.tgt?h.tgt.id:0]),
+  D:D.map(d=>[d.id,HT.indexOf(d.type),d.slot,d.tier,d.lvl,d.cap,d.kills,d.spent|0,d.shots,d.ready,d.ammo,d.by||''])}}
+ function netIn(S,DL,byId){const ok=a=>Array.isArray(a)&&a.slice(0,8).every(Number.isFinite);
+  if(Array.isArray(DL)){const seen=new Set();for(const a of DL){if(!ok(a))continue;const type=HT[a[1]];if(!type||!SLOTS[a[2]])continue;let d=D.find(x=>x.id===a[0]);if(!d){d=add(type,a[2]);d.id=a[0]}seen.add(d.id);
+    Object.assign(d,{tier:cl(a[3]|0,0,RACK_TIERS.length-1),lvl:cl(a[4]|0,0,2),cap:a[5]|0,kills:a[6]|0,spent:a[7]|0,shots:a[8]|0,ready:a[9]|0,ammo:a[10]|0,by:String(a[11]||'').replace(/[<>&"'`]/g,'').slice(0,16)})}
+   for(const d of[...D])if(!seen.has(d.id))remove(d)}
+  if(Array.isArray(S)){const old=new Map(shots.map(h=>[h.id,h])),nx=[];for(const a of S){if(!ok(a))continue;const kind=PKI[a[1]];if(!kind)continue;let h=old.get(a[0]);
+    if(!h)h={id:a[0],kind,P:PK[kind],fuel:PK[kind].fuel,p:new V3(a[2],a[3],a[4]),v:new V3(),np:new V3(),nv:new V3(),d:null,tgt:null};h.np.set(a[2],a[3],a[4]);h.nv.set(a[5],a[6],a[7]);h.v.copy(h.nv);h.tgt=byId(a[8])||null;nx.push(h)}
+   shots.length=0;shots.push(...nx)}}
+ function step(dt){if(Z.mirror)return mstep(dt);fxBudget=40;for(let i=pend.length-1;i>=0;i--)if((pend[i].t-=dt)<=0){const f=pend[i].fn;pend.splice(i,1);f()}for(const d of D)LOGIC[d.type](d,dt);for(let i=shots.length-1;i>=0;i--)if(shots[i])shotStep(shots[i],dt);
   for(let i=shells.length-1;i>=0;i--){const sh=shells[i];sh.time-=dt;const f=1-sh.time/sh.T;sh.p.lerpVectors(sh.from,sh.at,f);sh.p.y+=Math.sin(f*Math.PI)*sh.T*60;
    if(sh.time<=0){shells.splice(i,1);release(sh);const l=L(sh.d),t=sh.t;Z.flash(sh.at,.7);api.SMK.emit(sh.at,0x2a2826,14,7,4,null,1,.85);api.FX.emit(sh.at,0xffb050,30,14,.3,null,2.5);
     if(api.live(t)){const miss=t.p.distanceTo(sh.at),pk=l.p*(RESIST.flak[t.k]??1)*cl(1.4-miss/60,0,1);const o=Z.helperHit(t,pk,.2);if(o==='kill'){sh.d.kills++;Z.helperKill(t)}else if(o==='damage'&&t.k!=='boss')api.damage(t)}
@@ -154,4 +171,4 @@ export function initDefences(api,G,Z){
  // radar: shots as cyan dots with a thin yellow line to their claimed track; your defences as cyan squares (EW bubble as a ring)
  function radar(rc,P,K){rc.lineWidth=1.5;for(const h of shots){const q=P(h.p.x,h.p.z);rc.fillStyle=h.kind==='drone'?'#5fe3ff':'#e8f4ff';rc.fillRect(q[0]-2.5,q[1]-2.5,5,5);if(h.tgt){const u=P(h.tgt.p.x,h.tgt.p.z);rc.strokeStyle='rgba(255,226,60,.55)';rc.beginPath();rc.moveTo(q[0],q[1]);rc.lineTo(u[0],u[1]);rc.stroke()}}
   for(const d of D){const s=sl(d),q=P(s.x,s.z);rc.strokeStyle='#5fe3ff';rc.lineWidth=2;rc.strokeRect(q[0]-4,q[1]-4,8,8);if(d.type==='ew'&&K){rc.strokeStyle='rgba(95,227,255,.3)';rc.beginPath();rc.arc(q[0],q[1],rangeOf(d)*K,0,7);rc.stroke()}}}
- return{SLOTS,D,shots,get drones(){return shots.filter(h=>h.kind==='drone')},add,remove,slotFree,deploy,clear,step,visuals,radar,rangeOf,L,launchDrone:(d,t)=>{const s=sl(d);fire(d,t,'drone',_a.set(s.x,s.y+2.5,s.z))}}}
+ return{SLOTS,D,shots,burst,netOut,netIn,get drones(){return shots.filter(h=>h.kind==='drone')},add,remove,slotFree,deploy,clear,step,visuals,radar,rangeOf,L,launchDrone:(d,t)=>{const s=sl(d);fire(d,t,'drone',_a.set(s.x,s.y+2.5,s.z))}}}
