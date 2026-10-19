@@ -63,11 +63,12 @@ async function waitFor(p, pred, ms, what) {
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const BOOT = SW ? 180000 : 60000, SOFT = SW ? 120000 : 30000;
 // soft state wait: poll the snapshot until pred holds (or ms pass) and return the last one, so the check after it reports what it saw
-const settle = async (p, pred, ms = SOFT) => (await until(async () => { const s = await snap(p); return s && pred(s) ? s : null; }, {timeout: ms, every: 100})) || snap(p);
+const settle = async (p, pred, ms = SOFT) => { const s = await until(async () => { const s = await snap(p); return s && pred(s) ? s : null; }, {timeout: ms, every: 100}); await frames(p, 2); return s || snap(p); };
 const moved = (a, b) => Math.max(...a.drones.map((d, i) => b.drones[i] ? dist(d.p, b.drones[i].p) : 0));
 const finite = s => [s.ball, ...s.drones.map(d => d.p)].every(v => v.every(Number.isFinite));
-const key = async (p, k) => { await p.keyboard.press(k); await sleep(150); };
-const click = async (p, sel) => { await p.$eval(sel, e => e.click()); await sleep(150); };
+// the menus, HUD and Lab/training panels sync to the game state once per frame: after a key or click, wait for two frames, not a fixed time
+const key = async (p, k) => { await p.keyboard.press(k); await frames(p, 2); };
+const click = async (p, sel) => { await p.$eval(sel, e => e.click()); await frames(p, 2); };
 const text = (p, sel) => p.$eval(sel, e => (e.value ?? e.textContent));
 const hidden = (p, sel) => p.$eval(sel, e => e.hidden);
 // sample the sim for `simSec` seconds of match clock (the clock counts down in League and Dogfight)
@@ -281,7 +282,7 @@ async function trainScenario(url) {
   try {
     const p = await open(browser, url, errors);
     await waitFor(p, s => s.state === 'play', SW ? 240000 : 60000, 'the demo to start');
-    const tr = () => p.evaluate(() => window.__dl.train()), trUntil = async f => (await until(async () => { const s = await tr(); return f(s) ? s : null; }, {timeout: SOFT})) || tr();
+    const tr = () => p.evaluate(() => window.__dl.train()), trUntil = async f => { const s = await until(async () => { const s = await tr(); return f(s) ? s : null; }, {timeout: SOFT}); await frames(p, 2); return s || tr(); };
     await click(p, '#trainbtn'); out.hub = !(await hidden(p, '#scr-training')) && (await p.$$eval('#scr-training .ttile', l => l.length));
     await click(p, '#packsbtn'); out.browser = {open: !(await hidden(p, '#scr-packs')), tabs: await p.$$eval('#ptabs button', l => l.length), tiles: await p.$$eval('#ptiles .ptile', l => l.length)};
     await click(p, '#ptabs [data-c=goalie]'); out.browser.goalie = await p.$$eval('#ptiles .ptile', l => l.map(b => b.dataset.id).join());
