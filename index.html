@@ -1,168 +1,37 @@
 <!doctype html>
 <html lang="en">
-<head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Drone League</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;1,700&family=JetBrains+Mono:wght@500;700&display=swap">
-<link rel="stylesheet" href="/src/styles.css">
-</head>
-<body>
-<div id="hud" hidden>
-  <div id="score"><span id="sb">0</span><span id="clock" class="osd">3:00</span><span id="so">0</span></div>
-  <div id="feed"></div>
-  <div id="xh"></div>
-  <div id="arrow" hidden></div>
-  <div id="hurt"></div>
-  <div id="center"></div>
-  <div id="osd" class="osd"></div>
-  <div id="dial" class="osd" aria-hidden="true"><svg viewBox="0 0 120 120"><circle class="dtr" cx="60" cy="60" r="50" pathLength="100"/><circle id="darc" cx="60" cy="60" r="50" pathLength="100"/><circle class="dtr dhpt" id="dhpt" cx="60" cy="60" r="57" pathLength="100"/><circle id="dhp" cx="60" cy="60" r="57" pathLength="100"/></svg><div class="dval"><b id="dnum">0</b><span id="dlbl">KM/H</span><span id="dsub"></span></div></div>
-</div>
-
-<div id="menu">
-  <div id="home">
-    <div class="modes" id="modes" role="group" aria-label="Game mode"></div>
-      <h1><span class="b">DRONE</span><br><span class="o" id="h1o">LEAGUE</span></h1>
-      <p class="sub" id="sub">Rocket-powered soccer for 5-inch acro quads. Betaflight-style rates, FPV uptilt, boost orbs and bots that read the ball.</p>
-    <nav class="nav" aria-label="Main menu">
-      <button class="go" id="resume" hidden>Resume</button>
-      <button class="go" id="play">Play vs bots</button>
-      <button id="onlbtn" data-scr="online">Play online</button>
-      <button id="garbtn">Garage</button>
-      <button id="trainbtn" data-scr="training">Training<small>Skill packs · Calibration Lab</small></button>
-      <button id="setbtn" data-scr="settings">Settings</button>
-      <button id="modbtn">Mod panel</button>
-      <button class="quit" id="leave" hidden>Leave game</button>
-    </nav>
+<style>
+/* Launcher: pick a game. Games on the flight engine (engine/) share the pilot profile: radio calibration, rates, camera and flight mode */
+:root{--bg:#05070d;--ink:#eef3ff;--dim:#93a0b8;--panel:rgba(8,12,22,.84);--edge:rgba(150,180,255,.22);--blue:#3d95ff;--orange:#ff8a2a;--amber:#ffc640;--red:#ff4d4d;--green:#3ddc84;
+--disp:"Chakra Petch",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace;color-scheme:dark}
+html,body{margin:0;min-height:100%;background:radial-gradient(ellipse at 50% -10%,#16223d 0,var(--bg) 60%) fixed;color:var(--ink);font-family:var(--disp)}
+main{max-width:980px;margin:0 auto;padding:clamp(24px,6vw,64px) 16px}
+h1{margin:0;font-size:clamp(40px,7vw,68px);line-height:.9;font-style:italic;font-weight:700;letter-spacing:-.01em}
+h1 .b{color:var(--blue)}h1 .o{color:var(--orange)}
+.sub{color:var(--dim);max-width:60ch;margin:14px 0 28px;line-height:1.45}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+a.g{display:flex;flex-direction:column;gap:8px;padding:18px;border:1px solid var(--edge);border-radius:10px;background:var(--panel);color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
+a.g:hover,a.g:focus-visible{border-color:var(--c);transform:translateY(-2px);outline:none}
+a.g b{font-size:24px;font-style:italic;color:var(--c);letter-spacing:.02em}
+a.g span{color:var(--dim);font-size:14px;line-height:1.4}
+a.g i{margin-top:auto;font:12px var(--mono);font-style:normal;color:var(--c);letter-spacing:.1em;text-transform:uppercase}
+.note{font-size:12px;color:var(--dim);margin-top:26px;line-height:1.5}
+kbd{font:12px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:1px 5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<main>
+  <h1><span class="b">DRONE</span> <span class="o">LEAGUE</span></h1>
+  <p class="sub">5-inch acro quads with Betaflight rates, FPV uptilt and real radio support. Pick a game.</p>
+  <div class="games">
+    <a class="g" href="games/league/?mode=league" style="--c:var(--orange)"><b>Drone League</b><span>Rocket-powered soccer. 3v3 against bots or friends online, boost orbs, four maps and ball styles.</span><i>Play →</i></a>
+    <a class="g" href="games/league/?mode=df" style="--c:var(--blue)"><b>Dogfight</b><span>Guns over the Highlands: canyons, hangars and turrets. Team kills, FPV-aimed twin guns.</span><i>Play →</i></a>
+    <a class="g" href="games/interceptor/" style="--c:var(--red)"><b>Interceptor</b><span>Fly a warhead-carrying interceptor drone and take down waves of Shahed attack drones before they hit the sites. Classic, or endless Zombies waves with helpers to buy.</span><i>Play →</i></a>
+    <a class="g" href="games/jared-league/" style="--c:var(--green)"><b>Drone League (Jared's build)</b><span>Jared's version: Rapier physics, garage with drone parts, Calibration Lab and a Rocket League-style menu and HUD.</span><i>Play →</i></a>
   </div>
-  <section class="scr" id="scr-online" hidden aria-label="Online match">
-    <div class="shead"><button class="sm back">Back</button><h2>Online match</h2></div>
-    <div class="mp"><input id="nick" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><select id="tpref" aria-label="Team preference"><option value="auto">Any team</option><option value="0">Blue</option><option value="1">Orange</option></select><button class="sm" id="host">Host</button></div>
-      <div class="mp"><input id="code" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="join">Join</button></div>
-      <div id="games"></div>
-      <p class="note" id="mpnote">Connecting…</p>
-  </section>
-  <section class="scr wide" id="scr-training" hidden aria-label="Training">
-    <div class="shead"><button class="sm back">Back</button><h2>Training</h2></div>
-    <div class="thub">
-      <button class="ttile" id="packsbtn"><span class="tart" aria-hidden="true"><svg viewBox="0 0 120 70"><path d="M18 62V14h84v48" fill="none" stroke="currentColor" stroke-width="4"/><path d="M18 14l12 10h60l12-10M30 24v38M90 24v38M30 40h60M30 52h60M45 24v38M60 24v38M75 24v38" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/><circle cx="60" cy="44" r="11" fill="currentColor"/></svg></span>
-        <span class="tbody"><b>Skill packs</b><small>Set shots with the real ball: Striker, Goalie, Aerial, Dribbling and Pops, each in Rookie, Pro and All-Star.</small><em id="packsum"></em></span></button>
-      <button class="ttile lab" id="labbtn"><span class="tart" aria-hidden="true"><svg viewBox="0 0 120 70"><path d="M22 58a38 38 0 0 1 76 0" fill="none" stroke="currentColor" stroke-width="4"/><path d="M60 58L80 30" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="60" cy="58" r="5" fill="currentColor"/><path d="M30 46l5 2M38 33l4 4M52 25l1 5M68 25l-1 5M82 33l-4 4M90 46l-5 2" stroke="currentColor" stroke-width="2"/></svg></span>
-        <span class="tbody"><b>Calibration Lab</b><small>Six drills that measure how you fly and tune your rates, deadband and throttle while you fly them.</small><em>Rates · deadband · throttle</em></span></button>
-    </div>
-  </section>
-  <section class="scr wide" id="scr-packs" hidden aria-label="Skill packs">
-    <div class="shead"><button class="sm back" id="packsback">Back</button><h2>Skill packs</h2><span class="note" id="packstot" style="margin:0 0 0 auto"></span></div>
-    <div class="ptabs" id="ptabs" role="tablist" aria-label="Category"></div>
-    <p class="pblurb" id="pblurb"></p>
-    <div class="ptiles" id="ptiles"></div>
-  </section>
-  <section class="scr set-scr" id="scr-settings" hidden aria-label="Settings">
-    <div class="shead"><button class="sm back">Back</button><h2>Settings</h2></div>
-    <div class="tabs stabs" id="stabs" role="tablist" aria-label="Settings sections"><button class="sm on" data-tab="match">Match</button><button class="sm" data-tab="flight">Flight</button><button class="sm" data-tab="video">Camera &amp; video</button><button class="sm" data-tab="audio">Audio</button><button class="sm" data-tab="controls">Controls</button><button class="sm" data-tab="keys">Keys</button></div>
-    <div class="tabp" data-tab="match"><div class="set" id="set"></div></div>
-    <div class="tabp" data-tab="flight" hidden><div class="set" id="set_flight"></div><div class="mp"><button class="sm" id="sensbtn">Easy sensitivity setup…</button><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div></div>
-    <div class="tabp" data-tab="video" hidden><div class="set" id="set_video"></div></div>
-    <div class="tabp" data-tab="audio" hidden><div class="set" id="set_audio"></div></div>
-    <div class="tabp" data-tab="controls" hidden><h2>Controller <span id="gpname" style="text-transform:none;letter-spacing:0"></span></h2>
-      <div class="axes" id="axes"></div><div class="btns" id="btns"></div>
-      <div class="chans" id="chans"></div>
-      <div class="mp"><button class="sm" id="calbtn">Choose your controls</button><span id="calmsg" class="note" style="margin:0;align-self:center"></span></div>
-      <div class="map" id="map"></div>
-      <p class="note">RC radio or sim dongle: plug it in by USB and choose “USB Joystick (HID)” on the radio (EdgeTX / OpenTX / Ethos). Move a stick so the browser sees it, then press Choose your controls and move or press whatever you want for each function. Xbox controller: works straight away (left stick throttle, centre = hover); choose your controls to put any function on any stick, trigger, bumper, d-pad or button. It keeps its own setup, separate from your radio. Gamepad shortcut buttons are ignored for radios so switches don't trigger them.</p></div>
-    <div class="tabp" data-tab="keys" hidden><div class="keys">
-        <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
-        <kbd>A / D</kbd><span>Yaw</span>
-        <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
-        <kbd>Boost</kbd><span>Off by default (Super boost setting). When on: top 5% of the throttle stick = super boost (Shift / Space on keyboard), and gold orbs refill it</span>
-        <kbd>F / click</kbd><span>Fire (Dogfight). Guns follow the FPV camera; auto-fire shoots when the crosshair is on a target</span>
-        <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
-        <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
-        <kbd>R</kbd><span>Reset your drone (Freeplay only) · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
-        <kbd>E</kbd><span>Flip back over. <b>Pop:</b> touch the ball with the top of your quad, inside the four motors (a faint white ring flashes, the dial shows POP for 5 s), then hold a direction (roll, pitch or yaw) and press E for a locked flip that way. Where the ball sits on you decides the pop</span>
-        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y reset (Freeplay), Menu pause. Every button can be remapped in the Controls tab</span>
-      </div></div>
-  </section>
-</div>
-
-<div id="sens" hidden><div class="sbox"><div class="mhead"><b id="sstep">Step 1 of 4</b><span class="note" style="margin:0">Easy sensitivity setup</span><button class="sm" id="sx">✕</button></div>
-       <h3 id="sq"></h3><p class="note" id="sd"></p><div class="sch" id="sch"></div><div id="sl"><input type="range" id="sr"><output id="so"></output></div>
-       <div class="sbars" id="sbars"></div>
-       <div class="mp"><button class="sm" id="sback">Back</button><button class="sm" id="snext">Next</button></div></div></div>
-<div id="lab" hidden>
-  <canvas id="labc"></canvas>
-  <div id="labrun" hidden>
-    <div id="lhead" class="osd"><div id="ltop"></div><div id="lmsg"></div><div class="lbarw"><i id="lbar"></i></div></div>
-    <aside id="lside"><h3>Targets</h3><div class="ltg" id="ltg"></div><h3>Last rep</h3><p id="llast" class="note"></p><h3>What changed and why</h3><ul id="llog"></ul>
-      <h3>Current tune</h3><table class="rt" id="lrt"></table><div class="mp"><button class="sm" id="labskip">Skip drill</button><button class="sm" id="labend">End pack</button></div></aside>
-  </div>
-</div>
-<div id="labintro" class="modal" hidden><div class="sbox wide"><div class="mhead"><b>Calibration Lab</b><span class="note" style="margin:0">a training pack that tunes your rates while you fly</span></div>
-  <p class="note">Six short drills, each measuring one thing. Every overshoot, undershoot and wobble is measured and weighted by how big it was; the tuner adjusts your rates, deadband, throttle curve and assist as you go, so you feel the improvement within the same drill. Flies in Acro. Esc pauses.</p>
-  <h3>1 · Controls</h3><div class="mp"><button class="sm" id="lbind">Choose your controls…</button><span class="note" style="margin:0;align-self:center">or keep your current ones</span></div>
-  <h3>2 · Preset</h3><div id="lpre" class="lpre"></div><div id="lspeed" class="lspeed"></div>
-  <h3>3 · Drills</h3><ol id="ldrills" class="ldrills"></ol>
-  <div class="mp"><button class="go sm" id="lgo">Start</button><button class="sm" id="lquit">Leave Lab</button></div></div></div>
-<div id="labsum" class="modal" hidden><div class="sbox wide"><div class="mhead"><b>Training complete</b><span class="note" id="lstitle" style="margin:0"></span></div>
-  <table class="rt lsum" id="lsrows"></table><ul id="lsmet" class="note"></ul>
-  <div class="lsact"><button class="go" id="lsave">Save</button><button id="ldisc">Discard</button><button id="ltestb">Test first</button><button id="lretry">Retry training</button></div>
-  <div class="mp"><label class="note" for="lslot" style="margin:0;align-self:center">Save to</label><select id="lslot" aria-label="Save to rate profile"><option value="0">Rate profile 1</option><option value="1">Rate profile 2</option><option value="2">Rate profile 3</option></select><button class="sm" id="lrev" disabled>Undo save</button><button class="sm" id="lexit">Back to menu</button></div>
-  <p class="note" id="lsmsg"></p></div></div>
-<div id="ltest" hidden><div class="ltbar"><b>Test drive</b><span id="ltt" class="osd">1:00</span><span class="note">Freeplay with your new settings. No bots.</span><button class="go" id="lexitt">Exit test</button></div></div>
-<div id="ltip" role="tooltip" hidden></div>
-<div id="train" hidden>
-  <div class="trtop"><div class="trpack"><i id="trtier"></i><b id="trname"></b></div><div class="trshot"><span>Shot</span><b id="trnum"></b></div><div class="trtime" id="trtime"></div></div>
-  <div class="trsub"><div class="trpips" id="trpips"></div><div class="trsn" id="trsn"></div></div>
-  <div class="trready" id="trready" hidden><b>Move to start</b><span id="trtip"></span></div>
-  <div class="trres" id="trres" hidden></div>
-  <div class="trkeys"><button id="trprev"><kbd>B</kbd><kbd>D-pad &#9664;</kbd>Previous</button><button id="trretry"><kbd>R</kbd><kbd>Y</kbd>Retry</button><button id="trnext"><kbd>N</kbd><kbd>D-pad &#9654;</kbd>Next</button></div>
-</div>
-<div id="trsum" class="modal" hidden><div class="trbox" role="dialog" aria-label="Pack summary">
-  <div class="trsh"><span id="trscat"></span><h2 id="trstitle"></h2><i id="trstier"></i></div>
-  <div class="trbig"><div><b id="trsn2"></b><span>/ <i id="trsof"></i> shots</span></div><em id="trsbest"></em></div>
-  <div class="trsstats" id="trsstats"></div>
-  <ol class="trslist" id="trslist"></ol>
-  <div class="trsact"><button class="go" id="trsretry">Retry pack</button><button id="trsnext">Next pack</button><button id="trsback">Skill packs</button><button id="trsmenu">Main menu</button></div>
-</div></div>
-<div id="bind" class="modal" hidden><div class="sbox wide"><div class="mhead"><b id="bstep"></b><span class="note" id="bdev" style="margin:0"></span><button class="sm" id="bx" aria-label="Cancel">✕</button></div>
-  <h3 id="bq"></h3><p class="note" id="bmsg"></p><div id="blive" class="blive"></div><div id="bres" class="bres"></div>
-  <div class="mp"><button class="sm" id="bredo">Redo step</button><button class="sm" id="bskip">Skip</button><button class="go sm" id="bsave" hidden>Save</button></div></div></div>
-<div id="garage" hidden role="dialog" aria-label="Garage">
-  <canvas id="gcv" aria-label="Drone preview: drag to turn, scroll to zoom"></canvas>
-  <div class="ghead"><h2>Garage</h2><div id="gname"></div><div class="gauw osd" id="gauw"></div></div>
-  <div class="gstats" id="gstats"></div>
-  <aside class="gside">
-    <div class="gtabs" id="gtabs" role="tablist" aria-label="Part category"></div>
-    <div id="gslots"></div>
-    <div id="gdesc" class="gdesc"></div>
-  </aside>
-  <div class="gbar"><button class="sm" id="gok">Back</button><label class="gtog"><input type="checkbox" id="ghit"> Show hitbox</label><button class="sm" id="grand">Random</button><button class="sm" id="gstock">Reset to stock</button><button class="sm" id="gx" hidden aria-label="Close garage">✕</button></div>
-</div>
-<aside id="mod" hidden aria-label="Mod panel">
-  <div class="mhead"><h2 style="margin:0">Mod panel</h2><span class="note" style="margin:0">T toggles · changes apply live</span><button class="sm" id="mclose" aria-label="Close mod panel">✕</button></div>
-  <div class="tabs" role="tablist"><button class="sm on" id="tabr" role="tab" aria-selected="true">Rates</button><button class="sm" id="tabp" role="tab" aria-selected="false">Physics</button></div>
-  <section id="paner">
-    <div class="mp"><select id="rpi" aria-label="Rate profile"><option value="0">Rate profile 1</option><option value="1">Rate profile 2</option><option value="2">Rate profile 3</option></select><select id="rtype" aria-label="Rates type"><option>BETAFLIGHT</option><option>ACTUAL</option><option>QUICK</option><option>KISS</option><option>RACEFLIGHT</option></select></div>
-    <table class="rt"><thead><tr><th></th><th id="rh0"></th><th id="rh1"></th><th id="rh2"></th><th class="mx">Max °/s</th></tr></thead><tbody id="rbody"></tbody></table>
-    <canvas id="rgraph" width="680" height="380" aria-label="Rate curves for roll, pitch and yaw"></canvas>
-    <h3>Throttle</h3>
-    <div class="thr"><div class="tin"><label for="tmid">Throttle MID</label><input type="number" id="tmid" min="0" max="1" step="0.01"><label for="texpo">Throttle EXPO</label><input type="number" id="texpo" min="0" max="1" step="0.01"><label for="tlim">Throttle limit %</label><input type="number" id="tlim" min="25" max="100" step="1"></div><canvas id="tgraph" width="240" height="160" aria-label="Throttle curve"></canvas></div>
-    <h3>Betaflight CLI</h3>
-    <textarea id="cli" rows="4" placeholder="Paste your quad's Betaflight diff or dump here and press Import CLI. Export CLI gives set commands you can paste into Betaflight." aria-label="Betaflight CLI text"></textarea>
-    <div class="mp"><button class="sm" id="cimp">Import CLI</button><button class="sm" id="cexp">Export CLI</button><button class="sm" id="rreset">Reset profile</button><span id="rmsg" class="note" style="margin:0;align-self:center"></span></div>
-  </section>
-  <section id="panep" hidden>
-    <div class="mp"><select id="mpre" aria-label="Preset"></select><button class="sm" id="mload">Load</button><button class="sm" id="mdel">Delete</button></div>
-    <div class="mp"><input id="mname" maxlength="24" placeholder="Name this setup" aria-label="Setup name"><button class="sm" id="msave">Save</button><button class="sm" id="mreset">Reset all</button></div>
-    <p class="note" id="modnote"></p>
-    <div id="modbody"></div>
-    <h3>Share a setup</h3>
-    <textarea id="mio" rows="3" placeholder="Export copies your setup here. Paste a friend's setup and press Import." aria-label="Settings text"></textarea>
-    <div class="mp"><button class="sm" id="mexp">Export</button><button class="sm" id="mimp">Import</button><span id="modmsg" class="note" style="margin:0;align-self:center"></span></div>
-  </section>
-</aside>
-
-<script type="module" src="/src/main.js"></script>
-</body>
-</html>
+  <p class="note">Esc in any game opens its menu. <kbd>T</kbd> opens the mod panel (rates and physics). Runs from GitHub Pages or any local web server; double-click <kbd>Play Drone League.bat</kbd> on Windows.</p>
+</main>

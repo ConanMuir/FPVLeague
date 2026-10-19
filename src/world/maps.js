@@ -38,7 +38,7 @@ export const OUT={
    if(ld>1.25&&ld<1.7&&v<.06)return['cabin',10+r()*3];if(v<.1)return['rockS',2+r()*6];if(v<.18)return['mound',6+r()*8];if(d<.42&&r()>.22)return null;return['snowpine',13+r()*12]}}};
 function hgt(c,x,z){const e=edgeD(x,z),f=sm((offR(x,z)-95)/110);let y=f*sm(e/90)*(fbm(x/140,z/140)*c.hill+e*.05)+cl((e-380)/220,0,1)*fbm(x/90+7,z/90)*c.mtn;
  if(c.mesa)y+=f*sm(e/50)*cl((fbm(x/170+3,z/170-2)-.5)*14,0,1)*c.mesa*(.7+.3*vnoise(x/40,z/40));
- const w=c.water;if(w){const d=w.t==='river'?Math.abs(x-w.x-w.a*Math.sin(z/w.p+1))/w.w:Math.hypot((x-w.x)/w.rx,(z-w.z)/w.rz);y+=(w.d-y)*(w.t==='river'?sm((1.25-d)/.5):sm((2.4-d)/1.5)*.35+sm((1.25-d)/.4)*.65)}return y-.06}
+ const w=c.water;if(w){const d=w.t==='river'?Math.abs(x-w.x-w.a*Math.sin(z/w.p+1))/w.w:Math.hypot((x-w.x)/w.rx,(z-w.z)/w.rz);y+=(w.d-y)*(w.t==='river'?sm((1.25-d)/.5):sm((2.4-d)/1.5)*.35+sm((1.25-d)/.4)*.65)}return y-.06-1.4*(1-sm(e/40))}  // sunk 1.5 m under the pitch and stands (the turf sat 6 cm above it and z-fought far away), back to ground level 40 m out
 export function skyTex(c){const d=new V3(...c.sun).normalize(),t=tex(1024,512,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);[0,.3,.46,.5,.53,1].forEach((s,i)=>gr.addColorStop(s,c.sky[i]));g.fillStyle=gr;g.fillRect(0,0,w,h);
  const u=(Math.atan2(d.z,d.x)/(2*Math.PI)+.5)*w,v=(.5-Math.asin(d.y)/Math.PI)*h,r=g.createRadialGradient(u,v,0,u,v,h*.4);r.addColorStop(0,'rgba(255,248,225,.9)');r.addColorStop(.12,'rgba(255,240,205,.4)');r.addColorStop(1,'rgba(255,240,205,0)');g.fillStyle=r;g.fillRect(0,0,w,h)});
  t.mapping=THREE.EquirectangularReflectionMapping;return t}

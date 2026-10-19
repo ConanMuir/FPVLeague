@@ -6,7 +6,7 @@ import {glow,scene,tex} from './renderer.js';
 import {GS} from '../state.js';
 import {buildPartsMesh} from '../parts/mesh.js';
 import {cosMats,cosTrail,paintTrail} from './cos-mat.js';
-export const MAT={carbon:new THREE.MeshStandardMaterial({color:0x16191f,roughness:.45,metalness:.7}),metal:new THREE.MeshStandardMaterial({color:0x8a919c,roughness:.3,metalness:.9}),
+export const MAT={carbon:new THREE.MeshPhysicalMaterial({color:0x1b1e24,roughness:.5,metalness:.15,clearcoat:1,clearcoatRoughness:.18})  /* clear-coated plates; weave below */,metal:new THREE.MeshStandardMaterial({color:0x8a919c,roughness:.3,metalness:.9}),
  prop:new THREE.MeshBasicMaterial({color:0xaab4c8,transparent:true,opacity:.14,depthWrite:false}),lens:new THREE.MeshStandardMaterial({color:0x050505,roughness:.05,metalness:1}),
  team:COL.map(c=>new THREE.MeshStandardMaterial({color:c,metalness:.4,roughness:.35,emissive:c,emissiveIntensity:.3})),led:COL.map(c=>glow(c,2)),
  blade:COL.map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.5,transparent:true,opacity:.55})),

@@ -12,7 +12,7 @@ const b = await puppeteer.launch({executablePath: process.env.EDGE_PATH || 'C:/P
   args: ['--window-size=1280,720', '--ignore-gpu-blocklist']});
 const p = await b.newPage(); await p.setViewport({width: 1280, height: 720}); const errs = [];
 p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/fonts\.g|favicon|peerjs|Failed to load resource/i.test(m.text())) errs.push(m.text()); });
-await p.goto(server.resolvedUrls.local[0]); await new Promise(r => setTimeout(r, 6000));
+await p.goto(server.resolvedUrls.local[0] + 'app.html'); await new Promise(r => setTimeout(r, 6000));
 await p.addStyleTag({content: 'body>*:not(#gl),body>*:not(#gl) *{visibility:hidden!important}'});
 await p.evaluate(async () => {
   const M = {DF: await import('/src/modes/dogfight.js'), MA: await import('/src/modes/match.js'), ST: await import('/src/modes/step.js'), B: await import('/src/physics/ball.js'),

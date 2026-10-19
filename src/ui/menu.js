@@ -1,7 +1,7 @@
 // ---------- menu / settings ----------
-import {setVolumes} from '../audio/audio.js';
 import {$,AI,ARENAS,DIFF} from '../config/constants.js';
 import {S,save} from '../config/settings.js';
+import {setVolumes} from '../audio/audio.js';
 import {BTN,CAL,PAIR,RADIO,axv,pad,padBlocked,padX} from '../input/input.js';
 import {setGame} from '../modes/dogfight.js';
 import {LAB,exitLab} from '../modes/lab.js';
@@ -17,10 +17,10 @@ import {tab} from './rates.js';
 import {OUT,setMap} from '../world/maps.js';
 const FIELDS=[['size','Team size','sel',[[1,'1v1'],[2,'2v2'],[3,'3v3']]],['diff','Bot skill','sel',DIFF.map((d,i)=>[i,d.n])],['bots','Bots','sel',[[1,'Fill empty spots'],[0,'No bots']]],['len','Match length','sel',[[120,'2 min'],[180,'3 min'],[300,'5 min']]],['arena','Arena size','sel',ARENAS.map((a,i)=>[i,`${a[0]} (${a[1]}×${a[2]} m)`])],['map','Map','sel',[['arena','Neon Arena'],...Object.entries(OUT).map(([k,c])=>[k,c.name])]],['ball','Ball style','sel',BALLS],['gfx','Graphics quality','sel',[['auto','Auto'],['high','High'],['med','Medium'],['low','Low (integrated GPUs)']]],
  ['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
- ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['assist','Flight assist','rng',0,1,.05],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]],
+ ['tilt','Camera uptilt','rng',0,60,1,'°'],['tiltAx','Camera tilt axis (live tilt from a stick, knob or slider)','sel',[[-1,'Off (fixed uptilt)'],...[0,1,2,3,4,5,6,7].map(i=>[i,'Axis '+i])]],['tiltMin','Tilt at axis min','rng',-90,90,1,'°'],['tiltMax','Tilt at axis max','rng',-90,90,1,'°'],['lookBtn','Look-down button (hold to look at the ball, G on keyboard)','sel',[[-1,'None (G key only)'],...Array.from({length:17},(_,b)=>[b,'Button '+b+' ('+'A B X Y LB RB LT RT View Menu LS RS D-up D-down D-left D-right Xbox'.split(' ')[b]+' on Xbox)'])]],['osd','FPV OSD (Betaflight style, O key)','sel',[[false,'Off'],[true,'On']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005],['assist','Flight assist','rng',0,1,.05],['afire','Auto-fire (Dogfight)','sel',[[true,'On'],[false,'Off']]],['sboost','Super boost','sel',[[false,'Off'],[true,'On']]],['longline','Long line (hook and tow the ball to score)','sel',[[false,'Off'],[true,'On']]],['llScore','Long line scoring','sel',[['hoops','Hoops (guide it through a ring)'],['goals','Goals (drag it over the line)']]],['llLen','Long line cable length','rng',8,40,1,' m'],['llW','Long line load weight','rng',1,10,.5,'×'],['llStr','Long line cable stretch','sel',[['stiff','Stiff (sharp snatches)'],['normal','Normal'],['bungee','Bungee (soft and bouncy)']]],['llCam','Long line view','sel',[['sling','Sling cam (pulls back to show drone and ball)'],['fpv','Stay in FPV']]],
  ['vMaster','Master volume','rng',0,100,5],['vMotor','Your motors and prop wash','rng',0,100,5],['vWind','Wind','rng',0,100,5],['vOther','Other drones','rng',0,100,5],['vFx','Effects (ball, goals, hits, boost)','rng',0,100,5],['vCrowd','Crowd','rng',0,100,5]];
 // settings tab for each field (the rest go on Match); Controls and Keys tabs hold the controller block and the key list
-const FTAB={mode:'flight',thrMode:'flight',dz:'flight',assist:'flight',map:'video',ball:'video',gfx:'video',tilt:'video',fov:'video',vMaster:'audio',vMotor:'audio',vWind:'audio',vOther:'audio',vFx:'audio',vCrowd:'audio'};
+const FTAB={mode:'flight',thrMode:'flight',dz:'flight',assist:'flight',map:'video',ball:'video',gfx:'video',tilt:'video',fov:'video',osd:'video',tiltAx:'video',tiltMin:'video',tiltMax:'video',lookBtn:'video',vMaster:'audio',vMotor:'audio',vWind:'audio',vOther:'audio',vFx:'audio',vCrowd:'audio'};
 // builds the settings and controller-mapping rows and wires the menu buttons (v15 ran this at load)
 export function initMenu(){
 for(const[k,lab,type,...o]of FIELDS){const setEl=FTAB[k]?$('set_'+FTAB[k]):$('set');const l=document.createElement('label');l.textContent=lab;l.htmlFor='f_'+k;setEl.append(l);let inp;
@@ -46,14 +46,17 @@ for(const b of $('stabs').children)b.onclick=()=>{for(const x of $('stabs').chil
  for(const b of document.querySelectorAll('#home [data-scr]'))b.onclick=()=>menuScreen(b.dataset.scr);for(const b of document.querySelectorAll('#menu .back'))b.onclick=()=>menuScreen(null);
  addEventListener('keydown',e=>{if(e.code==='Escape'&&GS.menuOpen&&document.querySelector('#menu .scr:not([hidden])')){menuScreen(null);e.stopImmediatePropagation()}},true);
  for(const M of modeList()){if(M.hidden)continue;const b=document.createElement('button');b.className='sm';b.id='m_'+M.id;b.dataset.m=M.id;b.textContent=M.name;b.onclick=()=>pickGame(M.id);$('modes').append(b)}  // one button per registered mode (modes/registry.js)
+ {const b=document.createElement('button');b.className='sm';b.id='m_intercept';b.textContent='Interceptor';b.onclick=()=>menuScreen('intercept');$('modes').append(b);  // Riley's Interceptor (games/interceptor), its own page: Classic or Zombies
+  const file=location.protocol==='file:',go=m=>{if(file){$('icnote').hidden=false;return}location.href=new URL('../interceptor/?mode='+m,location.href).href};
+  $('icClassic').onclick=()=>go('classic');$('icZombies').onclick=()=>go('zombies')}
 $('play').onclick=()=>{exitLab();startMatch()};$('resume').onclick=()=>showMenu(false);$('leave').onclick=()=>{exitLab();leaveGame();startDemo()};
 $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi','assist','dzy','xboost','boostBtn','loadout'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>mpMsg('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 {const m=location.hash.match(/^#([a-z0-9]{2,6})$/i);if(m)$('code').value=m[1]}
 }
-export function syncUI(){for(const[k,,type]of FIELDS){const inp=$('f_'+k);inp.value=type==='sel'?JSON.stringify(S[k]):S[k];
- $('o_'+k).textContent=type==='rng'?(k==='tilt'||k==='fov'?S[k]+'°':FTAB[k]==='audio'?S[k]+'%':(+S[k]).toFixed(2)):''}
+export function syncUI(){for(const[k,,type,...fo]of FIELDS){const inp=$('f_'+k);inp.value=type==='sel'?JSON.stringify(S[k]):S[k];
+ $('o_'+k).textContent=type==='rng'?(k==='tilt'||k==='fov'?S[k]+'°':FTAB[k]==='audio'?S[k]+'%':fo[3]?S[k]+fo[3]:(+S[k]).toFixed(2)):''}
  for(let i=0;i<4;i++){$('ax'+i).value=CAL()[i].a;$('inv'+i).checked=CAL()[i].s<0}$('fireb').value=String(padX?S.xfire:S.fireBtn);$('flipb').value=String(padX?S.xflip:S.flipBtn)}
 function pickGame(m){if(GS.net){mpMsg('Leave the online game to switch modes.');return}const lab=LAB.on;exitLab();S.game=m;save();setGame(m);if(GS.demo||lab)startDemo();else startMatch()}
 export function menuScreen(id){for(const s of document.querySelectorAll('#menu .scr'))s.hidden=s.id!=='scr-'+id;$('home').hidden=!!id;(id?document.querySelector('#scr-'+id+' .back'):$(GS.demo?'play':'resume'))?.focus({preventScroll:true})}

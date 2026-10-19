@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drone League</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;1,700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="../../engine/engine.css">
+<style>
+/* Drone League: scoreboard, boost and health bars, mode switch; blue/orange theme */
+#radar{position:absolute;right:20px;top:calc(14px + env(safe-area-inset-top,0px));background:rgba(5,8,16,.55);border:1px solid var(--edge);border-radius:6px}
+#score{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;align-items:stretch;font-weight:700;font-size:28px;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+#score>span{padding:4px 16px;min-width:34px;text-align:center;font-variant-numeric:tabular-nums}
+#sb{background:var(--blue)}#so{background:var(--orange)}
+#clock{background:var(--panel);font-family:var(--mono);font-size:22px;display:flex;align-items:center;min-width:86px!important}
+#boostw{position:absolute;right:20px;bottom:calc(20px + env(safe-area-inset-bottom,0px));width:190px}
+#boostw .lbl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+#boostbar{height:12px;border:1px solid var(--edge);background:rgba(0,0,0,.45);border-radius:3px;overflow:hidden}
+#boostfill{height:100%;width:30%;background:linear-gradient(90deg,#ff9d2a,var(--amber));box-shadow:0 0 12px var(--amber)}
+#xh.hit:before,#xh.hit:after{background:#ff4d4d;box-shadow:0 0 6px #ff4d4d}
+#hurt{position:absolute;inset:0;opacity:0;box-shadow:inset 0 0 140px 40px rgba(255,30,30,.9)}
+#hpw .bar{height:12px;border:1px solid var(--edge);background:rgba(0,0,0,.45);border-radius:3px;overflow:hidden;margin-bottom:10px}#hpfill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d4d,#7dff9a);box-shadow:0 0 10px #7dff9a}
+.modes{display:flex;gap:8px;margin:0 0 14px}.modes button.on{border-color:var(--orange);background:rgba(255,138,42,.2)}
+#arrow{position:absolute;left:0;top:0;width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-bottom:24px solid #fff;filter:drop-shadow(0 0 6px #9fe8ff)}
+#center{position:absolute;left:0;right:0;top:30%;text-align:center;font-size:clamp(40px,9vw,110px);font-weight:700;font-style:italic;letter-spacing:.02em;text-shadow:0 0 30px currentColor,0 4px 0 rgba(0,0,0,.5)}
+h1{margin:0;font-size:clamp(38px,6vw,58px);line-height:.9;font-style:italic;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+h1 .b{color:var(--blue)}h1 .o{color:var(--orange)}
+button.go{background:linear-gradient(90deg,var(--blue),#6a5cff 50%,var(--orange));border:0}
+#games{display:grid;gap:6px;margin-top:8px}#games button{text-align:left;text-transform:none;letter-spacing:.02em}
+</style>
+
+
+<div id="hud" hidden>
+  <div id="score"><span id="sb">0</span><span id="clock" class="osd">3:00</span><span id="so">0</span></div>
+  <div id="feed"></div>
+  <canvas id="radar" width="110" height="170"></canvas>
+  <div id="xh"></div>
+  <div id="arrow" hidden></div>
+  <div id="hurt"></div>
+  <div id="center"></div>
+  <div id="osd" class="osd"></div>
+  <div id="boostw" class="osd"><div id="hpw" hidden><div class="lbl"><span>HEALTH</span><span id="hval">100</span></div><div class="bar"><div id="hpfill"></div></div></div><div id="bsec"><div class="lbl"><span id="blbl">BOOST</span><span id="bval">33</span></div><div id="boostbar"><div id="boostfill"></div></div></div></div>
+</div>
+
+<div id="menu">
+  <div id="panel">
+    <div>
+      <div class="modes" role="group" aria-label="Game mode"><button class="sm on" id="m_league">Drone League</button><button class="sm" id="m_df">Dogfight</button></div>
+      <h1><span class="b">DRONE</span><br><span class="o" id="h1o">LEAGUE</span></h1>
+      <p class="sub" id="sub">Rocket-powered soccer for 5-inch acro quads. Betaflight-style rates, FPV uptilt, boost orbs and bots that read the ball.</p>
+      <div class="btns"><button class="go" id="play">Play vs bots</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Leave game</button><button id="modbtn">Mod panel</button></div>
+      <h2 style="margin-top:22px">Online match</h2>
+      <div class="mp"><input id="nick" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><select id="tpref" aria-label="Team preference"><option value="auto">Any team</option><option value="0">Blue</option><option value="1">Orange</option></select><button class="sm" id="host">Host</button></div>
+      <div class="mp"><input id="code" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="join">Join</button></div>
+      <div id="games"></div>
+      <p class="note" id="mpnote">Connecting…</p>
+      <div class="keys">
+        <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
+        <kbd>A / D</kbd><span>Yaw</span>
+        <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
+        <kbd>Boost</kbd><span>Off by default (Super boost setting). When on: top 5% of the throttle stick = super boost (Shift / Space on keyboard), and gold orbs refill it</span>
+        <kbd>F / click</kbd><span>Fire (Dogfight). Guns follow the FPV camera; auto-fire shoots when the crosshair is on a target</span>
+        <kbd>C</kbd><span>Camera: FPV → chase → ball cam (enemy cam in Dogfight)</span>
+        <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
+        <kbd>R</kbd><span>Respawn · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
+        <kbd>E</kbd><span>Flip back over now (upside down on the ground it also rolls back onto its feet by itself)</span>
+        <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y respawn, Menu pause. Every button can be remapped below</span>
+      </div>
+    </div>
+    <div>
+      <h2>Match &amp; flight</h2>
+      <div class="set" id="set"></div><div class="mp"><button class="sm" id="sensbtn">Easy sensitivity setup…</button><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div>
+      <div id="pilotpad"></div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module" src="league.js"></script>

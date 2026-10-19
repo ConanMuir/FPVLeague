@@ -9,7 +9,7 @@ const {createServer} = await import('vite');
 const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
 const server = await createServer({root: process.cwd(), logLevel: 'error', server: {port: 0, host: '127.0.0.1'}}); await server.listen();
 const b = await puppeteer.launch({executablePath: process.env.EDGE_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true, env, args: ['--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required']});
-const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); await p.goto(server.resolvedUrls.local[0]); await new Promise(r => setTimeout(r, 6000));
+const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); await p.goto(server.resolvedUrls.local[0] + 'app.html'); await new Promise(r => setTimeout(r, 6000));
 const r = {}, sc = async f => { Object.assign(r, await p.evaluate(f)); await new Promise(q => setTimeout(q, 150)); };
 // setup: modules and helpers on window.T_; then no-AudioContext safety
 await sc(async () => {

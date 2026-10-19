@@ -7,6 +7,7 @@ import {MDEF} from '../config/mods.js';
 import {S,save} from '../config/settings.js';
 import {PARTS,SLOTS,SLOT_NAMES,STATS,STOCK,allLoadouts,computeLoadout,partOf,statsOf} from '../parts/index.js';
 import {buildPartsMesh,colliderWire} from '../parts/mesh.js';
+import {loadoutDesc} from '../physics/world.js';
 import {MAT} from '../render/drone-mesh.js';
 import {COS,COS_CATS,COS_DEF,COS_NAMES,RARITY,cosItem,shifted} from '../parts/cosmetics.js';
 import {cosMats} from '../render/cos-mat.js';

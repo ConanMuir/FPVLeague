@@ -63,12 +63,12 @@ function cycleCam(){if(LAB.on)return;GS.camMode=(GS.camMode+1)%3;S.cam=GS.camMod
 function togglePause(){if(GS.demo)return;showMenu(!GS.menuOpen)}
 addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!GS.menuOpen)e.preventDefault();if(e.repeat)return;
  if(e.code==='Escape'||e.code==='KeyP')togglePause();if(GS.menuOpen)return;
- if(e.code==='KeyC')cycleCam();if(e.code==='KeyM'&&!LAB.on){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}if(e.code==='KeyR'&&canReset())GS.player.spawn()});
+ if(e.code==='KeyC')cycleCam();if(e.code==='KeyM'&&!LAB.on){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}if(e.code==='KeyR'&&canReset())GS.player.spawn();if(e.code==='KeyO'){S.osd=!S.osd;save();syncUI();banner('OSD '+(S.osd?'ON':'OFF'),'',.8)}});
 addEventListener('keyup',e=>keys[e.code]=false);addEventListener('blur',()=>{for(const k in keys)keys[k]=false;mouseFire=false});
 addEventListener('mousedown',e=>{if(e.button===0&&!GS.menuOpen&&!e.target.closest?.('#mod,#menu,#lab,#bind,button,input,select,textarea'))mouseFire=true});addEventListener('mouseup',e=>{if(e.button===0)mouseFire=false});
 // gamepad shortcut buttons (Menu pause, LB camera, Y respawn) skip any button bound to flight, fire, flip or boost
 export function padEdges(){const g=pad();if(!g||RADIO.test(g.id))return;const u=new Set();if(padX){for(const c of S.xcal){if(c.a>=100)u.add(c.a-100);if(c.b!=null)u.add(c.b);if(c.nb?.a>=100)u.add(c.nb.a-100)}
-  for(const b of[S.xfire,S.xflip,S.xboost])if(typeof b==='number'&&b>=0)u.add(b)}
+  for(const b of[S.xfire,S.xflip,S.xboost,S.lookBtn])if(typeof b==='number'&&b>=0)u.add(b)}
  const b=g.buttons.map(x=>x.pressed),e=i=>b[i]&&!prevBtn[i]&&!u.has(i);
  if(e(9)&&!calib)togglePause();if(!GS.menuOpen&&!GS.demo){if(e(4))cycleCam();if(e(3)&&canReset())GS.player.spawn()}prevBtn=b}
 // reset (R / Xbox Y) only in Freeplay; in matches you fly yourself out of trouble
