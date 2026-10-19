@@ -1,6 +1,7 @@
 // one fixed simulation step (1/120 s): match clock, controls + flight model, the Rapier step (physics/world.js), guns, orbs,
 // ball touches, drone-drone contact, goals, bot planning
-import {near,noise,tone} from '../audio/audio.js';
+import {tone} from '../audio/audio.js';
+import {ballBounce,countdown} from '../audio/sfx.js';
 import {dfBot} from '../bots/dogfight.js';
 import {assignRoles,botControl,predict} from '../bots/league.js';
 import {HL,V3,cl} from '../config/constants.js';
@@ -24,7 +25,7 @@ import {ORBS} from '../world/orbs.js';
 import {MODES} from './registry.js';
 const _pu=new V3(),_pc=new V3(),_pw2=new V3(),_pr=new V3(),_fr=new V3(),_fs=new V3(),_fc=new V3(),sst=x=>{x=cl(x,0,1);return x*x*(3-2*x)};
 export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state, Rapier moves it
- if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);tone(660,660,.12,.12,'square')}else{banner('GO!','',.6);tone(990,990,.25,.15,'square')}}}if(A&&GS.stT<=0)GS.state='play'}
+ if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);countdown(n)}else{banner('GO!','',.6);countdown(0)}}}if(A&&GS.stT<=0)GS.state='play'}
  else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
  else if(GS.state==='end'){GS.stT-=dt;if(A&&GS.stT<=0){banner('');if(GS.net){GS.score=[0,0];GS.clock=S.len;GS.overtime=GS.endPending=false;kickoff()}else{startDemo();return}}}
  else if(GS.state==='play'&&!GS.demo&&A&&!MODES[GS.GM]?.free){if(!GS.overtime){GS.clock-=dt;if(GS.clock<=0){GS.clock=0;if(GS.score[0]===GS.score[1]){GS.overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else GS.clock+=dt}
@@ -33,11 +34,11 @@ export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);ph
   if(d.bot)(GS.OBSON?dfBot:botControl)(d,dt);else{humanControl(d,dt);if(GS.OBSON)d.firing=!GS.menuOpen&&GS.state==='play'&&fireIn(d)}if(frozen)continue;d.step(dt)}
  const simBall=!frozen&&live&&!GS.OBSON;if(simBall)ballPre(ball.v,dt);
  physStep(dt,simBall);  // moves every drone and the ball, resolves their contact with the map
- for(const d of GS.drones){if(d.remote||d.dead>0||frozen)continue;if(d===GS.player&&d.hit>10)noise(.16,280,cl(d.hit/90,0,.25),.7);if(GS.OBSON)droneFire(d,dt,A||d===GS.player);
+ for(const d of GS.drones){if(d.remote||d.dead>0||frozen)continue;if(GS.OBSON)droneFire(d,dt,A||d===GS.player);
   if(SB())for(const p of ORBS)if(p.cd<=0&&d.boost<100&&d.p.distanceTo(p.p)<(p.big?2.6:1.8)+DRAD+1){d.boost=Math.min(100,d.boost+(p.big?PBG:PSM));p.cd=p.big?10:4;emit(p.p,0xffc640,p.big?60:24,p.big?14:9,.6);if(d===GS.player)tone(700,1400,.15,.08)}}
  for(const p of ORBS)p.cd-=dt;
  if(GS.OBSON){for(const d of GS.drones)if(d.remote)droneFire(d,dt,false);bullets(dt);turrets(dt)}
- if(simBall&&ball.hit>4)noise(.1,900,cl(ball.hit/50,0,.3)*near(ball.p));
+ if(simBall&&ball.hit>3)ballBounce(ball.hit);  // landing thuds and ball touches sound from the physics hit events (audio/sfx.js)
  if(!frozen)for(let i=0;i<GS.drones.length;i++){const a=GS.drones[i];if(a.dead>0)continue;
   let tb;if(live&&!a.remote&&!GS.OBSON&&(tb=ballTouch(a,_v))){const n=_v,pen=tb.pen,ib=1/BM,id=1/a.fl.mass;ball.p.addScaledVector(n,pen*ib/(ib+id));a.p.addScaledVector(n,-pen*id/(ib+id));
    // pop: the ball on the top of the quad, inside its four motors, earns (or refreshes) a pop; the faint ring shows when a new one is earned
@@ -58,7 +59,7 @@ export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);ph
      if(hk<.3)ball.w.lerp(_fc.copy(a.w).applyQuaternion(a.q),Math.min(1,.12*Math.min(2,a.fl.grip)));}  // rolling resistance on a resting carry: the ball rides on the frame instead of rolling off it like a marble on glass
     ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv});
     if(GS.net&&!GS.net.host&&a===GS.player){GS.net.hit={s:++GS.net.seq,p:r2(ball.p),v:r2(ball.v)};GS.net.hitT=performance.now()}
-    if(-rv>6){noise(.18,700+(-rv)*15,cl(-rv/35,0,.7)*near(ball.p));tone(240,90,.12,cl(-rv/120,0,.25)*near(ball.p));emit(ball.p.clone().addScaledVector(n,-BR),0x9fe8ff,cl(-rv,4,30)|0,10,.5)}}}
+    if(-rv>6){emit(ball.p.clone().addScaledVector(n,-BR),0x9fe8ff,cl(-rv,4,30)|0,10,.5)}}}
   for(let k=i+1;k<GS.drones.length;k++){const b=GS.drones[k];if(b.dead>0||a.remote&&b.remote)continue;const c=droneTouch(a,b,_v);if(!c)continue;const n=_v;  // the drones' part colliders (physics/world.js BUMP skin)
    const o=c.pen,wa=a.remote?0:b.remote?1:.5;a.p.addScaledVector(n,-o*wa);b.p.addScaledVector(n,o*(1-wa));const rv=_w.subVectors(b.v,a.v).dot(n);if(rv>=0)continue;
    emitHit({type:'drone',d:a,tag:c.ta,other:b,otherTag:c.tb,speed:-rv});

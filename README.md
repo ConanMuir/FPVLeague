@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main da7fc78 (pop mechanic, PR #15)
-Doing: Dogfight underground: a cave network under the Highlands (caverns, tunnels, six entrances), collision + bots + checks.
-Touches: src/world/caves.js (new), src/world/terrain.js (new, terrain maths split out of highlands.js), src/world/highlands.js, src/physics/world.js (terrain/cave trimeshes, hybrid CCD), src/bots/dogfight.js, src/render/camera.js, src/modes/dogfight.js (turrets off cave mouths), tools/physics-check.mjs, tools/smoke.mjs (Lab pilot null-band race; page-error stacks).
-Open items / help wanted: how the caves feel to fly (unverified by a pilot); cave walls have no shadows from drones; online play with someone underground untested.
-Overlaps: riley-test-0u2krq (Long line mode) also edits src/physics/world.js (rope); merge by hand.
+Based on: origin/main 5c965f2 (ball feel, PR #21)
+Doing: sound pass, all synthesized: ground scrapes / landing thuds / tumble clatter, ball hits / bounces / roll, arena crowd (reacts to saves, shots, near misses, goals, with your team's bias), goal horn + stinger, kickoff countdown, pop whoosh, Dogfight bullet impacts on rock (cave echo). Audio tab in Settings (master + per-category volumes, incl. Crowd).
+Touches: src/audio/sfx.js (new), src/audio/audio.js (volume buses, noise/tone routed to the effects bus), src/physics/world.js (emitHit {type:'ground', d, speed, p} on landing impacts, d.slide), hooks in src/modes/step.js, match.js, guns.js, src/flight/drone.js (tryPop), src/config/settings.js + src/ui/menu.js + index.html (Audio tab), tools/sound-check.mjs (new).
+Open items / help wanted: nobody has listened to it yet: levels and timbres need a pass by ear (all in src/audio/sfx.js).
+Overlaps: riley-test-0u2krq adds the same Audio tab (same BUS keys, setVolumes, vMaster/vMotor/vWind/vOther/vFx settings and labels); this branch adds vCrowd on top, so merge by keeping one copy plus the Crowd slider. An effects branch may also emit the 'ground' hit event: keep one emitter in world.js.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.
