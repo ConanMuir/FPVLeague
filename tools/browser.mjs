@@ -5,6 +5,7 @@
 //   CI=true (set by GitHub Actions)  software WebGL (SwiftShader), no Chrome sandbox on Linux, timing checks warn-only
 //   DL_SWIFTSHADER=1 / 0             force software WebGL on / off (default: on in CI, off locally)
 //   DL_TIMING_WARN=1 / 0             timing (ms budget) checks only warn / fail (default: warn in CI, fail locally)
+//   DL_NORENDER=1 / 0                skip WebGL draw calls except where a check asks for drawn frames (default: on in CI, off locally)
 import fs from 'node:fs';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
@@ -13,6 +14,7 @@ const E = process.env, flag = (k, dflt) => E[k] == null || E[k] === '' ? dflt : 
 export const CI = flag('CI', false);
 export const SOFTWARE_GL = flag('DL_SWIFTSHADER', CI);
 export const TIMING_WARN = flag('DL_TIMING_WARN', CI);
+export const NO_RENDER = flag('DL_NORENDER', CI);
 
 function candidates() {
   const pf = ['PROGRAMFILES(X86)', 'PROGRAMFILES', 'LOCALAPPDATA'].map(k => E[k]).filter(Boolean);
@@ -48,7 +50,33 @@ export function browserArgs(args = []) {
   return [...new Set(a)];
 }
 // puppeteer.launch with the browser, env and args above; opts are passed through (protocolTimeout, defaultViewport, ...)
-export const launchBrowser = (opts = {}) => puppeteer.launch({headless: true, ...opts, executablePath: findBrowser(), env: browserEnv, args: browserArgs(opts.args)});
+export async function launchBrowser(opts = {}) {
+  const b = await puppeteer.launch({headless: true, ...opts, executablePath: findBrowser(), env: browserEnv, args: browserArgs(opts.args)});
+  const np = b.newPage.bind(b);
+  b.newPage = async (...a) => { const p = await np(...a); await installRenderStub(p); return p; };
+  return b;
+}
+
+// ---------- no-render mode: the sim and UI run at full speed on software GL ----------
+// SwiftShader draws the games at ~1 fps on a CI runner, and almost every check only needs simulation state. With NO_RENDER every
+// page gets a WebGL stub: the draw calls (and clears / blits) are skipped while window.__dlNoRender is true. Everything else still
+// runs: shaders compile and link, buffers and textures upload, three.js walks the scene, so GL errors still show. drawFrames()
+// turns drawing back on for a few frames where a check wants real pixels drawn (each scene, each graphics quality, ...).
+function renderStub(on) {
+  window.__dlNoRender = on;
+  const SKIP = ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced', 'drawRangeElements', 'clear', 'blitFramebuffer'];
+  for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) if (C) for (const m of SKIP) {
+    const f = C.prototype[m]; if (!f || f.__stub) continue;
+    const g = function (...a) { if (window.__dlNoRender) return; return f.apply(this, a); }; g.__stub = true; C.prototype[m] = g;
+  }
+}
+export const installRenderStub = p => NO_RENDER ? p.evaluateOnNewDocument(renderStub, true) : Promise.resolve();
+// draw n real frames (no-op locally, where everything is drawn anyway)
+export async function drawFrames(page, n = 3) {
+  if (!NO_RENDER) return;
+  await page.evaluate(() => { window.__dlNoRender = false; });
+  try { await frames(page, n); } finally { await page.evaluate(() => { window.__dlNoRender = true; }).catch(() => {}); }
+}
 
 // a timing check (ms budgets): fails locally, only warns in CI or with DL_TIMING_WARN=1. Returns true when it passed.
 export function timingCheck(ok, msg, check) {

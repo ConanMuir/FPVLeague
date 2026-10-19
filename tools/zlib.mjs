@@ -5,8 +5,8 @@ import http from 'node:http';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-import {launchBrowser} from './browser.mjs';
-export {frames, until} from './browser.mjs';
+import {launchBrowser, installRenderStub} from './browser.mjs';
+export {frames, until, drawFrames} from './browser.mjs';
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -38,7 +38,7 @@ export async function newWindow(browser) {
   const {targetId} = await s.send('Target.createTarget', {url: 'about:blank', newWindow: true});
   const t = await browser.waitForTarget(t => t._targetId === targetId);
   await s.detach();
-  return t.page();
+  const p = await t.page(); await installRenderStub(p); return p;
 }
 const benign = t => /fonts\.(googleapis|gstatic)\.com|favicon\.ico|net::ERR_FAILED/i.test(t);
 // open a page with three.js routed to the local copy; errors collects page errors and console errors

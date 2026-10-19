@@ -23,6 +23,7 @@ test('prose comments, URLs, strings and regexes are left alone', () => {
     "// visibility per weather; th = thermal camera on (stars, beams, lamps hidden)",
     "// p = kill chance per engagement before RESIST; mag = shots per wave; rng = reach (m).",
     "// modes register at load; setGame() falls back to League for an unknown id",
+    "// snow cover: upward faces whiten (sn=2, foliage: the sides frost over; sn=0: the material does its own, like the",
     "fetch(u);  // see https://example.com/a;b=c(d)",
     "const s='a // b; c();';const r=/\\/\\/x;y=1/g;",
     "const t=`x // ${a;b()} y`;",
