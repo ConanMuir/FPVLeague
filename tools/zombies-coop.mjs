@@ -41,9 +41,9 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.on && __z.G.state === 'bas
 if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-base.png'});
 
 // ---------- ready-up: the wave waits for everyone ----------
-await H.p.click('#zgo'); await A.p.click('#zgo'); await sleep(600);
+await tap(H, '#zgo'); await tap(A, '#zgo'); await sleep(600);
 ok((await st(H)).state === 'base' && await ev(H, () => document.getElementById('zgo').textContent.includes('2/3')), 'Ready-up: 2 of 3 ready, the wave has not started (button reads 2/3)');
-await B.p.click('#zgo');
+await tap(B, '#zgo');
 ok(await until(H, () => __z.G.state === 'wave' && __z.G.wave === 1), 'Ready-up: the third pilot readies, wave 1 starts on the host');
 for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'wave' && __z.G.wave === 1 && document.getElementById('zbase').hidden), `${C.name}: wave 1 started (base screen closed)`);
 
@@ -72,7 +72,11 @@ if (SHOTS) {
   const h1 = await st(H), ash = h1.rows.find(r => r[1] === 'Ash');
   ok(ash && ash[2] === 1 && h1.kills.p === h0.kills.p + 1 && h1.cash > h0.cash, `Kill counts: Ash 1 kill on the roster, pilot kills ${h0.kills.p} -> ${h1.kills.p}, purse $${h0.cash} -> $${h1.cash}`);
   ok(await until(B, id => !__z.api.TH.some(t => t.id === id && __z.api.live(t)) && __z.net.rows().find(r => r[1] === 'Ash')?.[2] === 1, k), 'Bea: sees the track go down and Ash\'s kill on the roster');
-  if (SHOTS) { await sleep(300); await A.p.screenshot({path: SHOTS + '/coop-ash-kill.png'}); } }
+  if (SHOTS) { await sleep(300); await A.p.screenshot({path: SHOTS + '/coop-ash-kill.png'}); }
+  // a forged burst / direct hit on a track far from Ash (just its id, 0 m miss) must not count
+  const far = await ev(H, () => { const me = __z.api.player, t = __z.make('shahed', 0, -3000); return {id: t.id, km: +(t.p.distanceTo(me.p) / 1000).toFixed(1)}; }); await sleep(500);
+  const ashKm = await ev(A, id => { const t = __z.api.TH.find(u => u.id === id); __z.Z.req(['d', [[id, 0, 0]], 0]); __z.Z.req(['h', id]); return t ? +(t.p.distanceTo(__z.api.player.p) / 1000).toFixed(1) : null; }, far.id); await sleep(800);
+  ok(await ev(H, id => __z.api.TH.some(t => t.id === id && __z.api.live(t)), far.id), `Co-op: a forged burst and direct hit on T${far.id}, ${ashKm} km from Ash, are ignored by the host`); }
 
 // ---------- the host clears the wave; everyone goes back to the base screen ----------
 await ev(H, () => { for (let i = 0; i < 400 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0) __z.botKill(.8); } __z.sim(4); });
@@ -103,7 +107,7 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !docum
   if (SHOTS) { await tap(A, '[data-tab="armory"]'); await sleep(400); await A.p.screenshot({path: SHOTS + '/coop-shop.png'}); } }
 
 // ---------- forced start: the host starts wave 2 with nobody else ready ----------
-await H.p.click('#zforce');
+await tap(H, '#zforce');
 ok(await until(H, () => __z.G.state === 'wave' && __z.G.wave === 2), 'Host: Start now begins wave 2 without the others ready');
 for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'wave' && __z.G.wave === 2), `${C.name}: wave 2 started`);
 ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is deployed on the client too');
