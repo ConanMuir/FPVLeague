@@ -4,10 +4,10 @@ Rocket league but with drones
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
 Based on: origin/main 5c965f2 (ball feel, PR #21)
-Doing: sound pass, all synthesized: ground scrapes / landing thuds / tumble clatter, ball hits / bounces / roll, arena crowd (reacts to saves, shots, near misses, goals, with your team's bias), goal horn + stinger, kickoff countdown, pop whoosh, Dogfight bullet impacts on rock (cave echo). Audio tab in Settings (master + per-category volumes, incl. Crowd).
-Touches: src/audio/sfx.js (new), src/audio/audio.js (volume buses, noise/tone routed to the effects bus), src/physics/world.js (emitHit {type:'ground', d, speed, p} on landing impacts, d.slide), hooks in src/modes/step.js, match.js, guns.js, src/flight/drone.js (tryPop), src/config/settings.js + src/ui/menu.js + index.html (Audio tab), tools/sound-check.mjs (new).
-Open items / help wanted: nobody has listened to it yet: levels and timbres need a pass by ear (all in src/audio/sfx.js).
-Overlaps: riley-test-0u2krq adds the same Audio tab (same BUS keys, setVolumes, vMaster/vMotor/vWind/vOther/vFx settings and labels); this branch adds vCrowd on top, so merge by keeping one copy plus the Crowd slider. An effects branch may also emit the 'ground' hit event: keep one emitter in world.js.
+Doing: Rocket League-style goal explosions (branch `goal-explosions`): flash, team-colour shockwave shell + rings, spark streaks, arena light pulse, goal frame glow, short camera shake.
+Touches: src/render/goalfx.js (new), src/modes/match.js (goalFx calls it; fewer old particles on Low), src/render/visuals.js (one tick call), tools/goalfx-shots.mjs (new: screenshots + frame time).
+Open items / help wanted: not yet seen by a pilot in a real online match; the effect plays in real time (~1.5 s) over the goal slow-mo.
+Overlaps: effects/sound branches may also edit goalFx in src/modes/match.js (one line); merge by hand.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.
