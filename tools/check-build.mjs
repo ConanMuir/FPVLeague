@@ -8,7 +8,7 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), rel = 'games/jared-league/index.html';
-const BS = String.fromCharCode(92), norm = s => s.split(BS + 'r' + BS + 'n').join(BS + 'n').replace(/\r\n/g, '\n');
+const BS = String.fromCharCode(92), norm = s => s.replace(/\r/g, '').split(BS + 'r' + BS + 'n').join(BS + 'n');  // CRs and "\r\n" escapes
 let committed = null;
 try { committed = execFileSync('git', ['show', 'HEAD:' + rel], {cwd: root, encoding: 'utf8', maxBuffer: 1 << 28}); } catch {}
 const built = fs.readFileSync(path.join(root, rel), 'utf8');
