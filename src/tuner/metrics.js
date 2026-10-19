@@ -36,7 +36,8 @@ export function trackMetrics(s,dz=0){if(!s||s.length<10)return null;const T=s[s.
 // throttle stick held steady), stick pinned at an end, share of time inside the band [lo,hi]
 export function holdMetrics(s,lo,hi){if(!s||s.length<30)return null;const T=s[s.length-1].t-s[0].t||1,ys=s.map(o=>o.y),my=mean(ys),thr=s.map(o=>o.thr),mt=mean(thr);
  return{bounce:crossings(ys.map(y=>y-my),.15)/T,amp:pctl(ys,.95)-pctl(ys,.05),drift:mean(s.map(o=>o.vy)),steady:Math.sqrt(mean(thr.map(v=>(v-mt)**2)))<.05,
-  sat:s.filter(o=>o.thr<.03||o.thr>.97).length/s.length,inb:s.filter(o=>o.y>=lo&&o.y<=hi).length/s.length,motor:mean(s.map(o=>o.m)),y:my,lo,hi}}
+  sat:s.filter(o=>o.thr<.03||o.thr>.97).length/s.length,inb:s.filter(o=>o.y>=lo&&o.y<=hi).length/s.length,motor:mean(s.map(o=>o.m)),y:my,lo,hi,
+  above:s.filter(o=>o.y>hi).length/s.length,below:s.filter(o=>o.y<lo).length/s.length,stick:mt}}  // above/below: share of the window spent over or under the band
 export function altMetrics(ev){const{lo,hi,s}=ev;if(!s||s.length<4)return null;const half=(hi-lo)/2||1,inb=y=>y>=lo&&y<=hi;let iE=s.findIndex(o=>inb(o.y));
  let over=0,exits=0,was=true;if(iE>=0)for(let i=iE;i<s.length;i++){const y=s[i].y,d=y>hi?y-hi:y<lo?lo-y:0;over=Math.max(over,d/half);const n=inb(y);if(was&&!n)exits++;was=n}
  const st=iE>=0?s.slice(iE).filter(o=>inb(o.y)&&Math.abs(o.vy)<1.5):[],ap=s.slice(0,iE>=0?iE+1:s.length);

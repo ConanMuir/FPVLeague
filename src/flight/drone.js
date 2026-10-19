@@ -26,7 +26,7 @@ export class Drone{
   if(spread&&GS.OBSON){const r=dfSpawnPoint(GS.drones.filter(o=>o!==this&&o.dead<=0));this.p.set(r[0],r[1],r[2]);this.q.setFromAxisAngle(UP,r[3])}  // Dogfight respawn: far from everyone alive
   this.boost=START;this.dead=0;this.hp=100;this.firing=false;this.thr=this.ms=HOV;this.gt=0;for(let j=0;j<TN;j++)this.p.toArray(this.tp,j*3);this.mesh.visible=true}
  dispose(){scene.remove(this.mesh,this.trail);freeDroneBody(this)}
- flipUp(){if(this.dead<=0&&this.v.lengthSq()<400)this.flipT=.35}
+ flipUp(){if(this.dead<=0&&(this.ct||0)>=.2)this.flipT=.35}  // flip over: always, once it has touched the ground or a wall for 0.2 s (any speed)
  // ---- pop: earned by touching the ball with the top of the quad inside its four motors (modes/step.js), held POP_T s.
  // A direction (dominant stick past half) plus the flip button spends it: a locked full turn about that body axis in POP_D s, throttle held,
  // a shove that way (pitch: forward/back, roll: sideways, yaw: spin in place), then back to the exact attitude it started from.
@@ -36,7 +36,7 @@ export class Drone{
  // is world point P on top of the quad and inside the square of its four motors (inset 10%)?
  popZone(P){const c=_pz.copy(P).sub(this.p).applyQuaternion(_qb.copy(this.q).invert()),M=this.popM;if(c.y<-.05||!M||M.length<3)return false;let sg=0;
   for(let i=0;i<M.length;i++){const A=M[i],B=M[(i+1)%M.length],cr=(B[0]-A[0])*.9*(c.z-A[2]*.9)-(B[2]-A[2])*.9*(c.x-A[0]*.9);if(Math.abs(cr)<1e-9)continue;const s=cr>0?1:-1;if(sg&&s!==sg)return false;sg=s}return true}
- step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;
+ step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;this.at=gd?0:(this.at||0)+dt;this.ct=gd?(this.ct||0)+dt:this.at>.3?0:(this.ct||0);  // ct: time in contact with the ground or a wall (short hops while sliding don't reset it)
   if(this.flipT>0){this.flipT=Math.max(0,this.flipT-dt);rightUp(this,this.flipT?1-Math.exp(-dt*16):1);this.v.multiplyScalar(Math.exp(-dt*6));this.v.y=Math.max(this.v.y,2.5);this.ms+=(this.thr-this.ms)*.1;this.w.set(0,0,0);this.wt.set(0,0,0);this.ph=1;if(!this.flipT)this.gt=0;return}
   const lk=this.popT>0;if(lk){this.popT=Math.max(0,this.popT-dt);this.thr=this.popThr;if(this.popT>0)this.w.set(0,0,0).setComponent(this.popAx,this.popS*POP_W);else{this.q.copy(this.popQ);this.w.set(0,0,0)}}  // pop: locked turn, sticks ignored, throttle held
   if(this.popC>0)this.popC=Math.max(0,this.popC-dt);

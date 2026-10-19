@@ -49,8 +49,7 @@ export function humanControl(d,dt,acro){const g=pad(),bz=SB()?BZ:0;let thr=null,
  // self-level blend that fades out as the roll/pitch stick moves away from centre
  const as=assist();if(as>0){const f=1-Math.exp(-dt/(as*.07));ss[0]+=(rol-ss[0])*f;ss[1]+=(pit-ss[1])*f;ss[2]+=(yaw-ss[2])*f;rol=ss[0];pit=ss[1];yaw=ss[2]}else{ss[0]=rol;ss[1]=pit;ss[2]=yaw}
  stk[3]=cl(thr,0,1);d.thr=thrCurve(Math.min(1,stk[3]/(1-bz||1)));d.boosting=bz>0&&stk[3]>1-bz+1e-4||SB()&&!!(keys.ShiftLeft||keys.ShiftRight||keys.Space||g&&btnOn(g,padX?S.xboost:S.boostBtn));
- stk[0]=rol;stk[1]=pit;stk[2]=yaw;if(S.mode==='acro'||acro){d.wt.set(-rate(1,pit),-rate(2,yaw),-rate(0,rol));
-  if(as>0){const lv=as*(1-Math.max(Math.abs(rol),Math.abs(pit)))**2;if(lv>.002){_wa.copy(d.wt);attitude(d,UP,heading(d),5,6,0);d.wt.multiplyScalar(lv).add(_wa)}}}
+ stk[0]=rol;stk[1]=pit;stk[2]=yaw;if(S.mode==='acro'||acro){d.wt.set(-rate(1,pit),-rate(2,yaw),-rate(0,rol))}  // Acro holds whatever attitude you leave it in: no self-level (assist only smooths the sticks)
  else{const f=heading(d);
   const ch=Math.atan2(-f.x,-f.z);if(d.hd==null||Math.abs(wrapA(d.hd-ch))>1.2)d.hd=ch;d.hd=wrapA(d.hd-rate(2,yaw)*.7*dt);f.set(-Math.sin(d.hd),0,-Math.cos(d.hd));  // heading follows the yaw stick only
   const r=_r.crossVectors(f,UP),T=1.5;const u=_v.copy(UP).addScaledVector(f,pit*T).addScaledVector(r,rol*T).normalize();attitude(d,u,f,16,18,1);d.wt.y-=rate(2,yaw)*.7}
