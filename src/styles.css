@@ -12,7 +12,15 @@ canvas#gl{position:fixed;inset:0;display:block;width:100%;height:100%}
 #dial{position:absolute;right:22px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:150px;height:150px}#dial svg{width:100%;height:100%;transform:rotate(135deg);overflow:visible}
 #dial circle{fill:none;stroke-linecap:round}#dial .dtr{stroke:rgba(10,14,26,.72);stroke-width:11;stroke-dasharray:75 100}#dial .dhpt{stroke-width:4}#darc{stroke:var(--blue);stroke-width:9;filter:drop-shadow(0 0 5px rgba(61,149,255,.7));transition:stroke-dasharray .08s}#dhp{stroke-width:3}
 #dial.boost #darc{stroke:var(--amber);filter:drop-shadow(0 0 6px rgba(255,198,64,.8))}#dial.boost.on #darc{stroke:#fff3c4;filter:drop-shadow(0 0 10px var(--amber))}
-#dial .dval{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}#dnum{font:italic 700 40px var(--disp);text-shadow:0 2px 6px #000}#dlbl{font-size:12px;letter-spacing:.14em;color:var(--dim);margin-top:2px}#dsub{font-size:10px;color:var(--dim);margin-top:5px}#dial.pop #dsub{color:#fff;font-weight:700;font-size:12px;text-shadow:0 0 8px rgba(255,255,255,.8)}
+#dial .dval{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}#dnum{font:italic 700 40px var(--disp);text-shadow:0 2px 6px #000}#dlbl{font-size:12px;letter-spacing:.14em;color:var(--dim);margin-top:2px}/* Calibration Lab results and test drive */
+.lsum td.b{color:var(--dim)}.lsum td.a{color:#7dff9a;font-weight:700}  /* before grey, after green, for every row */.lsum tr:not(.chg) td.a{font-weight:500;opacity:.8}
+.lsact{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 6px}.lsact button{font-size:16px;padding:12px 8px}@media (max-width:560px){.lsact{grid-template-columns:1fr 1fr}}
+.lspeed{display:flex;gap:8px;align-items:center;margin-top:8px}.lspeed .on{border-color:var(--amber);background:rgba(255,176,46,.18)}
+#ltest{position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:15;width:min(640px,calc(100% - 32px))}
+.ltbar{display:flex;gap:14px;align-items:center;padding:10px 14px;background:rgba(8,12,22,.85);border:1px solid var(--edge);border-left:3px solid #7dff9a;border-radius:4px}
+.ltbar b{font:italic 700 18px var(--disp);text-transform:uppercase}#ltt{font-size:22px}.ltbar .note{margin:0;flex:1}.ltbar button{font-size:18px;padding:12px 22px}
+#ltip{position:fixed;z-index:40;max-width:280px;padding:8px 10px;font-size:13px;background:#0d1322;border:1px solid var(--amber);border-radius:4px;box-shadow:0 6px 18px rgba(0,0,0,.5);pointer-events:none}
+#dsub{font-size:10px;color:var(--dim);margin-top:5px}#dial.pop #dsub{color:#fff;font-weight:700;font-size:12px;text-shadow:0 0 8px rgba(255,255,255,.8)}
 @media (max-width:760px){#dial{width:112px;height:112px}#dnum{font-size:30px}}
 #clock{background:var(--panel);font-family:var(--mono);font-size:22px;display:flex;align-items:center;min-width:86px!important}
 #osd{position:absolute;left:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));font-size:14px;display:grid;gap:3px}
@@ -134,7 +142,7 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
 .lpre{display:grid;grid-template-columns:1fr 1fr;gap:8px}.lcard{display:grid;gap:6px;text-align:left;text-transform:none;letter-spacing:0;font-size:14px;padding:10px 12px}.lcard.on{border-color:var(--amber);background:rgba(255,176,46,.14)}.lcard .note{margin:0}
 @media (max-width:560px){.lpre{grid-template-columns:1fr}}
 .ldrills{margin:4px 0;padding-left:20px;font-size:13px;display:grid;gap:2px}
-.lsum td,.lsum th{padding:3px 8px}.lsum tr.chg td{color:var(--amber)}#lsmet{padding-left:18px}
+.lsum td,.lsum th{padding:3px 8px}.lsum tr.chg td:first-child{color:var(--ink);font-weight:700}#lsmet{padding-left:18px}
 .blive{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 10px;margin:8px 0;font:11px var(--mono);color:var(--dim)}
 .blive div{display:grid;grid-template-columns:72px 1fr 38px;gap:6px;align-items:center;padding:1px 3px;border-radius:3px}.blive b{height:8px;background:rgba(0,0,0,.45);border:1px solid var(--edge);border-radius:2px;position:relative;overflow:hidden}
 .blive i{position:absolute;top:0;bottom:0;background:var(--blue)}.blive em{font-style:normal;text-align:right}.blive .cand{background:rgba(255,176,46,.25);color:#fff}.blive .cand i{background:var(--amber)}.blive .noisy{opacity:.4;text-decoration:line-through}.blive .used{opacity:.55}
