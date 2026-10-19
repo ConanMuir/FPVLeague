@@ -102,11 +102,19 @@ async function scenario(label, url) {
     // Garage: open it, cycle every part in every slot, toggle the hitbox overlay, leave a non-stock loadout on
     if (await p.$('#garbtn')) {
       await click(p, '#garbtn'); const g = {open: !(await hidden(p, '#garage')), parts: 0, stats: []};
-      for (const [s, id] of await p.$$eval('#gslots button', l => l.map(b => [b.dataset.s, b.dataset.id]))) {
+      for (const [s, id] of await p.$$eval('#gslots button:not([data-c])', l => l.map(b => [b.dataset.s, b.dataset.id]))) {
         await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`); g.parts++; g.stats.push(await text(p, '#gstats div:first-child span:last-child'));
       }
       await click(p, '#ghit'); await sleep(300); await click(p, '#ghit');
       for (const [s, id] of [['0', 'stretch'], ['1', 'plank'], ['2', 'punch'], ['3', 'ram']]) await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`);
+      // cosmetics: open every Style tab, wear every item, then leave a look on (saved in S.cos, worn in the match)
+      g.cos = 0; for (const s of await p.$$eval('#gtabs button', l => l.map(b => +b.dataset.s).filter(s => s >= 4))) {
+        await p.$eval(`#gtabs button[data-s="${s}"]`, e => e.click());
+        for (const [c, id] of await p.$$eval(`#gslots .gcat[data-s="${s}"] button[data-c]`, l => l.map(b => [b.dataset.c, b.dataset.id]))) { await click(p, `#gslots button[data-c="${c}"][data-id="${id}"]`); g.cos++; }
+      }
+      for (const [c, id] of [['paint', 'candy'], ['decal', 'n23'], ['props', 'smoke'], ['bell', 'oil'], ['led', 'green'], ['trail', 'plasma']]) await click(p, `#gslots button[data-c="${c}"][data-id="${id}"]`);
+      g.cosSaved = await p.evaluate(() => Object.values(JSON.parse(localStorage.getItem('droneleague') || '{}').cos || {}).join('/'));
+      await p.$eval('#gtabs button[data-s="0"]', e => e.click());
       g.name = await text(p, '#gname'); g.saved = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').loadout?.join('/'));
       await click(p, '#gok'); g.closed = await hidden(p, '#garage'); g.stats = new Set(g.stats).size; out.garage = g;
     }
@@ -114,7 +122,7 @@ async function scenario(label, url) {
     await click(p, '#play');
     await waitFor(p, s => !s.demo && s.state === 'play', wall, 'League kickoff to end');
     out.league = await run(p, 10, wall * 2);
-    { const s = await snap(p); out.league.player = s.drones.find(d => d.key === 'h')?.lo; out.league.botLoadouts = [...new Set(s.drones.filter(d => d.bot).map(d => d.lo))].length; }
+    { const s = await snap(p); out.league.player = s.drones.find(d => d.key === 'h')?.lo; out.league.botLoadouts = [...new Set(s.drones.filter(d => d.bot).map(d => d.lo))].length; out.league.cos = await p.evaluate(() => window.__dl.cosInfo?.()); }
     // Dogfight: open the menu, press the Dogfight mode button (starts a new match)
     await key(p, 'Escape'); out.menuAfterEsc = !(await hidden(p, '#menu'));
     await click(p, '#m_df');
@@ -294,6 +302,8 @@ chk(n.menuAfterEsc, 'Esc should open the menu');
 chk(n.garage?.open && n.garage.closed && n.garage.parts === 21 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch/ram', 'garage: opens, cycles all 21 parts, saves the loadout, closes');
 chk(n.league?.player === 'stretch/plank/punch/ram', 'League: the player should fly the garage loadout');
 chk(n.league?.botLoadouts >= 2, 'League: bots should spawn with varied loadouts');
+chk(n.garage?.cos === 69 && n.garage.cosSaved === 'candy/n23/smoke/oil/green/plasma', 'garage: cycles all 69 cosmetics and saves the look');
+chk(n.league?.cos?.you === 'candy/n23/smoke/oil/green/plasma' && n.league.cos.trail === 'plasma' && n.league.cos.botLooks >= 1, 'League: the player should wear the garage look (bots: random looks)');
 chk(n.dogfight && n.dogfight.sim >= 3 && !n.dogfight.nan && n.dogfight.botPathMin > 5 && n.dogfight.title === 'DOGFIGHT', 'Dogfight: should start and bots should fly');
 chk(n.mod?.open && n.mod.sliders === 34 && /^20\.0 /.test(n.mod.changed) && /^34\.5 /.test(n.mod.reset) && n.mod.export === '{}', 'mod panel: 34 sliders, change, reset, export');
 chk(n.rates?.inputs === 9 && +n.rates.maxRoll > 0 && n.rates.cliExport >= 15 && /^Imported 6 values/.test(n.rates.cliImport) && n.rates.typeAfter === 'ACTUAL', 'rates panel: table, CLI export/import');
@@ -304,6 +314,7 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
 {
   let s = null; try { s = JSON.parse(set.new.saved); } catch {}
   chk(s && s.loadout?.join('/') === 'stock/stock/stock/none', 'v15 settings: the loadout should migrate to Stock');
+  chk(s && Object.values(s.cos || {}).join('/') === 'carbon/none/team/stock/team/team', 'v15 settings: cosmetics should migrate to the stock look');
   chk(s && s.physV === 5 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 4 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
     'v15 settings: migrations (physV 5, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
 }
@@ -334,7 +345,7 @@ if (set.old) {
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
   else {
     // settings added after v15 (with defaults) are left out of the comparison
-    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
+    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd', 'cos'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
     chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check
