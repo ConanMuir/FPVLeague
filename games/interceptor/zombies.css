@@ -1,0 +1,68 @@
+/* Interceptor Zombies: mode choice, wave HUD, base screen, game over. Same glass panels, Chakra Petch / JetBrains Mono and colours as the engine. */
+.gmode{display:inline-flex;border:1px solid var(--edge);border-radius:6px;overflow:hidden;margin:4px 0 8px}
+.gmode button{border:0;border-radius:0;padding:8px 20px;font-size:15px;background:rgba(255,255,255,.04);color:var(--dim)}
+.gmode button.on{background:rgba(255,198,64,.18);color:#fff;box-shadow:inset 0 -2px 0 var(--amber)}
+.gmdesc{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.45;max-width:52ch}.gmdesc b{color:var(--ink)}
+
+/* in-wave HUD: replaces Classic's score strip and site row */
+#hud.z #score,#hud.z #sites{display:none}
+#zhud{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:5px;pointer-events:none}
+#zhud .zt{display:flex;align-items:stretch;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.5);font:700 18px var(--mono)}
+#zhud .zt>span{padding:5px 12px;background:var(--panel);white-space:nowrap;display:flex;align-items:center}
+#zw{color:#fff}#zc{color:var(--green)}#zs{background:rgba(255,198,64,.22)!important;color:var(--amber)}
+.zi{position:relative;min-width:220px;padding:0!important;background:rgba(8,12,22,.84)}
+.zi i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#1f8f55,#3ddc84);transition:width .3s}.zi i.mid{background:linear-gradient(90deg,#9b7a18,#ffc640)}.zi i.lo{background:linear-gradient(90deg,#8f1f1f,#ff4d4d)}
+.zi em{position:relative;font-style:normal;font-size:13px;padding:0 12px;width:100%;text-align:center;text-shadow:0 0 3px #000}
+#zsites{display:flex;gap:14px;font-size:12px;white-space:nowrap}#zsites span{color:#7fd0ff}#zsites .lo{color:var(--amber)}#zsites .dead{color:#8a8f99;text-decoration:line-through}
+#zwarn{font:700 15px var(--mono);color:var(--red);margin-top:30px;animation:zbl 1s steps(2) infinite}#zwarn:empty{display:none}@keyframes zbl{50%{opacity:.55}}
+#zhud #zinb{font-size:13px;color:#ffb0b0}#zhud #zinb:empty{display:none}
+
+/* perk bar: bottom centre, one chip per active perk with its key and charges */
+#zpk{position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;gap:8px;font:700 13px var(--mono)}
+#zpk span{background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:4px 10px;color:#fff}#zpk span.off{opacity:.4}
+#zpk kbd{font:700 11px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:0 4px;margin-right:6px;color:var(--amber)}
+#hud:not(.z) #zpk{display:none}
+
+/* base screen and game over */
+#zbase,#zover{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(ellipse at center,rgba(5,7,13,.35),rgba(5,7,13,.85));z-index:3;overflow:auto}
+.zpanel{width:min(1180px,100%);max-height:100%;overflow:auto;box-sizing:border-box;background:var(--panel);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(8px);padding:20px 24px;display:grid;gap:16px}
+.zpanel header{display:flex;flex-wrap:wrap;align-items:center;gap:18px 28px}
+.zpanel h2{margin:0}.zpanel h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.zbig{font:700 34px var(--mono);color:var(--green);line-height:1}.zgo .zbig{color:var(--amber)}
+.zint{flex:1;min-width:220px;display:grid;gap:6px;font:12px var(--mono);color:var(--dim)}
+.zint b,.zhp b{display:block;height:10px;background:rgba(0,0,0,.45);border:1px solid var(--edge);border-radius:5px;overflow:hidden}
+.zint i,.zhp i{display:block;height:100%;background:var(--green)}.zint i.mid{background:var(--amber)}.zint i.lo{background:var(--red)}
+.zpanel button.go{background:linear-gradient(90deg,#3a6b3a,#6b7d2a 50%,var(--red));border:0;margin-left:auto}
+.zsites{display:grid;gap:6px}
+.zrow{display:grid;grid-template-columns:minmax(120px,1fr) minmax(140px,1.4fr) auto;gap:12px;align-items:center;font-size:14px}
+.zhp{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font:12px var(--mono)}
+.zgo{width:min(520px,100%);text-align:center}.zgo .btns{justify-content:center}
+.zstats{display:grid;grid-template-columns:1fr auto;gap:6px 18px;text-align:left;font-size:15px;margin:6px 0 8px}.zstats span{color:var(--dim)}.zstats b{font-family:var(--mono)}
+@media (max-width:760px){.zpanel{padding:14px}.zrow{grid-template-columns:1fr auto}.zrow .zhp{grid-column:1/-1}#zhud .zt{font-size:14px}.zi{min-width:140px}}
+
+/* base screen: map on the left, tabs on the right, next-wave forecast underneath (the flight HUD hides behind it) */
+body.zb-open #hud{visibility:hidden}
+.zb{gap:14px}
+.zcols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}
+.zmapw{display:grid;gap:6px}#zmap{width:100%;height:auto;display:block;border:1px solid var(--edge);border-radius:8px;cursor:crosshair}
+.zleg{display:flex;flex-wrap:wrap;gap:4px 14px;font:11px var(--mono);color:var(--dim)}.zleg i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px;border-radius:50%}
+.zleg .ls{background:#7fd0ff;border-radius:1px}.zleg .le{border:1.5px dashed rgba(220,230,255,.6);box-sizing:border-box}.zleg .ld{background:#5fe3ff}.zleg .lf{border:1.5px solid #3ddc84;border-radius:1px;box-sizing:border-box}.zleg .lt{background:#ff4d4d;clip-path:polygon(0 0,100% 50%,0 100%)}
+.zside{display:grid;gap:10px;min-width:0}
+.ztabs{display:flex;gap:6px}.ztabs button{flex:1}.ztabs button.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}.ztabs kbd{font:11px var(--mono);opacity:.6;margin-right:4px}
+.ztab{display:grid;gap:8px;max-height:min(58vh,520px);overflow:auto;padding-right:4px}
+.zcards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.zcard{display:grid;gap:6px;align-content:start;padding:12px;border:1px solid var(--edge);border-radius:8px;background:rgba(255,255,255,.03)}
+.zcard.sold{opacity:.45}.zcard p{margin:0;font-size:13px;color:var(--dim);line-height:1.4}.zcard button{justify-self:start}
+.zch{display:flex;align-items:center;gap:8px}.zch b{font-size:16px;line-height:1.1}.zch em{margin-left:auto;font:700 10px var(--mono);font-style:normal;color:var(--amber);letter-spacing:.1em}
+.zg{display:inline-grid;place-items:center;width:28px;height:28px;flex:none;border-radius:50%;background:rgba(95,227,255,.15);color:#5fe3ff;font:700 14px var(--mono)}
+.zvs{display:flex;flex-wrap:wrap;gap:3px}.zvs span{font:700 9px var(--mono);padding:2px 4px;border-radius:3px;letter-spacing:.04em}
+.zvs .vg{background:rgba(61,220,132,.2);color:#7ff0b0}.zvs .vm{background:rgba(255,198,64,.16);color:#ffd77a}.zvs .vn{background:rgba(255,77,77,.12);color:#ff8a8a;text-decoration:line-through}
+.zarm{display:grid;grid-template-columns:auto minmax(110px,.8fr) minmax(0,2fr);gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--edge);border-radius:8px}
+.zarm small{display:block;color:var(--dim);font-size:12px}.zups{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.zst{font:11px var(--mono);color:var(--dim);width:100%}.zst.zn{color:#cfd8ea;font:12px var(--disp)}
+.zups .zsell{margin-left:auto;background:none;color:var(--dim);font-size:12px;padding:6px 10px}.zups .zsell.arm{color:#fff;border-color:var(--red);background:rgba(255,77,77,.18)}
+.zslots{display:flex;flex-wrap:wrap;gap:6px}.zhint{margin:0;font-size:13px;color:var(--dim)}.zhint b{color:var(--ink)}
+.zfc{border-top:1px solid var(--edge);padding-top:10px;display:grid;gap:6px}.zfc h3{margin:0}
+.zfks{display:flex;flex-wrap:wrap;gap:6px}.zfk{font:12px var(--mono);padding:3px 8px;border-radius:4px;background:rgba(255,77,77,.12);color:#ffb0b0}.zfk.new{background:rgba(255,198,64,.2);color:#ffe08a}.zfk b{color:var(--amber)}
+.zpanel button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+@media (max-width:900px){.zcols{grid-template-columns:1fr}.ztab{max-height:none}}
+@media (max-width:560px){.zcards{grid-template-columns:1fr}.zarm{grid-template-columns:auto 1fr}.zups{grid-column:1/-1}}

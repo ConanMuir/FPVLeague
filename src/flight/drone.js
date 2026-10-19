@@ -44,7 +44,7 @@ export class Drone{
   if(this.flipT>0){this.flipT=Math.max(0,this.flipT-dt);rightUp(this,this.flipT?1-Math.exp(-dt*16):1);this.v.multiplyScalar(Math.exp(-dt*6));this.v.y=Math.max(this.v.y,2.5);this.ms+=(this.thr-this.ms)*.1;this.w.set(0,0,0);this.wt.set(0,0,0);this.ph=1;if(!this.flipT)this.gt=0;return}
   const lk=this.popT>0;if(lk){this.popT=Math.max(0,this.popT-dt);this.thr=this.popThr;if(this.popT>0)this.w.set(0,0,0).setComponent(this.popAx,this.popS*POP_W);else{this.q.copy(this.popQ);this.w.set(0,0,0)}}  // pop: locked turn, sticks ignored, throttle held
   if(this.popC>0)this.popC=Math.max(0,this.popC-dt);
-  if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT)}
+  if(gd&&this.v.lengthSq()<100){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT)}  // turtle-rate sticks and yaw cut only below 10 m/s, so a prop tip grazing the floor in a fast low turn keeps your rates
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   const F=this.fl;  // parts: this drone's multipliers (src/parts)
   if(!lk&&gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*F.thr*this.ms**(TE*F.te)*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&this.pivot(wt,dt)){this.pw=0;return}

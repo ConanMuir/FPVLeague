@@ -1,6 +1,7 @@
 // ---------- Dogfight guns: bullet pool, firing, bullet hits, tracer drawing ----------
 // bullets: pooled tracers drawn as additive line segments
 import * as THREE from 'three';
+import {camTilt} from '../render/camera.js';
 import {near,noise} from '../audio/audio.js';
 import {bulletRock} from '../audio/sfx.js';
 import {COL,DIFF,QT,V3,cl} from '../config/constants.js';
@@ -19,7 +20,7 @@ export const BSPD=400,FIRE_HZ=12,BCOL=[0x7cc4ff,0xffa060,0xff4040].map(c=>new TH
 export const gunDir=(d,tilt,out)=>out.set(0,Math.sin(tilt),-Math.cos(tilt)).applyQuaternion(d.q);  // the FPV camera axis (body forward tilted up by the camera uptilt)
 export function shoot(p,dir,v,team,real,by,dmg,spread,spd){const b=BUL[bi++%BN];b.p.copy(p);b.v.copy(dir);b.v.x+=(Math.random()-.5)*spread;b.v.y+=(Math.random()-.5)*spread;b.v.z+=(Math.random()-.5)*spread;
  b.v.setLength(spd);if(v)b.v.add(v);b.life=spd>200?.95:1.6;b.dist=0;b.team=team;b.real=real;b.by=by;b.dmg=dmg;b.col=by?.isTurret?2:team}
-export function droneFire(d,dt,real){d.fcd-=dt;if(!d.firing||d.dead>0||d.fcd>0)return;d.fcd=1/FIRE_HZ;const dir=gunDir(d,(d===GS.player?S.tilt:d.tilt??30)*Math.PI/180,_gd);
+export function droneFire(d,dt,real){d.fcd-=dt;if(!d.firing||d.dead>0||d.fcd>0)return;d.fcd=1/FIRE_HZ;const dir=gunDir(d,(d===GS.player?camTilt():d.tilt??30)*Math.PI/180,_gd);
  // twin guns under the frame, alternating left/right, converging on the crosshair 150 m out (keeps the muzzle out of the FPV view)
  d.gs=-(d.gs||1);const mz=_gp.set(d.gs*.4,-.55,-.3).applyQuaternion(d.q).add(d.p),aimP=_gq.copy(d.p).addScaledVector(dir,150);dir.subVectors(aimP,mz).normalize();
  shoot(mz,dir,d.v,d.team,real,d,8,d.bot?DIFF[d.skill??S.diff].noise*.012+.006:.006,BSPD);const k=near(d.p);if(k>.05)noise(.05,1800,.1*k,2)}

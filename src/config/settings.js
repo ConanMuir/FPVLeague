@@ -6,7 +6,7 @@ import {RTYPES} from './ratetypes.js';
 import {STOCK,cleanLoadout} from '../parts/index.js';
 import {cleanTrain} from '../training/judge.js';
 import {cleanCos} from '../parts/cosmetics.js';
-const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,arena:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}],gfx:'auto',assist:0};
+const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,arena:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}],gfx:'auto',assist:0,osd:false};
 export let S;try{S={...DEF,...JSON.parse(localStorage.getItem('droneleague')||'{}')}}catch(e){S={...DEF}}
 if(!Array.isArray(S.cal)||S.cal.length!==4||!S.cal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.cal=DEF.cal.map(c=>({...c}));
 if(!Array.isArray(S.xcal)||S.xcal.length!==4||!S.xcal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.xcal=DEF.xcal.map(c=>({...c}));if(S.bots!==0)S.bots=1;if(!ARENAS[S.arena])S.arena=1;
@@ -16,6 +16,8 @@ if(!['arena','meadow','canyon','alpine'].includes(S.map))S.map='arena';if(!['cla
 S.diff=Number.isInteger(+S.diff)&&DIFF[+S.diff]?+S.diff:DEF.diff;  // bot skill: any level in DIFF (Champion and Grand Champion were added after Legend)
 if(!['auto','high','med','low'].includes(S.gfx))S.gfx='auto';  // graphics quality (added after v15; older saves get Auto)
 for(const k of['vMaster','vMotor','vWind','vOther','vFx','vCrowd'])S[k]=Number.isFinite(S[k])?cl(Math.round(S[k]),0,100):100;  // Audio tab volumes in %, 100 = as before
+S.osd=S.osd===true;S.longline=S.longline===true;S.tiltAx=Number.isInteger(S.tiltAx)&&S.tiltAx>=-1&&S.tiltAx<8?S.tiltAx:-1;S.tiltMin=Number.isFinite(S.tiltMin)?cl(S.tiltMin,-90,90):-30;S.tiltMax=Number.isFinite(S.tiltMax)?cl(S.tiltMax,-90,90):60;  // OSD, long line, camera tilt on an axis (off by default)
+S.llLen=Number.isFinite(S.llLen)?cl(S.llLen,8,40):20;S.llW=Number.isFinite(S.llW)?cl(S.llW,1,10):4;if(!['stiff','normal','bungee'].includes(S.llStr))S.llStr='normal';if(!['hoops','goals'].includes(S.llScore))S.llScore='hoops';if(!['sling','fpv'].includes(S.llCam))S.llCam='sling';if(!(Number.isInteger(S.lookBtn)&&S.lookBtn>=-1&&S.lookBtn<32))S.lookBtn=-1;  // long line cable, load, scoring and view
 export const save=()=>{try{localStorage.setItem('droneleague',JSON.stringify(S))}catch(e){}};
 // physics mod values (v15 ran these when the mod panel was built)
 S.mod={...MDEF,...cleanMod(S.mod)};if((S.physV|0)<2){const O={thr:124,maxv:111,dl:.14,dq:.0065,spool:30};for(const k in O)if(Math.abs(S.mod[k]-O[k])<1e-9)S.mod[k]=MDEF[k];S.physV=2;save()}  // v2 flight model: move untouched old defaults to the 6S defaults
