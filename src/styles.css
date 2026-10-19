@@ -115,6 +115,13 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
 .gside{position:absolute;right:clamp(16px,3vw,40px);top:calc(18px + env(safe-area-inset-top,0px));bottom:calc(76px + env(safe-area-inset-bottom,0px));width:min(470px,calc(100% - 32px));display:flex;flex-direction:column;gap:10px;min-height:0}
 .gtabs{display:flex;gap:5px}.gtabs button{flex:1;font-size:13px;font-style:italic;padding:10px 6px;border-radius:2px;border:0;transform:skewX(-10deg);background:rgba(16,22,38,.88);color:var(--dim)}
 .gtabs button.on{background:linear-gradient(90deg,var(--orange),#ff9c45);color:#140a00}
+/* tab rows: Parts (performance) and Style (cosmetics); cosmetic tiles: swatch, name, rarity colour strip */
+.gtabs{flex-direction:column}.gtabs>div{display:flex;gap:5px;align-items:center}.gtabs span{width:42px;flex:none;font:700 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.gtabs button{padding:8px 4px;min-width:0}
+.gcat.gcos{grid-template-columns:repeat(3,1fr);gap:7px}.gtile.gct{min-height:0;padding:6px 6px 7px;gap:3px;border-bottom:3px solid var(--rc)}
+.gct .gsw{width:100%;aspect-ratio:5/3;border-radius:2px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}.gct .gsw svg{display:block;width:100%;height:100%}
+.gct b{font-size:12.5px;line-height:1.1}.gct small{font:700 9.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--rc)}.gct i{right:5px;top:5px;font-size:8px}
+.gdesc li.n{color:var(--dim);list-style:none;margin-left:-16px}
 #gslots{flex:1;min-height:0;overflow:auto;padding:2px}.gcat{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .gtile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;text-transform:none;letter-spacing:0;padding:12px 12px 10px;border-radius:3px;border:2px solid rgba(150,180,255,.14);background:linear-gradient(160deg,rgba(26,34,56,.94),rgba(10,14,26,.9));min-height:96px}
 .gtile b{font:italic 700 16px var(--disp);text-transform:uppercase;letter-spacing:.03em;color:var(--ink)}.gtile small{font:500 12px var(--disp);color:var(--dim);line-height:1.25}

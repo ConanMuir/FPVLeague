@@ -29,6 +29,7 @@ import {initSens} from './ui/sens.js';
 import {labSnap} from './modes/lab.js';
 import {initLab,labFrame} from './ui/lab.js';
 import {garageView,initGarage} from './ui/garage.js';
+import {cosInfo} from './render/cos-mat.js';
 import {setMap} from './world/maps.js';
 // ---------- main loop ----------
 // fixed 120 Hz simulation (timeScale / Game speed change how much sim time a frame covers; pause runs none), rendered between
@@ -50,4 +51,4 @@ initRates();initSens();initLab();initGarage();syncRates();
 setGame(GS.GM);startDemo();requestAnimationFrame(frame);
 connectRoom()});
 // read-only snapshot for tools/smoke.mjs; nothing in the game reads it
-window.__dl={snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView};
+window.__dl={snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo};

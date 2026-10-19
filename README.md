@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main da7fc78 (pop mechanic, PR #15)
-Doing: Dogfight underground: a cave network under the Highlands (caverns, tunnels, six entrances), collision + bots + checks.
-Touches: src/world/caves.js (new), src/world/terrain.js (new, terrain maths split out of highlands.js), src/world/highlands.js, src/physics/world.js (terrain/cave trimeshes, hybrid CCD), src/bots/dogfight.js, src/render/camera.js, src/modes/dogfight.js (turrets off cave mouths), tools/physics-check.mjs, tools/smoke.mjs (Lab pilot null-band race; page-error stacks).
-Open items / help wanted: how the caves feel to fly (unverified by a pilot); cave walls have no shadows from drones; online play with someone underground untested.
-Overlaps: riley-test-0u2krq (Long line mode) also edits src/physics/world.js (rope); merge by hand.
+Based on: origin/main 5c965f2 (ball feel, PR #21)
+Doing: Rocket League-style cosmetics in the Garage (Style tabs: Paint, Decal, Props, Bells, LEDs, Trail). Looks only: no effect on stats, physics or hitboxes.
+Touches: src/parts/cosmetics.js (new, item data + cleanCos/seededCos/teamSafe), src/render/cos-mat.js (new, cached materials + paint/decal shader + trail colours), src/ui/cos-tiles.js (new, tile swatches), src/ui/garage.js, src/styles.css (tab rows, cosmetic tiles), src/parts/mesh.js (material keys `bell`, `ant`; `M.fixed`), src/render/drone-mesh.js (cosMats, trail vertex colours), src/flight/drone.js (`cos`, `setCos`), src/config/settings.js (`S.cos`), src/modes/match.js, src/net/net.js (`co` ids), src/main.js (`__dl.cosInfo`), tools/smoke.mjs, tools/cos-shots.mjs (new), test/cosmetics.test.mjs (new).
+Open items / help wanted: the boost/trail effect (branch `effects`) can read `drone.trailCol`, `drone.trailCol2` (THREE.Color, already team-safe) and `drone.trailStyle` ('stream' 'fire' 'plasma' 'sparks' 'sparkle' 'smoke' 'rainbow'; `drone.trailCols` holds the rainbow stops); they are set on build and whenever the cosmetics change. The Lab still flies the stock look.
+Overlaps: `effects` (trail, src/render/drone-mesh.js / visuals.js): the speed trail Line now uses vertex colours from the cosmetics; keep `cosTrail(d)` / `paintTrail(d,TN)` if you replace it. Any branch editing the Garage (src/ui/garage.js) or the net presence (src/net/net.js `setNet` gained a `co` argument; bot arrays carry cosmetics at index 14).
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.

@@ -36,7 +36,7 @@ const ARM={
 // ---------- motors: stator base, bell with rounded top and a team-colour band, prop nut ----------
 function bellGeo(r,h){const P=[[0,0],[r*.9,0],[r*.9,h*.18],[r*.97,h*.2],[r,h*.26],[r,h-.016],[r*.97,h-.005],[r*.86,h],[r*.3,h],[r*.26,h+.01],[0,h+.01]];
  return new THREE.LatheGeometry(P.map(([x,y])=>new THREE.Vector2(x,y)),28)}
-function motors(K,sp,a){const{r,h}=sp.power.motor,y0=a.arm.t/2,bell=tint('metal',sp.power.look?.bell);
+function motors(K,sp,a){const{r,h}=sp.power.motor,y0=a.arm.t/2,bell=tint('bell',sp.power.look?.bell);
  for(const[x,z]of sp.motors){K.add(bell,bellGeo(r,h),[x,y0,z],[0,0,0],[1,1,1],.9);K.add('carbon',cyl(r*.93,r*.93,h*.2,24),[x,y0+h*.1,z]);
   K.add('team',cyl(r*1.012,r*1.012,h*.14,28),[x,y0+h*.58,z]);K.add('metal',cyl(.017,.02,.022,12),[x,y0+h+.02,z]);
   K.add('copper',cyl(r*.95,r*.95,h*.07,24),[x,y0+h*.235,z]);  // stator windings showing under the bell
@@ -64,7 +64,7 @@ function camera(K,c){const y=c.y+c.cam[0],z=c.cam[1]+.05,tilt=.35;
  K.add('carbon',rbox(.1,.09,.08,.018),[0,y,z],[tilt,0,0]);K.add('metal',cyl(.036,.033,.05,20),at(.06),[PI/2+tilt,0,0],[1,1,1],.9);
  K.add('lens',new THREE.SphereGeometry(.027,16,10,0,PI*2,0,PI/2),at(.083),[-PI/2+tilt,0,0]);
  for(const sx of[-1,1])K.add('carbon',rbox(.012,.11,.11,.004,2),[sx*.062,y-.01,z+.005])}
-function antenna(K,y,z){const a=.5,dy=Math.cos(a),dz=Math.sin(a);K.add('carbon',cyl(.007,.007,.2,8),[0,y+.1*dy,z+.1*dz],[a,0,0]);K.add('team',cyl(.016,.016,.05,12),[0,y+.2*dy,z+.2*dz],[a,0,0])}  // VTX antenna leaning back
+function antenna(K,y,z){const a=.5,dy=Math.cos(a),dz=Math.sin(a);K.add('carbon',cyl(.007,.007,.2,8),[0,y+.1*dy,z+.1*dz],[a,0,0]);K.add('ant',cyl(.016,.016,.05,12),[0,y+.2*dy,z+.2*dz],[a,0,0])}  // VTX antenna leaning back
 function tail(K,c,sp,y){const z=c.half[2];K.add('led',rbox(Math.max(.1,c.half[0]*1.3),.026,.02,.008,2),[0,y,z+.008]);antenna(K,y+.02,z-.03)}
 // flight-controller stack detail: processor, gyro, capacitor and screw heads on the top board
 function fc(K,y,z,s=1){K.add('chip',rbox(.034*s,.007,.034*s,.002,1),[0,y,z]);K.add('chip',rbox(.014*s,.006,.014*s,.002,1),[.03*s,y,z-.03*s]);
@@ -131,10 +131,11 @@ function geometryOf(sp){const key=[sp.arms.id,sp.chassis.id,sp.power.id,sp.attac
  BATT[sp.power.batt.style](K,sp.power.batt,sp.battY,sp.power.look);(ATT[sp.attach?.id]||ATT.none)(K,sp);
  const o={frame:K.merged(),props:sp.motors.map((m,i)=>({blade:bladeGeo(a.prop.r,a.prop.twist,i===1||i===2?1:-1),disc:disc(a.prop.r),pos:[m[0],sp.propY,m[1]]}))};
  _cache.set(key,o);return o}
-const _tints=new Map();
-// M: material set {carbon, metal, lens, prop, team[t], led[t], blade[t], pack, packLR, label, strap, rubber, board}
+const _tints=new Map(),BASE={bell:'metal',ant:'team'};  // cosmetic keys fall back to the stock material (cosmetics: render/cos-mat.js)
+// M: material set {carbon, metal, lens, prop, team[t], led[t], blade[t], pack, packLR, label, strap, rubber, board}; optional bell, ant (else metal, team)
+// and fixed: keys whose part tints are ignored (a cosmetic bell colour wins over the power unit's own)
 export function buildPartsMesh(sp,t,M){const G=geometryOf(sp),g=new THREE.Group(),props=[];
- const mat=k=>{const[b,hex]=k.split('#'),m=M[b],o=Array.isArray(m)?m[t]:m;if(!hex)return o;const key=b+'#'+hex+'/'+t;  // tinted copies are cached per material
+ const mat=k=>{const[b,hex]=k.split('#'),m=M[b]||M[BASE[b]],o=Array.isArray(m)?m[t]:m;if(!hex||M.fixed?.includes(b))return o;const key=b+'#'+hex+'/'+t;  // tinted copies are cached per material
   let c=_tints.get(key);if(!c||c.userData.src!==o){c=o.clone();c.color.setHex(parseInt(hex,16));c.userData.src=o;_tints.set(key,c)}return c};
  for(const k in G.frame){const m=new THREE.Mesh(G.frame[k],mat(k==='strap'?'team':k));m.castShadow=k!=='led';m.receiveShadow=k==='carbon';g.add(m)}
  for(const p of G.props){const pg=new THREE.Group();pg.position.set(...p.pos);const b=new THREE.Mesh(p.blade,mat('blade'));b.castShadow=true;const d=new THREE.Mesh(p.disc,M.prop);d.position.y=.004;d.renderOrder=2;pg.add(b,d);g.add(pg);props.push(pg)}
