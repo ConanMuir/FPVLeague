@@ -396,7 +396,7 @@ if (set.old) {
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
   else {
     // settings added after v15 (with defaults) are left out of the comparison
-    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd', 'cos', 'train'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
+    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd', 'cos', 'train', 'osd', 'longline', 'tiltAx', 'tiltMin', 'tiltMax', 'llLen', 'llW', 'llStr', 'llScore', 'llCam', 'lookBtn'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
     chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check
