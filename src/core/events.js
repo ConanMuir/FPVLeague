@@ -29,9 +29,11 @@
 //  count    the kickoff countdown ticks, 3 2 1 then 0 = GO (modes/step.js, not in the attract demo)  {n}
 //  orb      a drone picked up a boost orb (modes/step.js)  {d, big: bool, p: orb position}
 //  end      the match ended (modes/match.js endFx, host and joiners)  {winner: team, score: GS.score}
+//  pack     a skill training pack finished (modes/training.js finish, after the best is saved)  {id, tier: 0..2, n: shots done, of: shots,
+//           t: total time of the done shots, prev: the saved best before this run {n, of, t} | null}
 // Replays: effects and sound subscribe with onFx instead, so they also hear the recorded copies a replay sends (see the end of this file).
 // Adding a type: add it to EVENTS with a one-line payload description above, emit it from its producer with a reused payload object.
-export const EVENTS=['touch','bump','bullet','ground','bounce','popEarn','popFire','save','shot','goal','demo','kill','kickoff','count','orb','end'];
+export const EVENTS=['touch','bump','bullet','ground','bounce','popEarn','popFire','save','shot','goal','demo','kill','kickoff','count','orb','end','pack'];
 const L=Object.create(null);for(const t of EVENTS)L[t]=[];
 const check=t=>{if(!L[t])throw new Error('unknown event type: '+t)};
 /** subscribe fn(payload) to an event type; returns a function that unsubscribes it */
