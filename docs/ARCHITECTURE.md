@@ -98,3 +98,13 @@ calls (the one producer added for it is the `pack` event when a training pack fi
   Changing what an old profile means: append `{v: next, run(P, ctx)}` to `PROFILE_MIGRATIONS`.
 - New achievement: append to `ACH` (never rename an id: it is saved). New locked cosmetic: add it to `LEVEL_UNLOCKS` or give an
   achievement a `reward`. `tools/progress-check.mjs` plays real matches headless and checks the whole loop.
+
+## Shared with Riley's games (`src/flight/core.js`, `src/input/sticks.js`)
+
+Two leaf modules are loaded by every game, Jared's (through Vite) and Riley's (`engine/`, `games/`, as raw ES modules), so they
+import nothing but three and touch no DOM when loaded. `flight/core.js` is the flight maths: rates and throttle curve, the attitude
+controller, flip-over levelling, and the air model (`quadAir` and its blocks). `input/sticks.js` is controller detection and the
+stick maths of `humanControl`. `flight/drone.js` keeps what is Jared's own: parts multipliers (`F`), pops, turtle, self-righting,
+flip-over triggers; Rapier still integrates and collides. Change flight maths in the core and every game flies it. The golden tests
+(`test/flight-golden.test.mjs`, `test/input-golden.test.mjs`, `tools/flight-golden.mjs` for the Interceptor) fail on any change by
+design; re-record them only for an intended feel change. Audit, rules and the migration plan: `docs/SHARED-ENGINE.md`.
