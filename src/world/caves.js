@@ -16,7 +16,8 @@ const N={H0:[0,-100,0],H1:[-250,-95,280],A:[150,-88,330],B:[300,-90,60],D0:[0,-2
  S2:[cxR(-200)+6,-22,-200],     // ramp out of the river canyon's east wall, down to the hall
  S3:[300,top(300,60,25),60]};   // vertical shaft in the open hills, down to the ring at B
 for(const k of Object.keys(N))if(k!=='H0'&&k!=='D0')N[mn(k)]=mir(N[k]);
-const CAV=[['H0',[85,27,95]],['H1',[70,26,80]],['D0',[70,24,70]],['D1',[55,22,60]]];
+const CAV=[['H0',[85,27,95]],['H1',[70,26,80]],['D0',[70,24,70]],['D1',[55,22,60]],
+ ['A',[26,25,26]],['B',[26,25,26]],['Q1',[21,20,21]]];  // small chambers where several tunnels end at one point (their end caps would coincide)
 // spiral ramp (and its mirror): 1.25 turns of radius 48 round (-324.5, 100), from the ring tunnel B'-H1 at -92 down to -185 (14 deg)
 const SPI=Array.from({length:61},(_,i)=>{const t=i/60*Math.PI*2.5;return[-324.5+48*Math.cos(t),-92.4-92.6*i/60,100+48*Math.sin(t)]});
 // routes (polylines between nodes or points; corners become arcs of radius 2.5 r): [points, radius, options {n: name, self: own mirror,
@@ -92,10 +93,10 @@ export function clipIndexed(P,I,attrs,g){const G=[],gv=i=>G[i]??(G[i]=g(P[i*3],P
  // first split (at their midpoints) edges longer than 1.5 m that cross g = 0 (ends or midpoint on different sides), a few times over, so the straight cuts
  // follow curved seams (where three tunnels meet, a cut across an 8 m triangle can miss the curve by more than the seam overlap).
  // Splits are decided per edge, so both triangles on an edge split it alike (no T-junctions).
- for(let pass=0;pass<4;pass++){const mid=new Map(),NI=[],force=new Set(),ek=(a,b)=>a<b?a*4194304+b:b*4194304+a;let any=false;
+ for(let pass=0;pass<2;pass++){const mid=new Map(),NI=[],force=new Set(),ek=(a,b)=>a<b?a*4194304+b:b*4194304+a;let any=false;
   for(let t=0;t<I.length;t+=3){const[a,b,c]=[I[t],I[t+1],I[t+2]],s0=gv(a)>0;if(s0===gv(b)>0&&s0===gv(c)>0&&(g((P[a*3]+P[b*3]+P[c*3])/3,(P[a*3+1]+P[b*3+1]+P[c*3+1])/3,(P[a*3+2]+P[b*3+2]+P[c*3+2])/3)>0)!==s0){force.add(ek(a,b));force.add(ek(b,c));force.add(ek(c,a))}}  // an island inside one triangle
   const midv=(a,b)=>{const k=a<b?a*4194304+b:b*4194304+a;let v=mid.get(k);if(v!==undefined)return v;const ex=P[a*3]-P[b*3],ey=P[a*3+1]-P[b*3+1],ez=P[a*3+2]-P[b*3+2],l=Math.sqrt(ex*ex+ey*ey+ez*ez),ga=gv(a),gb=gv(b);
-   v=-1;if(l>.8&&(force.has(k)||(ga>0)!==(gb>0)||(g((P[a*3]+P[b*3])/2,(P[a*3+1]+P[b*3+1])/2,(P[a*3+2]+P[b*3+2])/2)>0)!==(ga>0))){v=np();for(let c=0;c<3;c++)P.push((P[a*3+c]+P[b*3+c])/2);for(const A of attrs)for(let c=0;c<A.n;c++)A.a.push((A.a[a*A.n+c]+A.a[b*A.n+c])/2);any=true}mid.set(k,v);return v};
+   v=-1;if(l>1.5&&(force.has(k)||(ga>0)!==(gb>0)||(g((P[a*3]+P[b*3])/2,(P[a*3+1]+P[b*3+1])/2,(P[a*3+2]+P[b*3+2])/2)>0)!==(ga>0))){v=np();for(let c=0;c<3;c++)P.push((P[a*3+c]+P[b*3+c])/2);for(const A of attrs)for(let c=0;c<A.n;c++)A.a.push((A.a[a*A.n+c]+A.a[b*A.n+c])/2);any=true}mid.set(k,v);return v};
   for(let t=0;t<I.length;t+=3){const v=[I[t],I[t+1],I[t+2]],e=[midv(v[0],v[1]),midv(v[1],v[2]),midv(v[2],v[0])],n=e.filter(x=>x>=0).length,V=r=>v[r%3],E=r=>e[r%3];
    if(n===0)NI.push(...v);else if(n===3)NI.push(v[0],e[0],e[2],e[0],v[1],e[1],e[2],e[1],v[2],e[0],e[1],e[2]);
    else if(n===1){const r=e.findIndex(x=>x>=0);NI.push(V(r),E(r),V(r+2),E(r),V(r+1),V(r+2))}

@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main da7fc78 (pop mechanic, PR #15)
-Doing: Dogfight underground: a cave network under the Highlands (caverns, tunnels, six entrances), collision + bots + checks.
-Touches: src/world/caves.js (new), src/world/terrain.js (new, terrain maths split out of highlands.js), src/world/highlands.js, src/physics/world.js (terrain/cave trimeshes, hybrid CCD), src/bots/dogfight.js, src/render/camera.js, src/modes/dogfight.js (turrets off cave mouths), tools/physics-check.mjs, tools/smoke.mjs (Lab pilot null-band race; page-error stacks).
-Open items / help wanted: how the caves feel to fly (unverified by a pilot); cave walls have no shadows from drones; online play with someone underground untested.
-Overlaps: riley-test-0u2krq (Long line mode) also edits src/physics/world.js (rope); merge by hand.
+Based on: origin/main 8c0182c, merged with origin/main 5c965f2 (ball feel, PR #21)
+Doing: Underground part 1 (branch underground-routes): more cave routes. Loops, S-bends, 90-degree corners, two crawl-ways, a lower level reached by shafts and a spiral ramp; bot waypoint graph; checks. Part 2 (underground-detail: pipes, arches, crates, lamps, signage) comes next, after part 1 is merged.
+Touches: src/world/caves.js, src/world/highlands.js (clip calls only), tools/physics-check.mjs (section h), Drone League/claude-project/drone-league-notes.md.
+Open items / help wanted: how the new routes feel to fly (no pilot has tried them yet); the cave build now takes about 1 s at map load (node), up from 0.17 s.
+Overlaps: riley-test-2 also edits tools/physics-check.mjs, src/physics/world.js, src/render/camera.js; merge by hand.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.
