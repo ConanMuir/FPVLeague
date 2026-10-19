@@ -33,6 +33,20 @@ if (!ONLY) {
   await p.close();
 }
 
+// ---------- saves: hand-edited or foreign values must not break the start menu or a game ----------
+if (!ONLY) {
+  const errs = [], p = await open(browser, origin + '/games/interceptor/', errs), bad = [];
+  for (const save of [{gmode: 'z', zdiff: 'x'}, {gmode: 'z', zdiff: 9}, {gmode: 'z', zdiff: 1.5, zbests: 'oops'}, {gmode: 'z', zmusv: 'loud', zname: {a: 1}}, {gmode: 7, wx: 'nope', cam: 'x'}]) {
+    const n0 = errs.length;
+    await p.evaluate(s => localStorage.setItem('dl-interceptor', JSON.stringify(s)), save); await p.reload({waitUntil: 'load'});
+    const up = await p.waitForFunction(() => window.__z, {timeout: 20000}).then(() => true, () => false);
+    if (up) { await sleep(200); await p.click('#play'); await sleep(300); await p.evaluate(() => { if (__z.G.on) __z.cont(); __z.sim(5); }); }
+    if (!up || errs.length > n0) bad.push(JSON.stringify(save) + (up ? '' : ' (page never came up)'));
+  }
+  ok(!bad.length, 'Saves: odd saved values still load and play' + (bad.length ? '\n  ' + bad.join('\n  ') + '\n  ' + errs.slice(0, 3).join('\n  ') : ''));
+  await p.evaluate(() => localStorage.removeItem('dl-interceptor')); await p.close();
+}
+
 // ---------- Zombies ----------
 if (!ONLY) {
   const {p, errs} = await page('z');
