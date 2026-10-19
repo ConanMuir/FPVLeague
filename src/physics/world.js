@@ -165,7 +165,7 @@ function buildDF(){const D=dfCollision(),add=(cd,x,y,z,q)=>{cd.setTranslation(x,
  add(R.ColliderDesc.trimesh(D.terrain.vertices,D.terrain.indices,R.TriMeshFlags.FIX_INTERNAL_EDGES),0,0,0);PHYS.dfTerrain=dfCols[dfCols.length-1];  // terrain (cut open at the cave mouths; a heightfield can't have holes)
  add(R.ColliderDesc.trimesh(D.caves.vertices,D.caves.indices,R.TriMeshFlags.FIX_INTERNAL_EDGES),0,0,0);PHYS.dfCaves=dfCols[dfCols.length-1];  // cave walls, facing inward
  const M=obsMesh(D.obs);add(R.ColliderDesc.trimesh(M.V,M.I),0,0,0);PHYS.dfObs=dfCols[dfCols.length-1]}  // every obstacle (trees, buildings, mesas, hangars, arches, the rings round the cave mouths, boulders)
-// the Highlands obstacles as ONE static trimesh: ~1760 separate colliders cost ~2 ms a 120 Hz tick in Rapier's per-step bookkeeping (broad phase,
+// the Highlands obstacles as ONE static trimesh: ~1760 separate colliders cost ~1.2 ms a 120 Hz tick in Rapier's per-step bookkeeping (broad phase,
 // query-pipeline refit) even with no drone near them; one trimesh is one proxy with its own BVH. Shapes as in dfCollision (box, cyl, cone, cap,
 // hull: p, q); round ones are polygons circumscribed round the true shape, so the solid is never smaller than the SDF's
 function obsMesh(L){const P=[],m=new THREE.Matrix4(),q=new QT(),v=new V3(),one=new V3(1,1,1),n=10,k=1/Math.cos(Math.PI/n);
