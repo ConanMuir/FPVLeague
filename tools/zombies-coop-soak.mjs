@@ -69,9 +69,12 @@ for (let w = 0; w < WAVES; w++) {
     if (t % 6 === 0) for (const C of [A, B]) await ev(C, () => { const {api, Z} = __z, me = api.player, u = api.TH.filter(api.live).sort((a, b) => a.p.distanceTo(a.aim) - b.p.distanceTo(b.aim))[0]; if (!u || !me || me.dead > 0) { if (me && me.dead > 0) api.launch(); return; } me.p.copy(u.p).addScaledVector(u.v.clone().normalize(), -1); me.v.copy(u.v); Z.detonate(); });
     if (t % 15 === 0) { await sleep(700); samples++;
       const h = await ev(H, () => __z.api.TH.filter(__z.api.live).map(t => [t.id, t.p.x, t.p.y, t.p.z, t.v.length()]));
-      for (const C of [A, B]) { const c = new Map((await ev(C, () => __z.api.TH.filter(__z.api.live).map(t => [t.id, t.p.x, t.p.y, t.p.z]))).map(a => [a[0], a]));
+      for (const C of [A, B]) { const c = new Map((await ev(C, () => __z.api.TH.filter(__z.api.live).map(t => { const q = t.np || t.p; return [t.id, q.x, q.y, q.z]; }))).map(a => [a[0], a]));
         const miss = [];
-        for (const a of h) { const b = c.get(a[0]); if (!b) { miss.push(a[0]); continue; } const g = Math.hypot(a[1] - b[1], a[2] - b[2], a[3] - b[3]); syncWorst = Math.max(syncWorst, g); syncLag = Math.max(syncLag, g / Math.max(a[4], 5)); }
+        for (const a of h) { const b = c.get(a[0]); if (!b) { miss.push(a[0]); continue; } const g = Math.hypot(a[1] - b[1], a[2] - b[2], a[3] - b[3]); syncWorst = Math.max(syncWorst, g); syncLag = Math.max(syncLag, g / Math.max(a[4], 5));
+          if (g / Math.max(a[4], 5) > 1.5) { const hd = await ev(H, id => { const t = __z.api.TH.find(u => u.id === id); return t && {k: t.k, st: t.st, p: t.p.toArray().map(Math.round), v: t.v.toArray().map(Math.round), frz: t.frz, grp: t.grp}; }, a[0]);
+            const cd = await ev(C, id => { const t = __z.api.TH.find(u => u.id === id); return t && {k: t.k, st: t.st, p: t.p.toArray().map(Math.round), np: t.np?.toArray().map(Math.round), nv: t.nv?.toArray().map(Math.round), frz: t.frz, net: t.net, snap: __z.net.n.tm.has(id)}; }, a[0]);
+            issues.push(`wave ${w + 1}: T${a[0]} ${Math.round(g)} m apart on ${C.name}: host ${JSON.stringify(hd)} client ${JSON.stringify(cd)}`); } }
         if (miss.length) { await sleep(1500);  /* a track missing on a client: only a desync if it is still missing there while the host still has it */
           const still = await ev(H, ids => ids.filter(id => __z.api.TH.some(t => t.id === id && __z.api.live(t))), miss), cs = await ev(C, () => __z.api.TH.filter(__z.api.live).map(t => t.id));
           const lost = still.filter(id => !cs.includes(id)); syncMiss += lost.length; if (lost.length) issues.push(`wave ${w + 1}: ${C.name} lacks host tracks ${lost} for 1.5 s+ (${JSON.stringify(await ev(C, ids => ids.map(id => { const t = __z.api.TH.find(u => u.id === id); return t ? [id, t.st] : [id, 'absent', __z.net.n.ts.has(id)]; }), lost))})`); } } }
@@ -106,7 +109,8 @@ if (solo) {
 const last = rows.at(-1), first = rows.find(r => r.w >= 4) || rows[0];
 ok(!issues.length, 'Co-op soak: no stuck ready-up, desyncs or NaNs' + (issues.length ? '\n  ' + issues.join('\n  ') : ''));
 if (last && first && last !== first) {
-  /* the clients dead-reckon in real time while headless frames run the host slower than that, so the gap is judged in seconds of the track's own flight */
+  /* the client side is its mirrored state (t.np, dead-reckoned from the snapshots), not the smoothed mesh position, which trails it when headless frames are slow;
+     the host runs slower than real time under load while the clients dead-reckon in real time, so the gap is judged in seconds of the track's own flight */
   ok(rows.every(r => r.syncLag < 1.5 && !r.syncMiss), `Co-op: tracks in sync, worst gap host vs client ${Math.max(...rows.map(r => r.syncWorst))} m = ${Math.max(...rows.map(r => r.syncLag))} s of flight, ${rows.reduce((a, r) => a + r.syncMiss, 0)} tracks missing on a client`);
   ok(last.s[0].snap.max < 60000, `Co-op: snapshot stays bounded (max ${last.s[0].snap.max} B with up to ${last.s[0].snap.T} tracks)`);
   ok([1, 2].every(i => last.s[i].ts <= last.s[i].th + 5 && last.s[i].tm <= last.s[i].th + 400 && last.s[i].out <= 64), `Co-op: client mirror maps bounded (ts/tm/out ${[1, 2].map(i => `${last.s[i].ts}/${last.s[i].tm}/${last.s[i].out}`)})`);
