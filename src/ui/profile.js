@@ -83,7 +83,7 @@ function packLine(x){const el=$('trsxp');if(!el)return;const r=x.res;el.hidden=f
  el.innerHTML=r.total?`<b>+${fmt(r.total)} XP</b><span>${r.items.map(i=>`${esc(i.n)} +${fmt(i.xp)}`).join(' · ')}</span>${badge(x.lv1.lv)}${bar(x.lv1.frac)}`:`<b>+0 XP</b><span>Beat your best (more shots done, or 5% faster) to earn XP from this pack.</span>${badge(x.lv1.lv)}${bar(x.lv1.frac)}`}
 export function initProfile(){
  $('profbtn').addEventListener('click',()=>{TAB='stats';renderProfile()});navLevel();
- onProg('ach',achToast);
+ onProg('ach',a=>{achToast(a);navLevel()});
  onProg('match',x=>{navLevel();for(const a of x.ach)achToast(a);clearTimeout(pmT);pmT=setTimeout(()=>summary(x),1800)});
  onProg('pack',x=>{packLine(x);navLevel();if(x.lv1.lv>x.lv0.lv)toast('lvl','Level up!','Level '+x.lv1.lv,x.unl.length?'Unlocked '+x.unl.map(itemName).join(', '):'');for(const a of x.ach)achToast(a)});
  onEv('count',e=>{if(e.n===0&&!$('pmsum').hidden)hideSummary()});  // online: the next match is under way (GO)

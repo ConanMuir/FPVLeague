@@ -120,7 +120,7 @@ async function scenario(label, url) {
       }
       for (const [c, id] of [['paint', 'candy'], ['decal', 'n23'], ['props', 'smoke'], ['bell', 'gold'], ['led', 'green'], ['trail', 'plasma']]) await click(p, `#gslots button[data-c="${c}"][data-id="${id}"]`);
       // progression: a fresh profile can't wear a locked item (Chrome: level 20); clicking it shows what unlocks it instead
-      g.locked = await p.$$eval('#gslots .gtile.lck', l => l.length); await click(p, '#gslots button[data-c="paint"][data-id="chrome"]'); g.lockMsg = await text(p, '#gdesc');
+      g.locked = await p.$$eval('#gslots .gtile.lck', l => l.length); await p.$eval('#gtabs button[data-s="4"]', e => e.click()); await click(p, '#gslots button[data-c="paint"][data-id="chrome"]'); g.lockMsg = await text(p, '#gdesc');
       g.cosSaved = await p.evaluate(() => Object.values(JSON.parse(localStorage.getItem('droneleague') || '{}').cos || {}).join('/'));
       await p.$eval('#gtabs button[data-s="0"]', e => e.click());
       g.name = await text(p, '#gname'); g.saved = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').loadout?.join('/'));
