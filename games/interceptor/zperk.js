@@ -16,6 +16,7 @@ export function initPerks(api,G,Z){
   warhead:['Warhead kill radius +1 m (the fuse window grows with it).','+2 m.','+3 m.'],
   battery:['Pack +25% capacity and 25% less voltage sag.','+50% capacity, half the sag.'],
   aid:['Foreign Aid: site repairs cost 30% less.'],
+  fuse:['Your warhead fires by itself at the closest approach inside 6 m, like Classic. Without it you time the burst yourself (F, click or the detonate button).'],
   rocket:['Every interceptor gets a 15 s rocket burst when it lifts off the mat: roughly double the speed, same handling. HUD bar shows the burn left.']};
  Z.perkLevel=lv;Z.perkMaxed=k=>lv(k)>=PERK[k].cost.length;Z.perkPrice=k=>PERK[k].cost[lv(k)]??0;Z.perkBlurb=k=>BLURB[k][Math.min(lv(k),BLURB[k].length-1)];
  Z.buyPerk=k=>{G.perks[k]=lv(k)+1;if(['freeze','mark','air'].includes(k))G.ch[k]=(G.ch[k]|0)+1;apply()};

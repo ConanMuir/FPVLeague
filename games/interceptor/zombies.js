@@ -1,7 +1,7 @@
 // Interceptor: Zombies mode. Endless, growing waves from the map edges against the defended sites; money per intercept, a base screen between
 // waves, helpers and perks. interceptor.js stays Riley's Classic game: it calls the hooks below only while Z.on is true.
 // api = live access to interceptor.js internals (see the initZombies call there).
-import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,speedK,START_CASH,HELPER_SHARE,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP} from './zdata.js';
+import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,speedK,HELPER_SHARE,ZDIFF,earlyK,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP} from './zdata.js';
 import {initBase} from './zbase.js';
 import {initDefences} from './zdef.js';
 import {initEnemies} from './zenemy.js';
@@ -17,13 +17,18 @@ export function initZombies(api){
  const Z={get on(){return G.on},G};
  const SITE_C={x:0,z:1950};  // centre of the defended area
 
- // ---------- mode choice on the start menu ----------
- {const box=$('gmode'),desc=$('gmdesc');
-  const sync=()=>{for(const b of box.querySelectorAll('button'))b.classList.toggle('on',b.dataset.m===S.gmode);
-   desc.innerHTML=S.gmode==='z'?`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a boss every 10. ${G.best?`Best: wave ${G.best}.`:''}`:'<b>Classic</b>: Riley\'s Interceptor. One Shahed-136, then one jet Geran-3, each wave.';
+ // ---------- mode choice and Zombies difficulty on the start menu; best wave is kept per difficulty ----------
+ const DF=()=>ZDIFF[cl(S.zdiff??1,0,ZDIFF.length-1)];
+ const bestOf=d=>((S.zbests||{})[d.n]||(d.n==='Normal'&&S.zbest)||{}).wave|0;  // S.zbest = best from before difficulties existed (Normal)
+ {const box=$('gmode'),desc=$('gmdesc'),dbox=document.createElement('div');dbox.className='gmode zdiff';dbox.id='zdiff';dbox.setAttribute('role','group');dbox.setAttribute('aria-label','Zombies difficulty');
+  dbox.innerHTML=ZDIFF.map((d,i)=>`<button data-d="${i}">${d.n}</button>`).join('');box.after(dbox);
+  const sync=()=>{for(const b of box.querySelectorAll('button'))b.classList.toggle('on',b.dataset.m===S.gmode);const D=DF();G.best=bestOf(D);
+   for(const b of dbox.querySelectorAll('button'))b.classList.toggle('on',+b.dataset.d===ZDIFF.indexOf(D));dbox.hidden=S.gmode!=='z';
+   desc.innerHTML=S.gmode==='z'?`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a boss every 10.<br><b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`:'<b>Classic</b>: Riley\'s Interceptor. One Shahed-136, then one jet Geran-3, each wave.';
    $('play').textContent=S.gmode==='z'?'Hold the line':'Defend'};
   for(const b of box.querySelectorAll('button'))b.onclick=()=>{S.gmode=b.dataset.m;save();sync()};
-  G.best=(S.zbest&&S.zbest.wave)|0;const qm=new URLSearchParams(location.search).get('mode');if(qm==='zombies'||qm==='z')S.gmode='z';else if(qm==='classic')S.gmode='classic';  /* Drone League's menu links here with ?mode= */
+  for(const b of dbox.querySelectorAll('button'))b.onclick=()=>{S.zdiff=+b.dataset.d;save();sync()};
+  const qm=new URLSearchParams(location.search).get('mode');if(qm==='zombies'||qm==='z')S.gmode='z';else if(qm==='classic')S.gmode='classic';  /* Drone League's menu links here with ?mode= */
   if(S.gmode!=='z')S.gmode='classic';save();sync();Z.syncMode=sync}
 
  // ---------- HUD ----------
@@ -47,8 +52,8 @@ export function initZombies(api){
  const base=Z.base=initBase(Z,api,G);
  const openBase=()=>{rk.stop();G.next=plan(G.wave+1);base.open()};
  // Zombies widens the AO, adds the far-field terrain and long radar ranges (25 / 100 / 250 km) for the fast threats
- Z.start=()=>{G.on=true;G.state='base';G.wave=0;G.cash=START_CASH;G.earned=0;G.kills={p:0,h:0};G.streak=0;G.wq.length=0;G.pops.length=0;G.perfect=true;
-  bunker(false);for(const s of SITES){s.max=s.hp=SITE_HP[s.n]||400}def.clear();pk.reset();en.farRing().visible=true;if(api.RRS.length===3)api.RRS.push(25000,100000,250000);
+ Z.start=()=>{G.on=true;G.state='base';G.wave=0;G.cash=DF().start;G.earned=0;G.kills={p:0,h:0};G.streak=0;G.wq.length=0;G.pops.length=0;G.perfect=true;
+  bunker(false);for(const s of SITES){s.max=s.hp=Math.round((SITE_HP[s.n]||400)*DF().hp)}def.clear();pk.reset();en.farRing().visible=true;if(api.RRS.length===3)api.RRS.push(25000,100000,250000);
   api.AW=4300;api.wave=0;api.wstate='wave';$('hud').classList.add('z');hudEl.hidden=false;$('zover').hidden=true;
   openBase()};
  Z.stop=()=>{if(!G.on&&G.state==='off')return;G.on=false;G.state='off';rk.stop();Z.shadowsBack();bunker(false);for(const s of SITES){s.max=s.hp=3}api.AW=3000;api.applyTune();def.clear();en.hide();en.farRing().visible=false;
@@ -57,7 +62,7 @@ export function initZombies(api){
 
  // ---------- wave director ----------
  // a wave = a threat-point budget spent on unlocked kinds, split into raids from different edges; each raid spawns over a few seconds
- function compose(w){const out=[];let b=budget(w,S.diff|0);if(w===1)return['shahed','jet'];
+ function compose(w){const out=[];let b=budget(w,DF().wave);if(w===1)return['shahed','jet'];
   if(isBoss(w)){out.push('boss');b=Math.round(b*.6)}
   for(const k of ORDER)if(KIND[k].from===w&&k!=='swarm'){out.push(k);b-=KIND[k].pts}  // a new kind always shows up in its first wave
   const ks=ORDER.filter(k=>weight(k,w)>0);
@@ -75,7 +80,7 @@ export function initZombies(api){
   const box=(w,h,d,m,x,y0,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y0+h/2,z);o.castShadow=o.receiveShadow=true;g.add(o)};
   box(22,1.2,14,E,0,0,0);box(14,3.6,9,M,0,1,0);box(4,2.6,2,M,0,1,-5.2);box(.3,6,.3,M,5,4.6,2);g.position.set(BK.x,y,BK.z);g.visible=false;api.scene.add(g);BK.mesh=g;BK.y=y;BK.aims.push(new V3(BK.x,y+4.6,BK.z),new V3(BK.x+4,y+4.6,BK.z+2));
   BK.box={x:BK.x,y:y+2.4,z:BK.z,hx:7,hy:2.4,hz:4.5}}
- function bunker(on){const i=SITES.indexOf(BK);if(on&&i<0){SITES.push(BK);BK.hp=BK.max;BK.mesh.visible=true;api.PADP.sol.push(BK.box);feed('<span class="cg">Command bunker online</span>: a fourth site to defend (+'+BK.max+' integrity)')}
+ function bunker(on){const i=SITES.indexOf(BK);if(on&&i<0){SITES.push(BK);BK.max=Math.round(SITE_HP['COMMAND BUNKER']*DF().hp);BK.hp=BK.max;BK.mesh.visible=true;api.PADP.sol.push(BK.box);feed('<span class="cg">Command bunker online</span>: a fourth site to defend (+'+BK.max+' integrity)')}
   if(!on&&i>=0){SITES.splice(i,1);BK.mesh.visible=false;const j=api.PADP.sol.indexOf(BK.box);if(j>=0)api.PADP.sol.splice(j,1)}}
  Z.bunker=bunker;
  function startWave(){G.wave++;api.wave=G.wave;G.state='wave';G.perfect=true;G.wt=0;if(G.wave>=BUNKER_WAVE)bunker(true);const P=G.next||plan(G.wave);G.next=null;G.wq=P.q;
@@ -88,8 +93,8 @@ export function initZombies(api){
   ballistic:'very fast and steep. Only a dome-class defence or a direct hit stops it.',hyper:'extremely fast. Only Golden Dome stops it.',icbm:'the fastest thing in the sky. Golden Dome only.',boss:'a carrier that launches swarms until destroyed. Breaks apart in stages.'})[k]||'';
  Z.waves=dt=>{if(api.demo)return;if(G.state==='wave'){G.wt+=dt;
    while(G.wq.length&&G.wq[0].at<=G.wt){const q=G.wq.shift();spawn(q)}
-   if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const b=clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0);earn(b,null,null);
-    banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);feed(`Wave ${G.wave} clear: <span class="cg">+${money(clearBonus(G.wave))}</span>${G.perfect?` · perfect defence <span class="cg">+${money(perfectBonus(G.wave))}</span>`:''}`)}}
+   if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn(clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0),null,null);
+    banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);feed(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`)}}
   else if(G.state==='clear'&&(G.clearT-=dt)<=0)openBase()};
 
  // spawn points sit on a ring around the defended area at the given bearing; fast kinds come from much farther out (the map extends past the AO)
@@ -121,7 +126,8 @@ export function initZombies(api){
   const da=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z);if(da<CLUTCH_R&&K.dmg){c+=K.cash*CLUTCH_K;why=' CLUTCH'}
   if(ply&&G.burst){G.burst.n++;if(G.burst.n>1){c+=MULTI_BONUS;why=why||' MULTI'}}
   earn(c,t.p,why)};
- function earn(c,p,why){c=Math.round(c);G.cash+=c;G.earned+=c;if(p)pop(p,`+${money(c)}${why||''}`,why?'#ffe23c':'#3ddc84')}
+ // every payout is scaled by the difficulty and the early-wave boost (x2.2 on wave 1, x1 from wave 10)
+ function earn(c,p,why){c=Math.round(c*DF().cash*earlyK(Math.max(1,G.wave)));G.cash+=c;G.earned+=c;if(p)pop(p,`+${money(c)}${why||''}`,why?'#ffe23c':'#3ddc84');return c}
  Z.earn=earn;
  const pop=Z.pop=(p,txt,col)=>{if(G.pops.length>40)G.pops.shift();G.pops.push({p:p.clone(),txt,col,t:0})};
 
@@ -134,7 +140,15 @@ export function initZombies(api){
    else if(o==='damage'){api.damage(t);out.push(`<span class="co">${Z.tname(t)} damaged${KIND[t.k].armor===1?' (armored: needs a direct hit)':''}</span>`)}
    else out.push(`<span class="co">Missed ${Z.tname(t)} (${r.toFixed(1)} m)</span>`)}
   const kills=G.burst.n;G.burst=null;G.streak=kills?G.streak+1:0;G.detFlag=true;
+  // big readout of how good the timing was: the closest track's miss distance at the moment of the burst, plus a result sound
+  let nr=1e9;for(const t of TH)nr=Math.min(nr,t.p.distanceTo(d.p));  // includes the tracks this burst just killed (they leave TH later)
+  const dmg=out.some(s=>s.includes('damaged')),txt=kills?`HIT · ${nr.toFixed(1)} m`:dmg?`DAMAGED · ${nr.toFixed(1)} m`:nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';
+  banner(txt,kills?'cg':dmg?'co':'cr',1.4);G.det={txt,t:performance.now()};
+  if(kills)tone(520,1040,.22,.14,'triangle');else if(dmg)tone(440,520,.2,.1,'triangle');else tone(300,140,.35,.12,'sawtooth');
   api.lose('det');feed(out.join('<br>')||'Detonated: nothing in range')};
+ // manual timing is the default in Zombies; the Proximity fuse perk brings back Classic's automatic fuse (contact always fires)
+ Z.autoFuse=()=>Z.perkLevel?.('fuse')>0;
+ Z.evadeMode=()=>G.state==='trial'?'none':DF().evade;Z.diff=DF;
  // one-hit rules: a direct hit always kills; proximity uses pkill; armor 1 turns a proximity kill into damage; 'hard' needs a direct hit
  function outcome(t,r,cv){const K=KIND[t.k]||KIND.shahed;if(r<K.hitR)return'kill';if(K.armor==='hard')return'miss';
   const p=api.pkill(r,cv);if(Math.random()<p)return K.armor===1||K.armor==='boss'?'damage':'kill';
@@ -148,11 +162,11 @@ export function initZombies(api){
  Z.helperKill=t=>{if(!api.live(t))return;t.by='h';if(KIND[t.k]?.armor==='boss'&&Z.bossHit)return Z.bossHit(t);api.killThreat(t,Math.random()<.4)};
 
  // ---------- game over ----------
- function gameOver(){G.state='over';api.wstate='over';const best=S.zbest||{};const nb=G.wave>(best.wave|0);
-  if(nb){S.zbest={wave:G.wave,kills:G.kills.p+G.kills.h,earned:G.earned};save();G.best=G.wave}
+ function gameOver(){G.state='over';api.wstate='over';const D=DF(),nb=G.wave>bestOf(D);
+  if(nb){S.zbests={...(S.zbests||{}),[D.n]:{wave:G.wave,kills:G.kills.p+G.kills.h,earned:G.earned}};save();G.best=G.wave}
   banner('');
   $('zover').innerHTML=`<div class="zpanel zgo"><h2>Defense collapsed</h2><div class="zbig">WAVE ${G.wave}</div>
-   <div class="zstats"><span>Intercepts</span><b>${G.kills.p+G.kills.h}</b><span>by you</span><b>${G.kills.p}</b><span>by helpers</span><b>${G.kills.h}</b><span>Money earned</span><b>${money(G.earned)}</b><span>Best</span><b>${nb?'NEW BEST · ':''}wave ${G.best}</b></div>
+   <div class="zstats"><span>Intercepts</span><b>${G.kills.p+G.kills.h}</b><span>by you</span><b>${G.kills.p}</b><span>by helpers</span><b>${G.kills.h}</b><span>Money earned</span><b>${money(G.earned)}</b><span>Best on ${D.n}</span><b>${nb?'NEW BEST · ':''}wave ${G.best}</b></div>
    <div class="btns"><button class="go" id="zagain">Try again</button><button id="zmenu">Menu</button></div></div>`;
   $('zover').hidden=false;$('zagain').onclick=()=>{$('zover').hidden=true;banner('');api.startMatch()};$('zmenu').onclick=()=>{$('zover').hidden=true;api.startDemo()};
   Z.syncMode?.();setTimeout(()=>$('zagain')?.focus(),50)}

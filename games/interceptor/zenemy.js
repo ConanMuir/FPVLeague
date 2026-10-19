@@ -4,7 +4,7 @@
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {dot,glow} from '../../engine/render.js';
 import {fbm,sm} from '../../engine/util.js';
-import {KIND} from './zdata.js';
+import {KIND,EVADE_SOME} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initEnemies(api,G,Z){
  const {THREE,scene,TH,gh,SHG,SHM,SHJ,SHEN,EXM}=api,V3=THREE.Vector3;
@@ -74,7 +74,16 @@ export function initEnemies(api,G,Z){
   Z.earn(300,t.p,' STAGE');api.feed(`<span class="cg">${Z.tname(t)}: stage down, ${t.stages} left</span>`)};
 
  // Z.tstep: true = handled here. Riley's code flies Shahed, Geran-3, decoys, heavies, cruise missiles and the boss; falling wrecks too.
- function tstep(t,dt){if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();const K=KIND[t.k];if(!K)return false;
+ // evasion (Hard: some kinds, Nightmare: all but the fast missiles): a constant jink, and a hard break away when your interceptor closes in.
+ // Applied to the velocity before the track's own steering runs, which then pulls it back onto its route.
+ const _e=new V3();
+ function evade(t,dt){const mode=Z.evadeMode?.()||'none',K=KIND[t.k];if(mode==='none'||K.armor==='hard'||t.st!=='cruise'&&t.st!=='dive')return;if(mode==='some'&&!EVADE_SOME.includes(t.k))return;
+  const vh=Math.hypot(t.v.x,t.v.z);if(vh<1)return;const lx=-t.v.z/vh,lz=t.v.x/vh,A=(t.k==='jet'||t.k==='cruise'?14:t.k==='swarm'?16:8)*(mode==='all'?1:.8);
+  t.jph=(t.jph??Math.random()*6)+dt*(1+(t.id%5)*.15);const j=Math.sin(t.jph)*A*dt;t.v.x+=lx*j;t.v.z+=lz*j;t.v.y+=Math.cos(t.jph*1.3)*A*.3*dt;
+  t.brkCd=(t.brkCd||0)-dt;const me=api.player;
+  if(t.st==='cruise'&&me&&me.dead<=0&&!(t.brk>0)&&t.brkCd<=0){_e.subVectors(me.p,t.p);const d=_e.length();if(d<350&&_e.dot(t.v)>0){t.brk=1.6;t.brkCd=5;t.brkDir=(_e.x*lx+_e.z*lz)>0?-1:1}}
+  if(t.brk>0){t.brk-=dt;const b=28*t.brkDir*dt;t.v.x+=lx*b;t.v.z+=lz*b;t.v.y-=6*dt}}
+ function tstep(t,dt){if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();const K=KIND[t.k];if(!K)return false;evade(t,dt);
   if(t.k==='boss')bossTick(t,dt);if(K.riley||t.st==='fall')return false;return mover(t,dt)}
 
  // ---------- spawn extras per kind (called from make) ----------

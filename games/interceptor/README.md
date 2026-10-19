@@ -42,11 +42,15 @@ Settings live in your browser (localStorage key `dl-interceptor`). Your radio ca
 
 ## Zombies mode
 
-Endless waves that keep growing. You fly the same interceptor with the same warhead, fuse, guidance, radar and battery as Classic; between waves you spend what you earned on helpers and perks. Pick **Zombies** on the start menu and press **Hold the line**.
+Endless waves that keep growing. You fly the same interceptor with the same warhead, radar and battery as Classic; between waves you spend what you earned on helpers and perks. Pick **Zombies** on the start menu, pick a difficulty and press **Hold the line**.
+
+**Difficulty.** **Easy** (smaller waves, +30% money, tougher sites), **Normal** (the intended game: generous early, hard late), **Hard** (bigger waves, -20% money; jets, heavies, cruise missiles, swarms and the boss jink and break away when your interceptor closes in), **Nightmare** (bigger still, -40% money, weaker sites, everything except the fast missiles evades). Your best wave is saved per difficulty.
+
+**Detonating.** In Zombies you time the warhead yourself: press detonate (F, click, or the mapped button) when you judge you're close. The kill chance is Classic's warhead model: certain well inside the kill radius, then falling off smoothly with the miss distance at that moment (closing speed adds the fuse lag, so a head-on pass needs to be tighter). A contact hit always fires. Armor still needs a near-direct hit. The screen reads out how you did ("HIT · 2.1 m", "DAMAGED · 4.0 m", "MISSED BY 7 m") with a result sound. The **Proximity fuse** perk ($800) brings back Classic's automatic fuse if you'd rather not time it.
 
 **The loop.** Each wave has a threat budget that grows every round, spent on raids from several map edges (the base screen shows where the next one comes from). The defended sites have hit points; their sum is **Defense Integrity** at the top of the HUD. Anything that gets through damages its site by type. At 0 integrity the defence collapses: the game-over screen shows the wave you reached, kills (yours and the helpers'), money earned and your best run. From wave 10 a **command bunker** on the radar pad joins as a fourth site.
 
-**Money.** Every intercept pays by enemy type; a helper's kill pays 70% of what the same kill pays you. Your kills in a row build a streak multiplier (up to ×2), a kill within 600 m of its target pays a 50% **clutch** bonus, and several in one burst pay a multi-kill bonus. Clearing a wave pays a bonus, more for a perfect one with no damage.
+**Money.** You start with $1,500 on Normal ($2,500 Easy, $1,000 Hard, $700 Nightmare). Every intercept pays by enemy type; a helper's kill pays 70% of what the same kill pays you. Early waves pay extra so defences go up fast: ×2.2 on wave 1, tapering to normal by wave 10. Your kills in a row build a streak multiplier (up to ×2), a kill within 600 m of its target pays a 50% **clutch** bonus, and several in one burst pay a multi-kill bonus. Clearing a wave pays a bonus, more for a perfect one with no damage.
 
 **Base screen** (between waves, no timer): an overview map (sites with HP rings, placement slots, your defences and their range, red arrows for the next wave's approach), and three tabs. **Shop**: everything you can buy, grouped as Helpers, Active perks and Passive perks; items not unlocked yet show the wave they arrive. Helpers can be bought once per free slot, perks up to their top level. **Armory**: upgrade or sell anything you own. **Sites**: repair damage (paid; a destroyed site stays destroyed). Underneath is the next wave's forecast, with a note on any new enemy type. Press **Start wave** when ready. Keys: arrows move, Enter / Space choose, 1-3 tabs, C start; gamepad D-pad, A, B (cancel placement), LB / RB tabs, Y start. New helpers appear on their slots when the wave starts.
 
@@ -95,6 +99,7 @@ Drone rack tiers set the kill chance of a drone that reaches its target: Mk I 30
 | Bigger warhead | | Kill radius +1 / +2 / +3 m | $700, $1,100, $1,600 |
 | Better battery | | +25% capacity and 25% less sag per level | $500, $900 |
 | Foreign Aid | | Repairs cost 30% less | $1,200 |
+| Proximity fuse | automatic | Your warhead fires by itself at closest approach inside 6 m (Classic's fuse) | $800 |
 | Rocket Assist | automatic | Each interceptor gets a 15 s rocket burst once it lifts off the mat: about double the speed, same handling; flame, smoke trail, roar and a HUD burn bar | $1,500 |
 
 **Performance.** Enemies, shots and tracers are pooled and drawn instanced, so a late wave with 100+ tracks costs about the same as Classic. If frames stay slow for a few seconds in Zombies, trees stop casting shadows (Classic is never changed).
