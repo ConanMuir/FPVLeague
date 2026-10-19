@@ -4,7 +4,7 @@
 // acceleration and only drifts when their speeds differ), and spends the pop it earns toward the goal. Its teammates keep clear.
 // Same flight model and thrust limits as everyone (the controller only chooses an acceleration, like botControl).
 import {H,HL,V3,cl} from '../config/constants.js';
-import {BOTV,BR,BTHR,DL,DQ,G,TE,THR} from '../config/tune.js';
+import {BG,BOTV,BR,BTHR,DL,DQ,G,TE,THR} from '../config/tune.js';
 import {attitude} from '../flight/attitude.js';
 import {GS} from '../state.js';
 import {ball} from '../physics/ball.js';
@@ -19,7 +19,7 @@ const PS=[[0,.9,0,0,0,-1],[0,-.9,0,0,0,1],[.9,0,0,1,0,0],[-.9,0,0,-1,0,0]];
 export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+BR,vm=D.vmax*BOTV;d.pops=true;
  const r=_r.subVectors(ball.p,d.p),hd=Math.hypot(r.x,r.z),g=_g.set(0,0,s*(HL+4)).sub(ball.p);g.y=0;const gl=g.length()||1;g.divideScalar(gl);
  const a=_a.set(0,0,0);let look=g;
- const onTop=r.y>H0-.7&&r.y<H0+.9&&hd<1.4,grounded=ball.p.y<BR+.5&&Math.abs(ball.v.y)<3;
+ const onTop=r.y>H0-.7&&r.y<H0+.9&&hd<(D.topR??1.4),grounded=ball.p.y<BR+.5&&Math.abs(ball.v.y)<3;
  if(onTop){  // carry: match the ball's velocity, pull back under it, speed both up toward the goal, then pop
   ai.dm='carry';ai.ct=(ai.ct||0)+dt;const vc=cl(gl/12,5,D.dv||10),o=_v.set(g.x*vc-ball.v.x,0,g.z*vc-ball.v.z).multiplyScalar(D.kg??1.2).clampLength(0,8);
   // the ball rides on the top: steer the quad's velocity toward the ball's (plus a pull back under it when it drifts off centre)
@@ -42,9 +42,13 @@ export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+
    else{const l=_q.distanceTo(d.p);_v.subVectors(_q,d.p).multiplyScalar(2).clampLength(0,Math.min(vm,Math.sqrt((D.sdc??40)*l))).add(ball.v);_v.y=(_q.y-d.p.y)*3;a.subVectors(_v,d.v).multiplyScalar(4)}}  // braking profile: arrive at its speed
   else{ai.sc=0;ai.dm='catch';
    if(hd<(D.nr??10)&&r.y>H0-.3&&(r.y<H0+8||ball.v.y<-4&&r.y<H0+(D.nh??12)||D.fs)){  // under it: centre on it and rise into it slowly (closing at a few m/s), so it lands soft on the top
-    if(r.y>H0+.3||hd<1.2){const kc=D.kc??2.5,kn=D.kn??10;a.x=kn*(ball.v.x+kc*(ball.p.x+ball.v.x*.05-d.p.x)-d.v.x);a.z=kn*(ball.v.z+kc*(ball.p.z+ball.v.z*.05-d.p.z)-d.v.z)}  // close in at a speed that falls to the ball's own as the gap closes (no overshoot)
+    if(r.y>H0+.3||hd<1.2||D.apex){const kc=D.kc??2.5,kn=D.kn??10,ex=ball.p.x+ball.v.x*.05-d.p.x,ez=ball.p.z+ball.v.z*.05-d.p.z,el=Math.hypot(ex,ez)||1,cs=D.apex?Math.min(kc,Math.sqrt((D.brk??20)/el)):kc;a.x=kn*(ball.v.x+cs*ex-d.v.x);a.z=kn*(ball.v.z+cs*ez-d.v.z)}  // apex: the closing speed tapers like a braking run, so it arrives under the ball at the ball's own speed  // close in at a speed that falls to the ball's own as the gap closes (no overshoot)
     else{const k=Math.max(0,BR+1.6-hd)*20/(hd||1);a.x=10*(ball.v.x-d.v.x)-r.x*k;a.z=10*(ball.v.z-d.v.z)-r.z*k}  // ball not yet above the top: keep off its side (a side touch knocks it away) and wait under its path
-    const gap=r.y-H0,vy=ball.v.y*(D.cm??.6)+cl(gap*2.5,1,gap>6?D.cl??4:4)*(hd<1.5?1:-.5);a.y=12*(vy-d.v.y)+(d.p.y<1.5?(1.5-d.p.y)*20:0)}  // follow its fall only partly: a soft landing, and lift left to steer with
+    const gap=r.y-H0;let vy=ball.v.y*(D.cm??.6)+cl(gap*2.5,1,gap>6?D.cl??4:4)*(hd<1.5?1:-.5);
+    if(D.apex){if(ball.v.y>1){const ta=ball.v.y/BG,dy=ball.p.y+ball.v.y*ta*.5-H0-(D.apG??.25)-d.p.y;vy=Math.sign(dy)*Math.min(Math.sqrt(2*(D.apA??22)*Math.abs(dy)),Math.abs(dy)/Math.max(ta,.15)*1.5)}  // rising: climb to just under its apex on a braking profile and wait there
+     else vy=gap>(D.apW??5)?0:ball.v.y*(D.apM??.95)+cl(gap*2,.5,5)}  // falling: hover until it is close, then drop with it and close gently: near-matched speeds at contact
+    if(D.apex&&hd>1.2&&r.y<H0+1.5)vy=Math.min(vy,(ball.p.y-H0-1-d.p.y)*4);  // not under it yet: stay low enough to pass beneath it
+    a.y=(D.apex?16:12)*(vy-d.v.y)+(d.p.y<1.5?(1.5-d.p.y)*20:0);if(D.apex)a.y=Math.min(a.y,D.ayM??40)}  // apex: leave thrust for chasing it sideways  // follow its fall only partly: a soft landing, and lift left to steer with
    else{  // on the way: be about 2.5 m under its path where it comes down through a comfortable height, moving with it
     const acc=BTHR*D.thr*.7;let tt=.6,ok=false;for(let pass=0;pass<2&&!ok;pass++)for(let i=3;i<PRED.length;i+=2){const P=PRED[i];if(PV[i].y>0||P.y<H0+2+PV[i].y*PV[i].y/(D.rm??50)||P.y>(pass?40:16))continue;_q.copy(P);_q.y=Math.max(P.y-H0-2.5,1.5);const t=(i+1)*PDT;if(reachT(d,_q,acc,vm)*1.15+.2<=t){tt=t;ok=true;_v.copy(PV[i]);break}}
     if(!ok){_q.copy(ball.p).addScaledVector(ball.v,.25);_q.y=Math.max(ball.p.y-H0-3,1.5);_v.copy(ball.v);tt=.5}  // nowhere comfortable: stay under it, below it, and let it come down
@@ -53,6 +57,7 @@ export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+
  steer(d,D,a,look)}
 // acceleration -> thrust and attitude, as botControl does (same limits)
 export function steer(d,D,a,look){const s=d.team?1:-1;if(d.p.y>H-10&&a.y>-5)a.y=-5;  // never chase the ball into the roof
+ const sw=sdf(d.p.x,d.p.y,d.p.z);if(sw>-2.2){sdN(d.p,_px);if(_px.y>-.9){const vn=d.v.dot(_px);a.addScaledVector(_px,-(sw+2.2)*25-Math.max(0,vn)*4)}}  // off walls and ramps (not the floor): a frame rubbing a curved wall gets stuck there
  const ah=Math.hypot(a.x,a.z),hm=D.ah??55;if(ah>hm){a.x*=hm/ah;a.z*=hm/ah}a.y=Math.max(a.y,-G*.85,Math.min(ah,hm)/1.7-G);  // never thrust downward or tip past ~60 degrees (it has to stay under the ball): lift is added rather than steering lost
  const lim=Math.min(1,D.thr*BOTV),cap=BTHR*lim;if(a.length()>cap)a.setLength(cap);
  const T=_T.copy(a);T.y+=G;T.addScaledVector(d.v,DL+DQ*d.v.length());const need=T.length()||1;T.divideScalar(need);
