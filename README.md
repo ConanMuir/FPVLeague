@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main 5c965f2 (ball feel, PR #21), merged with 4a49f56 (goal explosions, PR #23)
-Doing: Gameplay effects (`src/render/effects.js`): boost flame jets under every motor + boost ribbon trail + embers, motor-wash glow at high throttle, prop-wash dust off the ground/walls tinted per map (arena haze, Meadow grass clippings, Canyon dust, Alpine snow powder, Highlands grass/dirt), sparks + fading scuff decals when the frame scrapes/tumbles, a speed-based ball trail and a flash + shock ring + sparks on hard ball hits. Scaled by the graphics quality, all pooled.
-Touches: src/render/effects.js (new), src/render/visuals.js (calls `gameFx`, old boost embers removed), src/physics/world.js (`onHit` type `'ground'` event from `groundContacts`), src/modes/step.js (ball `onHit` event carries `p`/`n`; the old hit emit removed), tools/fx-shots.mjs (new: scenario screenshots + frame time with effects on/off).
-Open items / help wanted: remote (online) drones don't send ground contacts, so they get no sparks/scuffs; boost trail colour is `d.trailCol` (0xRRGGBB, null = team colour) for a cosmetic to set; sound can listen to `onHit` `'ground'` (`speed` impact, `slide` scrape speed).
-Overlaps: goal explosions (`src/render/goalfx.js`, merged) and sound may also use `onHit`; event types were only extended, none renamed.
+Based on: origin/main 1d14492 (underground routes, PR #30)
+Doing: a seventh bot level, **Dribbler** (`src/bots/dribble.js`): its attacker scoops the ball up, catches it on the top of the frame, carries it toward the goal and spends its pops at the goal, over and over, as a gauge that the carry/pop mechanics work; its teammates stay out of the way. Touch/pop rings (`src/render/popfx.js`) now show for every drone (player, bot, remote): white on any real hit, white under the ball when a pop is earned, gold when a pop is spent; readable from chase cam, FPV and far away.
+Touches: src/bots/dribble.js (new), src/bots/league.js (Dribbler hook in botControl; exports PRED/PV/PDT/reachT), src/config/constants.js (DIFF entry), src/render/popfx.js (rewritten: ring pool, hit detection), tools/bot-match.mjs (solo mode, carry/pop stats), tools/pop-shots.mjs (new: ring screenshots).
+Open items / help wanted: the Dribbler gets ~2-3 pops and ~2-4 s of carry per minute, not constant; its catch after a scoop is the weak link. It does not contest the ball against strong bots (it yields within 7 m). Remote pilots' pops show as hit rings (popT is not sent over the net).
+Overlaps: popfx.js is also the pop ring other branches may style; step.js unchanged.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.

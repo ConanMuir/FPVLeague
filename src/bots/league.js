@@ -8,8 +8,9 @@ import {sdN,sdf} from '../physics/sdf.js';
 import {_T,_a,_b,_dir,_f,_ip,_lat,_t,_u} from '../scratch.js';
 import {GS,SB} from '../state.js';
 import {ORBS} from '../world/orbs.js';
+import {dribble,dribbleSupport} from './dribble.js';
 // the ball 4 s ahead: the same ball model as the game (physics/ball.js, spin included) without Rapier, at 50 Hz
-const PDT=1/50,PRED=Array.from({length:200},()=>new V3()),PV=Array.from({length:200},()=>new V3()),_pb={p:new V3(),v:new V3(),w:new V3(),c:false,n:new V3()};
+export const PDT=1/50,PRED=Array.from({length:200},()=>new V3()),PV=Array.from({length:200},()=>new V3()),_pb={p:new V3(),v:new V3(),w:new V3(),c:false,n:new V3()};
 export function predict(){_pb.p.copy(ball.p);_pb.v.copy(ball.v);_pb.w.copy(ball.w);_pb.c=ball.c;_pb.n.copy(ball.n);for(let i=0;i<PRED.length;i++){ballPhys(_pb,PDT);PRED[i].copy(_pb.p);PV[i].copy(_pb.v)}}  // PV: its velocity there (the smarter planner aims with it)
 const _aim=new V3();
 function intercept(d,D){const acc=BTHR*D.thr*.6,vm=D.vmax*BOTV;
@@ -34,7 +35,8 @@ function think(d,D){if(D.iq)return thinkIQ(d,D);const ai=d.ai,was=ai.strike;ai.s
  else{let best=null,bd=1e9;for(const p of ORBS)if(p.cd<=0){const dd=p.p.distanceToSquared(d.p)*(p.big?.5:1);if(dd<bd){bd=dd;best=p}}
   if(best){ai.tg.copy(best.p);ai.tv.set(0,0,0);ai.look.copy(best.p)}}
  const inMouth=Math.abs(ai.tg.x)<GW/2-2&&ai.tg.y<GH-2;ai.tg.x=cl(ai.tg.x,-HW+2.5,HW-2.5);ai.tg.y=cl(ai.tg.y,1.6,H-3);ai.tg.z=cl(ai.tg.z,-(inMouth?HL+GD-2:HL-2.5),inMouth?HL+GD-2:HL-2.5);const sd=sdf(ai.tg.x,ai.tg.y,ai.tg.z);if(sd>-3){sdN(ai.tg,_lat);ai.tg.addScaledVector(_lat,-(sd+3))}}
-export function botControl(d,dt){const D=DIFF[d.skill??S.diff],ai=d.ai;if((ai.t-=dt)<=0){ai.t=D.react*(.7+Math.random()*.6);think(d,D)}
+// the Dribbler level (DIFF[].drib) has its own controller: bots/dribble.js
+export function botControl(d,dt){const D=DIFF[d.skill??S.diff],ai=d.ai;if(D.drib){d.pops=true;if(d.role==='attack')dribble(d,D,dt);else dribbleSupport(d,D);return}if((ai.t-=dt)<=0){ai.t=D.react*(.7+Math.random()*.6);think(d,D)}
  const vd=ai.demo&&D.iq?demoV(d,D):ai.strike&&D.iq&&ai.C?strikeV(d,D,dt):ai.strike?_b.copy(ball.p).addScaledVector(ball.v,.1).add(ai.tv).sub(d.p).setLength(D.vmax*BOTV*.8):_b.subVectors(ai.tg,d.p).multiplyScalar(D.kp).add(ai.tv).clampLength(0,D.vmax*BOTV),a=_a.subVectors(vd,d.v).multiplyScalar(D.kd);
  if(d.p.y<1.6&&d.v.y<0)a.y+=-d.v.y*2+(1.6-d.p.y)*8;if(d.p.y>H-4&&d.v.y>0)a.y-=d.v.y*2;
  const lim=Math.min(1,D.thr*BOTV),cap=BTHR*lim+(SB()&&d.boost>5?BOOST:0);if(a.length()>cap)a.setLength(cap);
@@ -52,7 +54,7 @@ export function assignRoles(){for(const t of[0,1]){const s=t?1:-1,ms=GS.drones.f
 // normal (kept off the floor and walls), and checks whether this quad, flying the same flight model, can be there in time coming from
 // behind the ball. It then flies a timed run through that point (strikeV). Roles rotate by who can actually reach the ball first.
 const _g=new V3(),_n=new V3(),_c=new V3(),_e=new V3(),_k=new V3();
-function reachT(d,X,acc,vm){_k.subVectors(X,d.p);const dist=_k.length();if(dist<1e-3)return 0;const v0=d.v.dot(_k)/dist,vp=Math.sqrt(Math.max(0,d.v.lengthSq()-v0*v0));
+export function reachT(d,X,acc,vm){_k.subVectors(X,d.p);const dist=_k.length();if(dist<1e-3)return 0;const v0=d.v.dot(_k)/dist,vp=Math.sqrt(Math.max(0,d.v.lengthSq()-v0*v0));
  let t;if(v0>=vm)t=dist/v0;else{const ta=(vm-v0)/acc,da=(v0+vm)*.5*ta;t=da>=dist?(Math.sqrt(v0*v0+2*acc*dist)-v0)/acc:ta+(dist-da)/vm}return t+vp/acc*.6}  // straight-line time: accelerate to vm, kill the sideways speed
 function keeperOf(team){const gz=(team?1:-1)*HL;let k=null,kd=1e9;for(const e of GS.drones)if(e.team!==team&&e.dead<=0){const q=Math.abs(e.p.z-gz)+Math.abs(e.p.x)*.5;if(q<kd){kd=q;k=e}}return kd<50?k:null}
 // where in the goal to put it: away from the defender nearest the goal, low or high against where he sits, lifted for the ball's drop
