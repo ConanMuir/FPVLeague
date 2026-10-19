@@ -228,14 +228,21 @@ async function labScenario(url) {
     const R = [0, 0, 0, 0, -1];  // everything at rest (axis 5 left alone: it reads 0 until its first press)
     // choose your controls: one function at a time
     await click(p, '#calbtn'); out.bindOpen = !(await hidden(p, '#bind'));
-    const press = async (ax, bt, rel = R, relB = {6: 0, 7: 0}) => { await sleep(900); await pad(ax, bt); await sleep(550); await pad(rel, relB); await sleep(500); };
+    // each phase waits its time AND until the page has drawn a few more frames: binding is detected per frame, so a loaded machine
+    // (slow frames) must not let a press start and end between two frames
+    await p.evaluate(() => { window.__frN = 0; (function f() { window.__frN++; requestAnimationFrame(f); })(); });
+    const phase = async ms => { const f0 = await p.evaluate(() => window.__frN); await sleep(ms); for (let i = 0; i < 100 && (await p.evaluate(() => window.__frN)) - f0 < 6; i++) await sleep(50); };
+    // wait on the wizard's own state (window.__dl.bind): listening -> press -> it moves on -> release -> next step listening
+    const bst = () => p.evaluate(() => window.__dl.bind?.()), until = async (f, ms = 8000) => { const t0 = Date.now(); for (;;) { const s = await bst(); if (!s || f(s) || Date.now() - t0 > ms) return s; await sleep(40); } };
+    const press = async (ax, bt, rel = R, relB = {6: 0, 7: 0}) => { const s0 = await until(s => s.ph === 'wait' || s.done); const k = s0 && (s0.i + ':' + s0.sub); await pad(ax, bt);
+      await until(s => s.ph === 'release' || s.ph === 'done' || s.done || (s.i + ':' + s.sub) !== k); await phase(300); await pad(rel, relB); await until(s => s.done || (s.i + ':' + s.sub) !== k); await phase(200); };
     await press([0, -1, 0, 0, -1]);                 // throttle: left stick up (centre-sprung)
     await press([0, 0, 0, 0, 1]);                   // yaw right: LT reported as an axis resting at -1
     await press(R, {6: .9});                        // yaw left: LT as an analog button
     await press([0, 0, 0, -1, -1]);                 // pitch forward: right stick up
     await press([0, 0, 1, 0, -1]);                  // roll right: right stick right
     await press(R, {7: 1});                         // fire: RT as an analog button
-    await sleep(900); await pad([0, 0, 0, 0, -1, 1]); await sleep(550); await pad([0, 0, 0, 0, -1, 0]); await sleep(60); await pad([0, 0, 0, 0, -1, -1]); await sleep(600);  // flip: RT axis that read 0 until pressed
+    await phase(900); await pad([0, 0, 0, 0, -1, 1]); await phase(550); await pad([0, 0, 0, 0, -1, 0]); await sleep(60); await pad([0, 0, 0, 0, -1, -1]); await phase(600);  // flip: RT axis that read 0 until pressed
     out.bindText = await text(p, '#bres');
     await click(p, '#bsave');
     out.bound = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {xcal: s.xcal, xfire: s.xfire, xflip: s.xflip}; });
@@ -338,7 +345,7 @@ if (set.old) {
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
   else {
     // settings added after v15 (with defaults) are left out of the comparison
-    const NEWKEYS = ['gfx', 'assist', 'loadout', 'cos'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
+    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd', 'cos'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
     chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check

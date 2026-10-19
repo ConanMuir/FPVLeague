@@ -3,6 +3,7 @@
 // the attitude at its end, as v15). physics/world.js then integrates p, q from v, w on the drone's Rapier body (built from its parts
 // loadout, buildDroneBody) and resolves ground/wall contact; pivot() is the turtle / self-righting lever over the lowest touching point.
 import {noise,tone} from '../audio/audio.js';
+import {popWhoosh} from '../audio/sfx.js';
 import {HL,QT,UP,V3,cl} from '../config/constants.js';
 import {BKICK,BOOST,DB,DL,DQ,DRAD,DRAIN,G,GF,HOV,MAXV,SPOOL,START,TAU,TE,THR,TURT,VP,WASH,onTune} from '../config/tune.js';
 import {STOCK,computeLoadout,seededLoadout} from '../parts/index.js';
@@ -35,7 +36,7 @@ export class Drone{
  // a shove that way (pitch: forward/back, roll: sideways, yaw: spin in place), then back to the exact attitude it started from.
  tryPop(st){if(!(this.popC>0)||this.popT>0||this.dead>0)return false;const v=[st[1],st[2],st[0]],a=v.map(Math.abs),i=a.indexOf(Math.max(...a));if(a[i]<.5)return false;
   const s=-Math.sign(v[i]);this.popC=0;this.popT=POP_D;this.popAx=i;this.popS=s;this.popQ=(this.popQ||new QT()).copy(this.q);this.popThr=this.thr;
-  if(i!==1)this.v.addScaledVector(_pz.set(i===2?-s:0,0,i===0?s:0).applyQuaternion(this.q),POP_V);return true}
+  if(i!==1)this.v.addScaledVector(_pz.set(i===2?-s:0,0,i===0?s:0).applyQuaternion(this.q),POP_V);if(this===GS.player)popWhoosh(POP_D);return true}
  // is world point P on top of the quad and inside the square of its four motors (inset 10%)?
  popZone(P){const c=_pz.copy(P).sub(this.p).applyQuaternion(_qb.copy(this.q).invert()),M=this.popM;if(c.y<-.05||!M||M.length<3)return false;let sg=0;
   for(let i=0;i<M.length;i++){const A=M[i],B=M[(i+1)%M.length],cr=(B[0]-A[0])*.9*(c.z-A[2]*.9)-(B[2]-A[2])*.9*(c.x-A[0]*.9);if(Math.abs(cr)<1e-9)continue;const s=cr>0?1:-1;if(sg&&s!==sg)return false;sg=s}return true}

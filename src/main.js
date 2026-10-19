@@ -9,7 +9,7 @@ import {$,QT,V3} from './config/constants.js';
 import {initPhysics} from './physics/world.js';
 import {S} from './config/settings.js';
 import {GSPD,applyTune} from './config/tune.js';
-import {initCalib} from './input/calibration.js';
+import {calib,initCalib} from './input/calibration.js';
 import {padEdges} from './input/input.js';
 import {setGame} from './modes/dogfight.js';
 import {startDemo} from './modes/match.js';
@@ -51,4 +51,4 @@ initRates();initSens();initLab();initGarage();syncRates();
 setGame(GS.GM);startDemo();requestAnimationFrame(frame);
 connectRoom()});
 // read-only snapshot for tools/smoke.mjs; nothing in the game reads it
-window.__dl={snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo};
+window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo};

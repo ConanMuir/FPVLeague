@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main 8c9da3f (chase cam fix, PR #22)
-Doing: Rocket League-style cosmetics in the Garage (Style tabs: Paint, Decal, Props, Bells, LEDs, Trail). Looks only: no effect on stats, physics or hitboxes.
-Touches: src/parts/cosmetics.js (new, item data + cleanCos/seededCos/teamSafe), src/render/cos-mat.js (new, cached materials + paint/decal shader + trail colours), src/ui/cos-tiles.js (new, tile swatches), src/ui/garage.js, src/styles.css (tab rows, cosmetic tiles), src/parts/mesh.js (material keys `bell`, `ant`; `M.fixed`), src/render/drone-mesh.js (cosMats, trail vertex colours), src/flight/drone.js (`cos`, `setCos`), src/config/settings.js (`S.cos`), src/modes/match.js, src/net/net.js (`co` ids), src/main.js (`__dl.cosInfo`), tools/smoke.mjs, tools/cos-shots.mjs (new), test/cosmetics.test.mjs (new).
-Open items / help wanted: the boost/trail effect (branch `effects`) can read `drone.trailCol`, `drone.trailCol2` (THREE.Color, already team-safe) and `drone.trailStyle` ('stream' 'fire' 'plasma' 'sparks' 'sparkle' 'smoke' 'rainbow'; `drone.trailCols` holds the rainbow stops); they are set on build and whenever the cosmetics change. The Lab still flies the stock look.
-Overlaps: `effects` (trail, src/render/drone-mesh.js / visuals.js): the speed trail Line now uses vertex colours from the cosmetics; keep `cosTrail(d)` / `paintTrail(d,TN)` if you replace it. Any branch editing the Garage (src/ui/garage.js) or the net presence (src/net/net.js `setNet` gained a `co` argument; bot arrays carry cosmetics at index 14).
+Based on: origin/main 5c965f2 (ball feel, PR #21)
+Doing: Rocket League-style goal explosions (branch `goal-explosions`): flash, team-colour shockwave shell + rings, spark streaks, arena light pulse, goal frame glow, short camera shake.
+Touches: src/render/goalfx.js (new), src/modes/match.js (goalFx calls it; fewer old particles on Low), src/render/visuals.js (one tick call), tools/goalfx-shots.mjs (new: screenshots + frame time).
+Open items / help wanted: not yet seen by a pilot in a real online match; the effect plays in real time (~1.5 s) over the goal slow-mo.
+Overlaps: effects/sound branches may also edit goalFx in src/modes/match.js (one line); merge by hand.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.
