@@ -1,6 +1,7 @@
 # CI for Jared's Vite build (src/) and the Interceptor harness. Two jobs run side by side:
-#   fast     build, node:test unit tests, parts balance, comment lint (warn-only): reports in a minute or two
-#   browser  the headless-browser checks, one matrix entry each, on the runner's Chrome with software WebGL (SwiftShader)
+#   fast     build, node:test unit tests, parts balance, comment lint (strict): reports in a minute or two
+#   browser  the headless-browser checks, sharded across matrix entries, on the runner's Chrome with software WebGL (SwiftShader);
+#            draw calls are skipped outside the checks' drawFrames() checkpoints, and an entry is skipped when its area is untouched
 # Locally the same tools use Edge (or EDGE_PATH / CHROME_PATH); see tools/browser.mjs and the README.
 name: CI
 
@@ -50,63 +51,97 @@ jobs:
       - name: Parts balance
         run: node tools/parts-balance.mjs
 
-      - name: Comment lint (warn-only)
+      - name: Comment lint (strict)
         # flags added/changed lines where a // comment appears to swallow code; annotations show on the PR diff
         env:
           BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
-        run: node tools/lint-comments.mjs --base "$BASE"
+        run: node tools/lint-comments.mjs --strict --base "$BASE"
 
   browser:
     name: Browser check (${{ matrix.check }})
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ matrix.timeout || 30 }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
-          # smoke in two halves side by side: SwiftShader draws the game at ~1 fps, so each half takes ~20 min
+          # area: which files make the check worth running (tools/ci-scope.mjs); everything runs on main
           - check: smoke (main + v15 baseline)
+            area: league
             build: true
-            timeout: 50
             run: node tools/smoke.mjs --parts=main
           - check: smoke (controls, Lab, training)
+            area: league
             build: true
-            timeout: 50
             run: node tools/smoke.mjs --parts=lab,train
           - check: physics-check
+            area: league
             run: node tools/physics-check.mjs
           - check: pop-check
+            area: league
             run: node tools/pop-check.mjs
           - check: sound-check
+            area: league
             run: node tools/sound-check.mjs
           - check: training-check
+            area: league
             run: node tools/training-check.mjs
-          - check: zombies-test
-            run: node tools/zombies-test.mjs
+          - check: zombies-test (classic, saves)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=classic,saves
+          - check: zombies-test (zombies, roster)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=zombies,roster
+          - check: zombies-test (helpers, weather)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=helpers,weather
+          # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
+          - check: flight-golden
+            area: interceptor
+            run: node tools/flight-golden.mjs
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
       DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
     steps:
       - uses: actions/checkout@v6
 
+      - name: Does this change touch the ${{ matrix.area }} files?
+        id: scope
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-scope.mjs ${{ matrix.area }} "$BASE"
+
       - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm ci
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - name: Browser (the runner's Chrome; download one only if it has none)
+        id: sys
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p=$(command -v google-chrome || command -v google-chrome-stable || true)
+          echo "path=$p" >> "$GITHUB_OUTPUT"
+          if [ -n "$p" ]; then "$p" --version; else echo "no Chrome on the runner"; fi
 
       - uses: browser-actions/setup-chrome@v2
         id: chrome
+        if: steps.scope.outputs.run == 'true' && steps.sys.outputs.path == ''
         with:
           chrome-version: stable
           install-dependencies: true
 
       - name: Build (smoke tests the built file)
-        if: matrix.build
+        if: steps.scope.outputs.run == 'true' && matrix.build
         run: npm run build
 
       - name: ${{ matrix.check }}
+        if: steps.scope.outputs.run == 'true'
         env:
-          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+          CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
         run: ${{ matrix.run }}

@@ -1,11 +1,13 @@
 // Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
 // game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR]
-import {serve, launch, open, sleep, frames} from './zlib.mjs';
+//   --sections=classic,saves,zombies,roster,helpers,weather   run only those sections (CI shards them across jobs); default all
+import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
 const {server, origin} = await serve();
 const browser = await launch();
 let fails = 0;
 const ONLY = argv.includes('--only');  // with --balance or --tiers: run just those sections
+const SECTIONS = argv.find(a => a.startsWith('--sections='))?.slice(11).split(','), want = n => !ONLY && (!SECTIONS || SECTIONS.includes(n));
 const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fails++; };
 
 async function page(mode) {
@@ -14,14 +16,14 @@ async function page(mode) {
   await p.evaluate(m => { localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: m, wx: 'clear'})); }, mode);
   await p.reload({waitUntil: 'load'});
   await p.waitForFunction(() => window.__z, {timeout: 60000});
-  await frames(p, 5);
+  await frames(p, 5); await drawFrames(p);  // real frames of the menu scene (CI skips draw calls elsewhere: DL_NORENDER)
   return {p, errs};
 }
 // waits are state-driven (the game's own state, or frames drawn), not wall-clock, so a slow machine only makes the run longer
-async function play(p) { await p.click('#play'); await p.waitForFunction(() => !__z.api.demo && !!__z.api.player, {timeout: 30000}); await frames(p, 3); }
+async function play(p) { await p.click('#play'); await p.waitForFunction(() => !__z.api.demo && !!__z.api.player, {timeout: 30000}); await frames(p, 3); await drawFrames(p, 2); }
 
 // ---------- Classic ----------
-if (!ONLY) {
+if (want('classic')) {
   const {p, errs} = await page('classic');
   ok(await p.$eval('#play', b => b.textContent) === 'Defend', 'Classic: start button reads Defend');
   await play(p);
@@ -36,7 +38,7 @@ if (!ONLY) {
 }
 
 // ---------- saves: hand-edited or foreign values must not break the start menu or a game ----------
-if (!ONLY) {
+if (want('saves')) {
   const errs = [], p = await open(browser, origin + '/games/interceptor/', errs), bad = [];
   for (const save of [{gmode: 'z', zdiff: 'x'}, {gmode: 'z', zdiff: 9}, {gmode: 'z', zdiff: 1.5, zbests: 'oops'}, {gmode: 'z', zmusv: 'loud', zname: {a: 1}}, {gmode: 7, wx: 'nope', cam: 'x'},
     {gmode: 'z', zmeta: 'x', zload: 5}, {gmode: 'z', zmeta: {g: [1, 2]}, zload: {doc: 'fortress', kit: 'lure'}}, {gmode: 'z', zmeta: {v: 1, g: {w10: '15', norep: 99, bogus: 3, boss: -1}}, zload: {doc: {}, kit: [null, 'lure', 'lure', 7]}},
@@ -52,7 +54,7 @@ if (!ONLY) {
 }
 
 // ---------- Zombies ----------
-if (!ONLY) {
+if (want('zombies')) {
   const {p, errs} = await page('z');
   ok(await p.$eval('#play', b => b.textContent) === 'Hold the line', 'Zombies: mode choice switches the start button');
   ok(await p.evaluate(() => !document.getElementById('zdiff').hidden && document.querySelectorAll('#zdiff button').length === 4 && document.querySelector('#zdiff button.on')?.textContent === 'Normal'), 'Zombies menu: difficulty selector Easy / Normal / Hard / Nightmare, Normal by default');
@@ -123,7 +125,7 @@ if (!ONLY) {
 }
 
 // ---------- roster: every kind flies in and hits, unlocks by wave, boss stages and swarm launches, bunker, direct hit on a fast track ----------
-if (!ONLY) {
+if (want('roster')) {
   const {p, errs} = await page('z');
   await play(p);
   const r = await p.evaluate(() => {
@@ -181,7 +183,7 @@ if (!ONLY) {
 }
 
 // ---------- helpers and perks: every helper engages its kinds; Mark, Freeze, Airstrike and the passives do what the cards say ----------
-if (!ONLY) {
+if (want('helpers')) {
   const {p, errs} = await page('z');
   await play(p);
   const r = await p.evaluate(() => {
@@ -242,7 +244,10 @@ if (!ONLY) {
   await p.waitForFunction(() => +((document.getElementById('osd').textContent.match(/(\d+)\s*km\/h\s+HDG/) || [])[1] || 0) > 1000 && !document.getElementById('zrk').hidden && /T\d\d/.test(document.getElementById('trk').textContent), {timeout: 30000, polling: 50}).catch(() => {});
   const rkHud = await p.evaluate(() => ({osd: document.getElementById('osd').textContent, trk: document.getElementById('trk').textContent, bar: !document.getElementById('zrk').hidden}));
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-rocket.png'});
-  const rkEnd = await p.evaluate(() => { const {api, Z} = __z, d = api.player; for (let i = 0; i < 12 * 120; i++) api.step(1 / 120); return {burn: +Z.rk.st.t.toFixed(1), boost: d.boost || 0, alive: d.dead <= 0}; });
+  // the rest of the burn with the interceptor held 1.5 km over the ground: the live frame loop above advanced the flight by however
+  // long the HUD took, so without the hold it could reach a hill in these 12 s, crash, relaunch and re-ignite (seen in CI)
+  const rkEnd = await p.evaluate(() => { const {api, Z} = __z, d = api.player, h = d.p.clone(); h.y = Math.max(h.y, api.gh(h.x, h.z) + 1500);
+    for (let i = 0; i < 12 * 120; i++) { d.p.copy(h); api.step(1 / 120); } return {burn: +Z.rk.st.t.toFixed(1), boost: d.boost || 0, alive: d.dead <= 0}; });
   await p.keyboard.up('KeyW');
   const hudKmh = +((rkHud.osd.match(/(\d+)\s*km\/h\s+HDG/) || [])[1] || 0);
   console.log('  rocket assist:', JSON.stringify({rkBase, rkBaseTurn, rkOn, rkOnTurn, rkHit, hudKmh, trk: rkHud.trk.slice(0, 60), rkEnd}));
@@ -257,7 +262,7 @@ if (!ONLY) {
 }
 
 // ---------- weather and look: per-wave forecasts, every Zombies weather, a mid-wave change, the Strela-2 body; Classic keeps Riley's weather and dart ----------
-if (!ONLY) {
+if (want('weather')) {
   const {p, errs} = await page('z');
   await play(p);
   const r = await p.evaluate(() => { const {api, G, Z} = __z, w = Z.wx, me = api.player, out = {};
