@@ -43,6 +43,7 @@ export function initTraining(){
  const lab=$('labbtn').onclick;$('labbtn').onclick=()=>{exitTrain();lab()};  // the Calibration Lab tile (ui/lab.js wires it)
  // the menu's own buttons (ui/menu.js) leave training first; in the pause menu Restart restarts the pack and Leave goes back to the packs
  for(const id of['host','join']){const f=$(id).onclick;$(id).onclick=()=>{exitTrain();f()}}
+ for(const b of $('modes').children)if(b.dataset.m){const f=b.onclick;b.onclick=()=>{exitTrain();f()}}  // a mode button in the pause menu leaves the pack (it used to start the match with training still holding the quad)
  const play=$('play').onclick;$('play').onclick=()=>{if(TR.on)restartPack();else play()};
  const leave=$('leave').onclick;$('leave').onclick=()=>{const t=exitTrain();leave();if(t){renderPacks();menuScreen('packs')}};
  $('trprev').onclick=e=>{prevShot();e.currentTarget.blur()};$('trnext').onclick=e=>{nextShot();e.currentTarget.blur()};$('trretry').onclick=e=>{retryShot();e.currentTarget.blur()};
