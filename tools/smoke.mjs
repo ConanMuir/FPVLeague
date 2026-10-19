@@ -9,12 +9,14 @@
 //                                   Default: all. CI runs main and lab,train as two jobs side by side.
 // Needs `npm run build` first. The browser comes from tools/browser.mjs (EDGE_PATH, CHROME_PATH, else the usual install);
 // in CI (or with DL_SWIFTSHADER=1) it runs on software WebGL, as --swiftshader does.
+// In CI (DL_NORENDER) WebGL draw calls are skipped except at the drawFrames() checkpoints: every scene, the garage view and
+// every graphics quality still draws real frames, and the sim runs at full speed in between.
 // Waits are state-driven (the game's own state through window.__dl, or frames drawn), so a slow machine only makes it take longer.
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {launchBrowser, findBrowser, SOFTWARE_GL, until, frames} from './browser.mjs';
+import {launchBrowser, findBrowser, SOFTWARE_GL, NO_RENDER, until, frames, drawFrames} from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = new Set(process.argv.slice(2));
@@ -99,7 +101,7 @@ async function scenario(label, url) {
   try {
     const p = await open(browser, url, errors);
     await waitFor(p, s => s.drones.length > 0, BOOT, 'the game to boot');
-    out.fps = await fps(p); log(`${label}: booted, ${out.fps} fps`);
+    await drawFrames(p); out.fps = await fps(p); log(`${label}: booted, ${out.fps} fps${NO_RENDER ? ' (draw calls skipped between checkpoints)' : ''}`);
     out.renderer = await p.evaluate(() => { const g = document.querySelector('canvas#gl')?.getContext('webgl2'); const d = g?.getExtension('WEBGL_debug_renderer_info'); return d ? g.getParameter(d.UNMASKED_RENDERER_WEBGL) : '?'; });
     // menu demo: bots play behind the menu
     const d0 = await waitFor(p, s => s.state === 'play', wall, 'the demo kickoff to end'), d1 = await settle(p, s => moved(s, d0) > 1, wall);
@@ -107,7 +109,7 @@ async function scenario(label, url) {
     log(`${label}: garage`);
     // Garage: open it, cycle every part in every slot, toggle the hitbox overlay, leave a non-stock loadout on
     if (await p.$('#garbtn')) {
-      await click(p, '#garbtn'); const g = {open: !(await hidden(p, '#garage')), parts: 0, stats: []};
+      await click(p, '#garbtn'); await drawFrames(p); const g = {open: !(await hidden(p, '#garage')), parts: 0, stats: []};
       for (const [s, id] of await p.$$eval('#gslots button:not([data-c])', l => l.map(b => [b.dataset.s, b.dataset.id]))) {
         await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`); g.parts++; g.stats.push(await text(p, '#gstats div:first-child span:last-child'));
       }
@@ -136,14 +138,14 @@ async function scenario(label, url) {
     log(`${label}: League`);
     // League vs bots (default settings: 2v2, bots fill, Legend)
     await click(p, '#play');
-    await waitFor(p, s => !s.demo && s.state === 'play', wall, 'League kickoff to end');
+    await waitFor(p, s => !s.demo && s.state === 'play', wall, 'League kickoff to end'); await drawFrames(p);
     out.league = await run(p, 10, wall * 2);
     { const s = await snap(p); out.league.player = s.drones.find(d => d.key === 'h')?.lo; out.league.botLoadouts = [...new Set(s.drones.filter(d => d.bot).map(d => d.lo))].length; out.league.cos = await p.evaluate(() => window.__dl.cosInfo?.()); }
     log(`${label}: Dogfight`);
     // Dogfight: open the menu, press the Dogfight mode button (starts a new match)
     await key(p, 'Escape'); out.menuAfterEsc = !(await hidden(p, '#menu'));
     await click(p, '#m_df');
-    await waitFor(p, s => s.OBSON && s.state === 'play', wall, 'Dogfight kickoff to end');
+    await waitFor(p, s => s.OBSON && s.state === 'play', wall, 'Dogfight kickoff to end'); await drawFrames(p);
     out.dogfight = await run(p, 4, wall);
     out.dogfight.title = await text(p, '#h1o');
     // camera / flight-mode keys while flying
@@ -173,7 +175,7 @@ async function scenario(label, url) {
     await click(p, '#snext');
     out.sens = {opened: sensOpen, closed: await hidden(p, '#sens'), msg: await text(p, '#calmsg')};
     // graphics quality: switch through every level live (render targets, MSAA/SMAA, shadow map and bloom get rebuilt)
-    if (await p.$('#f_gfx')) for (const q of ['low', 'med', 'high', 'auto']) { await p.$eval('#f_gfx', (e, v) => { e.value = JSON.stringify(v); e.dispatchEvent(new Event('input')); }, q); await frames(p, 5); }  // each level rebuilds on the next frames
+    if (await p.$('#f_gfx')) for (const q of ['low', 'med', 'high', 'auto']) { await p.$eval('#f_gfx', (e, v) => { e.value = JSON.stringify(v); e.dispatchEvent(new Event('input')); }, q); await frames(p, 5); await drawFrames(p, 2); }  // each level rebuilds on the next frames
     out.gfx = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').gfx ?? null);
     // calibration start/cancel, then back into the match for a moment
     await click(p, '#calbtn'); await frames(p, 3); await click(p, '#calbtn');
@@ -270,7 +272,7 @@ async function labScenario(url) {
     out.before = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {rprof: s.rprof, rpi: s.rpi, dz: s.dz, assist: s.assist}; });
     await click(p, '#trainbtn'); out.hubOpen = !(await hidden(p, '#scr-training'));  // Training hub -> Calibration Lab
     await click(p, '#labbtn'); out.introOpen = !(await hidden(p, '#labintro'));
-    await click(p, '#lpre [data-p=pro]'); await click(p, '#lgo');
+    await click(p, '#lpre [data-p=pro]'); await click(p, '#lgo'); await drawFrames(p);
     await p.evaluate(pilot);
     out.drills = [];
     for (const [id, secs] of [['still', 7], ['roll', 9], ['pitch', 5], ['yaw', 5], ['track', 9], ['alt', 7]]) {
@@ -308,7 +310,7 @@ async function trainScenario(url) {
     await click(p, '#packsbtn'); out.browser = {open: !(await hidden(p, '#scr-packs')), tabs: await p.$$eval('#ptabs button', l => l.length), tiles: await p.$$eval('#ptiles .ptile', l => l.length)};
     await click(p, '#ptabs [data-c=goalie]'); out.browser.goalie = await p.$$eval('#ptiles .ptile', l => l.map(b => b.dataset.id).join());
     await click(p, '#ptabs [data-c=striker]'); await click(p, '#ptiles [data-id=striker-rookie]');
-    const s0 = await trUntil(s => s.on && s.pack === 'striker-rookie'); out.start = {on: s0.on, ph: s0.ph, i: s0.i, hud: !(await hidden(p, '#train')), menu: await hidden(p, '#menu'), num: await text(p, '#trnum')};
+    const s0 = await trUntil(s => s.on && s.pack === 'striker-rookie'); await drawFrames(p); out.start = {on: s0.on, ph: s0.ph, i: s0.i, hud: !(await hidden(p, '#train')), menu: await hidden(p, '#menu'), num: await text(p, '#trnum')};
     // pitch: any stick starts the shot (held until it has). The shot reads the resting sticks for its first 0.25 s, so press after that
     await trUntil(s => s.rt > .3); await p.keyboard.down('ArrowUp'); await trUntil(s => s.ph === 'live'); await p.keyboard.up('ArrowUp');
     const s1 = await trUntil(s => s.ph !== 'live' || s.t > .8), sn = await snap(p); out.live = {ph: s1.ph, t: s1.t, finite: finite(sn)};
@@ -447,7 +449,7 @@ if (MAIN && pages['/artifact/']) {
   const browser = await launch(), errors = [];
   try {
     log('artifact form'); const p = await open(browser, origin + '/artifact/', errors);
-    const a = await waitFor(p, s => s.state === 'play', SW ? 240000 : 60000, 'the artifact demo to start');
+    const a = await waitFor(p, s => s.state === 'play', SW ? 240000 : 60000, 'the artifact demo to start'); await drawFrames(p);
     const mv = moved(await settle(p, s => moved(s, a) > 1), a);
     console.log(`
 == artifact form (dist/drone-league.artifact.html): demo bots moved ${mv.toFixed(1)} m, ${errors.length} error(s)`);
