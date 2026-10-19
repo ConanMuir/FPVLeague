@@ -38,5 +38,8 @@ function trail(it,t){const a=hx(teamSafe(it.col,t)),b=hx(teamSafe(it.col2,t)),g=
  const id='tg'+it.id+t,dots=it.style==='sparks'||it.style==='sparkle'?[18,30,44,58,70].map((x,i)=>`<circle cx="${x}" cy="${24+(i%2?7:-7)}" r="${2-i*.25}" fill="${a}"/>`).join(''):'';
  return svg(`<defs><linearGradient id="${id}" x1="1" x2="0">${g}</linearGradient></defs><path d="M78 24 C60 14 30 18 2 ${it.style==='smoke'?30:24} C30 30 60 34 78 24Z" fill="url(#${id})"/>${dots}<circle cx="74" cy="24" r="4" fill="#fff" opacity=".85"/>`)}
 const SW={paint:(it,t)=>`<div class="gsw" style="${paint(it,t)}"></div>`,decal:(it,t)=>`<div class="gsw">${decal(it,t)}</div>`,props:(it,t)=>`<div class="gsw">${props(it,t)}</div>`,bell:(it,t)=>`<div class="gsw">${bell(it,t)}</div>`,led:(it,t)=>`<div class="gsw">${led(it,t)}</div>`,trail:(it,t)=>`<div class="gsw">${trail(it,t)}</div>`};
-export function cosTile(c,it,t){const[rn,rc]=RARITY[it.r];
- return `<button class="gtile gct" data-c="${c}" data-id="${esc(it.id)}" style="--rc:${rc}" title="${esc(it.name)}${it.sub?' · '+esc(it.sub):''}"><i>Equipped</i>${SW[c](it,t)}<b>${esc(it.name)}</b><small>${esc(rn)}</small></button>`}
+// o.lock: the unlock requirement while it is locked (progress/unlocks.js reqText): the tile shows a padlock and the requirement;
+// o.note: a line under the rarity (the Profile's unlock list)
+const LOCK='<svg class="glk" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="2.5" y="7" width="11" height="8" rx="1.5" fill="currentColor"/></svg>';
+export function cosTile(c,it,t,o={}){const[rn,rc]=RARITY[it.r],lk=o.lock;
+ return `<button class="gtile gct${lk?' lck':''}" data-c="${c}" data-id="${esc(it.id)}" style="--rc:${rc}" title="${esc(it.name)}${it.sub?' · '+esc(it.sub):''}${lk?' · Locked: '+esc(lk):''}"><i>Equipped</i>${SW[c](it,t)}<b>${esc(it.name)}</b><small>${esc(rn)}</small>${lk?`<em class="greq">${LOCK}${esc(lk)}</em>`:o.note?`<em class="gnote">${esc(o.note)}</em>`:''}</button>`}
