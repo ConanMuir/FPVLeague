@@ -4,12 +4,11 @@
 //   node tools/bot-match.mjs drill A B 0 [trials/10]        shooting drill: one bot, random ball and start, touches / on target / goals
 //   node tools/bot-match.mjs solo A B [sim minutes]          one bot alone on the League field: carry time, pops earned/fired/goalward per minute
 //   BT='{"D":{"vmax":80},"DB":{"kd":3}}' overrides DIFF fields of level A (D) and B (DB) for tuning
-import puppeteer from 'puppeteer-core';
+import {launchBrowser} from './browser.mjs';
 const [mode = 'league', la = '5', lb = '3', mins = '6', size = '3'] = process.argv.slice(2);
 const {createServer} = await import('vite');
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
 const server = await createServer({root: process.cwd(), logLevel: 'error', server: {port: 0, host: '127.0.0.1'}}); await server.listen();
-const b = await puppeteer.launch({executablePath: process.env.EDGE_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true, protocolTimeout: 0, env, args: ['--ignore-gpu-blocklist']});
+const b = await launchBrowser({protocolTimeout: 0, args: ['--ignore-gpu-blocklist']});
 const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); await p.goto(server.resolvedUrls.local[0] + 'app.html'); await new Promise(r => setTimeout(r, 6000));
 p.setDefaultTimeout(0);
 const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {

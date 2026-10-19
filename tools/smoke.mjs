@@ -4,30 +4,23 @@
 //   npm run smoke                 hardware WebGL if available (SwiftShader fallback)
 //   npm run smoke -- --swiftshader  force software WebGL (slow; the sim runs in sim-time, so it just takes longer)
 //   npm run smoke -- --no-baseline  skip the v15 baseline
-// Needs `npm run build` first. Set EDGE_PATH if msedge.exe isn't in Program Files.
+// Needs `npm run build` first. The browser comes from tools/browser.mjs (EDGE_PATH, CHROME_PATH, else the usual install);
+// in CI (or with DL_SWIFTSHADER=1) it runs on software WebGL, as --swiftshader does.
+// Waits are state-driven (the game's own state through window.__dl, or frames drawn), so a slow machine only makes it take longer.
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import puppeteer from 'puppeteer-core';
+import {launchBrowser, findBrowser, SOFTWARE_GL, until, frames} from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = new Set(process.argv.slice(2));
-const SW = argv.has('--swiftshader'), BASELINE = !argv.has('--no-baseline');
+const SW = argv.has('--swiftshader') || SOFTWARE_GL, BASELINE = !argv.has('--no-baseline');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---------- browser ----------
-function findEdge() {
-  const c = [process.env.EDGE_PATH, ...['PROGRAMFILES(X86)', 'PROGRAMFILES', 'LOCALAPPDATA'].map(k => process.env[k] && path.join(process.env[k], 'Microsoft', 'Edge', 'Application', 'msedge.exe')),
-    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'];
-  const f = c.find(p => p && fs.existsSync(p));
-  if (!f) { console.error('smoke: Microsoft Edge (msedge.exe) not found; set EDGE_PATH'); process.exit(2); }
-  return f;
-}
-const EDGE = findEdge();
-// Edge exits at once if it inherits some host variables (e.g. __COMPAT_LAYER or VS Code's CHROME_CRASHPAD_PIPE_NAME)
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
-const launch = () => puppeteer.launch({executablePath: EDGE, headless: true, env, protocolTimeout: 180000,
+findBrowser();
+const launch = () => launchBrowser({protocolTimeout: SW ? 600000 : 180000,
   args: ['--window-size=960,540', '--autoplay-policy=no-user-gesture-required', '--enable-unsafe-swiftshader', ...(SW ? ['--use-angle=swiftshader'] : ['--ignore-gpu-blocklist'])]});
 
 // ---------- pages: dist/index.html, and the frozen v15 file wrapped as a full document with the same read-only hook ----------
@@ -68,6 +61,10 @@ async function waitFor(p, pred, ms, what) {
   for (;;) { const s = await snap(p); if (s && pred(s)) return s; if (Date.now() - t0 > ms) throw new Error('timed out waiting for ' + what); await sleep(100); }
 }
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const BOOT = SW ? 180000 : 60000, SOFT = SW ? 120000 : 30000;
+// soft state wait: poll the snapshot until pred holds (or ms pass) and return the last one, so the check after it reports what it saw
+const settle = async (p, pred, ms = SOFT) => (await until(async () => { const s = await snap(p); return s && pred(s) ? s : null; }, {timeout: ms, every: 100})) || snap(p);
+const moved = (a, b) => Math.max(...a.drones.map((d, i) => b.drones[i] ? dist(d.p, b.drones[i].p) : 0));
 const finite = s => [s.ball, ...s.drones.map(d => d.p)].every(v => v.every(Number.isFinite));
 const key = async (p, k) => { await p.keyboard.press(k); await sleep(150); };
 const click = async (p, sel) => { await p.$eval(sel, e => e.click()); await sleep(150); };
@@ -94,18 +91,18 @@ async function scenario(label, url) {
   const wall = SW ? 240000 : 60000;
   try {
     const p = await open(browser, url, errors);
-    await waitFor(p, s => s.drones.length > 0, 60000, 'the game to boot');
+    await waitFor(p, s => s.drones.length > 0, BOOT, 'the game to boot');
     out.renderer = await p.evaluate(() => { const g = document.querySelector('canvas#gl')?.getContext('webgl2'); const d = g?.getExtension('WEBGL_debug_renderer_info'); return d ? g.getParameter(d.UNMASKED_RENDERER_WEBGL) : '?'; });
     // menu demo: bots play behind the menu
-    const d0 = await waitFor(p, s => s.state === 'play', wall, 'the demo kickoff to end'); await sleep(SW ? 6000 : 2000); const d1 = await snap(p);
-    out.demo = {menuOpen: !(await hidden(p, '#menu')), moved: +Math.max(...d1.drones.map((d, i) => dist(d.p, d0.drones[i].p))).toFixed(1)};
+    const d0 = await waitFor(p, s => s.state === 'play', wall, 'the demo kickoff to end'), d1 = await settle(p, s => moved(s, d0) > 1, wall);
+    out.demo = {menuOpen: !(await hidden(p, '#menu')), moved: +moved(d1, d0).toFixed(1)};
     // Garage: open it, cycle every part in every slot, toggle the hitbox overlay, leave a non-stock loadout on
     if (await p.$('#garbtn')) {
       await click(p, '#garbtn'); const g = {open: !(await hidden(p, '#garage')), parts: 0, stats: []};
       for (const [s, id] of await p.$$eval('#gslots button:not([data-c])', l => l.map(b => [b.dataset.s, b.dataset.id]))) {
         await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`); g.parts++; g.stats.push(await text(p, '#gstats div:first-child span:last-child'));
       }
-      await click(p, '#ghit'); await sleep(300); await click(p, '#ghit');
+      await click(p, '#ghit'); await frames(p, 3); await click(p, '#ghit');
       for (const [s, id] of [['0', 'stretch'], ['1', 'plank'], ['2', 'punch'], ['3', 'ram']]) await click(p, `#gslots button[data-s="${s}"][data-id="${id}"]`);
       // cosmetics: open every Style tab, wear every item, then leave a look on (saved in S.cos, worn in the match)
       g.cos = 0; for (const s of await p.$$eval('#gtabs button', l => l.map(b => +b.dataset.s).filter(s => s >= 4))) {
@@ -135,9 +132,9 @@ async function scenario(label, url) {
     await key(p, 't'); out.mod = {open: !(await hidden(p, '#mod'))};
     await click(p, '#tabp');
     out.mod.sliders = await p.$$eval('#modbody input[type=range]', l => l.length);
-    await p.$eval('#m_grav', e => { e.value = '20'; e.dispatchEvent(new Event('input')); }); await sleep(200);
+    await p.$eval('#m_grav', e => { e.value = '20'; e.dispatchEvent(new Event('input')); }); await frames(p, 2);
     out.mod.changed = await text(p, '#mo_grav');
-    await p.$eval('#m_grav', e => e.parentNode.querySelector('.rs').click()); await sleep(200);
+    await p.$eval('#m_grav', e => e.parentNode.querySelector('.rs').click()); await frames(p, 2);
     out.mod.reset = await text(p, '#mo_grav');
     await click(p, '#mexp'); out.mod.export = await text(p, '#mio');
     // Rates tab: table, CLI export and import
@@ -146,20 +143,20 @@ async function scenario(label, url) {
     await click(p, '#cexp'); out.rates.cliExport = (await text(p, '#cli')).split('\n').length;
     await p.$eval('#cli', e => { e.value = '# diff\nrateprofile 0\nset rates_type = ACTUAL\nset roll_rc_rate = 20\nset roll_srate = 80\nset roll_expo = 30\nset pitch_rc_rate = 20\nset thr_mid = 40'; });
     await click(p, '#cimp'); out.rates.cliImport = await text(p, '#rmsg'); out.rates.typeAfter = await text(p, '#rtype');
-    await sleep(800);  // the rate graphs redraw every frame while the tab is open
+    await frames(p, 10);  // the rate graphs redraw every frame while the tab is open
     await click(p, '#mclose');
     // easy sensitivity setup walkthrough, from the menu
     await key(p, 'Escape');
     await click(p, '#sensbtn'); const sensOpen = !(await hidden(p, '#sens'));
-    for (let i = 0; i < 3; i++) { await click(p, '#snext'); await sleep(200); }
+    for (let i = 0; i < 3; i++) { await click(p, '#snext'); await frames(p, 2); }
     await click(p, '#snext');
     out.sens = {opened: sensOpen, closed: await hidden(p, '#sens'), msg: await text(p, '#calmsg')};
     // graphics quality: switch through every level live (render targets, MSAA/SMAA, shadow map and bloom get rebuilt)
-    if (await p.$('#f_gfx')) for (const q of ['low', 'med', 'high', 'auto']) { await p.$eval('#f_gfx', (e, v) => { e.value = JSON.stringify(v); e.dispatchEvent(new Event('input')); }, q); await sleep(400); }
+    if (await p.$('#f_gfx')) for (const q of ['low', 'med', 'high', 'auto']) { await p.$eval('#f_gfx', (e, v) => { e.value = JSON.stringify(v); e.dispatchEvent(new Event('input')); }, q); await frames(p, 5); }  // each level rebuilds on the next frames
     out.gfx = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').gfx ?? null);
     // calibration start/cancel, then back into the match for a moment
-    await click(p, '#calbtn'); await sleep(300); await click(p, '#calbtn');
-    await click(p, '#resume'); await sleep(1000);
+    await click(p, '#calbtn'); await frames(p, 3); await click(p, '#calbtn');
+    await click(p, '#resume'); await frames(p, 10);
     out.final = await snap(p); out.final = {state: out.final.state, finite: finite(out.final)};
   } catch (e) { errors.push('scenario: ' + e.message); }
   await browser.close();
@@ -179,8 +176,8 @@ async function settings(label, url) {
     const p = await open(browser, origin + '/blank', errors);
     await p.evaluate(s => localStorage.setItem('droneleague', s), JSON.stringify(SEED));
     await p.goto(url, {waitUntil: 'domcontentloaded'});
-    await waitFor(p, s => s.drones.length > 0, 60000, 'the game to boot');
-    await sleep(500);
+    await waitFor(p, s => s.drones.length > 0, BOOT, 'the game to boot');
+    await frames(p, 10);
     out.saved = await p.evaluate(() => localStorage.getItem('droneleague'));
     out.ui = await p.evaluate(() => ['f_map', 'f_size', 'f_mode', 'f_tilt', 'rtype', 'rpi', 'm_thr', 'm_grav', 'fireb', 'ax0'].map(id => document.getElementById(id)?.value).join(' '));
   } catch (e) { errors.push('settings: ' + e.message); }
@@ -223,7 +220,7 @@ async function labScenario(url) {
     p.on('console', m => { if (m.type() === 'error' && !benign(m.text() + ' ' + (m.location()?.url || ''))) errors.push('console.error: ' + m.text()); });
     await p.evaluateOnNewDocument(fakePad);
     await p.goto(url, {waitUntil: 'domcontentloaded'});
-    await waitFor(p, s => s.drones.length > 0, 60000, 'the game to boot');
+    await waitFor(p, s => s.drones.length > 0, BOOT, 'the game to boot');
     const pad = (ax, bt) => p.evaluate((a, b) => window.__setPad(a, b), ax, bt);
     const R = [0, 0, 0, 0, -1];  // everything at rest (axis 5 left alone: it reads 0 until its first press)
     // choose your controls: one function at a time
@@ -255,8 +252,9 @@ async function labScenario(url) {
     await p.evaluate(pilot);
     out.drills = [];
     for (const [id, secs] of [['still', 7], ['roll', 9], ['pitch', 5], ['yaw', 5], ['track', 9], ['alt', 7]]) {
-      const L0 = await p.waitForFunction(i => { const L = window.__dl.lab(); return L.drill === i && L.st === 'drill'; }, {timeout: 20000}, id).then(() => true, () => false);
-      await sleep(secs * 1000);
+      const L0 = await p.waitForFunction(i => { const L = window.__dl.lab(); return L.drill === i && L.st === 'drill'; }, {timeout: SW ? 120000 : 20000, polling: 50}, id).then(() => true, () => false);
+      // fly it for `secs` of drill time (the drill's own clock), however long that takes on this machine
+      await p.waitForFunction((i, secs) => { const L = window.__dl.lab(); return L.drill !== i || L.st !== 'drill' || L.t >= secs; }, {timeout: secs * (SW ? 20000 : 4000) + 10000, polling: 100}, id, secs).catch(() => {});
       const L = await p.evaluate(() => window.__dl.lab()), s = await snap(p);
       out.drills.push({id, started: L0, t: L.t, reps: L.reps, changes: L.changes, finite: s.drones.every(d => d.p.every(Number.isFinite)) && L.ang.every(Number.isFinite), y: +s.drones[0].p[1].toFixed(1)});
       await click(p, '#labskip');
@@ -270,8 +268,8 @@ async function labScenario(url) {
     out.ratesPanel = await p.evaluate(() => { document.getElementById('cexp').click(); return document.getElementById('cli').value; });
     await click(p, '#lrev');
     out.reverted = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('droneleague')); return {rprof: s.rprof, rpi: s.rpi, dz: s.dz, assist: s.assist}; });
-    await click(p, '#lexit'); await sleep(1500);
-    const e = await snap(p); out.exit = {demo: e.demo, lab: (await p.evaluate(() => window.__dl.lab().on)), drones: e.drones.length};
+    await click(p, '#lexit');
+    const e = await settle(p, s => s.demo && s.drones.length > 0); out.exit = {demo: e.demo, lab: (await p.evaluate(() => window.__dl.lab().on)), drones: e.drones.length};
   } catch (e) { errors.push('lab: ' + e.message); }
   await browser.close();
   return out;
@@ -283,27 +281,28 @@ async function trainScenario(url) {
   try {
     const p = await open(browser, url, errors);
     await waitFor(p, s => s.state === 'play', SW ? 240000 : 60000, 'the demo to start');
-    const tr = () => p.evaluate(() => window.__dl.train());
+    const tr = () => p.evaluate(() => window.__dl.train()), trUntil = async f => (await until(async () => { const s = await tr(); return f(s) ? s : null; }, {timeout: SOFT})) || tr();
     await click(p, '#trainbtn'); out.hub = !(await hidden(p, '#scr-training')) && (await p.$$eval('#scr-training .ttile', l => l.length));
     await click(p, '#packsbtn'); out.browser = {open: !(await hidden(p, '#scr-packs')), tabs: await p.$$eval('#ptabs button', l => l.length), tiles: await p.$$eval('#ptiles .ptile', l => l.length)};
     await click(p, '#ptabs [data-c=goalie]'); out.browser.goalie = await p.$$eval('#ptiles .ptile', l => l.map(b => b.dataset.id).join());
-    await click(p, '#ptabs [data-c=striker]'); await click(p, '#ptiles [data-id=striker-rookie]'); await sleep(500);
-    const s0 = await tr(); out.start = {on: s0.on, ph: s0.ph, i: s0.i, hud: !(await hidden(p, '#train')), menu: await hidden(p, '#menu'), num: await text(p, '#trnum')};
-    await p.keyboard.down('ArrowUp'); await sleep(400); await p.keyboard.up('ArrowUp'); await sleep(1200);  // pitch: any stick starts the shot
-    const s1 = await tr(), sn = await snap(p); out.live = {ph: s1.ph, t: s1.t, finite: finite(sn)};
+    await click(p, '#ptabs [data-c=striker]'); await click(p, '#ptiles [data-id=striker-rookie]');
+    const s0 = await trUntil(s => s.on && s.pack === 'striker-rookie'); out.start = {on: s0.on, ph: s0.ph, i: s0.i, hud: !(await hidden(p, '#train')), menu: await hidden(p, '#menu'), num: await text(p, '#trnum')};
+    // pitch: any stick starts the shot (held until it has). The shot reads the resting sticks for its first 0.25 s, so press after that
+    await trUntil(s => s.rt > .3); await p.keyboard.down('ArrowUp'); await trUntil(s => s.ph === 'live'); await p.keyboard.up('ArrowUp');
+    const s1 = await trUntil(s => s.ph !== 'live' || s.t > .8), sn = await snap(p); out.live = {ph: s1.ph, t: s1.t, finite: finite(sn)};
     const steps = [];
     await key(p, 'n'); steps.push((await tr()).i); await key(p, 'n'); steps.push((await tr()).i); await key(p, 'b'); steps.push((await tr()).i);
     await key(p, 'r'); const r = await tr(); steps.push(r.i + ':' + r.ph); await key(p, 'Backspace'); steps.push((await tr()).ph);
     await click(p, '#trnext'); steps.push((await tr()).i); await click(p, '#trprev'); steps.push((await tr()).i); out.steps = steps.join();
     for (let i = 0; i < 9; i++) await key(p, 'n');
-    await sleep(400); const s2 = await tr(); out.summary = {ph: s2.ph, open: !(await hidden(p, '#trsum')), rows: await p.$$eval('#trslist li', l => l.length), score: s2.score, saved: s2.saved};
-    await click(p, '#trsretry'); await sleep(300); const s3 = await tr(); out.retryPack = {ph: s3.ph, i: s3.i, sumHidden: await hidden(p, '#trsum')};
+    const s2 = await trUntil(s => s.ph === 'sum'); out.summary = {ph: s2.ph, open: !(await hidden(p, '#trsum')), rows: await p.$$eval('#trslist li', l => l.length), score: s2.score, saved: s2.saved};
+    await click(p, '#trsretry'); const s3 = await trUntil(s => s.ph === 'ready'); out.retryPack = {ph: s3.ph, i: s3.i, sumHidden: await hidden(p, '#trsum')};
     await key(p, 'Escape'); out.pause = {menu: !(await hidden(p, '#menu')), play: await p.$eval('#play', e => e.textContent), leave: await p.$eval('#leave', e => e.textContent)};
-    await click(p, '#resume'); await sleep(300);
-    await click(p, '#trnext'); await sleep(200); await key(p, 'Escape'); await click(p, '#leave'); await sleep(800);
-    const e = await snap(p); out.leave = {on: (await tr()).on, demo: e.demo, packs: !(await hidden(p, '#scr-packs')), hud: await hidden(p, '#train'), stored: await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').train?.['striker-rookie'] ?? null)};
-    await click(p, '#packsback'); await click(p, '#labbtn'); out.labFromHub = await p.waitForFunction(() => !document.getElementById('labintro').hidden, {timeout: 5000}).then(() => true, () => false); await click(p, '#lquit'); await sleep(500);
-    out.after = (await snap(p)).demo;
+    await click(p, '#resume'); await frames(p, 3);
+    await click(p, '#trnext'); await frames(p, 3); await key(p, 'Escape'); await click(p, '#leave');
+    const e = await settle(p, s => s.demo); out.leave = {on: (await tr()).on, demo: e.demo, packs: !(await hidden(p, '#scr-packs')), hud: await hidden(p, '#train'), stored: await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').train?.['striker-rookie'] ?? null)};
+    await click(p, '#packsback'); await click(p, '#labbtn'); out.labFromHub = await p.waitForFunction(() => !document.getElementById('labintro').hidden, {timeout: 5000}).then(() => true, () => false); await click(p, '#lquit');
+    out.after = (await settle(p, s => s.demo)).demo;
   } catch (e) { errors.push('training: ' + e.message); }
   await browser.close();
   return out;
@@ -420,11 +419,10 @@ if (pages['/artifact/']) {
   try {
     const p = await open(browser, origin + '/artifact/', errors);
     const a = await waitFor(p, s => s.state === 'play', SW ? 240000 : 60000, 'the artifact demo to start');
-    await sleep(1500); const b = await snap(p);
-    const moved = Math.max(...b.drones.map((d, i) => dist(d.p, a.drones[i].p)));
+    const mv = moved(await settle(p, s => moved(s, a) > 1), a);
     console.log(`
-== artifact form (dist/drone-league.artifact.html): demo bots moved ${moved.toFixed(1)} m, ${errors.length} error(s)`);
-    if (!(moved > .5)) fail('artifact form: demo should run');
+== artifact form (dist/drone-league.artifact.html): demo bots moved ${mv.toFixed(1)} m, ${errors.length} error(s)`);
+    if (!(mv > .5)) fail('artifact form: demo should run');
   } catch (e) { errors.push(e.message); }
   if (errors.length) fail('artifact form: ' + errors.join('; '));
   await browser.close();

@@ -1,0 +1,108 @@
+# CI for Jared's Vite build (src/) and the Interceptor harness. Two jobs run side by side:
+#   fast     build, node:test unit tests, parts balance, comment lint (warn-only): reports in a minute or two
+#   browser  the headless-browser checks, one matrix entry each, on the runner's Chrome with software WebGL (SwiftShader)
+# Locally the same tools use Edge (or EDGE_PATH / CHROME_PATH); see tools/browser.mjs and the README.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  FORCE_COLOR: '0'
+
+jobs:
+  fast:
+    name: Build, unit tests, parts balance, lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the comment lint diffs against the base branch
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build (vite build + postbuild)
+        run: npm run build
+
+      - name: Committed built game is up to date (warn-only)
+        # postbuild writes games/jared-league/index.html; if the build changed it, src/ and the committed build disagree
+        run: |
+          if git diff --quiet -- games/jared-league/index.html; then echo "games/jared-league/index.html matches the build"
+          else echo "::warning file=games/jared-league/index.html::The committed build is stale: run npm run build and commit games/jared-league/index.html"; fi
+
+      - name: Unit tests (node:test)
+        run: npm test
+
+      - name: Parts balance
+        run: node tools/parts-balance.mjs
+
+      - name: Comment lint (warn-only)
+        # flags added/changed lines where a // comment appears to swallow code; annotations show on the PR diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: node tools/lint-comments.mjs --base "$BASE"
+
+  browser:
+    name: Browser check (${{ matrix.check }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - check: smoke
+            build: true
+            run: node tools/smoke.mjs
+          - check: physics-check
+            run: node tools/physics-check.mjs
+          - check: pop-check
+            run: node tools/pop-check.mjs
+          - check: sound-check
+            run: node tools/sound-check.mjs
+          - check: training-check
+            run: node tools/training-check.mjs
+          - check: zombies-test
+            run: node tools/zombies-test.mjs
+    env:
+      DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Build (smoke tests the built file)
+        if: matrix.build
+        run: npm run build
+
+      - name: ${{ matrix.check }}
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: ${{ matrix.run }}
