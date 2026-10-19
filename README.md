@@ -2,11 +2,11 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `bots-freestyle-2`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main 699c022 (zombies terrain, PR #43; includes Freestyler pass 1, PR #40)
-Doing: Freestyler pass 2: steadier pickup and catching (about 6 pops/min in solo, ~25% of the time scooping), double taps that land, Grand Champion regression check.
-Touches: src/bots/freestyle.js, src/bots/dribble.js (apex catch for `apex` levels, wall/ramp repulsion in steer, `topR`, `nr`, scoop params per level), src/config/constants.js (Freestyler entry), tools/bot-match.mjs (tapdrill mode).
-Open items / help wanted: spin shots are weak (2-6 rad/s); no wall pops yet; about 1 run in 6 still gets stuck re-scooping a ball near a wall for a while; chains are 2-3 pops on average (max 6).
+Branch: `bots-freestyle-3`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
+Based on: origin/main 5cf88e6 (Freestyler pass 2, PR #44), with origin/main 1c4169b (zombies co-op, PR #46) merged in
+Doing: Freestyler pass 3: no more wall-stuck re-scoops (Freestyler and Dribbler), wall pops, spin pops at 10+ rad/s, curve measured.
+Touches: src/bots/freestyle.js (wall feed/wall pop, spin pop, brush), src/bots/dribble.js (wall-side scoop, `roomBehind`, stuck back-off, applies the spin-pop yaw), tools/bot-match.mjs (wallPops, spin pops, spin10, curve).
+Open items / help wanted: spin has no effect in flight (ball physics has no Magnus term), so the measured curve is ~0; a Magnus term in physics/ball.js (and the bot predictor) would be a shared physics decision. The brush on loose balls rarely lands 10+ rad/s; the spin pop does. Flip resets and ceiling plays not attempted.
 Overlaps: none known on src/bots.
 
 ## How to play
