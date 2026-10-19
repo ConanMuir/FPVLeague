@@ -63,10 +63,12 @@ export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+
 // how far back from P (against dir) the field goes before the floor starts curving up into a wall
 function roomBehind(P,dir){const m=10;let t=1e9;if(dir.x>1e-3)t=Math.min(t,(P.x+HW-m)/dir.x);else if(dir.x<-1e-3)t=Math.min(t,(HW-m-P.x)/-dir.x);
  if(dir.z>1e-3)t=Math.min(t,(P.z+HL-m)/dir.z);else if(dir.z<-1e-3)t=Math.min(t,(HL-m-P.z)/-dir.z);return t}
-export function steer(d,D,a,look){const s=d.team?1:-1;if(d.p.y>H-10&&a.y>-5)a.y=-5;  // never chase the ball into the roof
+export function steer(d,D,a,look){if(d.p.y>H-10&&a.y>-5&&!d.ai.roof)a.y=-5;  // never chase the ball into the roof (a ceiling play, bots/freestyle.js, means to)
  const sw=sdf(d.p.x,d.p.y,d.p.z);if(sw>-2.2){sdN(d.p,_px);if(_px.y>-.9){const vn=d.v.dot(_px);a.addScaledVector(_px,-(sw+2.2)*25-Math.max(0,vn)*4)}}  // off walls and ramps (not the floor): a frame rubbing a curved wall gets stuck there
  const ah=Math.hypot(a.x,a.z),hm=D.ah??55;if(ah>hm){a.x*=hm/ah;a.z*=hm/ah}a.y=Math.max(a.y,-G*.85,Math.min(ah,hm)/1.7-G);  // never thrust downward or tip past ~60 degrees (it has to stay under the ball): lift is added rather than steering lost
- const lim=Math.min(1,D.thr*BOTV),cap=BTHR*lim;if(a.length()>cap)a.setLength(cap);
+ fly(d,D,a,look)}
+// thrust and attitude for a wanted acceleration a (any direction: upside down too), same thrust cap as everyone
+export function fly(d,D,a,look){const s=d.team?1:-1,lim=Math.min(1,D.thr*BOTV),cap=BTHR*lim;if(a.length()>cap)a.setLength(cap);
  const T=_T.copy(a);T.y+=G;T.addScaledVector(d.v,DL+DQ*d.v.length());const need=T.length()||1;T.divideScalar(need);
  const al=_u.set(0,1,0).applyQuaternion(d.q).dot(T),F=d.fl;d.boosting=false;d.thr=cl(Math.max(need/(THR*F.thr),0)**(1/(TE*F.te)),0,lim)*cl((al-.1)/.6,.05,1);
  const lk=_lk.copy(look);lk.y=0;if(lk.lengthSq()<1e-4)lk.set(0,0,s);lk.normalize();attitude(d,T,lk,D.att,D.rate,.6)}
