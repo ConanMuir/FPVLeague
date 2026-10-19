@@ -3,7 +3,8 @@
 // A game hands it the world's collision shape with setWorld(sdf) and its physics sliders with tuneFlight(T).
 // The air model, rates maths, attitude controller and flip-over levelling are the shared flight core, src/flight/core.js (one copy
 // for every game: Jared's League flies the same code); this file keeps the Quad's own ground contact, turtle and self-righting.
-import {attitude,quadAir,rightUp,wrapA,ONE} from '../src/flight/core.js';
+import {attitude,quadAir,rightUp,ONE} from '../src/flight/core.js';
+import {acroCmd,angleCmd,kbEase,pick,stickThr} from '../src/input/sticks.js';
 import {V3,QT,cl,UP,sm} from './util.js';
 import {S} from './settings.js';
 import {pad,axv,keys,thrFull,calib,flipIn} from './input.js';
@@ -71,19 +72,18 @@ export {attitude};
 
 // ---------- human input: sticks (or keyboard) to target body rates, Betaflight rates; Angle mode self-levels ----------
 // o.sb: super boost on (top BZ of the stick is boost); o.menu: menu open (sticks are ignored while calibrating)
-const ks={y:0,p:0,r:0},_f=new V3(),_r=new V3(),_hv=new V3();let kbThr=HOV,flipPrev=false;
+// the stick maths (stickThr, kbEase, pick, acroCmd, angleCmd) is the shared stick code, src/input/sticks.js, the same as Jared's League
+const ks={y:0,p:0,r:0};let kbThr=HOV,flipPrev=false;
 export function humanControl(d,dt,{sb=false,menu=false}={}){const g=pad(),bz=sb?BZ:0;let thr=null,yaw=0,pit=0,rol=0;
  if(g&&!(menu&&calib)){const t=axv(g,0);
-  const hv=HOV*(1-bz);thr=thrFull()?(t+1)/2:(t>=0?hv+t*(1-hv):hv*(1+t));yaw=axv(g,1);pit=axv(g,2);rol=axv(g,3)}
- const k=c=>keys[c]?1:0,sm=(c,t)=>c+(t-c)*Math.min(1,dt*(t?14:22));
- ks.y=sm(ks.y,k('KeyD')-k('KeyA'));ks.p=sm(ks.p,k('ArrowUp')-k('ArrowDown'));ks.r=sm(ks.r,k('ArrowRight')-k('ArrowLeft'));
+  const hv=HOV*(1-bz);thr=stickThr(t,thrFull(),hv);yaw=axv(g,1);pit=axv(g,2);rol=axv(g,3)}
+ const k=c=>keys[c]?1:0;
+ ks.y=kbEase(ks.y,k('KeyD')-k('KeyA'),dt);ks.p=kbEase(ks.p,k('ArrowUp')-k('ArrowDown'),dt);ks.r=kbEase(ks.r,k('ArrowRight')-k('ArrowLeft'),dt);
  const kt=k('KeyW')-k('KeyS');kbThr+=((kt>0?(bz?.95:1):kt<0?0:HOV*(1-bz))-kbThr)*Math.min(1,dt*10);if(thr===null||kt)thr=kbThr;
- const pick=(a,b)=>Math.abs(b)>Math.abs(a)?b:a;yaw=pick(yaw,ks.y);pit=pick(pit,ks.p);rol=pick(rol,ks.r);
+ yaw=pick(yaw,ks.y);pit=pick(pit,ks.p);rol=pick(rol,ks.r);
  stk[3]=cl(thr,0,1);d.thr=thrCurve(Math.min(1,stk[3]/(1-bz||1)));d.boosting=bz>0&&stk[3]>1-bz+1e-4||sb&&!!(keys.ShiftLeft||keys.ShiftRight||keys.Space);
- stk[0]=rol;stk[1]=pit;stk[2]=yaw;if(S.mode==='acro')d.wt.set(-rate(1,pit),-rate(2,yaw),-rate(0,rol));
- else{const f=_f.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,-1,0).applyQuaternion(d.q);f.y=0}if(f.lengthSq()<1e-4)f.set(0,0,-1);f.normalize();
-  const ch=Math.atan2(-f.x,-f.z);if(d.hd==null||Math.abs(wrapA(d.hd-ch))>1.2)d.hd=ch;d.hd=wrapA(d.hd-rate(2,yaw)*.7*dt);f.set(-Math.sin(d.hd),0,-Math.cos(d.hd));  // heading follows the yaw stick only
-  const r=_r.crossVectors(f,UP),T=1.5;const u=_hv.copy(UP).addScaledVector(f,pit*T).addScaledVector(r,rol*T).normalize();attitude(d,u,f,16,18,1);d.wt.y-=rate(2,yaw)*.7}
+ stk[0]=rol;stk[1]=pit;stk[2]=yaw;if(S.mode==='acro')acroCmd(d,rate,rol,pit,yaw);
+ else angleCmd(d,rate,rol,pit,yaw,dt);  // Angle: self-levels, the heading follows the yaw stick only
  const fl=flipIn();if(fl&&!flipPrev)d.flipUp();flipPrev=fl}
 
 // ---------- rough air, for airframes that model it (the Interceptor dart; the League quad doesn't use these) ----------
