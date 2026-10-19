@@ -1,6 +1,6 @@
 // ---------- Calibration Lab: a training-pack room where drills measure the pilot and the tuner retunes in real time ----------
 // Flight state is read through the Drone (p, v, q, w) and the rigs only clamp it, so this keeps working when the flight model
-// moves to Rapier: if Drone.step changes shape, only rigStep() needs a look. step.js hands each physics step here while LAB.on.
+// moves to Rapier: if Drone.step changes shape, only rigStep() needs a look. The Lab is an overlay (modes/registry.js): while LAB.on, step.js hands each physics step to its pre() below.
 // Rigs (how the quad is held so each drill measures one thing):
 //  floor   parked on the pad, motors idle                      hover/alt  vertical only, attitude held level
 //  snap    position held, only the drill's axis can rotate      gimbal     position held, attitude free
@@ -14,6 +14,7 @@ import {RO,RT,stk} from '../flight/rates.js';
 import {OV,axr,humanControl,pad} from '../input/input.js';
 import {setGame} from './dogfight.js';
 import {showMenu} from './match.js';
+import {registerOverlay} from './registry.js';
 import {leaveGame} from '../net/net.js';
 import {ballMesh} from '../render/ball.js';
 import {GS} from '../state.js';
@@ -66,6 +67,8 @@ export function startTest(){const d=GS.player;if(!LAB.T||!d)return;apply();LAB.s
 export function endTest(){if(LAB.st!=='test')return;const d=GS.player;LAB.st='sum';$('ltest').hidden=$('hud').hidden=true;$('lab').hidden=false;setGame('league');
  labG.visible=true;ballMesh.visible=false;GS.state='lab';d.spawn=()=>place(d,startY(LAB.drill?.rig||'floor'));place(d,.15)}
 export function testTick(dt){if(LAB.on&&LAB.st==='test'&&(LAB.testT-=dt)<=0)endTest()}
+// the overlay: on while LAB.on, over League (rigs) or Freeplay (Test first); the rigs take every physics step except during the test flight
+registerOverlay('lab',{on:()=>LAB.on,pre:dt=>{testTick(dt);if(LAB.st==='test')return false;labStep(dt);return true},enter:enterLab,exit:exitLab,fixedCam:true,fixedFlightMode:true});
 // ---- one physics step (1/120 s)
 export function labStep(dt){const d=GS.player;if(!LAB.on||!d)return;LAB.flash=Math.max(0,LAB.flash-dt);
  if(LAB.st!=='drill'&&LAB.st!=='ready'){place(d,.15);d.thr=d.ms=0;return}

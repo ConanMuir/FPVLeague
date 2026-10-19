@@ -9,8 +9,7 @@ import {calib} from './calibration.js';
 import {showMenu} from '../modes/match.js';
 import {_f,_v} from '../scratch.js';
 import {GS,SB} from '../state.js';
-import {MODES} from '../modes/registry.js';
-import {LAB} from '../tuner/labstate.js';
+import {modeFlag} from '../modes/registry.js';
 import {banner} from '../ui/hud.js';
 import {syncUI} from '../ui/menu.js';
 import {toggleMod} from '../ui/modpanel.js';
@@ -59,11 +58,11 @@ function heading(d){const f=_f.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengt
 let flipPrev=false;const flipIn=()=>{if(keys.KeyE)return true;const g=pad();return!!btnOn(g,padX?S.xflip:S.flipBtn)};
 
 // ---------- input events ----------
-function cycleCam(){if(LAB.on)return;GS.camMode=(GS.camMode+1)%3;S.cam=GS.camMode;save()}  // the Lab is FPV only
+function cycleCam(){if(modeFlag('fixedCam'))return;GS.camMode=(GS.camMode+1)%3;S.cam=GS.camMode;save()}  // the Lab is FPV only
 function togglePause(){if(GS.demo)return;showMenu(!GS.menuOpen)}
 addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!GS.menuOpen)e.preventDefault();if(e.repeat)return;
  if(e.code==='Escape'||e.code==='KeyP')togglePause();if(GS.menuOpen)return;
- if(e.code==='KeyC')cycleCam();if(e.code==='KeyM'&&!LAB.on){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}if(e.code==='KeyR'&&canReset())GS.player.spawn();if(e.code==='KeyO'){S.osd=!S.osd;save();syncUI();banner('OSD '+(S.osd?'ON':'OFF'),'',.8)}});
+ if(e.code==='KeyC')cycleCam();if(e.code==='KeyM'&&!modeFlag('fixedFlightMode')){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}if(e.code==='KeyR'&&canReset())GS.player.spawn();if(e.code==='KeyO'){S.osd=!S.osd;save();syncUI();banner('OSD '+(S.osd?'ON':'OFF'),'',.8)}});
 addEventListener('keyup',e=>keys[e.code]=false);addEventListener('blur',()=>{for(const k in keys)keys[k]=false;mouseFire=false});
 addEventListener('mousedown',e=>{if(e.button===0&&!GS.menuOpen&&!e.target.closest?.('#mod,#menu,#lab,#bind,button,input,select,textarea'))mouseFire=true});addEventListener('mouseup',e=>{if(e.button===0)mouseFire=false});
 // gamepad shortcut buttons (Menu pause, LB camera, Y respawn) skip any button bound to flight, fire, flip or boost
@@ -72,4 +71,4 @@ export function padEdges(){const g=pad();if(!g||RADIO.test(g.id))return;const u=
  const b=g.buttons.map(x=>x.pressed),e=i=>b[i]&&!prevBtn[i]&&!u.has(i);
  if(e(9)&&!calib)togglePause();if(!GS.menuOpen&&!GS.demo){if(e(4))cycleCam();if(e(3)&&canReset())GS.player.spawn()}prevBtn=b}
 // reset (R / Xbox Y) only in Freeplay; in matches you fly yourself out of trouble
-const canReset=()=>!!(GS.player&&GS.player.dead<=0&&!GS.demo&&MODES[GS.GM]?.free);
+const canReset=()=>!!(GS.player&&GS.player.dead<=0&&!GS.demo&&modeFlag('allowReset'));
