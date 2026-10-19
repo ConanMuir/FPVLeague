@@ -15,4 +15,6 @@ export const DIFF=[
  {n:'Champion',kp:1.7,kd:3.6,vmax:80,att:14,rate:13,thr:1,react:.06,noise:.3,slack:.95,iq:1,ka:1.5,fl:.55},
  {n:'Grand Champion',kp:1.9,kd:4.2,vmax:90,att:17,rate:16,thr:1,react:.035,noise:.08,slack:.92,iq:2,ka:1.5,fl:.55,aim:1,demo:1,pop:1},
  // Dribbler: a demonstration of the carry and pop mechanics (bots/dribble.js): its attacker scoops, catches and carries the ball on top and pops it at the goal
- {n:'Dribbler',kp:1.5,kd:3.4,vmax:60,att:22,rate:18,thr:1,react:.06,noise:.3,slack:1,drib:1,pop:1,dv:10,hold:1.2,kc:4,kn:16,kv:8,ke:4}];
+ {n:'Dribbler',kp:1.5,kd:3.4,vmax:60,att:22,rate:18,thr:1,react:.06,noise:.3,slack:1,drib:1,pop:1,dv:10,hold:1.2,kc:4,kn:16,kv:8,ke:4},
+ // Freestyler: the Dribbler's pickup plus chosen pops, pop chains, air dribbles, double taps and spin shots (bots/freestyle.js)
+ {n:'Freestyler',kp:1.5,kd:3.4,vmax:70,att:22,rate:18,thr:1,react:.06,noise:.3,slack:1,drib:1,fs:1,pop:1,dv:10,hold:.5,cy:9,cm:.9,cl:30,kc:4,kn:16,kv:8,ke:4,ka:1.5,fl:.55}];
