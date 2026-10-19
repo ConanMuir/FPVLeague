@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `ci`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main 9cfd268 (Zombies game feel, PR #42), with origin/main 8805bbd (arch-core, PR #49) merged in
-Doing: CI (GitHub Actions: build, unit tests, parts balance, comment lint, and the headless-browser checks on Chrome + SwiftShader); one shared browser picker (tools/browser.mjs); state-driven waits in smoke, the Vite checks and zombies-test; a lint for `//` comments that swallow code.
-Touches: .github/workflows/ci.yml (new), tools/browser.mjs (new), tools/lint-comments.mjs (new), tools/check-build.mjs (new), test/lint-comments.test.mjs (new), tools/smoke.mjs, tools/zombies-test.mjs, tools/zlib.mjs, tools/physics-check.mjs, tools/pop-check.mjs, tools/sound-check.mjs, tools/training-check.mjs; every other puppeteer tool's launch line (tools/*-shots.mjs, bot-match, map-views, probe-bots); src/modes/training.js (trainSnap also reports `rt`, the ready time, so smoke presses the stick after the shot has read the resting sticks; the old 500 ms sleep could lose that race on a slow machine) and the rebuilt games/jared-league/index.html; README (Checks and CI, Comment lint).
-Open items / help wanted: make the comment lint strict once it has run quietly for a while; the Prettier/lint item of the architecture plan needs Riley.
-Overlaps: any branch that edits a tool's launch line (`puppeteer.launch({executablePath: ...})`): on merge, keep the branch's change but launch through `launchBrowser()` from tools/browser.mjs.
+Branch: `bots-pass-4`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
+Based on: origin/main e16770d (QA soak, PR #51)
+Doing: bot pass 4: the Dribbler gets the Freestyler's apex catch and quicker pops (about 5 pops/min, was about 3); Freestyler flip resets (a pop earned upside down on top of the ball in mid-air) and ceiling plays (carry the ball straight up beside a side wall onto the ceiling, pop it off the ceiling, drop and strike it); double taps also set up from any of its own touches that is heading for the backboard.
+Touches: src/bots/freestyle.js, src/bots/dribble.js (`fly`, split out of `steer` for any-attitude flight; `ai.roof` lifts the roof limit for a ceiling play; the spin-pop yaw), src/config/constants.js (Dribbler and Freestyler entries), tools/bot-match.mjs (flip resets, reset dodges, ceiling pops and shots, finishers chosen).
+Open items / help wanted: flip resets rarely land (about 1 in 12 attempts in solo): after its own pop the quad has dropped ~19 m/s, upright it cannot brake against a falling ball, so it has about a second to get above the ball and push down onto it upside down; the dodge that spends the reset pop has not landed yet. Planned double taps in normal play are still rare (0-2 per 6 min). Ceiling plays are slow (about 8 s of climbing) and so kept rare (15% of carries near a side wall).
+Overlaps: none known on src/bots.
 
 ## How to play
 
