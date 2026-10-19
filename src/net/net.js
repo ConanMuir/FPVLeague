@@ -21,6 +21,7 @@ import {banner,feed} from '../ui/hud.js';
 import {renderGames} from '../ui/menu.js';
 import {syncMod} from '../ui/modpanel.js';
 import {ORBS} from '../world/orbs.js';
+import {rpVote} from '../render/replay.js';
 export const r2=v=>[+v.x.toFixed(2),+v.y.toFixed(2),+v.z.toFixed(2)],pack=d=>[...r2(d.p),+d.q.x.toFixed(3),+d.q.y.toFixed(3),+d.q.z.toFixed(3),+d.q.w.toFixed(3),...r2(d.v)];
 const okArr=(a,n)=>Array.isArray(a)&&a.length>=n&&a.slice(0,n).every(Number.isFinite);
 export function mpMsg(t){$('mpnote').textContent=t;if(!GS.menuOpen)feed(esc(t))}
@@ -55,7 +56,7 @@ export function netSync(now){if(!GS.net)return;
  if(GS.net.host){const T=hostSlots(),j=JSON.stringify(T);if(j!==GS.net.slotsJ){GS.net.slotsJ=j;GS.net.slots=T;applySlots(T)}return}
  const gone=GS.net.hostPeer?!GS.net.peers.some(p=>p.peer===GS.net.hostPeer):now-GS.net.t0>8000;
  if(!gone)GS.net.gone=0;else if(!GS.net.gone)GS.net.gone=now;else if(now-GS.net.gone>3000){mpMsg(GS.net.hostPeer?'The host left the game.':'No game found with that code.');leaveGame();startDemo()}}
-export function netSend(now){if(!GS.net||now-GS.net.sendT<33)return;GS.net.sendT=now;const me=GS.player,P={n:nick(),tp:S.tp},N=curMode().net;  // N: the mode's net hooks (modes/registry.js)
+export function netSend(now){if(!GS.net||now-GS.net.sendT<33)return;GS.net.sendT=now;const me=GS.player,P={n:nick(),tp:S.tp,rs:rpVote()},N=curMode().net;  // N: the mode's net hooks (modes/registry.js)
  if(me){P.s=pack(me);P.d=me.dead>0?1:0;P.b=me.boostOn?1:0;P.lo=me.lo.ids;P.co=cosIds(me.cos);if(N&&N.pilot)N.pilot(P,me)}
  if(GS.net.host){const bots={};for(const d of GS.drones)if(d.bot)bots[d.key]=[...pack(d),d.boostOn?1:0,d.dead>0?1:0,d.firing?1:0,d.lo.ids,cosIds(d.cos)];
   P.g={st:GS.state,t:+GS.stT.toFixed(2),sc:GS.score,ck:+GS.clock.toFixed(1),ot:GS.overtime?1:0,ko:GS.koN,gs:GS.goalSide,sl:GS.net.slots,bl:[...r2(ball.p),...r2(ball.v)],ack:GS.net.ack,bots,lt:ball.last?.key||null,tu:S.mod,m:GS.GM,sb:S.sboost?1:0,ar:AI};

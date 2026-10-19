@@ -10,7 +10,7 @@ import {BR} from '../config/tune.js';
 import {ball} from '../physics/ball.js';
 import {GS} from '../state.js';
 import {ballMesh} from './ball.js';
-import {onEv} from '../core/events.js';
+import {onFx} from '../core/events.js';
 import {camera, scene} from './renderer.js';
 const N = 12, Z = new THREE.Vector3(0, 0, 1), HIT_DV = 4, MIN_SCR = .045;
 const KIND = {hit: {c: 0xffffff, o: .75, t: .35, w: .78, g: .9}, earn: {c: 0xe8fbff, o: .9, t: .55, w: .7, g: .7}, pop: {c: 0xffc640, o: .95, t: .7, w: .66, g: 1.6}};
@@ -23,7 +23,7 @@ const _p = new THREE.Vector3(), _n = new THREE.Vector3(), _vb = new THREE.Vector
 export function popFx(p, n, r, kind = 'earn', delay = 0) {
   const K = KIND[kind] || KIND.earn, e = R[ri++ % N]; e.m.geometry = geo[kind] || geo.earn; e.m.material.color.setHex(K.c); e.m.position.copy(p);
   e.q.setFromUnitVectors(Z, _n.copy(n).normalize()); e.m.quaternion.copy(e.q); e.k = K; e.r = r; e.s = 1; e.t = K.t; e.d = delay; e.m.visible = false; e.fol = kind === 'earn'; e.off.subVectors(p, ball.p); }  // an earned pop's ring rides under the ball
-onEv('popEarn', e => popFx(e.p, e.n, e.r));  // a pop earned (modes/step.js)
+onFx('popEarn', e => popFx(e.p, e.n, e.r));  // a pop earned (modes/step.js)
 // a quad touched the ball: ring at the contact point, facing along drone -> ball
 function touchRing(d, kind) { _n.subVectors(ball.p, d.p); if (_n.lengthSq() < 1e-6) _n.set(0, 1, 0); _n.normalize(); _p.copy(ball.p).addScaledVector(_n, -BR);
   popFx(_p, _n, BR * (kind === 'pop' ? 1.05 : .8), kind); if (kind === 'pop') popFx(_p, _n, BR * 1.05, 'pop', .14); }

@@ -120,11 +120,20 @@ async function scenario(label, url) {
         await p.$eval(`#gtabs button[data-s="${s}"]`, e => e.click());
         for (const [c, id] of await p.$$eval(`#gslots .gcat[data-s="${s}"] button[data-c]`, l => l.map(b => [b.dataset.c, b.dataset.id]))) { await click(p, `#gslots button[data-c="${c}"][data-id="${id}"]`); g.cos++; }
       }
-      for (const [c, id] of [['paint', 'candy'], ['decal', 'n23'], ['props', 'smoke'], ['bell', 'oil'], ['led', 'green'], ['trail', 'plasma']]) await click(p, `#gslots button[data-c="${c}"][data-id="${id}"]`);
+      for (const [c, id] of [['paint', 'candy'], ['decal', 'n23'], ['props', 'smoke'], ['bell', 'gold'], ['led', 'green'], ['trail', 'plasma']]) await click(p, `#gslots button[data-c="${c}"][data-id="${id}"]`);
+      // progression: a fresh profile can't wear a locked item (Chrome: level 20); clicking it shows what unlocks it instead
+      g.locked = await p.$$eval('#gslots .gtile.lck', l => l.length); await p.$eval('#gtabs button[data-s="4"]', e => e.click()); await click(p, '#gslots button[data-c="paint"][data-id="chrome"]'); g.lockMsg = await text(p, '#gdesc');
       g.cosSaved = await p.evaluate(() => Object.values(JSON.parse(localStorage.getItem('droneleague') || '{}').cos || {}).join('/'));
       await p.$eval('#gtabs button[data-s="0"]', e => e.click());
       g.name = await text(p, '#gname'); g.saved = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague') || '{}').loadout?.join('/'));
       await click(p, '#gok'); g.closed = await hidden(p, '#garage'); g.stats = new Set(g.stats).size; out.garage = g;
+    }
+    // Profile: the main menu's Profile screen (level, XP bar, tabs: stats, achievements, unlocks, matches)
+    if (await p.$('#profbtn')) {
+      await click(p, '#profbtn'); const f = {open: !(await hidden(p, '#scr-profile')), head: await text(p, '#pfhead'), tabs: await p.$$eval('#pftabs button', l => l.length), cards: await p.$$eval('#pfbody .pfcard', l => l.length)};
+      await click(p, '#pftabs [data-t="ach"]'); f.ach = await p.$$eval('#pfbody .achc', l => l.length);
+      await click(p, '#pftabs [data-t="unl"]'); f.unl = await p.$$eval('#pfbody .gtile', l => l.length); f.unlLocked = await p.$$eval('#pfbody .gtile.lck', l => l.length);
+      await key(p, 'Escape'); f.closed = await hidden(p, '#scr-profile'); f.prof = await p.evaluate(() => window.__dl.prof?.()); out.profile = f;
     }
     log(`${label}: League`);
     // League vs bots (default settings: 2v2, bots fill, Legend)
@@ -353,8 +362,11 @@ chk(n.menuAfterEsc, 'Esc should open the menu');
 chk(n.garage?.open && n.garage.closed && n.garage.parts === 21 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch/ram', 'garage: opens, cycles all 21 parts, saves the loadout, closes');
 chk(n.league?.player === 'stretch/plank/punch/ram', 'League: the player should fly the garage loadout');
 chk(n.league?.botLoadouts >= 2, 'League: bots should spawn with varied loadouts');
-chk(n.garage?.cos === 69 && n.garage.cosSaved === 'candy/n23/smoke/oil/green/plasma', 'garage: cycles all 69 cosmetics and saves the look');
-chk(n.league?.cos?.you === 'candy/n23/smoke/oil/green/plasma' && n.league.cos.trail === 'plasma' && n.league.cos.botLooks >= 1, 'League: the player should wear the garage look (bots: random looks)');
+chk(n.garage?.cos === 77 && n.garage.cosSaved === 'candy/n23/smoke/gold/green/plasma', 'garage: cycles all 77 cosmetics and saves the look');
+chk(n.garage?.locked === 27 && /Locked\. Reach level 20/.test(n.garage.lockMsg || ''), 'garage: a fresh profile shows 27 locked cosmetics; a locked one is not worn and says what unlocks it');
+chk(n.profile?.open && n.profile.closed && /Level\s*1/.test(n.profile.head) && n.profile.tabs === 4 && n.profile.cards === 4 && n.profile.ach === 36 && n.profile.unl === 27 && n.profile.unlLocked === 27 && n.profile.prof?.lv === 1,
+  'profile: opens from the main menu with level, stats, 36 achievements and 27 unlocks, Esc closes it');
+chk(n.league?.cos?.you === 'candy/n23/smoke/gold/green/plasma' && n.league.cos.trail === 'plasma' && n.league.cos.botLooks >= 1, 'League: the player should wear the garage look (bots: random looks)');
 chk(n.dogfight && n.dogfight.sim >= 3 && !n.dogfight.nan && n.dogfight.botPathMin > 5 && n.dogfight.title === 'DOGFIGHT', 'Dogfight: should start and bots should fly');
 chk(n.mod?.open && n.mod.sliders === 34 && /^20\.0 /.test(n.mod.changed) && /^34\.5 /.test(n.mod.reset) && n.mod.export === '{}', 'mod panel: 34 sliders, change, reset, export');
 chk(n.rates?.inputs === 9 && +n.rates.maxRoll > 0 && n.rates.cliExport >= 15 && /^Imported 6 values/.test(n.rates.cliImport) && n.rates.typeAfter === 'ACTUAL', 'rates panel: table, CLI export/import');
@@ -414,7 +426,7 @@ if (set.old) {
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
   else {
     // settings added after v15 (with defaults) are left out of the comparison
-    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd', 'cos', 'train', 'osd', 'longline', 'tiltAx', 'tiltMin', 'tiltMax', 'llLen', 'llW', 'llStr', 'llScore', 'llCam', 'lookBtn'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
+    const NEWKEYS = ['gfx', 'assist', 'loadout', 'vMaster', 'vMotor', 'vWind', 'vOther', 'vFx', 'vCrowd', 'cos', 'train', 'osd', 'longline', 'tiltAx', 'tiltMin', 'tiltMax', 'llLen', 'llW', 'llStr', 'llScore', 'llCam', 'lookBtn', 'replay', 'killcam'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
     chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check

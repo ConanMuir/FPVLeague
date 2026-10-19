@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `ci-speed`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main e16770d (QA soak tools, PR #51)
-Doing: faster CI (the browser job took ~27 min because SwiftShader draws ~1 fps): draw calls skipped outside drawFrames() checkpoints (DL_NORENDER), smoke and zombies-test sharded, browser entries skipped when their area is untouched, the runner's own Chrome instead of a download; the comment lint is strict now.
-Touches: .github/workflows/ci.yml, tools/browser.mjs (no-render stub, drawFrames), tools/ci-scope.mjs (new), tools/smoke.mjs (draw checkpoints), tools/zombies-test.mjs (--sections, draw checkpoints), tools/zlib.mjs, tools/lint-comments.mjs (prose that runs on after "x=0:" is not code), test/lint-comments.test.mjs, README (Checks and CI, Comment lint).
-Open items / help wanted: Interceptor pages take ~10 s each to boot on SwiftShader (three.js shader linking), which is most of zombies-test's time; fewer page loads per section would speed it up further.
-Overlaps: a new browser check should launch through `launchBrowser()` (it installs the no-render stub in CI) and call `drawFrames()` where it needs real pixels.
+Branch: `bots-pass-4`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
+Based on: origin/main e16770d (QA soak, PR #51), with origin/main 6cd99fd (shared engine, PR #53) merged in
+Doing: bot pass 4: the Dribbler gets the Freestyler's apex catch and quicker pops (about 5 pops/min, was about 3); Freestyler flip resets (a pop earned upside down on top of the ball in mid-air) and ceiling plays (carry the ball straight up beside a side wall onto the ceiling, pop it off the ceiling, drop and strike it); double taps also set up from any of its own touches that is heading for the backboard.
+Touches: src/bots/freestyle.js, src/bots/dribble.js (`fly`, split out of `steer` for any-attitude flight; `ai.roof` lifts the roof limit for a ceiling play; the spin-pop yaw), src/config/constants.js (Dribbler and Freestyler entries), tools/bot-match.mjs (flip resets, reset dodges, ceiling pops and shots, finishers chosen).
+Open items / help wanted: flip resets rarely land (about 1 in 12 attempts in solo): after its own pop the quad has dropped ~19 m/s, upright it cannot brake against a falling ball, so it has about a second to get above the ball and push down onto it upside down; the dodge that spends the reset pop has not landed yet. Planned double taps in normal play are still rare (0-2 per 6 min). Ceiling plays are slow (about 8 s of climbing) and so kept rare (15% of carries near a side wall).
+Overlaps: none known on src/bots.
 
 ## How to play
 

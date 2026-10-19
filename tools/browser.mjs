@@ -51,7 +51,11 @@ export function browserArgs(args = []) {
 }
 // puppeteer.launch with the browser, env and args above; opts are passed through (protocolTimeout, defaultViewport, ...)
 export async function launchBrowser(opts = {}) {
-  const b = await puppeteer.launch({headless: true, ...opts, executablePath: findBrowser(), env: browserEnv, args: browserArgs(opts.args)});
+  let b;  // a CI runner sometimes fails to start the browser at all ("WS endpoint" timeout): try three times before giving up
+  for (let i = 0; ; i++) {
+    try { b = await puppeteer.launch({headless: true, ...opts, executablePath: findBrowser(), env: browserEnv, args: browserArgs(opts.args)}); break; }
+    catch (e) { if (i >= 2) throw e; console.warn(`browser launch failed (${e.message.split('\n')[0]}), retrying`); await new Promise(r => setTimeout(r, 3000)); }
+  }
   const np = b.newPage.bind(b);
   b.newPage = async (...a) => { const p = await np(...a); await installRenderStub(p); return p; };
   return b;

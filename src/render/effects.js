@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import {COL,V3,cl} from '../config/constants.js';
 import {BR,DRAD,G} from '../config/tune.js';
 import {ball} from '../physics/ball.js';
-import {onEv} from '../core/events.js';
+import {onEv,onFx} from '../core/events.js';
 import {sdN,sdf} from '../physics/sdf.js';
 import {GS} from '../state.js';
 import {mapId} from '../world/maps.js';
@@ -263,8 +263,8 @@ function ringTick(dt){for(const m of RINGS){if(!m.visible)continue;const u=m.use
  const e=1-(1-x)**3;m.scale.setScalar(u.r0+(u.r1-u.r0)*e);m.material.opacity=u.a*(1-x)**1.5}}
 
 onEv('ground',e=>{if(!e.d.mesh)return;const f=fxOf(e.d);if(!f.g){f.g=1;f.gs=f.gi=0}f.gs=Math.max(f.gs,e.slide);f.gi=Math.max(f.gi,e.speed);f.gp.copy(e.p);f.gn.copy(e.n)});
-onEv('touch',e=>{if(e.p)ballHit(e)});
-onEv('bump',e=>{if(e.speed>14&&e.other){const p=_e.addVectors(e.d.p,e.other.p).multiplyScalar(.5),N=Math.round(Math.min(40,e.speed)*QQ.k);
+onFx('touch',e=>{if(e.p)ballHit(e)});
+onFx('bump',e=>{if(e.speed>14&&e.other){const p=_e.addVectors(e.d.p,e.other.p).multiplyScalar(.5),N=Math.round(Math.min(40,e.speed)*QQ.k);
   for(let i=0;i<N;i++){_a.set(rnd()-.5,rnd()-.5,rnd()-.5).normalize().multiplyScalar(10+rnd()*25);const h=rnd();SPK.spawn(p.x,p.y,p.z,_a.x,_a.y,_a.z,3,1.6+h,.5+h*.5,1,.2+rnd()*.3,.08,.05,1.5,G*.6,0,.35)}}});
 
 // boost embers, by trail style: stream (team / white) half hot sparks, fire hot col..col2, plasma glowing orbs, sparks fast streaks, sparkle hanging glints, smoke puffs, rainbow every colour
@@ -281,6 +281,8 @@ function embers(d,f,dn,s,dt){const st=f.st;f.eA+=[90,130,70,120,110,45,90][st]*Q
 // ---------- per frame (render/visuals.js, after the drones are placed) ----------
 // FX.on: false hides every effect (A/B frame-time checks, tools/fx-shots.mjs); FX.ms: time spent in gameFx (ms, summed)
 export const FX={on:true,ms:0,stats:()=>({add:ADD.act,spark:SPK.act,dust:DUST.act,decals:decG.instanceCount,ribbons:RIB.filter(r=>r.m.visible).length,ball:ballRib.m.visible}),objs:()=>fxObjs()};let fxWas=true;const fxObjs=()=>[ADD.m,SPK.m,DUST.m,decMul,decAdd,ballRib.m,...RIB.map(r=>r.m),...RINGS,...GS.drones.map(d=>d.fx?.mesh).filter(Boolean)];
+// fxReset: start every ribbon trail over and drop the frame's ground contacts (a replay cut: the quads and ball jump to recorded places)
+export function fxReset(){for(const r of RIB)r.reset();ballRib.reset();for(const d of GS.drones)if(d.fx)d.fx.g=0}
 export function gameFx(dt,now){if(!FX.on){if(fxWas){fxWas=false;for(const o of fxObjs())o.visible=false}return}if(!fxWas){fxWas=true;for(const o of[ADD.m,SPK.m,DUST.m,decMul,decAdd])o.visible=true}
  const t0=performance.now();gameFx1(dt);FX.ms+=performance.now()-t0}
 function gameFx1(dt){QQ=QK[qId]||QK.high;T+=dt;const fpv=GS.camMode===0,cp=camera.position;let ri=0;
