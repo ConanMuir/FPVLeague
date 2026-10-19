@@ -79,10 +79,8 @@ export function initZombies(api){
   return{list,brgs,q,wx:wx.plan(w)}}
  // command bunker: a fourth defended site on the radar pad from wave 10 (its hit points add to Defense Integrity)
  const BK={n:'COMMAND BUNKER',x:api.PADP.x,z:api.PADP.z+20,r:20,aims:[],sol:[],max:SITE_HP['COMMAND BUNKER'],hp:0,zb:1};
- {const y=api.PADP.y+.3,M=new THREE.MeshStandardMaterial({color:0x8d8f88,roughness:.9}),E=new THREE.MeshStandardMaterial({color:0x5b5a3e,roughness:1}),g=new THREE.Group();
-  const box=(w,h,d,m,x,y0,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y0+h/2,z);o.castShadow=o.receiveShadow=true;g.add(o)};
-  box(22,1.2,14,E,0,0,0);box(14,3.6,9,M,0,1,0);box(4,2.6,2,M,0,1,-5.2);box(.3,6,.3,M,5,4.6,2);g.position.set(BK.x,y,BK.z);g.visible=false;api.scene.add(g);BK.mesh=g;BK.y=y;BK.aims.push(new V3(BK.x,y+4.6,BK.z),new V3(BK.x+4,y+4.6,BK.z+2));
-  BK.box={x:BK.x,y:y+2.4,z:BK.z,hx:7,hy:2.4,hz:4.5}}
+ {const y=api.PADP.y+.3;BK.y=y;BK.mesh=api.buildBunker(BK);BK.mesh.visible=false;BK.aims.push(new V3(BK.x,y+4.6,BK.z),new V3(BK.x+4,y+4.6,BK.z+2));  /* earth-covered bunker with damage stages (buildings.js) */
+  BK.box={x:BK.x,y:y+2.3,z:BK.z,hx:9,hy:2.3,hz:6}}
  function bunker(on){const i=SITES.indexOf(BK);if(on&&i<0){SITES.push(BK);BK.max=Math.round(SITE_HP['COMMAND BUNKER']*DF().hp);BK.hp=BK.max;BK.mesh.visible=true;api.PADP.sol.push(BK.box);feed('<span class="cg">Command bunker online</span>: a fourth site to defend (+'+BK.max+' integrity)')}
   if(!on&&i>=0){SITES.splice(i,1);BK.mesh.visible=false;const j=api.PADP.sol.indexOf(BK.box);if(j>=0)api.PADP.sol.splice(j,1)}}
  Z.bunker=bunker;
@@ -218,7 +216,7 @@ export function initZombies(api){
  // performance governor (Zombies only): the forest's shadow pass is the biggest frame cost; if frames stay slow for a few seconds, trees stop casting shadows.
  // Classic is never touched: the shadows come back when Zombies stops.
  const perf={ema:16,last:0,slow:0,off:false,trees:null};
- const trees=()=>perf.trees||(perf.trees=api.scene.children.filter(o=>o.isInstancedMesh&&o.instanceMatrix.count>=10000&&o.castShadow));
+ const trees=()=>perf.trees||(perf.trees=api.scene.children.filter(o=>o.userData.forest&&o.castShadow));
  function govern(){const now=performance.now(),ft=now-(perf.last||now);perf.last=now;if(ft<=0||ft>500||G.state!=='wave')return;perf.ema+=(ft-perf.ema)*.05;
   perf.slow=perf.ema>26?perf.slow+ft:0;if(!perf.off&&perf.slow>3000){perf.off=true;for(const o of trees())o.castShadow=false;feed('<span class="co">Performance: tree shadows off to keep the frame rate up</span>')}}
  Z.shadowsBack=()=>{if(perf.off){for(const o of trees())o.castShadow=true;perf.off=false}perf.slow=0;perf.last=0};

@@ -61,7 +61,7 @@ export function initFX(api,G,Z){
 
  // ---------- smoke: soft puffs that grow as they rise and thin out, drifting with the wind and fogged like the scene.
  // Two rings: columns over fires (0..SC) and black bursts left in the sky by explosions (SC..SN) ----------
- const SN=1700,SC=1150,sPos=new Float32Array(SN*3).fill(-1e5),sSa=new Float32Array(SN*4),sV=new Float32Array(SN*3),sAge=new Float32Array(SN).fill(-1),sL=new Float32Array(SN),sS0=new Float32Array(SN),sGr=new Float32Array(SN),sA0=new Float32Array(SN),sH0=new Float32Array(SN),sH1=new Float32Array(SN),sRv=new Float32Array(SN),sB=new Float32Array(SN);
+ const SN=2600,SC=2050,sPos=new Float32Array(SN*3).fill(-1e5),sSa=new Float32Array(SN*4),sV=new Float32Array(SN*3),sAge=new Float32Array(SN).fill(-1),sL=new Float32Array(SN),sS0=new Float32Array(SN),sGr=new Float32Array(SN),sA0=new Float32Array(SN),sH0=new Float32Array(SN),sH1=new Float32Array(SN),sRv=new Float32Array(SN),sB=new Float32Array(SN);
  const sGeo=new THREE.BufferGeometry();sGeo.setAttribute('position',new THREE.BufferAttribute(sPos,3));sGeo.setAttribute('sa',new THREE.BufferAttribute(sSa,4));
  const puff=tex(64,64,g=>{for(let i=0;i<7;i++){const x=32+rnd(-9,9),y=32+rnd(-9,9),r=rnd(13,22),gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,64,64)}});
  const sU=THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{map:{value:null},k:{value:500}}]);sU.map.value=puff;
@@ -206,4 +206,6 @@ export function initFX(api,G,Z){
  // harness: what the FX layer is doing right now (tools/zombies-fx.mjs)
  Z.fxState=()=>({tsc:Z.tsc,killCam:KC.on,fires:FI.length,fireAt:FI.map(f=>[f.p.x,f.p.y,f.p.z]),smoke:sOn,debris:DB.filter(d=>d.on).length,waves:SW[0].L.length+SW[1].L.length,tracers:TR.length,glow:gn,music:au.dbg,W:{...W}});
  Z.fxTest={slowmo,fire,debris,wave,killCam};
+ // damaged sites (buildings.js damage stages) send their standing smoke through the same columns, so a hit's black plume and the burning site read as one
+ Z.plume=(p,k,dark)=>smoke(0,p,rnd(-.6,.6),5+3*k,rnd(-.6,.6),rnd(14,22),3+4*k,1.6+1.8*k,dark?.5:.28,dark?.07:.3,dark?.3:.5);
  return{}}

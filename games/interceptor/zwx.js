@@ -92,12 +92,13 @@ export function initWeather(api,G,Z){
  // visibility per weather; th = thermal camera on (stars, beams, lamps, glows and dust hidden, like the clouds)
  function hook(th){const W=api.WX,z=on()&&W&&W.z;
   stars.o.visible=!!(z&&!th&&W.stars);lamps.o.visible=!!(z&&!th&&W.lamps);glow.o.visible=!!(z&&!th&&W.glow);for(const b of beams)b.visible=!!(z&&!th&&W.beams);
-  snow.o.visible=!!(z&&W.snow>.02);dust.o.visible=!!(z&&!th&&W.dust);if(!z)for(const b of bolts)b.o.visible=false;
+  snow.o.visible=!!(z&&W.snow>.02);api.groundSnow=z?cl(W.snow||0,0,1):0;dust.o.visible=!!(z&&!th&&W.dust);if(!z)for(const b of bolts)b.o.visible=false;
   api.deck.material.opacity=.97*(z&&W.deckA!=null?W.deckA:1);api.rainL.material.opacity=z&&W.rain>1.5?.5:.35;api.rainL.visible=!!W?.rain&&W.rain>.02;api.rainN=api.RN*(z?cl(W.rain||0,0,1)*q():1);
   if(z&&th&&W.thermLift){api.sun.intensity=2.4;api.hemi.intensity=api.hemi.userData.base=1.1}  // thermal needs no light: the night picture comes out like the day one
   if(z&&W.mix&&cur&&W.deckA<1&&!th){const o=cur.A.deck?cur.B:cur.A;api.sky.visible=!o.nosky&&o.id!=='fog';scene.background=api.sky.visible?null:new THREE.Color(W.hz)}}  // while a cloud deck fades in or out, the sky of the deck-less side stays up behind it
  api.wxHook=hook;
- function step(dt,now){shift(dt);const W=api.WX;if(!on()||!W||!W.z)return;const c=api.camera.position,t=now*.001,WI=api.WIND,k=q();
+ function step(dt,now){shift(dt);const W=api.WX;if(!on()||!W||!W.z)return;api.groundSnow=cl(W.snow||0,0,1);  /* the fields whiten under snow (ground.js) */
+const c=api.camera.position,t=now*.001,WI=api.WIND,k=q();
   if(snow.o.visible){const n=Math.round(SN*cl(W.snow,0,1)*k),h=SB/2;snow.g.setDrawRange(0,n);const P=snow.P,wx=WI.x*.8,wz=WI.z*.8;for(let j=0;j<64;j++){SW[j]=Math.sin(t*1.3+j)*.5;SW[j+64]=Math.cos(t*1.1+j)*.5}  // flutter: 64 phases a frame, not two trig calls per flake
    for(let i=0;i<n;i++){const i3=i*3;let x=P[i3]+(wx+SW[i&63])*dt,y=P[i3+1]-(1.1+(i&3)*.15)*dt,z=P[i3+2]+(wz+SW[64+(i*7&63)])*dt;
     P[i3]=((x-c.x+h)%SB+SB)%SB-h+c.x;P[i3+1]=((y-c.y+h)%SB+SB)%SB-h+c.y;P[i3+2]=((z-c.z+h)%SB+SB)%SB-h+c.z}snow.g.attributes.position.needsUpdate=true}
