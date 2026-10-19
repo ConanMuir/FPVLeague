@@ -3,7 +3,7 @@ import {cl} from './constants.js';
 export const MODS=[
  ['Drone','grav','Gravity',34.5,2,40,.5,'m/s²'],['Drone','thr','Thrust',345,20,600,5,'m/s²'],['Drone','te','Thrust curve',1.6,1,2.5,.05,'^'],['Drone','vp','Prop pitch speed',240,40,500,5,'m/s'],['Drone','maxv','Top speed',200,20,300,1,'m/s'],
  ['Drone','tau','Stick lag',4,2,60,1,'ms'],['Drone','dl','Linear drag',0.04,0,1,.01,''],['Drone','dq','Air drag',0.0039,0,.03,.0001,''],
- ['Drone','size','Drone size',2,.4,4,.05,'×'],['Drone','dbounce','Wall bounce',0.05,0,1,.05,''],['Drone','gfric','Ground grip',0.1,0,1,.02,''],['Drone','spool','Motor spool',20,0,150,5,'ms'],['Drone','turtle','Turtle rate',260,60,720,10,'°/s'],['Drone','wash','Prop wash',1.4,0,3,.1,'×'],
+ ['Drone','size','Drone size',2,.4,4,.05,'×'],['Drone','dbounce','Wall bounce',0.05,0,1,.05,''],['Drone','gfric','Ground grip',0.7,0,1.5,.02,''],['Drone','spool','Motor spool',20,0,150,5,'ms'],['Drone','turtle','Turtle rate',260,60,720,10,'°/s'],['Drone','wash','Prop wash',1.4,0,3,.1,'×'],
  ['Boost','bzone','Boost zone',5,0,30,1,'%'],['Boost','boost','Super boost',60,0,250,1,'m/s²'],['Boost','bkick','Boost kick',8,0,30,1,'m/s'],['Boost','drain','Boost drain',33,0,100,1,'/s'],['Boost','start','Kickoff boost',33,0,100,1,''],
  ['Boost','padb','Big orb refill',100,0,100,5,''],['Boost','pads','Small orb refill',20,0,100,5,''],
  ['Ball','bgrav','Ball gravity',34.5,0,60,.5,'m/s²'],['Ball','bsize','Ball radius',2.6,1,8,.1,'m'],['Ball','bbounce','Ball bounce',0.6,0,1.1,.02,''],['Ball','tbounce','Touch bounce',0.15,0,.6,.05,''],

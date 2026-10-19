@@ -73,7 +73,7 @@ export function computeLoadout(ids,k=1){ids=cleanLoadout(ids)||[...STOCK];const 
   snap:SNAP0.map((v,i)=>v*snapMul[i]),  // time from rest to rmax (s); acc = rmax/snap is the airframe's angular acceleration (torque / inertia)
   acc:SNAP0.map((v,i)=>RATE0[i]*rateMul[i]*Math.PI/180/(v*snapMul[i])),  // rad/s²: pitch, yaw, roll
   boost:1/mass,drain:p.drain*(R0/r)**1.5,  // x BOOST (a fixed shove, so heavier quads get less), x DRAIN (pack capacity; big props are more efficient)
-  mass,grip:B.grip,kick:c.kick+(t.kick||0),armor:t.armor||1};  // armor: x damage taken in Dogfight    // ball touches: drone mass (1 = nominal), dribble grip, added touch restitution
+  mass,grip:B.grip,kick:c.kick+(t.kick||0),armor:t.armor||1,wheels:!!t.wheels};  // armor: x damage taken in Dogfight    // ball touches: drone mass (1 = nominal), dribble grip, added touch restitution
  // collider descriptors (track B / Rapier): box size = half-extents; capsule, cylinder = [halfHeight, radius]; sphere = [radius]
  const S=v=>r4(v*k),q0=[0,0,0,1],qy=ang=>[0,r4(Math.sin(ang/2)),0,r4(Math.cos(ang/2))],cols=[];
  if(c.shape==='pod')cols.push({shape:'capsule',size:[S(c.half[2]-c.half[0]),S(c.half[0])],pos:[0,S(c.y),0],rot:[.7071,0,0,.7071],tag:'chassis'});
@@ -109,8 +109,8 @@ export const bodyOf=lo=>({mass:lo.mass,inertia:lo.inertia,colliders:lo.colliders
 
 // ---------- stats (garage bars, balance tool), measured with the default physics settings ----------
 // T: the tune values (mod-panel keys); defaults to the built-in ones
-export const STATS=[['speed','Speed','km/h'],['punch','Punch','T/W'],['roll','Roll','°/s'],['pitch','Pitch','°/s'],['yaw','Yaw','°/s'],['resp','Response','ms spool'],['boost','Boost','m/s per tank'],['hit','Hit power','g AUW'],['ball','Ball control','grip'],['size','Hitbox','× Stock'],['tough','Toughness','× damage']];
-export const SCORED=['speed','punch','roll','pitch','yaw','resp','boost','hit','ball','tough'];  // Hitbox size is a trade, not a score
+export const STATS=[['speed','Speed','km/h'],['punch','Punch','T/W'],['roll','Roll','°/s'],['pitch','Pitch','°/s'],['yaw','Yaw','°/s'],['resp','Response','ms spool'],['boost','Boost','m/s per tank'],['hit','Hit power','g AUW'],['ball','Ball control','grip'],['size','Hitbox','× Stock'],['tough','Toughness','× damage'],['ground','Ground drive','']];
+export const SCORED=['speed','punch','roll','pitch','yaw','resp','boost','hit','ball','tough','ground'];  // Hitbox size is a trade, not a score
 export function statsOf(lo,T){const f=lo.flight,G=T.grav,dl=T.dl*f.dl,thr=T.thr*f.thr,vp=T.vp*f.vp,maxv=T.maxv*f.maxv,te=T.te*f.te,dt=1/60;
  // level top speed: full throttle at a fixed forward tilt with the game's own drag and inflow model; best speed that still holds height
  let top=0;for(let deg=20;deg<=88;deg+=2){const th=deg*Math.PI/180,s=Math.sin(th),c=Math.cos(th);let vy=0,vz=0;
@@ -119,7 +119,7 @@ export function statsOf(lo,T){const f=lo.flight,G=T.grav,dl=T.dl*f.dl,thr=T.thr*
    const s2=Math.hypot(vy,vz);if(s2>maxv){const m=Math.max(maxv/s2,1-dt*2);vy*=m;vz*=m}}
   if(vy>-1)top=Math.max(top,-vz)}
  const real=9.81/G,rate=i=>f.rmax[i]*180/Math.PI*.1/(.1+f.snap[i]+T.tau/1000);  // achievable rate, discounted by the time to reach it
- return {speed:top*real*3.6,punch:thr/G,pitch:rate(0),yaw:rate(1),roll:rate(2),resp:1000/(T.spool*f.spool),boost:T.boost*f.boost*100/(T.drain*f.drain),hit:(1.6+f.kick)/(1/.7+1/f.mass)/(1.6/(1/.7+1)),ball:f.grip*Math.sqrt(lo.bbx[0]*lo.bbx[2]/REF_TOP),size:lo.size,tough:1/f.armor,
+ return {speed:top*real*3.6,punch:thr/G,pitch:rate(0),yaw:rate(1),roll:rate(2),resp:1000/(T.spool*f.spool),boost:T.boost*f.boost*100/(T.drain*f.drain),hit:(1.6+f.kick)/(1/.7+1/f.mass)/(1.6/(1/.7+1)),ball:f.grip*Math.sqrt(lo.bbx[0]*lo.bbx[2]/REF_TOP),size:lo.size,tough:1/f.armor,ground:f.wheels?2:1,
   te,raw:{rmax:f.rmax.map(v=>Math.round(v*180/Math.PI)),snap:f.snap.map(v=>Math.round(v*1000)),spool:+(T.spool*f.spool).toFixed(1)}}}
 // every loadout (5 x 5 x 5), for normalising bars
 // every loadout: the 125 core builds with no attachment (balance tool), or with every attachment too (garage bar ranges)

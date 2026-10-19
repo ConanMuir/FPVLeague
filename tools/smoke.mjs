@@ -284,7 +284,7 @@ chk(n.demo?.menuOpen && n.demo.moved > 0.5, 'menu demo: bots should be flying be
 chk(n.league && n.league.sim >= 9 && !n.league.nan, 'League: sim should run 10 s without NaN');
 chk(n.league && n.league.ballPath > 1 && n.league.botPathMin > 5, 'League: ball and every bot should move');
 chk(n.menuAfterEsc, 'Esc should open the menu');
-chk(n.garage?.open && n.garage.closed && n.garage.parts === 20 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch/ram', 'garage: opens, cycles all 20 parts, saves the loadout, closes');
+chk(n.garage?.open && n.garage.closed && n.garage.parts === 21 && n.garage.stats > 5 && n.garage.saved === 'stretch/plank/punch/ram', 'garage: opens, cycles all 21 parts, saves the loadout, closes');
 chk(n.league?.player === 'stretch/plank/punch/ram', 'League: the player should fly the garage loadout');
 chk(n.league?.botLoadouts >= 2, 'League: bots should spawn with varied loadouts');
 chk(n.dogfight && n.dogfight.sim >= 3 && !n.dogfight.nan && n.dogfight.botPathMin > 5 && n.dogfight.title === 'DOGFIGHT', 'Dogfight: should start and bots should fly');
@@ -297,8 +297,8 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
 {
   let s = null; try { s = JSON.parse(set.new.saved); } catch {}
   chk(s && s.loadout?.join('/') === 'stock/stock/stock/none', 'v15 settings: the loadout should migrate to Stock');
-  chk(s && s.physV === 4 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 4 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
-    'v15 settings: migrations (physV 4, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
+  chk(s && s.physV === 5 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 4 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
+    'v15 settings: migrations (physV 5, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
 }
 // controls + Calibration Lab
 {
@@ -327,7 +327,7 @@ if (set.old) {
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
   else {
     // settings added after v15 (with defaults) are left out of the comparison
-    const NEWKEYS = ['gfx', 'assist', 'loadout'], ns = (() => { try { const o = JSON.parse(set.new.saved); for (const k of NEWKEYS) delete o[k]; return JSON.stringify(o); } catch { return set.new.saved; } })();
+    const NEWKEYS = ['gfx', 'assist', 'loadout'], ns = (() => { try { const o = JSON.parse(set.new.saved), v = JSON.parse(set.old.saved); for (const k of NEWKEYS) delete o[k]; o.physV = v.physV; if (o.mod && v.mod) o.mod.gfric = v.mod.gfric; return JSON.stringify(o); } catch { return set.new.saved; } })();  // physV 5 moved Ground grip to the new default on purpose
     chk(set.old.saved === ns, 'the migrated localStorage settings differ from v15:\n  v15 ' + set.old.saved + '\n  new ' + ns); chk(set.old.ui === set.new.ui, 'settings UI differs from v15'); if (set.old.saved === ns) console.log(' saved settings identical to v15 after migration (ignoring ' + NEWKEYS.join(', ') + ')'); }
 }
 // baseline comparison: nondeterministic, so only a broad sanity check
