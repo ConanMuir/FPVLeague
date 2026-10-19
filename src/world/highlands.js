@@ -75,12 +75,11 @@ export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC)
   const C=clipIndexed(Array.from(p.array),Array.from(g.index.array),[{a:Array.from(nm.array),n:3},{a:col,n:3}],(x,y,z)=>sdCave(x,y,z,null,1)+SEAM),tg=new THREE.BufferGeometry();
   tg.setAttribute('position',new THREE.Float32BufferAttribute(C.p,3));tg.setAttribute('normal',new THREE.Float32BufferAttribute(C.attrs[0].a,3));tg.setAttribute('color',new THREE.Float32BufferAttribute(C.attrs[1].a,3));tg.setIndex(C.idx);TERR={p:C.p,i:C.idx};
   const m=new THREE.Mesh(tg,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));m.receiveShadow=true;dfG.add(m)}
- // the caves: unlit rock with its light baked in (the sun can't reach), team-coloured guide strips, and beacons over each entrance
+ // the caves: unlit rock with its light baked in (the sun can't reach), team-coloured guide strips, and a glowing ring round each entrance (no light beams: the user asked for them gone)
  {CAVES=buildCaves();const geo=M=>{const q=new THREE.BufferGeometry();q.setAttribute('position',new THREE.Float32BufferAttribute(M.p,3));q.setAttribute('color',new THREE.Float32BufferAttribute(M.c,3));q.setIndex(M.i);return q};
   dfG.add(new THREE.Mesh(geo(CAVES.walls),new THREE.MeshBasicMaterial({vertexColors:true})),new THREE.Mesh(geo(CAVES.strips),new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,side:THREE.DoubleSide})));
-  const ring=new THREE.TorusGeometry(1,.035,6,48),beam=new THREE.CylinderGeometry(1.2,1.2,1,8,1,true).translate(0,.5,0),bm=new THREE.MeshBasicMaterial({color:new THREE.Color(0xffd36a).multiplyScalar(1.4),transparent:true,opacity:.18,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false});
-  for(const e of CAVE.entrances){const r=new THREE.Mesh(ring,glow(0xffd36a,1.6)),d=new V3(...e.d);r.scale.setScalar(e.r+1.5);r.position.set(...e.p);r.quaternion.setFromUnitVectors(new V3(0,0,1),d);dfG.add(r);
-   const b=new THREE.Mesh(beam,bm);b.position.set(e.p[0],e.p[1],e.p[2]);b.scale.set(1,140,1);dfG.add(b)}}
+  const ring=new THREE.TorusGeometry(1,.035,6,48);
+  for(const e of CAVE.entrances){const r=new THREE.Mesh(ring,glow(0xffd36a,1.6)),d=new V3(...e.d);r.scale.setScalar(e.r+1.5);r.position.set(...e.p);r.quaternion.setFromUnitVectors(new V3(0,0,1),d);dfG.add(r)}}
  {const T=dfGrid(),n1=T.nx+1,y=CANY+.6,P=[],I=[];for(let z=0;z<T.nz;z++)for(let x=0;x<T.nx;x++){const i=z*n1+x;if(Math.min(T.h[i],T.h[i+1],T.h[i+n1],T.h[i+n1+1])>y)continue;const b=P.length/3,x0=-T.w/2+x*T.w/T.nx,z0=-T.l/2+z*T.l/T.nz,x1=x0+T.w/T.nx,z1=z0+T.l/T.nz;
   P.push(x0,y,z0,x1,y,z0,x1,y,z1,x0,y,z1);I.push(b,b+2,b+1,b,b+3,b+2)}const WC=clipIndexed(P,I,[],(x,y,z)=>sdCave(x,y,z,null,1)),wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(WC.p,3));wg.setIndex(WC.idx);wg.computeVertexNormals();
   dfG.add(new THREE.Mesh(wg,new THREE.MeshStandardMaterial({color:0x2f6f8a,roughness:.15,metalness:.2,transparent:true,opacity:.82})))}  // the river: only the grid cells that dip below it (an infinite plane showed up inside the cave entrances)
