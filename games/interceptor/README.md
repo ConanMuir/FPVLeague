@@ -131,7 +131,7 @@ Drone rack tiers set the kill chance of a drone that reaches its target: Mk I 30
 | Doctrine | Strength | Weakness | Unlocked by |
 |---|---|---|---|
 | Standard | The base as issued | None | (always) |
-| Fortress | Sites +35% hit points, repairs 25% cheaper | All income −10%; no forward positions or outposts (11 positions, 14 at most) | Clear wave 10 |
+| Fortress | Sites +30% hit points, repairs 25% cheaper | All income −15%; no forward positions or outposts (11 positions, 14 at most) | Clear wave 10 |
 | Forward Defense | Both outposts and the second forward pads open from the start (19 positions); forward upkeep halved | Starting cash −40%; no rear positions at the sites | Clear wave 15 without buying a repair (Normal or harder) |
 | Air Mobile | Rocket Assist and Fast relaunch half price, Rocket Assist from wave 1; your kills pay +20% | No radar-pad positions or outposts (12 positions, 16 at most); expansions cost 50% more | Clear wave 20 on Hard or Nightmare |
 | Partisan | Your kills pay +50%, streak up to ×3 | Helper kills pay 40% instead of 70%; wave-clear bonuses −30% | Clear wave 15 on Nightmare |
