@@ -38,7 +38,8 @@ if (want('money')) {
   // a Shahed just in front of the interceptor; the bot puts it 1 m behind and detonates. The pop's clock is set back to catch it rising and mid-flight.
   await p.evaluate(() => { __wave(2); const {api} = __z; __z.sim(api.player.dead > 0 ? 3 : 1); const me = api.player; const t = __z.make('shahed', me.p.x + 40, me.p.z - 160); t.p.y = me.p.y + 30; __z.botKill(1); });
   const f = [], st = () => p.evaluate(() => ({fly: __z.G.pops.filter(p => p.amt).length, shown: +document.getElementById('zc').textContent.replace(/\D/g, ''), cash: __z.G.cash}));
-  for (const a of [.3, .78]) { await p.evaluate(a => { clearInterval(window.__pin); window.__pin = setInterval(() => { for (const q of __z.G.pops) if (q.amt) q.t0 = performance.now() - a * 1000; }, 4); }, a); await sleep(60); f.push(await st()); await shot('money-' + a); }
+  for (const a of [.3, .62]) {  // (slow headless frames add up to ~0.2 s on top of the pinned age)
+    await p.evaluate(a => { clearInterval(window.__pin); window.__pin = setInterval(() => { for (const q of __z.G.pops) if (q.amt) q.t0 = performance.now() - a * 1000; }, 4); }, a); await sleep(60); f.push(await st()); await shot('money-' + a); }
   await p.evaluate(() => clearInterval(window.__pin));
   await sleep(1400); f.push(await st());
   console.log('money', JSON.stringify(f));

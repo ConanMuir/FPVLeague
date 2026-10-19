@@ -60,14 +60,14 @@ export function initFX(api,G,Z){
  const sys=(...a)=>{const s=api.psys(...a);root.add(scene.children[scene.children.length-1]);return s},FLM=sys(500,3.4,THREE.AdditiveBlending,-6,1.4),TRL=sys(700,4.5,THREE.NormalBlending,-.6,.9);
 
  // ---------- smoke: soft puffs that grow as they rise and thin out, drifting with the wind and fogged like the scene.
- // Two rings: columns over fires (0..SC), and black bursts left in the sky by explosions plus launch smoke and missile trails (SC..SN) ----------
+ // Two rings: columns over fires and launch smoke (0..SC, quick to show), and black bursts left in the sky by explosions plus missile trails (SC..SN) ----------
  const SN=3400,SC=2050,sPos=new Float32Array(SN*3).fill(-1e5),sSa=new Float32Array(SN*4),sV=new Float32Array(SN*3),sAge=new Float32Array(SN).fill(-1),sL=new Float32Array(SN),sS0=new Float32Array(SN),sGr=new Float32Array(SN),sA0=new Float32Array(SN),sH0=new Float32Array(SN),sH1=new Float32Array(SN),sRv=new Float32Array(SN),sB=new Float32Array(SN);
  const sGeo=new THREE.BufferGeometry();sGeo.setAttribute('position',new THREE.BufferAttribute(sPos,3));sGeo.setAttribute('sa',new THREE.BufferAttribute(sSa,4));
  const puff=tex(64,64,g=>{for(let i=0;i<7;i++){const x=32+rnd(-9,9),y=32+rnd(-9,9),r=rnd(13,22),gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,64,64)}});
  const sU=THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{map:{value:null},k:{value:500},th:{value:0}}]);sU.map.value=puff;
  const sPts=new THREE.Points(sGeo,new THREE.ShaderMaterial({uniforms:sU,fog:true,transparent:true,depthWrite:false,
   vertexShader:`attribute vec4 sa;uniform float k;varying float vA;varying float vS;varying float vR;\n#include <common>\n#include <fog_pars_vertex>\n#include <logdepthbuf_pars_vertex>\nvoid main(){vS=sa.z;vR=sa.w;vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;float s=sa.x*k/max(1.,-mvPosition.z);vA=sa.y*(s>420.?420./s:s<3.?s/3.:1.)*smoothstep(6.,30.,-mvPosition.z);gl_PointSize=vA<.008?0.:clamp(s,3.,420.);\n#include <logdepthbuf_vertex>\n#include <fog_vertex>\n}`,
-  fragmentShader:`uniform sampler2D map;uniform float th;varying float vA;varying float vS;varying float vR;\n#include <fog_pars_fragment>\n#include <logdepthbuf_pars_fragment>\nvoid main(){\n#include <logdepthbuf_fragment>\nvec2 c=gl_PointCoord-.5;float s=sin(vR),o=cos(vR);c=mat2(o,-s,s,o)*c;float a=texture2D(map,c+.5).a*vA*(1.-.8*th);if(a<.004)discard;gl_FragColor=vec4(vS,vS*.96,vS*.92,a);\n#include <fog_fragment>\n}`}));
+  fragmentShader:`uniform sampler2D map;uniform float th;varying float vA;varying float vS;varying float vR;\n#include <fog_pars_fragment>\n#include <logdepthbuf_pars_fragment>\nvoid main(){\n#include <logdepthbuf_fragment>\nvec2 c=gl_PointCoord-.5;float s=sin(vR),o=cos(vR);c=mat2(o,-s,s,o)*c;float a=texture2D(map,c+.5).a*vA*(1.-.9*th);if(a<.004)discard;gl_FragColor=vec4(vec3(vS,vS*.96,vS*.92)*(1.-.6*th),a);\n#include <fog_fragment>\n}`}));
  sPts.frustumCulled=false;sPts.renderOrder=2;root.add(sPts);
  const sCur=[0,SC];
  function smoke(ring,p,vx,vy,vz,life,size,grow,a,h0,h1,buoy=.06){const lo=ring?SC:0,hi=ring?SN:SC;let i=sCur[ring];if(i>=hi)i=lo;sCur[ring]=i+1;const i3=i*3;
@@ -183,10 +183,10 @@ export function initFX(api,G,Z){
  // a new shot leaving its launcher (zdef.js starts it at the tube mouth, flying along the tube): rack drones get a flash and a puff of launch gas,
  // SAM and Iron Dome missiles a big flash and a backblast cloud thrown out behind the tube and rolling along the ground
  function launchFx(h){_d.copy(h.v).normalize();
-  if(h.kind==='drone'){muzzle(h.p,2.2,.1,1.7,1.3,.7);for(let i=0;i<3;i++)smoke(1,h.p,rnd(-1.5,1.5),rnd(.5,2),rnd(-1.5,1.5),rnd(3.5,5.5),1,.9,.32,.62,.78,.4);return}
+  if(h.kind==='drone'){muzzle(h.p,2.2,.1,1.7,1.3,.7);for(let i=0;i<3;i++)smoke(0,h.p,rnd(-1.5,1.5),rnd(.5,2),rnd(-1.5,1.5),rnd(3.5,5.5),1,.9,.32,.62,.78,.4);return}
   if(h.kind!=='sam'&&h.kind!=='tamir')return;const k=h.kind==='sam'?1:.7;muzzle(h.p,8*k,.18,2,1.4,.75);fl0(h.p,.5*k);
   const b=_a.copy(h.p).addScaledVector(_d,-4),gy=gh(b.x,b.z);b.y=Math.max(gy+1.2,b.y);
-  for(let i=0,n=Math.round(14*k/lean());i<n;i++)smoke(1,b,-_d.x*rnd(5,16)+rnd(-5,5),rnd(.5,3),-_d.z*rnd(5,16)+rnd(-5,5),rnd(8,13),3*k,2.6*k,.62,.62,.82,.25);
+  for(let i=0,n=Math.round(14*k/lean());i<n;i++)smoke(0,b,-_d.x*rnd(5,16)+rnd(-5,5),rnd(.5,3),-_d.z*rnd(5,16)+rnd(-5,5),rnd(8,13),3*k,2.6*k,.62,.62,.82,.25);
   wave(1,_b.set(b.x,gy+.6,b.z),14*k,1.2,.45)}
  // missiles in their first 5 s: a motor flame at the tail and a thick white trail
  function trailTick(dt){for(const h of Z.def.shots){if(h.kind!=='sam'&&h.kind!=='tamir'||h.fuel<h.P.fuel-5)continue;_d.copy(h.v).normalize();const tail=_a.copy(h.p).addScaledVector(_d,-1.8);
@@ -196,7 +196,7 @@ export function initFX(api,G,Z){
   for(const d of Z.def.D){if(d._fs===d.shots)continue;const first=d._fs===undefined;d._fs=d.shots;if(first)continue;const s=Z.def.SLOTS[d.slot];_a.set(s.x,s.y+3,s.z);au.gun(_a,d.type);
    // Gepard: six rounds a burst, the two barrels taking turns (zaudio's burst timing); mortar: a flash and a smoke ring at the tube
    if(d.type==='gepard'&&d.aim&&d.mesh){d.mesh.updateMatrixWorld(true);for(let i=0;i<6;i++)muzzle(d.aim.localToWorld(_b.set(i%2?1.35:-1.35,.15,-4.1)),3,.06,2,1.5,.7,i*.072)}
-   if(d.type==='flak'&&d.aim&&d.mesh){d.mesh.updateMatrixWorld(true);const p=d.aim.localToWorld(_b.set(0,1.25,0));muzzle(p,4,.12,2,1.4,.7);for(let i=0;i<3;i++)smoke(1,p,rnd(-1,1),rnd(1,3),rnd(-1,1),rnd(4,6),1.2,1.3,.4,.45,.6,.2)}}}
+   if(d.type==='flak'&&d.aim&&d.mesh){d.mesh.updateMatrixWorld(true);const p=d.aim.localToWorld(_b.set(0,1.25,0));muzzle(p,4,.12,2,1.4,.7);for(let i=0;i<3;i++)smoke(0,p,rnd(-1,1),rnd(1,3),rnd(-1,1),rnd(4,6),1.2,1.3,.4,.45,.6,.2)}}}
 
  // ---------- near misses: a whoosh when something flies past close ----------
  function nearTick(){const me=api.player;if(!me||me.dead>0)return;const c=cam();for(const t of TH){if(!live(t))continue;const d2=t.p.distanceToSquared(c);if(d2>6400){t._nd=undefined;continue}const d=Math.sqrt(d2);
