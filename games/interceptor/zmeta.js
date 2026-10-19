@@ -13,7 +13,7 @@ import {ZDIFF} from './zdata.js';
 export const SITE_SLOTS=[0,1,2,3,4,5,6,7,8],RADAR_SLOTS=[9,10],FWD_SLOTS=[11,12,13],REAR_SLOTS=[14,15,16],FWD2_SLOTS=[17,18,19],OUTPOSTS=[20,21];
 export const DOCS={
  std:{n:'Standard',plus:'The base as issued: 14 positions, every price as listed.',minus:'Nothing special either way.'},
- fortress:{n:'Fortress',plus:'Sites +30% hit points; repairs 25% cheaper.',minus:'All income −15%. No forward positions or outposts: 11 positions, 14 at most.',hpK:1.3,repairK:.75,cashK:.85,
+ fortress:{n:'Fortress',plus:'Sites +20% hit points; repairs 25% cheaper.',minus:'All income −15%. No forward positions or outposts: 11 positions, 14 at most.',hpK:1.2,repairK:.75,cashK:.85,
   open:[...SITE_SLOTS,...RADAR_SLOTS],never:[...FWD_SLOTS,...FWD2_SLOTS,...OUTPOSTS]},
  forward:{n:'Forward Defense',plus:'Both outposts and a second pad at each forward position open from the start (19 positions); forward upkeep halved.',minus:'Starting cash −40%. No rear positions at the sites (19 at most).',startK:.6,fwdUpK:.5,
   open:[...SITE_SLOTS,...RADAR_SLOTS,...FWD_SLOTS,...FWD2_SLOTS,...OUTPOSTS],never:REAR_SLOTS},
