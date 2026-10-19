@@ -94,5 +94,5 @@ function verdict(v){TR.verdict={...v,t:+TR.t.toFixed(2)};TR.ph='result';TR.rt=v.
   banner(v.why==='Goal'?'GOAL!':v.why==='Saved'||v.why==='Kept out'?'SAVED!':'ON TARGET!','cb tr-ok',1.5);tone(880,1320,.35,.16,'triangle')}
  else{if(v.why==='Goal against'){ballMesh.visible=false;emit(ball.p,COL[1],300,36,1.4)}banner(v.why==='Goal against'?'SCORED ON':'MISSED','co tr-miss',1.3);tone(300,150,.35,.14,'sawtooth')}}
 // read-only snapshot for tools/smoke.mjs and tools/training-check.mjs
-export const trainSnap=()=>({on:TR.on,ph:TR.ph,pack:TR.pack?.id??null,i:TR.i,n:TR.pack?.shots.length??0,t:+TR.t.toFixed(2),kind:TR.kind,touched:TR.touched,carry:+TR.carry.toFixed(2),pred:TR.pred,
+export const trainSnap=()=>({on:TR.on,ph:TR.ph,pack:TR.pack?.id??null,i:TR.i,n:TR.pack?.shots.length??0,t:+TR.t.toFixed(2),rt:+(TR.rt||0).toFixed(2),kind:TR.kind,touched:TR.touched,carry:+TR.carry.toFixed(2),pred:TR.pred,
  last:TR.last,land:TR.land,verdict:TR.verdict,res:TR.res.map(r=>({...r})),score:TR.score,newBest:TR.newBest,saved:TR.pack?S.train[TR.pack.id]??null:null});

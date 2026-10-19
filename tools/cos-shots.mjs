@@ -5,19 +5,16 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import puppeteer from 'puppeteer-core';
+import {launchBrowser} from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'shots', 'cos'); fs.mkdirSync(out, {recursive: true});
 const SW = process.argv.includes('--swiftshader');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const EDGE = [process.env.EDGE_PATH, ...['PROGRAMFILES(X86)', 'PROGRAMFILES', 'LOCALAPPDATA'].map(k => process.env[k] && path.join(process.env[k], 'Microsoft', 'Edge', 'Application', 'msedge.exe'))].find(p => p && fs.existsSync(p));
-if (!EDGE) { console.error('Microsoft Edge not found; set EDGE_PATH'); process.exit(2); }
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
 const html = fs.readFileSync(path.join(root, 'dist', 'index.html'), 'utf8');
 const server = http.createServer((q, r) => { r.writeHead(200, {'content-type': 'text/html; charset=utf-8'}); r.end(html); });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
-const browser = await puppeteer.launch({executablePath: EDGE, headless: true, env, protocolTimeout: 180000,
+const browser = await launchBrowser({protocolTimeout: 180000,
   args: ['--window-size=1280,860', '--enable-unsafe-swiftshader', ...(SW ? ['--use-angle=swiftshader'] : ['--ignore-gpu-blocklist'])]});
 const p = await browser.newPage(); await p.setViewport({width: 1280, height: 860});
 const errors = []; p.on('pageerror', e => errors.push(String(e?.message || e))); p.on('console', m => { if (m.type() === 'error' && !/fonts\./.test(m.text())) errors.push(m.text()); });

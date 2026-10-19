@@ -47,18 +47,16 @@ if (args.has('--geo')) process.exit(failed ? 1 : 0);
 
 // ---------- browser ----------
 const {createServer} = await import('vite');
-const puppeteer = (await import('puppeteer-core')).default;
+const {launchBrowser, gameReady, timingCheck} = await import('./browser.mjs');
 const server = await createServer({root, logLevel: 'error', server: {port: 0, host: '127.0.0.1', open: false}});
 await server.listen();
 const url = `http://127.0.0.1:${server.httpServer.address().port}/app.html`;  // the root index.html is the games launcher
-const EDGE = [process.env.EDGE_PATH, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find(p => p && fs.existsSync(p));
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
-const browser = await puppeteer.launch({executablePath: EDGE, headless: true, env, protocolTimeout: 900000, args: ['--window-size=1280,720', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader']});
+const browser = await launchBrowser({protocolTimeout: 900000, args: ['--window-size=1280,720', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader']});
 const page = await browser.newPage(); const errors = [];
 page.on('pageerror', e => errors.push(String(e?.message || e))); page.on('console', m => { if (m.type() === 'error' && !/fonts\.g|favicon/.test(m.text() + (m.location()?.url || ''))) errors.push(m.text()); if (m.type() === 'log') console.log('   [page] ' + m.text()); });
 await page.setViewport({width: 1280, height: 720});
 await page.goto(url, {waitUntil: 'domcontentloaded'});
-for (let i = 0; i < 600 && !(await page.evaluate(() => !!window.__dl?.snap().drones.length)); i++) await new Promise(r => setTimeout(r, 100));
+await gameReady(page);
 
 // shared in-page helpers
 await page.evaluate(async () => {
@@ -423,7 +421,7 @@ const cost = await run('f', () => {
   DF.setGame('league'); MA.startDemo(); GS.paused = true; return out;
 });
 if (cost) { for (const m in cost) console.log(`  ${m.padEnd(6)} ${cost[m].drones} drones: step() ${cost[m].stepMs} ms, physStep ${cost[m].physMs} ms per tick (${f(cost[m].stepMs * 120 / 10, 1)}% of a 60 fps frame budget per second of sim); safety-net escapes ${cost[m].escapes}`);
-  check(cost.league.stepMs < 2 && cost.df.stepMs < 3, 'a tick costs < 2 ms (League) / < 3 ms (Highlands)'); }
+  timingCheck(cost.league.stepMs < 2 && cost.df.stepMs < 3, 'a tick costs < 2 ms (League) / < 3 ms (Highlands)', check); }  // wall-clock budget: warn-only in CI (tools/browser.mjs)
 
 // ---------- screenshots ----------
 if (args.has('--shots')) {

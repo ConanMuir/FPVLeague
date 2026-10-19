@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `bots-freestyle-3`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main 5cf88e6 (Freestyler pass 2, PR #44), with origin/main 1c4169b (zombies co-op, PR #46) merged in
-Doing: Freestyler pass 3: no more wall-stuck re-scoops (Freestyler and Dribbler), wall pops, spin pops at 10+ rad/s, curve measured.
-Touches: src/bots/freestyle.js (wall feed/wall pop, spin pop, brush), src/bots/dribble.js (wall-side scoop, `roomBehind`, stuck back-off, applies the spin-pop yaw), tools/bot-match.mjs (wallPops, spin pops, spin10, curve).
-Open items / help wanted: spin has no effect in flight (ball physics has no Magnus term), so the measured curve is ~0; a Magnus term in physics/ball.js (and the bot predictor) would be a shared physics decision. The brush on loose balls rarely lands 10+ rad/s; the spin pop does. Flip resets and ceiling plays not attempted.
-Overlaps: none known on src/bots.
+Branch: `ci`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
+Based on: origin/main 9cfd268 (Zombies game feel, PR #42), with origin/main 8805bbd (arch-core, PR #49) merged in
+Doing: CI (GitHub Actions: build, unit tests, parts balance, comment lint, and the headless-browser checks on Chrome + SwiftShader); one shared browser picker (tools/browser.mjs); state-driven waits in smoke, the Vite checks and zombies-test; a lint for `//` comments that swallow code.
+Touches: .github/workflows/ci.yml (new), tools/browser.mjs (new), tools/lint-comments.mjs (new), tools/check-build.mjs (new), test/lint-comments.test.mjs (new), tools/smoke.mjs, tools/zombies-test.mjs, tools/zlib.mjs, tools/physics-check.mjs, tools/pop-check.mjs, tools/sound-check.mjs, tools/training-check.mjs; every other puppeteer tool's launch line (tools/*-shots.mjs, bot-match, map-views, probe-bots); src/modes/training.js (trainSnap also reports `rt`, the ready time, so smoke presses the stick after the shot has read the resting sticks; the old 500 ms sleep could lose that race on a slow machine) and the rebuilt games/jared-league/index.html; README (Checks and CI, Comment lint).
+Open items / help wanted: make the comment lint strict once it has run quietly for a while; the Prettier/lint item of the architecture plan needs Riley.
+Overlaps: any branch that edits a tool's launch line (`puppeteer.launch({executablePath: ...})`): on merge, keep the branch's change but launch through `launchBrowser()` from tools/browser.mjs.
 
 ## How to play
 
@@ -70,6 +70,32 @@ npm run build    # dist/index.html: the whole game in one HTML file; also update
 npm run smoke    # headless Microsoft Edge smoke test, plus a comparison run of the frozen v15 file (needs internet)
 ```
 The entry page is `app.html`; source is in `src/` (ES modules). See `docs/jared-build-notes.md` for the layout and `docs/PLAN.md` for the plan.
+
+### Checks and CI
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request, in two jobs side by side:
+
+| Job | What runs |
+|---|---|
+| **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs` (warn-only) |
+| **browser** | one entry each, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, `zombies-test` |
+
+SwiftShader draws the game at about 1 fps, so each smoke half takes about 20 minutes on CI; the other checks take 1 to 15 minutes. Locally a full `npm run smoke` takes about 4 minutes.
+
+Run the same things locally (all headless; nothing pops up): `npm test`, `node tools/parts-balance.mjs`, `npm run smoke`, `node tools/physics-check.mjs` and so on.
+- **Browser:** every tool picks it in `tools/browser.mjs`: `EDGE_PATH`, then `CHROME_PATH`, then the usual Edge / Chrome / Chromium install for the platform.
+- **Flags:** `DL_SWIFTSHADER=1` forces software WebGL (on by default in CI). `DL_TIMING_WARN=1` turns wall-clock budgets (physics-check's ms per tick) into warnings. They are warnings in CI, because shared runners are too noisy to time.
+- **Waits are state-driven.** The checks wait on the game's own state (`window.__dl` snapshots, the Lab, training and binding state, `__z` in the Interceptor) or on frames drawn, not on fixed sleeps. A slow machine makes a run take longer, but it doesn't fail. Keep new checks that way.
+- Dev-server tools load `app.html`, because the root `index.html` is the games launcher.
+
+### Comment lint
+The code here packs many statements onto one line, often with a `// note` at the end. A `//` comment inserted in the middle of such a line silently turns the rest of the line into comment. The build stays green and the game breaks; this has disabled real code more than once. `node tools/lint-comments.mjs` flags added or changed lines where code seems to follow a `//` on the same line. For example, a statement after a `;` inside the comment, a comment after code that ends like a statement, or code before a second `//`.
+```
+node tools/lint-comments.mjs                 # lines changed since the merge base with origin/main
+node tools/lint-comments.mjs --base <ref>    # ... since another ref
+node tools/lint-comments.mjs --all           # every line (it is tuned to report nothing on the current code)
+node tools/lint-comments.mjs --strict        # exit 1 on findings (CI runs it warn-only for now)
+```
+Fix a finding by moving the comment to the end of the line or using `/* */`. If a comment really means to quote code, put `lint-ok` in it.
 
 ## SOP for Claude agents working in this repo
 This section applies to **every Claude agent** (Claude Code, claude.ai projects, any session) that reads or changes this repository, whichever person it works for. At least two people (Riley and Jared) each run their own Claudes here, often at the same time, and none of those Claudes can see each other's conversations. The branches and their READMEs are the only shared memory, so follow these steps every time.

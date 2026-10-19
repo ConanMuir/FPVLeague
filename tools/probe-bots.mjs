@@ -5,11 +5,9 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import puppeteer from 'puppeteer-core';
+import {launchBrowser} from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), RUNS = +process.argv[2] || 2;
-const EDGE = ['PROGRAMFILES(X86)', 'PROGRAMFILES'].map(k => process.env[k] && path.join(process.env[k], 'Microsoft', 'Edge', 'Application', 'msedge.exe')).find(p => p && fs.existsSync(p));
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
 const old = fs.readFileSync(path.join(root, 'Drone League', 'drone-league.html'), 'utf8'), i = old.lastIndexOf('</script>');
 const hook = 'window.__dl={snap:()=>({ts:timeScale,state,demo,clock,ball:ball.p.toArray(),drones:drones.map(d=>({key:d.key,bot:d.bot,p:d.p.toArray()}))})};\n';
 const pages = {'/new/': fs.readFileSync(path.join(root, 'dist', 'index.html'), 'utf8'),
@@ -17,7 +15,7 @@ const pages = {'/new/': fs.readFileSync(path.join(root, 'dist', 'index.html'), '
 const server = http.createServer((q, r) => { const b = pages[q.url]; if (b == null) { r.writeHead(404); r.end(); return } r.writeHead(200, {'content-type': 'text/html'}); r.end(b) });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`, sleep = ms => new Promise(r => setTimeout(r, ms));
-const browser = await puppeteer.launch({executablePath: EDGE, headless: true, env, args: ['--window-size=960,540', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader']});
+const browser = await launchBrowser({args: ['--window-size=960,540', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader']});
 const snap = p => p.evaluate(() => window.__dl?.snap() ?? null);
 async function waitFor(p, f) { for (let t = 0; t < 600; t++) { const s = await snap(p); if (s && f(s)) return s; await sleep(100) } throw new Error('timeout') }
 async function one(url, throttle) {
