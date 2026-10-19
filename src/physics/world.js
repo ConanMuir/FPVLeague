@@ -123,7 +123,7 @@ export function physStep(dt,simBall){const t0=performance.now();world.timestep=d
   else ball.hit=ballContact(ball,dt)}
  PHYS.stats.steps++;PHYS.stats.ms+=performance.now()-t0}
 // contacts of a stepped drone with the world: ground timer, impact speed, our ground friction (Rapier's solver friction is 0)
-function groundContacts(d,dt){let touch=false,jn=0,hit=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0);let np=0;
+function groundContacts(d,dt){let touch=false,jn=0,hit=0;d.slide=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0);let np=0;
  for(const e of d.cols){if(!e.use.includes('world'))continue;world.contactPairsWith(e.c,o=>{if(C2D.has(o.handle))return;world.contactPair(e.c,o,(m,fl)=>{const k=m.numSolverContacts();if(!k)return;touch=true;
    const nn=m.normal(),s=fl?1:-1;let j=0;for(let i=0;i<m.numContacts();i++)j+=m.contactImpulse(i);jn+=j;n.x+=nn.x*s*Math.max(j,1e-3);n.y+=nn.y*s*Math.max(j,1e-3);n.z+=nn.z*s*Math.max(j,1e-3);
    for(let i=0;i<k&&np<CP.length;i++){const p=m.solverContactPoint(i);CP[np++].set(p.x,p.y,p.z)}
@@ -135,7 +135,7 @@ function groundContacts(d,dt){let touch=false,jn=0,hit=0;const DI=d.di||DI0,im=1
  // doesn't add grip). Per point, so rolling over an edge has no slip there and isn't braked. No wheels: the frame scrapes and grips
  // (Ground grip), harder the faster it slides, and the friction below the centre of mass trips a hot landing. Wheels (parts/attach.js):
  // roll along the quad's forward axis, grip sideways, and barely spin the frame, so it stays planted.
- const wh=d.fl?.wheels,vt=Math.sqrt(Math.max(0,d.v.lengthSq()-d.v.dot(n)**2)),sp=wh?.15:Math.min(1,.2+vt/8),jc=Math.min(jn,G*.05)/np,ww=_w.copy(d.w).applyQuaternion(d.q);  // sp: share of friction that spins the frame
+ const wh=d.fl?.wheels,vt=d.slide=Math.sqrt(Math.max(0,d.v.lengthSq()-d.v.dot(n)**2)),sp=wh?.15:Math.min(1,.2+vt/8),jc=Math.min(jn,G*.05)/np,ww=_w.copy(d.w).applyQuaternion(d.q);  // sp: share of friction that spins the frame
  const fwd=wh?_f2.set(0,0,-1).applyQuaternion(d.q).addScaledVector(n,-_f2.dot(n)):null;if(fwd&&fwd.lengthSq()>1e-6)fwd.normalize();const side=fwd?_s2.crossVectors(n,fwd):null;
  const fric=(r,vp,dir,mu)=>{const sl=vp.dot(dir);if(Math.abs(sl)<1e-4)return;const rt=_t.crossVectors(r,dir),jt=Math.sign(sl)*Math.min(mu*jc,.7*Math.abs(sl)/(1+sp*rt.lengthSq()/DI));
   d.v.addScaledVector(dir,-jt);ww.addScaledVector(rt,-jt*sp/DI)};  // at most 70% of the slip per step, so strong grip settles instead of ringing

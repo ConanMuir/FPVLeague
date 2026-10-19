@@ -3,7 +3,7 @@
 // - prop wash: dust kicked off the ground / walls under a low quad (thrust axis traced against the SDF), tinted per map
 // - ground scrapes: sparks + fading scuff decals where the frame skids or tumbles (physics/world.js onHit type 'ground')
 // - ball: a speed-based ribbon trail, and a flash + shock ring + sparks on hard hits (onHit type 'ball', with p and n from modes/step.js)
-// Everything scales with the graphics quality (renderer.js qId). Trail colour: d.trailCol (0xRRGGBB, e.g. from a cosmetic), else the team colour.
+// Everything scales with the graphics quality (renderer.js qId). Trail colour: d.trailCol (THREE.Color from the Trail cosmetic, render/cos-mat.js, or 0xRRGGBB), else the team colour.
 import * as THREE from 'three';
 import {COL,V3,cl} from '../config/constants.js';
 import {BR,DRAD,G} from '../config/tune.js';
@@ -256,7 +256,7 @@ export function gameFx(dt,now){if(!FX.on){if(fxWas){fxWas=false;for(const o of f
  const t0=performance.now();gameFx1(dt);FX.ms+=performance.now()-t0}
 function gameFx1(dt){QQ=QK[qId]||QK.high;T+=dt;const fpv=GS.camMode===0,cp=camera.position;let ri=0;
  for(const d of GS.drones){const f=fxOf(d);if(!f.mesh)continue;const live=d.dead<=0;
-  const hex=d.trailCol??COL[d.team];if(hex!==f.hex){f.hex=hex;f.col.set(hex);f.mat.uniforms.uCol.value.copy(f.col).multiplyScalar(2.2)}
+  const tc=d.trailCol,hex=tc?.isColor?tc.getHex():tc??COL[d.team];if(hex!==f.hex){f.hex=hex;f.col.set(hex);f.mat.uniforms.uCol.value.copy(f.col).multiplyScalar(2.2)}
   if(f.props!==d.props)placeFlames(d,f);
   const bo=live&&d.boostOn&&GS.state!=='kickoff';f.bk+=((bo?1:0)-f.bk)*Math.min(1,dt*(bo?14:7));
   f.gl+=((live?.42*cl((d.ms-.55)/.4,0,1)+.25*f.bk:0)-f.gl)*Math.min(1,dt*6);
