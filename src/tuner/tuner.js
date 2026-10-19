@@ -19,7 +19,7 @@ const cl=(v,a,b)=>v<a?a:v>b?b:v,R=Math.round,AXN=['Roll','Pitch','Yaw'],ema=(o,n
 export const rel=(v,t)=>Math.max(0,(v??0)-t)/Math.max(t,1);
 export const fmt=(q,v)=>q.mul?R(v)+' '+q.u:q.k==='dz'||q.k==='dzy'?`${v.toFixed(3)} (BF ${R(v*500)})`:q.d===0?R(v)+q.u:v.toFixed(q.d);
 // prof: the rate profile to start from ({type, ax, thrMid, thrExpo, thrLimit}); ext: {dz, dzy, assist}
-export function makeTuner(pid,prof,ext={}){const P=PRESETS[pid]||PRESETS.def,type=P.type||prof.type,sh=prof.ax.map(a=>toShape(prof.type,a));
+export function makeTuner(pid,prof,ext={}){const P0=PRESETS[pid]||PRESETS.def,P={...P0,g0:P0.g0*(ext.speed||1)},type=P.type||prof.type,sh=prof.ax.map(a=>toShape(prof.type,a));
  const T={P,pid:P.id,type,thrLimit:prof.thrLimit??100,p:{},E:{},log:[],pend:[],loss:{},reps:0,changes:0,dzFloor:null};
  const add=(k,v,[lo,hi],o)=>{T.p[k]={k,v:cl(v,lo,hi),v0:v,lo,hi,g:P.g0,sg:0,n:0,...o}};
  sh.forEach((s,i)=>{const y=i===2;add('c'+i,s.c,P.b[y?'cy':'c'],{mul:1,lab:AXN[i]+' centre',u:'°/s'});add('m'+i,s.m,P.b[y?'my':'m'],{mul:1,lab:AXN[i]+' max rate',u:'°/s'});add('e'+i,s.e,P.b[y?'ey':'e'],{lab:AXN[i]+' expo',d:2})});

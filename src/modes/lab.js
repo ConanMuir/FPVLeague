@@ -7,7 +7,8 @@
 import {AC,audioInit,noise,tone} from '../audio/audio.js';
 import {$,QT,UP,V3,cl} from '../config/constants.js';
 import {S,save} from '../config/settings.js';
-import {G,TE,THR} from '../config/tune.js';
+import {BR,G,TE,THR} from '../config/tune.js';
+import {ball} from '../physics/ball.js';
 import {Drone} from '../flight/drone.js';
 import {RO,RT,stk} from '../flight/rates.js';
 import {OV,axr,humanControl,pad} from '../input/input.js';
@@ -22,7 +23,7 @@ import {buildRoom,labG} from '../tuner/room.js';
 import {extras,makeTuner,onAlt,onHold,onHover,onRest,onSnap,onTrack,profile} from '../tuner/tuner.js';
 export {LAB};
 const D2R=Math.PI/180,R2D=180/Math.PI,_u=new V3(),_a=new V3(),_q=new QT(),_qt=new QT(),_qe=new QT(),_f=new V3(),_r=new V3(),LEVEL=new QT(),AXC=['z','x','y'];
-Object.assign(LAB,{st:'off',pid:'def',di:0,drill:null,T:null,cd:0,t:0,ang:[0,0,0],err:[0,0,0],tv:[0,0,0],last:'',before:null,saved:false,flash:0,hits:0});
+Object.assign(LAB,{speed:'gradual',testT:0,st:'off',pid:'def',di:0,drill:null,T:null,cd:0,t:0,ang:[0,0,0],err:[0,0,0],tv:[0,0,0],last:'',before:null,saved:false,flash:0,hits:0});
 const clone=o=>JSON.parse(JSON.stringify(o));
 // pilot settings the Lab may change, as they were when the Lab opened (Revert restores exactly these)
 const snapshot=()=>({rprof:clone(S.rprof),rpi:S.rpi,dz:S.dz,dzy:S.dzy,assist:S.assist});
@@ -36,7 +37,9 @@ export function enterLab(){leaveGame();audioInit();AC?.resume();setGame('league'
  showMenu(false);$('hud').hidden=true;$('lab').hidden=false;$('resume').hidden=false;$('leave').hidden=false;$('leave').textContent='Leave Lab'}
 export function exitLab(){if(!LAB.on)return;LAB.on=false;LAB.st='off';clearOv();labG.visible=false;$('lab').hidden=$('labintro').hidden=$('labsum').hidden=true;
  GS.camMode=LAB.cam??GS.camMode;$('leave').textContent='Leave game';setGame(S.game)}
-export function startPack(pid){LAB.pid=pid;clearOv();LAB.T=makeTuner(pid,clone(RT()),{dz:S.dz,dzy:S.dzy,assist:S.assist});LAB.hits=0;LAB.last='';apply();startDrill(0)}
+// adapt speed: Default always steps gently; Pro picks Gradual (the preset's own step) or Quick (bigger steps, sooner)
+export const speedOf=pid=>pid==='pro'?(LAB.speed==='quick'?1.8:1):.85;
+export function startPack(pid){LAB.pid=pid;clearOv();LAB.T=makeTuner(pid,clone(RT()),{dz:S.dz,dzy:S.dzy,assist:S.assist,speed:speedOf(pid)});LAB.hits=0;LAB.last='';apply();startDrill(0)}
 function startDrill(i){LAB.di=i;LAB.drill=makeDrill(DRILLS[i]);LAB.st='ready';LAB.cd=3;LAB.t=0;LAB.ang=[0,0,0];place(GS.player,startY(LAB.drill.rig));tone(660,660,.1,.08,'square')}
 function handle(evs){const T=LAB.T;for(const e of evs){let ch=[];
  if(e.kind==='rest'){ch=onRest(T,e.N);LAB.last=e.N?`Sticks at rest: roll/pitch within ${Math.max(e.N[0].need,e.N[1].need).toFixed(3)}, yaw ${e.N[2].need.toFixed(3)}`:'No stick data'}
@@ -53,6 +56,15 @@ export function saveTo(slot){const T=LAB.T;if(!T)return;S.rprof[slot]=profile(T)
 export function discard(){clearOv()}
 export function revert(){const B=LAB.before;if(!B)return;S.rprof=clone(B.rprof);S.rpi=B.rpi;S.dz=B.dz;if(B.dzy==null)delete S.dzy;else S.dzy=B.dzy;S.assist=B.assist;clearOv();save();LAB.saved=false}
 export function again(){clearOv();LAB.T=null;LAB.drill=null;LAB.st='intro';place(GS.player,.15)}
+// Retry training: run the drills again starting from the tuned values, and keep improving on them
+export function retry(){if(!LAB.T){again();return}LAB.saved=false;LAB.hits=0;LAB.last='';apply();startDrill(0)}
+// Test first: TEST_S of freeplay (you and the ball, no bots) flying the tuned settings, then back to the results
+export const TEST_S=60;
+export function startTest(){const d=GS.player;if(!LAB.T||!d)return;apply();LAB.st='test';LAB.testT=TEST_S;labG.visible=false;$('lab').hidden=true;setGame('free');
+ ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ball.last=null;ballMesh.visible=true;d.spawn=Drone.prototype.spawn;d.spawn();GS.state='play';$('hud').hidden=false;$('ltest').hidden=false}
+export function endTest(){if(LAB.st!=='test')return;const d=GS.player;LAB.st='sum';$('ltest').hidden=$('hud').hidden=true;$('lab').hidden=false;setGame('league');
+ labG.visible=true;ballMesh.visible=false;GS.state='lab';d.spawn=()=>place(d,startY(LAB.drill?.rig||'floor'));place(d,.15)}
+export function testTick(dt){if(LAB.on&&LAB.st==='test'&&(LAB.testT-=dt)<=0)endTest()}
 // ---- one physics step (1/120 s)
 export function labStep(dt){const d=GS.player;if(!LAB.on||!d)return;LAB.flash=Math.max(0,LAB.flash-dt);
  if(LAB.st!=='drill'&&LAB.st!=='ready'){place(d,.15);d.thr=d.ms=0;return}
