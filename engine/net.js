@@ -18,5 +18,23 @@ function p2pRoom(isHost,code){return new Promise((res,rej)=>{
    conn.on('data',m=>{if(!m||typeof m.from!=='string'||m.from.length>48)return;if(m.t==='x')others.delete(m.from);else if(m.t==='p'&&m.d&&typeof m.d==='object')others.set(m.from,{peer:m.from,sameTab:false,isMe:false,presence:m.d});else return;fire()});
    conn.on('close',()=>fail('host_left'))}})})}
 export const p2p={p2p:true,presence:()=>Promise.resolve(),onPeers:()=>()=>{},join:(code,isHost)=>loadPeer().then(()=>p2pRoom(isHost,code))};
-// the claude.ai room when there is one, else the PeerJS stand-in
-export async function getRoom(){let r=null;try{r=await window.claude?.use?.('room')}catch(e){r=null}return r||p2p}
+// test loopback (?netloop, or ?netloop=ms of one-way delay): the pages of one browser talk over a BroadcastChannel with the same calls and the same
+// rules (one host per code, clients join it, everyone sees everyone's presence, 'host_left' when the host goes). Headless harnesses use it because
+// the PeerJS cloud may be out of reach there; it never carries anything between machines.
+function loopRoom(isHost,code,ms){return new Promise((res,rej)=>{
+ const ch=new BroadcastChannel('dl-loop-'+code),id=isHost?'host':'lp-'+Math.random().toString(36).slice(2,10),others=new Map(),hs=[],errs=[],me={peer:id,sameTab:true,isMe:true,presence:{}};let open=false;
+ const snap=()=>[me,...others.values()],fire=()=>{const peers=snap();hs.forEach(h=>h({peers}))},post=m=>{try{ch.postMessage(m)}catch(e){}};
+ const done=(ok,c)=>{clearTimeout(timer);if(ok){open=true;res(api);post({t:'p',from:id,d:me.presence});post({t:'hi',from:id})}else{try{ch.close()}catch(e){}rej({code:c})}};
+ const api={presence(p){me.presence={...me.presence,...p};if(open)post({t:'p',from:id,d:me.presence});return Promise.resolve()},
+  onPeers(h,e){hs.push(h);if(e)errs.push(e);setTimeout(()=>h({peers:snap()}),0);return()=>{}},leave(){if(open){open=false;post({t:'x',from:id})}try{ch.close()}catch(e){}return Promise.resolve()}};
+ const on=m=>{if(!m||typeof m.from!=='string'||m.from===id)return;
+  if(m.t==='who'&&isHost&&open)post({t:'here',from:id,to:m.from});
+  else if(m.t==='here'&&m.to===id&&!open)done(!isHost,'taken');
+  else if(m.t==='hi'&&open)post({t:'p',from:id,d:me.presence});
+  else if(m.t==='p'&&open&&m.d&&typeof m.d==='object'){others.set(m.from,{peer:m.from,sameTab:false,isMe:false,presence:m.d});fire()}
+  else if(m.t==='x'&&open){others.delete(m.from);fire();if(m.from==='host'&&!isHost){open=false;errs.forEach(f=>f({code:'host_left'}))}}};
+ ch.onmessage=e=>{if(ms)setTimeout(()=>on(e.data),ms);else on(e.data)};
+ const timer=setTimeout(()=>done(isHost,'not_found'),isHost?300:3000);post({t:'who',from:id})})}
+export const loop={p2p:true,loop:true,presence:()=>Promise.resolve(),onPeers:()=>()=>{},join:(code,isHost)=>loopRoom(isHost,code,+new URLSearchParams(location.search).get('netloop')||0)};
+// the claude.ai room when there is one, else the PeerJS stand-in (or the loopback when the page asks for it)
+export async function getRoom(){if(new URLSearchParams(location.search).has('netloop'))return loop;let r=null;try{r=await window.claude?.use?.('room')}catch(e){r=null}return r||p2p}

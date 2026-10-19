@@ -81,8 +81,8 @@ export function initEnemies(api,G,Z){
  function evade(t,dt){const mode=Z.evadeMode?.()||'none',K=KIND[t.k];t.ev=0;t.evr=0;if(mode==='none'||K.armor==='hard'||t.st!=='cruise')return;if(mode==='some'&&!EVADE_SOME.includes(t.k))return;
   const vh=Math.hypot(t.v.x,t.v.z);if(vh<1)return;const lx=-t.v.z/vh,lz=t.v.x/vh,m=mode==='all'?1:.8;
   t.jph=(t.jph??Math.random()*6)+dt*(.9+(t.id%5)*.15);let ev=Math.sin(t.jph)*(t.k==='jet'||t.k==='cruise'?.3:.35)*m;
-  t.brkCd=(t.brkCd||0)-dt;const me=api.player;
-  if(me&&me.dead<=0&&!(t.brk>0)&&t.brkCd<=0){_e.subVectors(t.p,me.p);const d=_e.length();if(d<350&&_e.dot(me.v)-_e.dot(t.v)>0){t.brk=1.6;t.brkCd=5;t.brkDir=(_e.x*lx+_e.z*lz)>0?1:-1}}  // closing on it: break away from your side
+  t.brkCd=(t.brkCd||0)-dt;
+  for(const me of Z.pilots?.()||[api.player])if(me&&me.dead<=0&&!(t.brk>0)&&t.brkCd<=0){_e.subVectors(t.p,me.p);const d=_e.length();if(d<350&&_e.dot(me.v)-_e.dot(t.v)>0){t.brk=1.6;t.brkCd=5;t.brkDir=(_e.x*lx+_e.z*lz)>0?1:-1}}  // closing on it: break away from your side (Z.pilots: every co-op pilot's interceptor)
   if(t.brk>0){t.brk-=dt;ev+=t.brkDir*.9*m*Math.sin(Math.PI*cl(1-t.brk/1.6,0,1));t.alt=Math.max(30,t.alt-18*dt)}
   if(K.riley){t.ev=ev;t.evr=1.1;return}
   const j=ev*vh*1.5*dt;t.v.x+=lx*j;t.v.z+=lz*j}

@@ -1,7 +1,7 @@
 // Zombies sound (WebAudio synth, no samples): the battlefield you hear. Explosions arrive at the speed of sound and dull with distance, helpers
 // are audible when they fire (Gepard bursts, SAM / Tamir launch roar, mortar thumps, drone racks), an air-raid siren starts each wave, the
 // radio crackles with garbled voice under the callouts, close passes whoosh, and a code-built score rises with the threat picture.
-// Everything goes through one compressor so a big moment stays loud without clipping. Music: B toggles it (S.zmus), Zombies only.
+// Everything goes through one compressor so a big moment stays loud without clipping. Volumes: S.zmusv (music) and S.zsfxv (everything else) from the menu sliders; B mutes the music (S.zmus). Zombies only.
 import {AC,nbuf} from '../../engine/audio.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)};
 export function initAudio(api){
@@ -13,7 +13,9 @@ export function initAudio(api){
   const echo=AC.createDelay(1.5),fb=AC.createGain(),elp=AC.createBiquadFilter(),eo=AC.createGain();echo.delayTime.value=.27;fb.gain.value=.38;elp.type='lowpass';elp.frequency.value=1300;eo.gain.value=.55;echo.connect(elp).connect(fb).connect(echo);elp.connect(eo).connect(c);
   const mus=AC.createGain();mus.gain.value=0;const mlp=AC.createBiquadFilter();mlp.type='lowpass';mlp.frequency.value=12000;mus.connect(mlp).connect(c);
   const curve=new Float32Array(512);for(let i=0;i<512;i++){const x=i/255.5-1;curve[i]=Math.tanh(x*3.2)}
-  const ui=AC.createGain();ui.connect(c);A={c,sfx,ui,dil,echo,mus,mlp,curve};return A}
+  const ui=AC.createGain();ui.connect(c);A={c,sfx,ui,dil,echo,eo,mus,mlp,curve,sv:-1};vols();return A}
+ // the effects volume scales the effects, the radio / announcer bus and the echo return; the music volume is applied in music()
+ function vols(){const v=cl(S.zsfxv??1,0,1);if(v===A.sv)return;A.sv=v;const T=now();A.sfx.gain.setTargetAtTime(v,T,.05);A.ui.gain.setTargetAtTime(v,T,.05);A.eo.gain.setTargetAtTime(.55*v,T,.05)}
  const now=()=>AC.currentTime;
  const nsrc=(t0,dur)=>{const s=AC.createBufferSource();s.buffer=nbuf;s.start(t0,Math.random()*1.4,dur+.05);s.onended=()=>nv--;nv++;return s};
  const osc=(type,t0,dur)=>{const o=AC.createOscillator();o.type=type;o.start(t0);o.stop(t0+dur+.05);o.onended=()=>nv--;nv++;return o};
@@ -86,6 +88,8 @@ export function initAudio(api){
  function clearChord(){if(!bus())return;const t0=now()+.05;[293.7,370,440,587.3].forEach((f,i)=>note(f,t0+i*.09,1.8,.035,'triangle'))}
  function star(i,on){if(!bus())return;const t0=now()+.01,f=on?[880,1108.7,1318.5][i]||1318.5:220;note(f,t0,on?.9:.3,on?.06:.04,on?'sine':'triangle');if(on)note(f*2.01,t0,.4,.015,'sine')}
  function siteHit(big){rumble(big?.4:.25,.05,big?3:2)}
+ // money landing in the cash counter: a small bright two-note chink (rate-limited, a burst of kills is one ripple, not a wall)
+ let coinT=0;function coin(){if(!bus())return;const t0=now();if(t0-coinT<.07)return;coinT=t0;note(1975.5,t0+.01,.09,.022,'sine');note(2637,t0+.05,.16,.018,'sine')}
  function alarm(){if(!bus())return;const t0=now()+.02;for(let i=0;i<3;i++){note(880,t0+i*.22,.12,.03,'square');note(660,t0+i*.22+.11,.1,.03,'square')}}
 
  // ---------- score: D minor, 100 BPM, layers fade in with intensity (0 calm .. 1 everything on top of you) ----------
@@ -111,8 +115,8 @@ export function initAudio(api){
   if(L[4]>.4&&bar%2===1&&b16>=12)tom(t,.16*L[4],[160,140,120,100][b16-12]);
   if(L[5]>.02)pluck(t,ch[ARP[b16%8]%4]*4,.05*L[5])}
  // I: 0..1 from the director; state: 'wave' | 'clear' | 'base' | 'off'
- function music(I,state,dt){if(!bus())return;const want=S.zmus!==0&&state!=='off'&&!api.menuOpen;if(want&&!M.on){padOn();M.on=true;M.next=now()+.1;M.step=0}
-  const T=now();A.mus.gain.setTargetAtTime(want?(state==='base'?.55:.8):0,T,want?.8:.25);if(!M.on)return;if(!want&&A.mus.gain.value<.01){return}
+ function music(I,state,dt){if(!bus())return;vols();const mv=cl(S.zmusv??1,0,1),want=S.zmus!==0&&mv>0&&state!=='off'&&!api.menuOpen;if(want&&!M.on){padOn();M.on=true;M.next=now()+.1;M.step=0}
+  const T=now();A.mus.gain.setTargetAtTime(want?(state==='base'?.55:.8)*mv:0,T,want?.8:.25);if(!M.on)return;if(!want&&A.mus.gain.value<.01){return}
   const tgt=state==='wave'?I:state==='clear'?.12:0;M.I+=(tgt-M.I)*Math.min(1,dt*(tgt>M.I?.8:.25));const I2=M.I;
   const th=[0,.18,.32,.42,.58,.8];for(let i=0;i<6;i++)M.lv[i]=sm((I2-th[i])/.12);
   M.pad.g.gain.setTargetAtTime(.05+.03*I2,T,.5);M.pad.lp.frequency.setTargetAtTime(320+1200*I2*I2,T,.6);
@@ -120,4 +124,4 @@ export function initAudio(api){
  // slow-mo: the world goes muffled and comes back as time does
  let dl=1;function dilate(s){if(!A||Math.abs(s-dl)<.02)return;dl=s;A.dil.frequency.setTargetAtTime(s>=1?20000:500+s*s*9000,now(),s>=1?.25:.03)}
  function stopMusic(){if(!A)return;A.mus.gain.setTargetAtTime(0,now(),.2);M.I=0}
- return{dilate,boom,rumble,gun,siren,radio,whoosh,kill,bossDown,sting,clearChord,star,siteHit,alarm,music,stopMusic,get ready(){return!!bus()},M,get dbg(){return{st:AC?.state,nv,step:M.step,I:+M.I.toFixed(2),lv:M.lv.map(v=>+v.toFixed(2))}}}}
+ return{dilate,coin,boom,rumble,gun,siren,radio,whoosh,kill,bossDown,sting,clearChord,star,siteHit,alarm,music,stopMusic,get ready(){return!!bus()},M,get dbg(){return{st:AC?.state,nv,step:M.step,I:+M.I.toFixed(2),lv:M.lv.map(v=>+v.toFixed(2))}}}}

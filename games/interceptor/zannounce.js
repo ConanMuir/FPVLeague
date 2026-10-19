@@ -37,13 +37,25 @@ export function initAnnounce(api,G,au){
   stars.forEach((on,i)=>sumT.push(setTimeout(()=>{if(on)I[i].classList.add('on');else I[i].classList.add('off');au.star(i,on)},450+i*380)))}
  const sumHide=()=>{for(const t of sumT)clearTimeout(t);sumT=[];sum.hidden=true};
 
- // ---------- cash: rolls up to the new total and bumps when money comes in ----------
+ // ---------- cash: rolls up to the new total and bumps (with a chink) when money comes in. A kill's money flies into the counter first
+ // (fly, drawn by zombies.js's overlay): it only counts here once it lands, so the roll and the bump happen as it arrives ----------
  let shown=null,lastCash=0;
- function hudTick(dt){const el=$('zc');if(!el)return;if(shown==null||G.cash<shown||G.state==='base'){shown=G.cash}
-  if(G.cash>lastCash+.5)restart(el,'bump');lastCash=G.cash;
-  if(shown<G.cash)shown=Math.min(G.cash,shown+Math.max(1,(G.cash-shown)*Math.min(1,dt*7)));el.textContent=money(shown);
+ function hudTick(dt){const el=$('zc');if(!el)return;let fl=0;if(G.state!=='base')for(const p of G.pops)fl+=p.amt||0;const cash=G.cash-fl;if(shown==null||cash<shown||G.state==='base'){shown=cash}
+  if(cash>lastCash+.5){restart(el,'bump');if(G.state==='wave'||G.state==='clear')au.coin()}lastCash=cash;
+  if(shown<cash)shown=Math.min(cash,shown+Math.max(1,(cash-shown)*Math.min(1,dt*7)));el.textContent=money(shown);
   vig.classList.toggle('lo',G.state==='wave'&&Z_integ()<.3)}
  let Z_integ=()=>1;
  function hit(sev){vig.style.setProperty('--v',cl(sev,.25,1));restart(vig,'hit')}
+ // money pop: rises at the kill for .45 s, then curves into the cash counter (real time, so slow-mo can't strand it); true = landed
+ const _v=new api.THREE.Vector3();let zr=null,zrT=0;
+ function fly(oc,p,W,H){const now=performance.now(),a=(now-(p.t0??now))/1000;if(G.state==='base'||G.state==='over'||a>1.4)return true;
+  if(now-zrT>250){zrT=now;const r=$('zc')?.getBoundingClientRect();zr=r&&r.width?r:null}
+  if(a<.45||p.sx==null){_v.copy(p.p).project(api.camera);const on=_v.z<1&&Math.abs(_v.x)<1.05&&Math.abs(_v.y)<1.05;if(on||p.sx==null){p.sx=on?(_v.x*.5+.5)*W:W/2;p.sy=(on?(-_v.y*.5+.5)*H:H*.6)-30-Math.min(a,.45)*40}}
+  let x=p.sx,y=p.sy,sc=1;const al=Math.min(1,a*8);oc.save();
+  if(a>=.45){if(!zr){oc.restore();return true}const u=Math.min(1,(a-.45)/.55),e=u*u,tx=zr.left+zr.width/2,ty=zr.top+zr.height/2,cx=x*.75+tx*.25,cy=Math.min(y,ty)+40;
+   const P=k=>{const q=1-k;return[q*q*x+2*q*k*cx+k*k*tx,q*q*y+2*q*k*cy+k*k*ty]};if(u>=1){oc.restore();return true}
+   oc.fillStyle=p.col;for(let i=1;i<=4;i++){const k=Math.max(0,e-i*.045),[gx,gy]=P(k);oc.globalAlpha=.22*(1-i/5);oc.beginPath();oc.arc(gx,gy,4-i*.6,0,7);oc.fill()}
+   [x,y]=P(e);sc=1-.45*e}
+  oc.globalAlpha=al;oc.fillStyle=p.col;oc.font=`700 ${Math.round(17*sc)}px "JetBrains Mono",monospace`;oc.fillText(p.txt,x,y);oc.restore();return false}
  function reset(){radioClear();sumHide();ann.innerHTML='';shown=null;lastCash=G.cash;vig.className=''}
- return{say,radio,radioTick,radioClear,summary,sumHide,hudTick,hit,reset,set integ(f){Z_integ=f}}}
+ return{say,radio,radioTick,radioClear,summary,sumHide,hudTick,hit,reset,fly,set integ(f){Z_integ=f}}}
