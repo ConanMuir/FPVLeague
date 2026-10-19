@@ -22,7 +22,7 @@ export function shoot(p,dir,v,team,real,by,dmg,spread,spd){const b=BUL[bi++%BN];
 export function droneFire(d,dt,real){d.fcd-=dt;if(!d.firing||d.dead>0||d.fcd>0)return;d.fcd=1/FIRE_HZ;const dir=gunDir(d,(d===GS.player?S.tilt:d.tilt??30)*Math.PI/180,_gd);
  // twin guns under the frame, alternating left/right, converging on the crosshair 150 m out (keeps the muzzle out of the FPV view)
  d.gs=-(d.gs||1);const mz=_gp.set(d.gs*.4,-.55,-.3).applyQuaternion(d.q).add(d.p),aimP=_gq.copy(d.p).addScaledVector(dir,150);dir.subVectors(aimP,mz).normalize();
- shoot(mz,dir,d.v,d.team,real,d,8,d.bot?DIFF[S.diff].noise*.012+.006:.006,BSPD);const k=near(d.p);if(k>.05)noise(.05,1800,.1*k,2)}
+ shoot(mz,dir,d.v,d.team,real,d,8,d.bot?DIFF[d.skill??S.diff].noise*.012+.006:.006,BSPD);const k=near(d.p);if(k>.05)noise(.05,1800,.1*k,2)}
 // hits: a Rapier ray against the map and a 1.4 m sphere cast against the drones' 'bullet' colliders, from where the round was
 // to where it is now (rounds at 400 m/s plus the shooter's speed move 3-6 m a tick, so nothing thin can be skipped); turrets are
 // 2.6 m spheres along the same segment. The nearest hit along the path wins.
