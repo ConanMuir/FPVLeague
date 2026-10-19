@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `shared-engine`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main e16770d (qa-overnight, PR #51)
-Doing: one shared engine, first steps: the flight maths every game flies (`src/flight/core.js`) and the shared stick code (`src/input/sticks.js`), used by Jared's League, Riley's League / Dogfight and the Interceptor, proven bit-for-bit unchanged by golden trajectories. Audit, notes for Riley and the migration plan: docs/SHARED-ENGINE.md.
-Touches: src/flight/core.js (new), src/input/sticks.js (new), src/flight/drone.js, rates.js, attitude.js, src/config/ratetypes.js, src/input/input.js, engine/flight.js, engine/rates.js, engine/input.js, games/interceptor/interceptor.js (Drone.step: 7 lines and one import), test/flight-golden.test.mjs, test/input-golden.test.mjs, test/fixtures/flight-*.{mjs,json}, test/fixtures/input-golden.json, tools/flight-golden.mjs (new), .github/workflows/ci.yml (flight-golden check), docs/SHARED-ENGINE.md, docs/ARCHITECTURE.md, README (this block, Checks and CI), the rebuilt games/jared-league/index.html.
-Open items / help wanted: Riley to review his files (docs/SHARED-ENGINE.md section 6); the shared pilot profile's two button/switch formats clash (same section); next steps in section 5.
-Overlaps: anything editing Drone.step / Quad.step / the dart's step or humanControl: flight maths now lives in src/flight/core.js; if a golden test fails after a merge, a flight change slipped in.
+Branch: `ci-speed`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
+Based on: origin/main e16770d (QA soak tools, PR #51)
+Doing: faster CI (the browser job took ~27 min because SwiftShader draws ~1 fps): draw calls skipped outside drawFrames() checkpoints (DL_NORENDER), smoke and zombies-test sharded, browser entries skipped when their area is untouched, the runner's own Chrome instead of a download; the comment lint is strict now.
+Touches: .github/workflows/ci.yml, tools/browser.mjs (no-render stub, drawFrames), tools/ci-scope.mjs (new), tools/smoke.mjs (draw checkpoints), tools/zombies-test.mjs (--sections, draw checkpoints), tools/zlib.mjs, tools/lint-comments.mjs (prose that runs on after "x=0:" is not code), test/lint-comments.test.mjs, README (Checks and CI, Comment lint).
+Open items / help wanted: Interceptor pages take ~10 s each to boot on SwiftShader (three.js shader linking), which is most of zombies-test's time; fewer page loads per section would speed it up further.
+Overlaps: a new browser check should launch through `launchBrowser()` (it installs the no-render stub in CI) and call `drawFrames()` where it needs real pixels.
 
 ## How to play
 
@@ -76,14 +76,16 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request,
 
 | Job | What runs |
 |---|---|
-| **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs` (warn-only) |
-| **browser** | one entry each, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, `zombies-test`, `flight-golden` (the Interceptor dart's golden trajectories; both Leagues' are node tests in `npm test`) |
+| **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs --strict` |
+| **browser** | nine entries side by side, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, and `zombies-test` in three shards (`--sections=...`) |
 
-SwiftShader draws the game at about 1 fps, so each smoke half takes about 20 minutes on CI; the other checks take 1 to 15 minutes. Locally a full `npm run smoke` takes about 4 minutes.
+- **No-render mode.** SwiftShader draws the games at about 1 fps on a runner, so in CI (`DL_NORENDER=1`) every page gets a WebGL stub that skips draw calls, clears and blits. Shaders still compile and link, buffers and textures still upload, and three.js still walks the scene, so GL errors still show; only the pixels are skipped, and the sim runs at full speed. Where a check wants real pixels it calls `drawFrames(page)`: smoke draws the menu demo, the garage view, League, Dogfight, every graphics quality, the Lab, a training pack and the artifact form; zombies-test draws each menu and each start of play.
+- **Only what changed.** Each browser entry first runs `tools/ci-scope.mjs`: the League checks are skipped when nothing under `src/`, `app.html`, `Drone League/` or their tools changed, and the zombies-test shards when nothing under `engine/`, `games/interceptor/`, `interceptor/` or their tools changed. Shared files (package-lock, the workflow, `tools/browser.mjs`) run both, and main always runs everything.
+- The runner's preinstalled Chrome is used (a stable Chrome is downloaded only if it has none); npm's cache is restored by setup-node.
 
 Run the same things locally (all headless; nothing pops up): `npm test`, `node tools/parts-balance.mjs`, `npm run smoke`, `node tools/physics-check.mjs` and so on.
 - **Browser:** every tool picks it in `tools/browser.mjs`: `EDGE_PATH`, then `CHROME_PATH`, then the usual Edge / Chrome / Chromium install for the platform.
-- **Flags:** `DL_SWIFTSHADER=1` forces software WebGL (on by default in CI). `DL_TIMING_WARN=1` turns wall-clock budgets (physics-check's ms per tick) into warnings. They are warnings in CI, because shared runners are too noisy to time.
+- **Flags:** `DL_SWIFTSHADER=1` forces software WebGL (on by default in CI). `DL_NORENDER=1` skips draw calls outside `drawFrames()` (on by default in CI). `DL_TIMING_WARN=1` turns wall-clock budgets (physics-check's ms per tick) into warnings. They are warnings in CI, because shared runners are too noisy to time.
 - **Waits are state-driven.** The checks wait on the game's own state (`window.__dl` snapshots, the Lab, training and binding state, `__z` in the Interceptor) or on frames drawn, not on fixed sleeps. A slow machine makes a run take longer, but it doesn't fail. Keep new checks that way.
 - Dev-server tools load `app.html`, because the root `index.html` is the games launcher.
 
@@ -93,7 +95,7 @@ The code here packs many statements onto one line, often with a `// note` at the
 node tools/lint-comments.mjs                 # lines changed since the merge base with origin/main
 node tools/lint-comments.mjs --base <ref>    # ... since another ref
 node tools/lint-comments.mjs --all           # every line (it is tuned to report nothing on the current code)
-node tools/lint-comments.mjs --strict        # exit 1 on findings (CI runs it warn-only for now)
+node tools/lint-comments.mjs --strict        # exit 1 on findings (CI runs it this way: a finding fails the fast job)
 ```
 Fix a finding by moving the comment to the end of the line or using `/* */`. If a comment really means to quote code, put `lint-ok` in it.
 
