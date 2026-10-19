@@ -6,6 +6,7 @@ import {initBase} from './zbase.js';
 import {initDefences} from './zdef.js';
 import {initEnemies} from './zenemy.js';
 import {initPerks} from './zperk.js';
+import {initWeather} from './zwx.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -43,14 +44,15 @@ export function initZombies(api){
  const en=Z.en=initEnemies(api,G,Z);Z.flash=(p,k)=>en.flash(p,k);
  const pk=Z.pk=initPerks(api,G,Z);
  const base=Z.base=initBase(Z,api,G);
+ const wx=Z.wx=initWeather(api,G,Z);  // per-wave weather forecast and effects (zwx.js)
  const openBase=()=>{G.next=plan(G.wave+1);base.open()};
  // Zombies widens the AO, adds the far-field terrain and long radar ranges (25 / 100 / 250 km) for the fast threats
  Z.start=()=>{G.on=true;G.state='base';G.wave=0;G.cash=START_CASH;G.earned=0;G.kills={p:0,h:0};G.streak=0;G.wq.length=0;G.pops.length=0;G.perfect=true;
   bunker(false);for(const s of SITES){s.max=s.hp=SITE_HP[s.n]||400}def.clear();pk.reset();en.farRing().visible=true;if(api.RRS.length===3)api.RRS.push(25000,100000,250000);
   api.AW=4300;api.wave=0;api.wstate='wave';$('hud').classList.add('z');hudEl.hidden=false;$('zover').hidden=true;
-  openBase()};
+  openBase();wx.start(G.next.wx)};
  Z.stop=()=>{if(!G.on&&G.state==='off')return;G.on=false;G.state='off';Z.shadowsBack();bunker(false);for(const s of SITES){s.max=s.hp=3}api.AW=3000;api.applyTune();def.clear();en.hide();en.farRing().visible=false;
-  api.RRS.length=3;S.rr=Math.min(S.rr|0,2);$('hud').classList.remove('z');hudEl.hidden=true;base.close();$('zover').hidden=true;G.wq.length=0};
+  api.RRS.length=3;S.rr=Math.min(S.rr|0,2);$('hud').classList.remove('z');hudEl.hidden=true;base.close();$('zover').hidden=true;G.wq.length=0;wx.stop()};
  Z.hold=()=>G.on&&!api.demo&&(G.state==='base'||G.state==='over');
 
  // ---------- wave director ----------
@@ -66,7 +68,7 @@ export function initZombies(api){
  function plan(w){const list=compose(w),raids=w===1?1:1+Math.min(4,w/4|0),win=w===1?30:Math.min(100,25+3*w);
   const brgs=[];for(let i=0;i<raids;i++)brgs.push(w===1?(Math.random()-.5)*.6:(Math.random()-.5)*2.6);  // edge bearing per raid: 0 = north, ±1.3 rad = west/east
   const q=list.map((k,i)=>{const ri=w===1?0:i%raids;return{k,at:w===1?(i?25:0):(k==='boss'?5:ri*win/raids+rnd(0,10)),brg:brgs[ri]+rnd(-.12,.12)}}).sort((a,b)=>a.at-b.at);
-  return{list,brgs,q}}
+  return{list,brgs,q,wx:wx.plan(w)}}
  // command bunker: a fourth defended site on the radar pad from wave 10 (its hit points add to Defense Integrity)
  const BK={n:'COMMAND BUNKER',x:api.PADP.x,z:api.PADP.z+20,r:20,aims:[],sol:[],max:SITE_HP['COMMAND BUNKER'],hp:0,zb:1};
  {const y=api.PADP.y+.3,M=new THREE.MeshStandardMaterial({color:0x8d8f88,roughness:.9}),E=new THREE.MeshStandardMaterial({color:0x5b5a3e,roughness:1}),g=new THREE.Group();
@@ -76,7 +78,7 @@ export function initZombies(api){
  function bunker(on){const i=SITES.indexOf(BK);if(on&&i<0){SITES.push(BK);BK.hp=BK.max;BK.mesh.visible=true;api.PADP.sol.push(BK.box);feed('<span class="cg">Command bunker online</span>: a fourth site to defend (+'+BK.max+' integrity)')}
   if(!on&&i>=0){SITES.splice(i,1);BK.mesh.visible=false;const j=api.PADP.sol.indexOf(BK.box);if(j>=0)api.PADP.sol.splice(j,1)}}
  Z.bunker=bunker;
- function startWave(){G.wave++;api.wave=G.wave;G.state='wave';G.perfect=true;G.wt=0;if(G.wave>=BUNKER_WAVE)bunker(true);const P=G.next||plan(G.wave);G.next=null;G.wq=P.q;
+ function startWave(){G.wave++;api.wave=G.wave;G.state='wave';G.perfect=true;G.wt=0;if(G.wave>=BUNKER_WAVE)bunker(true);const P=G.next||plan(G.wave);G.next=null;G.wq=P.q;wx.start(P.wx);
   banner('WAVE '+G.wave,'cr',2.4);const n={};for(const q of P.list){const k=q.split(':')[0];n[k]=(n[k]||0)+(+q.split(':')[1]||1)}
   feed('Inbound: '+Object.entries(n).map(([k,c])=>`${c}× ${KIND[k].n}`).join(', '));def.deploy();pk.refill();
   if(api.player&&api.player.dead<=0)api.launch()}
@@ -204,7 +206,7 @@ export function initZombies(api){
   perf.slow=perf.ema>26?perf.slow+ft:0;if(!perf.off&&perf.slow>3000){perf.off=true;for(const o of trees())o.castShadow=false;feed('<span class="co">Performance: tree shadows off to keep the frame rate up</span>')}}
  Z.shadowsBack=()=>{if(perf.off){for(const o of trees())o.castShadow=true;perf.off=false}perf.slow=0;perf.last=0};
  Z.perf=perf;
- Z.visuals=dt=>{govern();G.selNow=api.selT();for(const p of G.pops)p.t+=dt;lead.clear();for(const t of TH)if(t.k==='swarm'&&api.live(t)&&!lead.has(t.grp))lead.set(t.grp,t);def.visuals();en.visuals(dt)};
+ Z.visuals=dt=>{govern();wx.step(dt,performance.now());G.selNow=api.selT();for(const p of G.pops)p.t+=dt;lead.clear();for(const t of TH)if(t.k==='swarm'&&api.live(t)&&!lead.has(t.grp))lead.set(t.grp,t);def.visuals();en.visuals(dt)};
  Z.key=e=>base.el.hidden?pk.key(e):base.key(e);
  Z.pad=e=>base.el.hidden&&$('zover').hidden?pk.pad(e):base.pad(e);
 

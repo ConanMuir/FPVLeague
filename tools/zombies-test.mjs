@@ -156,6 +156,35 @@ if (!ONLY) {
   await p.close();
 }
 
+// ---------- weather and look: per-wave forecasts, every Zombies weather, a mid-wave change, the Strela-2 body; Classic keeps Riley's weather and dart ----------
+if (!ONLY) {
+  const {p, errs} = await page('z');
+  await p.click('#play'); await sleep(600);
+  const r = await p.evaluate(() => { const {api, G, Z} = __z, w = Z.wx, me = api.player, out = {};
+    out.strela = me.strela.visible && !me.dart.visible && !!me.nozzle;
+    out.forecast = /visibility/.test(document.querySelector('#zbase footer')?.textContent || '');
+    out.ids = [...new Set(Array.from({length: 80}, (_, i) => w.plan(8 + i % 10).id))].sort().join(',');
+    out.early = [...new Set(Array.from({length: 40}, () => w.plan(1).id))].sort().join(',');
+    __z.cont(); out.bad = Object.keys(w.T).filter(id => { w.set(id); __z.sim(.5); return api.WX.id !== id || !api.WX.z; }).join(',');
+    w.start({id: 'rain', to: 'storm', why: 'storm building', at: G.wt + 1, dur: 4}); __z.sim(3); out.mid = {n: api.WX.n, mix: !!api.WX.mix};
+    __z.sim(4); out.end = {id: api.WX.id, mix: !!api.WX.mix, done: w.cur.done};
+    return out; });
+  ok(r.strela, 'Look: Zombies flies the Strela-2 body, with a nozzle attach point');
+  ok(r.forecast, 'Weather: the base screen shows the next wave\'s forecast');
+  ok(r.ids.split(',').length >= 9, `Weather: forecasts vary from wave to wave (${r.ids})`);
+  ok(!/night|storm|snow|fog|dust/.test(r.early), `Weather: wave 1 stays gentle (${r.early})`);
+  ok(!r.bad, 'Weather: every Zombies weather applies' + (r.bad ? ` (failed: ${r.bad})` : ''));
+  ok(r.mid.mix && r.end.id === 'storm' && !r.end.mix && r.end.done, `Weather: mid-wave change blends (${r.mid.n}) and ends on the new weather (${r.end.id})`);
+  ok(!errs.length, 'Weather: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+  const c = await page('classic');
+  await c.p.click('#play'); await sleep(800);
+  const k = await c.p.evaluate(() => { const {api} = __z, me = api.player; return {dart: me.dart.visible && !me.strela.visible, wx: !api.WX.z, rain: api.rainN === api.RN}; });
+  ok(k.dart && k.wx && k.rain, 'Classic: Riley\'s dart look and Classic weather by default');
+  ok(!c.errs.length, 'Classic look: no errors' + (c.errs.length ? '\n  ' + c.errs.join('\n  ') : ''));
+  await c.p.close();
+}
+
 // ---------- balance: a scripted player who shops sensibly and runs down a share of the tracks; how far does it get? ----------
 if (argv.includes('--balance')) {  // about 10 minutes
   for (const skill of [.01, .025]) {  // chance per half second of a player kill: about one kill every 50 s (casual) or 20 s (good)

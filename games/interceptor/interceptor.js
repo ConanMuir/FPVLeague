@@ -16,6 +16,7 @@ import {initMenu,syncUI} from '../../engine/menu.js';
 import {mountMod,initModPanel,toggleMod,tab,modMsg} from '../../engine/modpanel.js';
 import {startLoop} from '../../engine/loop.js';
 import {initZombies} from './zombies.js';
+import {strelaBody} from './strela.js';
 mountMod();setFeedTime(5500);
 
 // ---------- world constants (metres, seconds; real scale) ----------
@@ -25,7 +26,7 @@ let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.
 const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3(),_tl=new V3(),_vr=new V3();
 const DIFF=[{n:'Light',cnt:.7,spd:.92,gap:1.3},{n:'Heavy',cnt:1,spd:1,gap:1},{n:'Saturation',cnt:1.5,spd:1.06,gap:.7}];
 const RRS=[2000,5000,10000];
-const DEF={mode:"acro",diff:1,tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fuse:'auto',fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,guideSw:-1,nextSw:-1,guide:1,gmode:'classic'};
+const DEF={mode:"acro",diff:1,tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fuse:'auto',fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,guideSw:-1,nextSw:-1,guide:1,gmode:'classic',skin:'dart',zwx:'wave'};
 loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the dart's camera sits at 90°, a 5-inch quad's at 30°
 if(S.fuse!=='manual')S.fuse='auto';S.diff=cl(S.diff|0,0,2);S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
@@ -176,29 +177,32 @@ const RN=5000,rP=new Float32Array(RN*3),rL=new Float32Array(RN*6);
 for(let i=0;i<RN*3;i++)rP[i]=(Math.random()-.5)*120;
 const rGeo=new THREE.BufferGeometry();rGeo.setAttribute('position',new THREE.BufferAttribute(rL,3));
 const rainL=new THREE.LineSegments(rGeo,new THREE.LineBasicMaterial({color:0xc8d2dc,transparent:true,opacity:.35,depthWrite:false}));rainL.frustumCulled=false;scene.add(rainL);
-const camVel=new V3(),camPrev=new V3();let flashT=8,thunder=null;
-function setWeather(id){if(!WXS[id]){const k=Object.keys(WXS);id=k[Math.random()*k.length|0]}WX={id,...WXS[id]};
- const el=WX.el*Math.PI/180,az=WX.az*Math.PI/180;SUND.set(Math.cos(el)*Math.sin(az),Math.sin(el),Math.cos(el)*Math.cos(az));
- for(const s of[sky,envSky]){const u=s.material.uniforms;u.sunPosition.value.copy(SUND);u.turbidity.value=WX.turb;u.rayleigh.value=WX.ray;u.mieCoefficient.value=.005;u.mieDirectionalG.value=.8}
- envRT?.dispose();envRT=pmrem.fromScene(envScene);wxLook(thermLook);
+const camVel=new V3(),camPrev=new V3();let flashT=8,thunder=null,rainN=RN,wxHook=null;
+// id: a WXS key ('random' or unknown = a random one), or a whole weather object (Zombies' own table, zwx.js); keep = keep the wind direction
+function setWeather(id,keep){const o=id&&typeof id==='object'?id:null;if(!o&&!WXS[id]){const k=Object.keys(WXS);id=k[Math.random()*k.length|0]}WX=o?{...o}:{id,...WXS[id]};
+ wxSky();envRT?.dispose();envRT=pmrem.fromScene(envScene);wxLook(thermLook);
+ if(keep){WB.setLength(Math.max(.1,WX.wind*.95));return}
  const a=-Math.PI*.15+(Math.random()-.5)*1.2;WB.set(Math.sin(a),0,Math.cos(a)).multiplyScalar(WX.wind*(.7+Math.random()*.5))}  // wind mostly from the north
+function wxSky(){const el=WX.el*Math.PI/180,az=WX.az*Math.PI/180;SUND.set(Math.cos(el)*Math.sin(az),Math.sin(el),Math.cos(el)*Math.cos(az));
+ for(const s of[sky,envSky]){const u=s.material.uniforms;u.sunPosition.value.copy(SUND);u.turbidity.value=WX.turb;u.rayleigh.value=WX.ray;u.mieCoefficient.value=.005;u.mieDirectionalG.value=.8}}
 // scene look for the weather; th = white-hot thermal: cold sky goes black, no sun or cloud, engines and vehicles emit heat (the sensor pass turns it to luminance)
 let thermLook=false;
-function wxLook(th){scene.environment=th||WX.deck?null:envRT.texture;
+function wxLook(th){scene.environment=th||WX.deck||WX.nosky?null:envRT.texture;
  scene.fog.color.set(th?0x404040:WX.hz);scene.fog.near=WX.fog[0]*(th?1.6:1);scene.fog.far=WX.fog[1]*(th?1.6:1);renderer.toneMappingExposure=WX.exp;
- const L=WX.dim;sun.intensity=(WX.warm?2.2:3.4)*(1-L);sun.color.set(WX.warm?0xffb27a:0xfff0dc);hemi.intensity=.75+.9*L;hemi.color.set(L>.5?0xc7ccd2:0xdde9ff);hemi.groundColor.set(L>.5?0x4c5440:0x55663f);
- deck.visible=!!WX.deck;sky.visible=!th&&!WX.deck&&WX.id!=='fog';scene.background=sky.visible?null:new THREE.Color(th?0x080808:WX.hz);if(WX.deck){deck.position.y=WX.deck;deck.material.color.setScalar(th?.25:.95-L*.55)}sunDisc.visible=!th&&!WX.deck&&WX.id!=='fog';
+ const L=WX.dim;sun.intensity=WX.sunI??(WX.warm?2.2:3.4)*(1-L);sun.color.set(WX.sunC??(WX.warm?0xffb27a:0xfff0dc));hemi.intensity=hemi.userData.base=WX.hemiI??.75+.9*L;hemi.color.set(WX.hemiC??(L>.5?0xc7ccd2:0xdde9ff));hemi.groundColor.set(WX.gndC??(L>.5?0x4c5440:0x55663f));  // the optional overrides (sunI, sunC, hemiI, hemiC, gndC) are only used by Zombies' extra weathers
+ deck.visible=!!WX.deck;sky.visible=!th&&!WX.deck&&WX.id!=='fog'&&!WX.nosky;scene.background=sky.visible?null:new THREE.Color(th?0x080808:WX.hz);if(WX.deck){deck.position.y=WX.deck;deck.material.color.setScalar(th?.25:.95-L*.55)}sunDisc.visible=!th&&!WX.deck&&WX.id!=='fog'&&!WX.nodisc;
+ sunDisc.material.color.set(WX.discC??0xfff2dc).multiplyScalar(WX.discK??4);sunDisc.scale.setScalar(WX.discS??900);
  cloudG.children.forEach((c,i)=>{c.visible=!th&&i<WX.cov*cloudG.children.length;c.children.forEach(s=>s.material.color.set(WX.warm?0xffd2b0:L>.3?0xb8bec4:0xffffff).multiplyScalar(L>.3?1.3:2.3))});  // sunlit cumulus is brighter than the sky behind it
  for(const[m,k]of[[SHEN,7],[MS.hood,.7],[MS.met,.18],[SHJ,.22],...SHM.map(m=>[m,.16])]){m.emissive.setScalar(th?1:0);m.emissiveIntensity=k}
- bloom.strength=S.mod.bloom*(th?.7:.33);rainL.visible=!!WX.rain}
+ bloom.strength=S.mod.bloom*(th?.7:.33);rainL.visible=!!WX.rain;wxHook?.(th)}
 function weather(dt,now){const t=now*.001;WIND.copy(WB).multiplyScalar(1+.35*Math.sin(t*.7)+.2*Math.sin(t*2.3+1));if(WX.wind>8)WIND.y=Math.sin(t*1.7)*WX.wind*.08;else WIND.y=0;  // gusts
  if(rainL.visible){const c=camera.position,sp=WX.rain,fall=_a.set(WIND.x,-9-sp*2,WIND.z),k=Math.min(.06,.5/(10+camVel.length()));
-  for(let i=0;i<RN;i++){const i3=i*3,i6=i*6;let x=rP[i3]+fall.x*dt,y=rP[i3+1]+fall.y*dt,z=rP[i3+2]+fall.z*dt;
+  for(let i=0;i<rainN;i++){const i3=i*3,i6=i*6;let x=rP[i3]+fall.x*dt,y=rP[i3+1]+fall.y*dt,z=rP[i3+2]+fall.z*dt;
    x=((x-c.x+60)%120+120)%120-60+c.x;y=((y-c.y+60)%120+120)%120-60+c.y;z=((z-c.z+60)%120+120)%120-60+c.z;rP[i3]=x;rP[i3+1]=y;rP[i3+2]=z;
    const rx=(fall.x-camVel.x)*k,ry=(fall.y-camVel.y)*k,rz=(fall.z-camVel.z)*k;rL[i6]=x;rL[i6+1]=y;rL[i6+2]=z;rL[i6+3]=x-rx;rL[i6+4]=y-ry;rL[i6+5]=z-rz}
   rGeo.attributes.position.needsUpdate=true}
  if(WX.light){if((flashT-=dt)<=0){flashT=5+Math.random()*12;hemi.userData.f=1;thunder=1.5+Math.random()*4}
-  const f=hemi.userData.f||0;if(f>0){hemi.userData.f=Math.max(0,f-dt*5);hemi.intensity=.75+.9*WX.dim+f*6*(Math.random()<.7?1:.3)}
+  const f=hemi.userData.f||0;if(f>0){hemi.userData.f=Math.max(0,f-dt*5);hemi.intensity=hemi.userData.base+f*6*(Math.random()<.7?1:.3)}
   if(thunder!=null&&(thunder-=dt)<=0){thunder=null;noise(3.5,70,.7,.4);noise(1.2,160,.35,.6)}}}
 
 // ---------- defended sites (solid: the interceptor collides with them) ----------
@@ -288,18 +292,21 @@ const MAT={carbon:new THREE.MeshStandardMaterial({color:0x16191f,roughness:.45,m
 const _q=new QT(),_v=new V3(),_w=new V3(),_u=new V3();
 class Drone{
  constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),vp:0,vc:4.2,tb:new V3(),gu:new V3(),dead:0,mah:0,t:0,home:FOBS[1]});this.build();this.spawn()}
- build(){const g=this.mesh=new THREE.Group();
+ // two looks share the quad hardware: Riley's dart (Classic default) and a 9K32 Strela-2 body (strela.js; Zombies, or the Classic menu option)
+ build(){const g=this.mesh=new THREE.Group(),dart=this.dart=new THREE.Group();this.strela=strelaBody();g.add(dart,this.strela);
   const add=(geo,mat,x,y,z,ry=0,par=g)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.y=ry;m.castShadow=true;par.add(m);return m};
-  add(GEO.body,MAT.olive,0,0,0);add(GEO.nose,MAT.olive,0,.28,0);add(GEO.tail,MAT.olive,0,-.32,0);add(GEO.band,MAT.band,0,.17,0);  // fuselage, warhead section behind the nose
-  for(let k=0;k<4;k++)add(GEO.fin,MAT.carbon,0,0,0,k*Math.PI/2);
+  add(GEO.body,MAT.olive,0,0,0,0,dart);add(GEO.nose,MAT.olive,0,.28,0,0,dart);add(GEO.tail,MAT.olive,0,-.32,0,0,dart);add(GEO.band,MAT.band,0,.17,0,0,dart);  // fuselage, warhead section behind the nose
+  for(let k=0;k<4;k++)add(GEO.fin,MAT.carbon,0,0,0,k*Math.PI/2,dart);
   add(GEO.arm,MAT.carbon,0,.1,0,Math.PI/4);add(GEO.arm,MAT.carbon,0,.1,0,-Math.PI/4);
   this.props=[];for(const[x,z]of[[.17,.17],[-.17,.17],[.17,-.17],[-.17,-.17]]){add(GEO.motor,MAT.metal,x,.12,z);add(GEO.bell,MAT.carbon,x,.143,z);const pr=add(GEO.prop,MAT.prop,x,.152,z);pr.castShadow=false;add(GEO.blade,MAT.blade,0,0,0,0,pr);this.props.push(pr)}
-  add(GEO.lens,MAT.lens,0,.36,-.02);add(GEO.ant,MAT.carbon,.15,-.3,0);add(new THREE.BoxGeometry(.02,.04,.02),MAT.led,0,-.2,.062);
-  scene.add(g)}
+  add(GEO.lens,MAT.lens,0,.36,-.02,0,dart);add(GEO.ant,MAT.carbon,.15,-.3,0,0,dart);add(new THREE.BoxGeometry(.02,.04,.02),MAT.led,0,-.2,.062,0,dart);
+  this.nozzle=new THREE.Object3D();this.nozzle.position.set(0,-.375,0);g.add(this.nozzle);  // tail / motor nozzle exit (both looks): attach exhaust effects here, they point along local -Y
+  this.look();scene.add(g)}
+ look(){const s=Z.on||S.skin==='strela';this.strela.visible=s;this.dart.visible=!s}
  // on the launch mat at the forward position nearest the most urgent track, standing on its fins, nose up, facing the track, motors off
  spawn(){const u=selT(),f=this.home=u?FOBS.reduce((a,b)=>Math.hypot(b.x-u.p.x,b.z-u.p.z)<Math.hypot(a.x-u.p.x,a.z-u.p.z)?b:a):FOBS[1];
   this.p.set(f.mat.x,f.mat.y+(.36+.04)*MSZ+.005,f.mat.z);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);
-  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.vp=0;this.vc=4.2;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true}
+  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.vp=0;this.vc=4.2;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true;this.look()}
  step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT);if(THR*this.ms**TE<G*.5&&_u.set(0,1,0).applyQuaternion(this.q).y>.7)wt.set(0,0,0)}this.t+=dt;  // standing on its fins below half-hover thrust: the sticks can't tip it over
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&_u.y<.7&&this.pivot(wt,dt))return 0;  // only once it has fallen over: standing on its fins it stays put
@@ -591,8 +598,8 @@ const padKeys=e=>{if(e(9))togglePause();if(!menuOpen&&!demo){if(Z.on&&Z.pad(e))r
 // ---------- menu / settings ----------
 const FIELDS=[['diff','Threat level','sel',DIFF.map((d,i)=>[i,d.n])],['wx','Weather','sel',[['random','Random'],...Object.entries(WXS).map(([k,w])=>[k,w.n])]],['fuse','Warhead fuse','sel',[['auto','Proximity (auto)'],['manual','Manual (detonate button)']]],
  ['rr','Radar range','sel',RRS.map((r,i)=>[i,r/1000+' km'])],['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
- ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['guide','Midcourse guidance','sel',[[1,'On (PIP cue from ground radar)'],[0,'Off']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
-mountPad($('pilotpad'),{flip:false,fire:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx)});
+ ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['guide','Midcourse guidance','sel',[[1,'On (PIP cue from ground radar)'],[0,'Off']]],['skin','Interceptor look (Classic)','sel',[['dart',"Riley's dart"],['strela','Strela-2 missile']]],['zwx','Zombies weather','sel',[['wave','New forecast each wave'],['menu','Use the Weather setting']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
+mountPad($('pilotpad'),{flip:false,fire:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx);if(k==='skin')player?.look()});
 mountSwitches([['fire','Detonate','F'],['tiltSw','Cam tilt','L'],['thermSw','Thermal','H'],['guideSw','Guidance','G'],['nextSw','Next track','N']]);
 syncUI();
 $('play').onclick=startMatch;$('resume').onclick=()=>showMenu(false);$('leave').onclick=startDemo;
@@ -614,7 +621,7 @@ function applyTune(){const T=S.mod;G=T.grav;THR=T.thr;TE=T.te;VP=T.vp;MAXV=T.max
   HBP=[[.15,-.36,0],[-.15,-.36,0],[0,-.36,.15],[0,-.36,-.15],[.27,.15,.27],[-.27,.15,.27],[.27,.15,-.27],[-.27,.15,-.27],[0,.4,0]].map(([x,y,z])=>new V3(x,y,z).multiplyScalar(k))}SPOOL=T.spool/1000;GF=T.gfric;TURT=T.turtle*Math.PI/180;WASH=T.wash;DB=T.dbounce;BCAP=T.bcap;
  LETH=T.leth;CRASH=T.crash;RELT=T.relt;TSPD=T.tspd;TCNT=T.tcnt;GSPD=T.speed;SHK=T.shake;bloom.strength=T.bloom*.33;HOV=(G/THR)**(1/TE)}
 $('modbtn').onclick=toggleMod;initModPanel({mods:MODS,presets:PRESETS,migrate,onApply:applyTune});initRates('Drone League Interceptor');
-$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','cam','thrMode','dz','fuse','fireBtn','wx','rr','fpvMix','grain','guide','tiltSw','thermSw','guideSw','nextSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
+$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','cam','thrMode','dz','fuse','fireBtn','wx','rr','fpvMix','grain','guide','skin','zwx','tiltSw','thermSw','guideSw','nextSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>feed('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 
@@ -626,7 +633,8 @@ function step(dt){const me=player;
 const Z=initZombies({THREE,scene,camera,renderer,S,save,TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
- get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get thermLook(){return thermLook},get WX(){return WX},deck,set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
+ get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get thermLook(){return thermLook},get WX(){return WX},deck,
+ setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
 startDemo();
 startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD,paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now)=>{
  if(!menuOpen&&!demo)switches();
