@@ -77,7 +77,9 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request,
 | Job | What runs |
 |---|---|
 | **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs` (warn-only) |
-| **browser** | one entry each: `tools/smoke.mjs` (after a build), `physics-check`, `pop-check`, `sound-check`, `training-check`, `zombies-test`, on the runner's Chrome with software WebGL |
+| **browser** | one entry each, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, `zombies-test` |
+
+SwiftShader draws the game at about 1 fps, so each smoke half takes about 20 minutes on CI; the other checks take 1 to 15 minutes. Locally a full `npm run smoke` takes about 4 minutes.
 
 Run the same things locally (all headless; nothing pops up): `npm test`, `node tools/parts-balance.mjs`, `npm run smoke`, `node tools/physics-check.mjs` and so on.
 - **Browser:** every tool picks it in `tools/browser.mjs`: `EDGE_PATH`, then `CHROME_PATH`, then the usual Edge / Chrome / Chromium install for the platform.

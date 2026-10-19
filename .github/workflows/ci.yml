@@ -64,10 +64,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - check: smoke
+          # smoke in two halves side by side: SwiftShader draws the game at ~1 fps, so each half takes ~20 min
+          - check: smoke (main + v15 baseline)
             build: true
-            timeout: 75
-            run: node tools/smoke.mjs
+            timeout: 50
+            run: node tools/smoke.mjs --parts=main
+          - check: smoke (controls, Lab, training)
+            build: true
+            timeout: 50
+            run: node tools/smoke.mjs --parts=lab,train
           - check: physics-check
             run: node tools/physics-check.mjs
           - check: pop-check

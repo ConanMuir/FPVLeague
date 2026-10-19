@@ -4,6 +4,9 @@
 //   npm run smoke                 hardware WebGL if available (SwiftShader fallback)
 //   npm run smoke -- --swiftshader  force software WebGL (slow; the sim runs in sim-time, so it just takes longer)
 //   npm run smoke -- --no-baseline  skip the v15 baseline
+//   npm run smoke -- --parts=lab,train  run only some parts: main (menu demo, garage, League, Dogfight, panels, settings, artifact form,
+//                                   and the v15 baseline unless --no-baseline), lab (controls + Calibration Lab), train (skill packs).
+//                                   Default: all. CI runs main and lab,train as two jobs side by side.
 // Needs `npm run build` first. The browser comes from tools/browser.mjs (EDGE_PATH, CHROME_PATH, else the usual install);
 // in CI (or with DL_SWIFTSHADER=1) it runs on software WebGL, as --swiftshader does.
 // Waits are state-driven (the game's own state through window.__dl, or frames drawn), so a slow machine only makes it take longer.
@@ -16,6 +19,7 @@ import {launchBrowser, findBrowser, SOFTWARE_GL, until, frames} from './browser.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = new Set(process.argv.slice(2));
 const SW = argv.has('--swiftshader') || SOFTWARE_GL, BASELINE = !argv.has('--no-baseline');
+const PARTS = new Set(([...argv].find(a => a.startsWith('--parts='))?.slice(8) || 'main,lab,train').split(','));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const T0 = Date.now(), log = m => console.log(`[${((Date.now() - T0) / 1000).toFixed(0).padStart(4)} s] ${m}`);  // progress, so a slow run shows where it is
 const fps = p => p.evaluate(() => new Promise(r => { let n = 0; const t0 = performance.now(); (function f() { n++; const t = performance.now() - t0; if (t < 2000) requestAnimationFrame(f); else r(+(n * 1000 / t).toFixed(1)); })(); }));
@@ -320,14 +324,13 @@ async function trainScenario(url) {
 // ---------- run ----------
 let failed = false;
 const fail = m => { failed = true; console.log('FAIL ' + m); };
-const results = {new: await scenario('new (dist/index.html)', origin + '/new/')};
-log('settings');
-const set = {new: await settings('new', origin + '/new/')};
-log('controls + Lab');
-const lab = await labScenario(origin + '/new/');
-log('training packs');
-const train = await trainScenario(origin + '/new/');
-if (BASELINE) {
+const results = {}, set = {}, MAIN = PARTS.has('main');
+if (MAIN) { results.new = await scenario('new (dist/index.html)', origin + '/new/'); log('settings'); set.new = await settings('new', origin + '/new/'); }
+if (PARTS.has('lab')) log('controls + Lab');
+const lab = PARTS.has('lab') ? await labScenario(origin + '/new/') : null;
+if (PARTS.has('train')) log('training packs');
+const train = PARTS.has('train') ? await trainScenario(origin + '/new/') : null;
+if (BASELINE && MAIN) {
   results.old = await scenario('v15 baseline', origin + '/old/');
   log('v15 settings');
   set.old = await settings('v15 baseline', origin + '/old/');
@@ -338,9 +341,9 @@ const show = r => console.log(`\n== ${r.label}  [${r.renderer || '?'}]\n` + JSON
 for (const k in results) show(results[k]);
 
 // checks on the new build
-const n = results.new;
+const n = results.new, chk = (ok, m) => { if (!ok) fail(m); };
+if (n) {  // part main
 if (n.errors.length) fail(`${n.errors.length} error(s) in the new build`);
-const chk = (ok, m) => { if (!ok) fail(m); };
 chk(n.demo?.menuOpen && n.demo.moved > 0.5, 'menu demo: bots should be flying behind the menu');
 chk(n.league && n.league.sim >= 9 && !n.league.nan, 'League: sim should run 10 s without NaN');
 chk(n.league && n.league.ballPath > 1 && n.league.botPathMin > 5, 'League: ball and every bot should move');
@@ -364,8 +367,9 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(s && s.physV === 5 && s.mod.thr === 345 && s.mod.grav === 30 && s.mod.kick === 2 && s.mod.size === 4 && !('bogus' in s.mod) && s.map === 'canyon' && s.rprof[2].thrLimit === 100 && s.xcal.length === 4 && s.gfx === 'auto',
     'v15 settings: migrations (physV 5, 6S defaults, clamping, rate profiles, graphics quality Auto) should apply');
 }
+}
 // controls + Calibration Lab
-{
+if (lab) {
   const L = lab, eq = (a, b) => JSON.stringify(a) === JSON.stringify(b), x = L.bound?.xcal || [];
   console.log('\n== controls + Calibration Lab\n binding: ' + JSON.stringify(L.bound) + '\n drills: ' + JSON.stringify(L.drills) + '\n last changes: ' + JSON.stringify(L.log) +
     '\n working profile: ' + JSON.stringify(L.working) + '\n saved: ' + JSON.stringify(L.saved && {rprof3: L.saved.rprof[2], rpi: L.saved.rpi, dz: L.saved.dz, dzy: L.saved.dzy, assist: L.saved.assist}) + '\n exit: ' + JSON.stringify(L.exit) +
@@ -387,7 +391,7 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(L.exit?.demo && !L.exit.lab && L.exit.drones > 0, 'Lab: Back to menu should leave the Lab for the menu demo');
 }
 // skill training packs
-{
+if (train) {
   const T = train;
   console.log('\n== skill training packs\n ' + JSON.stringify({hub: T.hub, browser: T.browser, start: T.start, live: T.live, steps: T.steps, summary: T.summary, retryPack: T.retryPack, pause: T.pause, leave: T.leave, labFromHub: T.labFromHub}) +
     (T.errors.length ? '\n  errors:\n   ' + T.errors.slice(0, 20).join('\n   ') : '\n  no errors'));
@@ -402,7 +406,7 @@ if (set.new.errors.length) fail('settings load: ' + set.new.errors.join('; '));
   chk(T.leave && !T.leave.on && T.leave.demo && T.leave.packs && T.leave.hud && T.leave.stored?.of === 8, 'training: Leave goes back to the pack browser and the best result is saved');
   chk(T.labFromHub && T.after, 'training: the Calibration Lab is still reachable from the hub');
 }
-console.log('\n== settings from a v15 save\n new: ' + set.new.ui);
+if (set.new) console.log('\n== settings from a v15 save\n new: ' + set.new.ui);
 if (set.old) {
   console.log(' v15: ' + set.old.ui);
   if (set.old.errors.length || !set.old.saved) console.log('WARN baseline settings run failed: ' + set.old.errors.join('; '));
@@ -427,7 +431,7 @@ if (results.old) {
   }
 }
 // the artifact form should boot too
-if (pages['/artifact/']) {
+if (MAIN && pages['/artifact/']) {
   const browser = await launch(), errors = [];
   try {
     log('artifact form'); const p = await open(browser, origin + '/artifact/', errors);
@@ -439,7 +443,7 @@ if (pages['/artifact/']) {
   } catch (e) { errors.push(e.message); }
   if (errors.length) fail('artifact form: ' + errors.join('; '));
   await browser.close();
-} else fail('dist/drone-league.artifact.html missing (npm run build runs tools/postbuild.mjs)');
+} else if (MAIN) fail('dist/drone-league.artifact.html missing (npm run build runs tools/postbuild.mjs)');
 server.close();
 console.log(failed ? '\nSMOKE FAILED' : '\nSMOKE PASSED');
 process.exit(failed ? 1 : 0);
