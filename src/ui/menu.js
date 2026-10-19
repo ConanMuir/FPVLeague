@@ -46,6 +46,9 @@ for(const b of $('stabs').children)b.onclick=()=>{for(const x of $('stabs').chil
  for(const b of document.querySelectorAll('#home [data-scr]'))b.onclick=()=>menuScreen(b.dataset.scr);for(const b of document.querySelectorAll('#menu .back'))b.onclick=()=>menuScreen(null);
  addEventListener('keydown',e=>{if(e.code==='Escape'&&GS.menuOpen&&document.querySelector('#menu .scr:not([hidden])')){menuScreen(null);e.stopImmediatePropagation()}},true);
  for(const M of modeList()){if(M.hidden)continue;const b=document.createElement('button');b.className='sm';b.id='m_'+M.id;b.dataset.m=M.id;b.textContent=M.name;b.onclick=()=>pickGame(M.id);$('modes').append(b)}  // one button per registered mode (modes/registry.js)
+ {const b=document.createElement('button');b.className='sm';b.id='m_intercept';b.textContent='Interceptor';b.onclick=()=>menuScreen('intercept');$('modes').append(b);  // Riley's Interceptor (games/interceptor), its own page: Classic or Zombies
+  const file=location.protocol==='file:',go=m=>{if(file){$('icnote').hidden=false;return}location.href=new URL('../interceptor/?mode='+m,location.href).href};
+  $('icClassic').onclick=()=>go('classic');$('icZombies').onclick=()=>go('zombies')}
 $('play').onclick=()=>{exitLab();startMatch()};$('resume').onclick=()=>showMenu(false);$('leave').onclick=()=>{exitLab();leaveGame();startDemo()};
 $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','size','len','tilt','fov','cam','thrMode','dz','map','ball','cal','xcal','xfire','xflip','flipBtn','bots','mod','rprof','rpi','assist','dzy','xboost','boostBtn','loadout'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};

@@ -22,7 +22,8 @@ export function initZombies(api){
    desc.innerHTML=S.gmode==='z'?`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a boss every 10. ${G.best?`Best: wave ${G.best}.`:''}`:'<b>Classic</b>: Riley\'s Interceptor. One Shahed-136, then one jet Geran-3, each wave.';
    $('play').textContent=S.gmode==='z'?'Hold the line':'Defend'};
   for(const b of box.querySelectorAll('button'))b.onclick=()=>{S.gmode=b.dataset.m;save();sync()};
-  G.best=(S.zbest&&S.zbest.wave)|0;if(S.gmode!=='z')S.gmode='classic';sync();Z.syncMode=sync}
+  G.best=(S.zbest&&S.zbest.wave)|0;const qm=new URLSearchParams(location.search).get('mode');if(qm==='zombies'||qm==='z')S.gmode='z';else if(qm==='classic')S.gmode='classic';  /* Drone League's menu links here with ?mode= */
+  if(S.gmode!=='z')S.gmode='classic';save();sync();Z.syncMode=sync}
 
  // ---------- HUD ----------
  const hudEl=document.createElement('div');hudEl.id='zhud';hudEl.className='osd';hudEl.hidden=true;
