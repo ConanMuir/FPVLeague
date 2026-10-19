@@ -25,3 +25,13 @@
 #zvig.lo:not(.hit){animation:zlo 1.6s ease-in-out infinite}@keyframes zlo{0%,100%{opacity:.08}50%{opacity:.3}}
 @media (max-width:760px){#zradio{font-size:12px;bottom:calc(120px + env(safe-area-inset-bottom,0px))}#zsum .st{font-size:32px}}
 #hud:not(.z) #zann,#hud:not(.z) #zradio,#hud:not(.z) #zsum,#hud:not(.z) #zvig{display:none}
+
+/* cinematic cams (zfx.js: Mothership fly-by, ballistic impact cam): letterbox bars and a caption; the HUD steps aside, the radio stays */
+#zcine{position:absolute;inset:0;pointer-events:none;display:none}#hud.zcine #zcine{display:block}
+#hud.zcine>*:not(#zcine):not(#zradio){visibility:hidden}
+#zcine i{position:absolute;left:0;right:0;height:11vh;background:#000;animation:zbar .35s ease-out both}#zcine i:first-child{top:0;transform-origin:top}#zcine i:nth-child(2){bottom:0;transform-origin:bottom}
+@keyframes zbar{from{transform:scaleY(0)}}
+#zcine .c{position:absolute;left:6vw;top:calc(11vh + 18px);display:grid;gap:3px;animation:zcin .5s .15s ease-out both}@keyframes zcin{from{opacity:0;transform:translateY(8px)}}
+#zcine b{font:italic 700 clamp(26px,3.6vw,44px) var(--disp);letter-spacing:.06em;color:#fff;text-shadow:0 0 18px #ff4d4d,0 3px 0 rgba(0,0,0,.6)}
+#zcine span{font:700 13px var(--mono);color:#ff9a8a;text-shadow:0 0 4px #000}#zcine em{font:600 11px var(--mono);font-style:normal;color:#b8c2cc;opacity:.8;text-shadow:0 0 4px #000}
+#hud:not(.z) #zcine{display:none}
