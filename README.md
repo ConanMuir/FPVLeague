@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `ci`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main 9cfd268 (Zombies game feel, PR #42), with origin/main 8805bbd (arch-core, PR #49) merged in
-Doing: CI (GitHub Actions: build, unit tests, parts balance, comment lint, and the headless-browser checks on Chrome + SwiftShader); one shared browser picker (tools/browser.mjs); state-driven waits in smoke, the Vite checks and zombies-test; a lint for `//` comments that swallow code.
-Touches: .github/workflows/ci.yml (new), tools/browser.mjs (new), tools/lint-comments.mjs (new), tools/check-build.mjs (new), test/lint-comments.test.mjs (new), tools/smoke.mjs, tools/zombies-test.mjs, tools/zlib.mjs, tools/physics-check.mjs, tools/pop-check.mjs, tools/sound-check.mjs, tools/training-check.mjs; every other puppeteer tool's launch line (tools/*-shots.mjs, bot-match, map-views, probe-bots); src/modes/training.js (trainSnap also reports `rt`, the ready time, so smoke presses the stick after the shot has read the resting sticks; the old 500 ms sleep could lose that race on a slow machine) and the rebuilt games/jared-league/index.html; README (Checks and CI, Comment lint).
-Open items / help wanted: make the comment lint strict once it has run quietly for a while; the Prettier/lint item of the architecture plan needs Riley.
-Overlaps: any branch that edits a tool's launch line (`puppeteer.launch({executablePath: ...})`): on merge, keep the branch's change but launch through `launchBrowser()` from tools/browser.mjs.
+Branch: `shared-engine`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
+Based on: origin/main e16770d (qa-overnight, PR #51)
+Doing: one shared engine, first steps: the flight maths every game flies (`src/flight/core.js`) and the shared stick code (`src/input/sticks.js`), used by Jared's League, Riley's League / Dogfight and the Interceptor, proven bit-for-bit unchanged by golden trajectories. Audit, notes for Riley and the migration plan: docs/SHARED-ENGINE.md.
+Touches: src/flight/core.js (new), src/input/sticks.js (new), src/flight/drone.js, rates.js, attitude.js, src/config/ratetypes.js, src/input/input.js, engine/flight.js, engine/rates.js, engine/input.js, games/interceptor/interceptor.js (Drone.step: 7 lines and one import), test/flight-golden.test.mjs, test/input-golden.test.mjs, test/fixtures/flight-*.{mjs,json}, test/fixtures/input-golden.json, tools/flight-golden.mjs (new), .github/workflows/ci.yml (flight-golden check), docs/SHARED-ENGINE.md, docs/ARCHITECTURE.md, README (this block, Checks and CI), the rebuilt games/jared-league/index.html.
+Open items / help wanted: Riley to review his files (docs/SHARED-ENGINE.md section 6); the shared pilot profile's two button/switch formats clash (same section); next steps in section 5.
+Overlaps: anything editing Drone.step / Quad.step / the dart's step or humanControl: flight maths now lives in src/flight/core.js; if a golden test fails after a merge, a flight change slipped in.
 
 ## How to play
 
@@ -77,7 +77,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request,
 | Job | What runs |
 |---|---|
 | **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs` (warn-only) |
-| **browser** | one entry each, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, `zombies-test` |
+| **browser** | one entry each, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, `zombies-test`, `flight-golden` (the Interceptor dart's golden trajectories; both Leagues' are node tests in `npm test`) |
 
 SwiftShader draws the game at about 1 fps, so each smoke half takes about 20 minutes on CI; the other checks take 1 to 15 minutes. Locally a full `npm run smoke` takes about 4 minutes.
 

@@ -83,6 +83,9 @@ jobs:
             run: node tools/training-check.mjs
           - check: zombies-test
             run: node tools/zombies-test.mjs
+          # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
+          - check: flight-golden
+            run: node tools/flight-golden.mjs
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here

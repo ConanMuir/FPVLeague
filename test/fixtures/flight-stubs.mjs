@@ -1,6 +1,6 @@
-// Module hooks for test/flight-golden.test.mjs: lets node import src/flight/drone.js (the real Drone.step) without a browser.
-// The modules drone.js imports that need the DOM / WebGL / WebAudio / Rapier (render/, audio/, physics/, world/highlands.js) are
-// swapped for stubs. Each stub exports exactly the names its importer asks for (read from the importer's `import {...} from`
+// Module hooks for test/flight-golden.test.mjs and test/input-golden.test.mjs: let node import src/flight/drone.js (the real
+// Drone.step) and src/input/input.js (the real humanControl) without a browser. The modules they import that need the DOM / WebGL /
+// WebAudio / Rapier (render/, audio/, physics/, ui/, modes/, world/highlands.js) are swapped for stubs. Each stub exports exactly the names its importer asks for (read from the importer's `import {...} from`
 // lines), as an inert proxy, except physics/sdf.js, which becomes a flat floor at y = 0 so the turtle / self-righting pivots work.
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
