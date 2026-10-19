@@ -45,8 +45,9 @@ export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);ph
    // during a pop the spinning frame's own speed at the contact point counts, so where the ball meets the turning quad decides the pop
    const av=a.popT>0?_pw2.copy(a.w).applyQuaternion(a.q).cross(_pr.copy(ball.p).addScaledVector(n,-BR).sub(a.p)).add(a.v):a.v;
    const rv=_w.subVectors(ball.v,av).dot(n);if(rv<0){const hk=cl((-rv-6)/30,0,1),j=-(1+TB+(.6-TB)*hk+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);
-    // Rocket League-style extra push along drone->ball (vertical softened), leaning toward where the quad is flying
-    const aim=_ip.subVectors(ball.p,a.p);aim.y*=.35;aim.normalize();const fw=_lat.set(0,0,-1).applyQuaternion(a.q);aim.addScaledVector(fw,-.35*aim.dot(fw)).normalize();
+    // Rocket League's extra impulse, but along the contact normal: the ball leaves the way the face of your hitbox that hit it was facing.
+    // (RL's own version runs along the car's centre line with the vertical squashed to 35%, tuned for a car on the ground; a drone hits from every angle.)
+    const aim=_ip.copy(n);
     const u=BR/.93,rel=Math.min(_t.subVectors(av,ball.v).length(),46*u),sc=rel<=5*u?.65:rel<=23*u?.65-.1*(rel-5*u)/(18*u):.55-.25*(rel-23*u)/(23*u);ball.v.addScaledVector(aim,rel*sc*hk*KICK);  // RL: 0.65 up to 500 uu/s, 0.55 at 2300, 0.30 at 4600 (uu scaled to this ball)
     const gr=(1-hk)*.35*Math.min(2,a.fl.grip);_t.subVectors(ball.v,av);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr);ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv});  // parts: grip, flat wide bodies carry the ball
     if(GS.net&&!GS.net.host&&a===GS.player){GS.net.hit={s:++GS.net.seq,p:r2(ball.p),v:r2(ball.v)};GS.net.hitT=performance.now()}
