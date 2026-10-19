@@ -1,0 +1,753 @@
+{
+ "empty": {
+  "raw": null,
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "blank": {
+  "raw": "",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "emptyObj": {
+  "raw": "{}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "garbage": {
+  "raw": "{not json",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "nullJson": {
+  "raw": "null",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "number": {
+  "raw": "5",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "array": {
+  "raw": "[1,2,3]",
+  "json": "909e211e13dac717",
+  "dzy": false,
+  "writes": [
+   "2e869219b8b19d8f",
+   "753466dbb568968e",
+   "3dc4a8ea06d15b01",
+   "fa06e42a82a3dd74",
+   "b4e4226552402f3b"
+  ]
+ },
+ "string": {
+  "raw": "\"hi\"",
+  "json": "d13b23fcdd9634ec",
+  "dzy": false,
+  "writes": [
+   "f236574b2991dc46",
+   "cfc17e4ee6a9d603",
+   "e42f6eadfa003bf5",
+   "7257d5fd3d88ac3a",
+   "980d337b03ca5c24"
+  ]
+ },
+ "v15": {
+  "raw": "{\"mode\":\"angle\",\"diff\":1,\"size\":3,\"tilt\":35,\"fov\":120,\"cam\":1,\"thrMode\":\"spring\",\"len\":120,\"dz\":0.05,\"name\":\"Tester\",\"tp\":\"1\",\"map\":\"canyon\",\"ball\":\"soccer\",\"game\":\"league\",\"afire\":false,\"fireBtn\":3,\"sboost\":true,\"bots\":0,\"xcal\":\"broken\",\"xfire\":2,\"xflip\":1,\"flipBtn\":\"a5\",\"fireInv\":true,\"mod\":{\"thr\":124,\"maxv\":111,\"dl\":0.14,\"dq\":0.0065,\"spool\":30,\"dbounce\":0.2,\"wash\":1,\"boost\":140,\"bgrav\":5,\"grav\":30,\"kick\":2,\"bogus\":7,\"size\":99},\"presets\":{\"Mine\":{\"thr\":200}},\"rpi\":2,\"rprof\":[{\"type\":\"ACTUAL\",\"ax\":[[7,67,0],[8,70,10],[5,50,0]],\"thrMid\":45,\"thrExpo\":20,\"thrLimit\":90},{\"type\":\"KISS\",\"ax\":[[100,70,0],[100,70,0],[100,70,0]],\"thrMid\":50,\"thrExpo\":0,\"thrLimit\":100},{\"type\":\"BETAFLIGHT\",\"ax\":[[120,75,20],[120,75,20],[110,70,10]],\"thrMid\":50,\"thrExpo\":0,\"thrLimit\":300}]}",
+  "json": "83d5b8babfc0e19e",
+  "dzy": false,
+  "writes": [
+   "39a14ccf398fa2cf",
+   "880959aca280d358",
+   "8774c805ac47e52c",
+   "47f9ec31ca62cacf",
+   "e962535c9fd9d77d"
+  ]
+ },
+ "physV1old": {
+  "raw": "{\"mod\":{\"thr\":124,\"maxv\":111,\"dl\":0.14,\"dq\":0.0065,\"spool\":30}}",
+  "json": "02db4b75b9404920",
+  "dzy": false,
+  "writes": [
+   "05de765d13e92930",
+   "1041cfe127159d24",
+   "e7026b87b78bff23",
+   "7796d9bcb246e2a1",
+   "007aa53a3319fb7b"
+  ]
+ },
+ "physV2old": {
+  "raw": "{\"physV\":2,\"mod\":{\"dbounce\":0.2,\"wash\":1,\"boost\":140,\"bgrav\":5}}",
+  "json": "3748de2e0f75d15f",
+  "dzy": false,
+  "writes": [
+   "44a8577f155f01e6",
+   "6b8633916eadeb5f",
+   "f1eac64ec0687a26",
+   "7100fcf36d57274c"
+  ]
+ },
+ "physV3old": {
+  "raw": "{\"physV\":3,\"mod\":{\"bgrav\":19.5,\"bbounce\":0.68,\"bmax\":85,\"bmass\":0.7,\"size\":0.75}}",
+  "json": "3748de2e0f75d15f",
+  "dzy": false,
+  "writes": [
+   "6b8633916eadeb5f",
+   "f1eac64ec0687a26",
+   "7100fcf36d57274c"
+  ]
+ },
+ "physV4grip": {
+  "raw": "{\"physV\":4,\"mod\":{\"gfric\":0.1}}",
+  "json": "3748de2e0f75d15f",
+  "dzy": false,
+  "writes": [
+   "f1eac64ec0687a26",
+   "7100fcf36d57274c"
+  ]
+ },
+ "physV4keep": {
+  "raw": "{\"physV\":4,\"mod\":{\"gfric\":0.3,\"thr\":124}}",
+  "json": "c1c9b59e8800df49",
+  "dzy": false,
+  "writes": [
+   "8cce63379ce798a6",
+   "fcb007ad14f02a8e"
+  ]
+ },
+ "physV5": {
+  "raw": "{\"physV\":5,\"mod\":{\"gfric\":0.1,\"thr\":124,\"bogus\":1}}",
+  "json": "fffb04f88fb6f230",
+  "dzy": false,
+  "writes": [
+   "44021472aa9629a1"
+  ]
+ },
+ "physVstr": {
+  "raw": "{\"physV\":\"3\",\"mod\":{\"bgrav\":19.5}}",
+  "json": "3748de2e0f75d15f",
+  "dzy": false,
+  "writes": [
+   "6b8633916eadeb5f",
+   "f1eac64ec0687a26",
+   "7100fcf36d57274c"
+  ]
+ },
+ "physVhigh": {
+  "raw": "{\"physV\":9,\"mod\":{\"gfric\":0.1}}",
+  "json": "36d505b505f82012",
+  "dzy": false,
+  "writes": [
+   "bdc6b09dd9baa81c"
+  ]
+ },
+ "allOld": {
+  "raw": "{\"mod\":{\"thr\":124,\"maxv\":111,\"dl\":0.14,\"dq\":0.0065,\"spool\":30,\"dbounce\":0.2,\"wash\":1,\"boost\":140,\"bgrav\":19.5,\"bbounce\":0.68,\"bmax\":85,\"bmass\":0.7,\"size\":0.75,\"gfric\":0.1}}",
+  "json": "02db4b75b9404920",
+  "dzy": false,
+  "writes": [
+   "6a8c148b2c887469",
+   "43ec9ba1718e02df",
+   "d9f62c7841680826",
+   "7796d9bcb246e2a1",
+   "007aa53a3319fb7b"
+  ]
+ },
+ "modNotObj": {
+  "raw": "{\"mod\":\"x\"}",
+  "json": "02db4b75b9404920",
+  "dzy": false,
+  "writes": [
+   "05de765d13e92930",
+   "1041cfe127159d24",
+   "e7026b87b78bff23",
+   "7796d9bcb246e2a1",
+   "007aa53a3319fb7b"
+  ]
+ },
+ "modArr": {
+  "raw": "{\"mod\":[1,2]}",
+  "json": "02db4b75b9404920",
+  "dzy": false,
+  "writes": [
+   "05de765d13e92930",
+   "1041cfe127159d24",
+   "e7026b87b78bff23",
+   "7796d9bcb246e2a1",
+   "007aa53a3319fb7b"
+  ]
+ },
+ "modClamp": {
+  "raw": "{\"mod\":{\"grav\":999,\"thr\":-5,\"size\":\"2.5\",\"te\":\"abc\",\"speed\":null}}",
+  "json": "e9f88093497501d7",
+  "dzy": false,
+  "writes": [
+   "a187e8f981304657",
+   "485df3aed44825c0",
+   "faab157b327bde96",
+   "e2cdd1a28e722de9",
+   "82e892772835af3f"
+  ]
+ },
+ "calBad": {
+  "raw": "{\"cal\":[{\"a\":1}],\"xcal\":[1,2,3,4]}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "calExtras": {
+  "raw": "{\"cal\":[{\"a\":2,\"c\":0.01,\"s\":-0.8,\"r\":\"x\",\"nb\":{\"a\":1,\"c\":0,\"s\":1}},{\"a\":5,\"c\":0,\"s\":0.8,\"r\":0.2,\"nb\":{\"a\":\"q\"}},{\"a\":1,\"c\":0,\"s\":-0.8},{\"a\":0,\"c\":0,\"s\":0.8}],\"xcal\":[{\"a\":2,\"c\":0.01,\"s\":-0.8,\"r\":\"x\",\"nb\":{\"a\":1,\"c\":0,\"s\":1},\"m\":\"spring\"},{\"a\":5,\"c\":0,\"s\":0.8,\"r\":0.2,\"nb\":{\"a\":\"q\"},\"m\":\"spring\"},{\"a\":1,\"c\":0,\"s\":-0.8,\"m\":\"spring\"},{\"a\":0,\"c\":0,\"s\":0.8,\"m\":\"spring\"}]}",
+  "json": "b9b1dae6ee7a0cd5",
+  "dzy": false,
+  "writes": [
+   "6390704de30203c0",
+   "c50edc3550336eee",
+   "07be35fff7bface4",
+   "dafa8ffbef224b53",
+   "83cb7cee087cc194"
+  ]
+ },
+ "calNull": {
+  "raw": "{\"cal\":null,\"xcal\":null}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "bots": {
+  "raw": "{\"bots\":2,\"arena\":9}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "bots0": {
+  "raw": "{\"bots\":0,\"arena\":3}",
+  "json": "7d4e666fdc4a986a",
+  "dzy": false,
+  "writes": [
+   "0a852c6d8e1a81fb",
+   "8fa02c4bc476cbfa",
+   "14bab6a536e61e54",
+   "e988d82a53b03d36",
+   "783d6ae8a86d64f5"
+  ]
+ },
+ "botsStr": {
+  "raw": "{\"bots\":\"0\",\"arena\":\"2\"}",
+  "json": "6404a965e95e43ae",
+  "dzy": false,
+  "writes": [
+   "1ac832ac961f21ac",
+   "f4e55fd371cccb23",
+   "d25a32cb42185b42",
+   "558270023ff28f4b",
+   "9ad3b739a6a9fea3"
+  ]
+ },
+ "maps": {
+  "raw": "{\"map\":\"moon\",\"ball\":\"cube\",\"game\":\"Bad-Id!\",\"gfx\":\"ultra\"}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "maps2": {
+  "raw": "{\"map\":\"alpine\",\"ball\":\"beach\",\"game\":\"df\",\"gfx\":\"low\"}",
+  "json": "b2b08319ee6e5ba8",
+  "dzy": false,
+  "writes": [
+   "bdf835524fe647e9",
+   "754b80374da68ef4",
+   "4060e842abc95cad",
+   "4aa21c14b649b99d",
+   "676c9ca56de0f059"
+  ]
+ },
+ "game2": {
+  "raw": "{\"game\":\"zz_top9\"}",
+  "json": "8ad4ae1d73e7f67f",
+  "dzy": false,
+  "writes": [
+   "0d05bee03332c8db",
+   "f73c6ad10230f2ff",
+   "1d86fb8934c2b96b",
+   "734f8fed6d87dd7d",
+   "d92d25a9db1ae2b0"
+  ]
+ },
+ "gameNum": {
+  "raw": "{\"game\":7}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "diff": {
+  "raw": "{\"diff\":\"4\"}",
+  "json": "05688e04bca7b245",
+  "dzy": false,
+  "writes": [
+   "7b203321718d686f",
+   "1cdceaf4d997ffb8",
+   "587e34ce99fa39e2",
+   "bb94502fd57b729f",
+   "b403f1f969d8dcdb"
+  ]
+ },
+ "diff2": {
+  "raw": "{\"diff\":99}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "diff3": {
+  "raw": "{\"diff\":2.5}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "diff4": {
+  "raw": "{\"diff\":-1}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "diff5": {
+  "raw": "{\"diff\":null}",
+  "json": "200ee3a2ecb080f1",
+  "dzy": false,
+  "writes": [
+   "62c1336d4faa57b4",
+   "05a8cc07f98de511",
+   "8fc39ed5c3d18006",
+   "fdd779552aed5ec7",
+   "65b588be9b771d56"
+  ]
+ },
+ "diff6": {
+  "raw": "{\"diff\":6}",
+  "json": "c61da2047ebdee75",
+  "dzy": false,
+  "writes": [
+   "4ab4df8365beefb0",
+   "0665477288f2f8fb",
+   "36d534ff41bd874b",
+   "4d9f686d8accc592",
+   "866913a920f5c6aa"
+  ]
+ },
+ "vols": {
+  "raw": "{\"vMaster\":50.6,\"vMotor\":-10,\"vWind\":300,\"vOther\":\"x\",\"vFx\":null,\"vCrowd\":0}",
+  "json": "f2870dd8ea60bbd5",
+  "dzy": false,
+  "writes": [
+   "0af9f9212d9eed5c",
+   "786165f45f06a44b",
+   "80f79e1d06616e97",
+   "33ab00b144785dcc",
+   "23fd94c9c4c9a1bc"
+  ]
+ },
+ "riley": {
+  "raw": "{\"osd\":1,\"longline\":true,\"tiltAx\":3,\"tiltMin\":-120,\"tiltMax\":45.5,\"llLen\":50,\"llW\":0,\"llStr\":\"bungee\",\"llScore\":\"goals\",\"llCam\":\"fpv\",\"lookBtn\":31}",
+  "json": "d5963a346af47364",
+  "dzy": false,
+  "writes": [
+   "fb7918a27073379a",
+   "f323739c28d78df2",
+   "678ad45a0744238e",
+   "eab81105399b0a1e",
+   "fac316138777ebbf"
+  ]
+ },
+ "riley2": {
+  "raw": "{\"osd\":true,\"longline\":\"yes\",\"tiltAx\":8,\"tiltMin\":\"a\",\"tiltMax\":100,\"llLen\":9.5,\"llW\":11,\"llStr\":\"x\",\"llScore\":\"x\",\"llCam\":\"x\",\"lookBtn\":32}",
+  "json": "b2e7096441322ecc",
+  "dzy": false,
+  "writes": [
+   "564a1b19723ab9ed",
+   "1f953f30ac6da88e",
+   "8ecddf754d26704c",
+   "98afbcce543fed8b",
+   "c1bc856621c79119"
+  ]
+ },
+ "riley3": {
+  "raw": "{\"tiltAx\":-1,\"lookBtn\":-1,\"tiltMin\":0,\"tiltMax\":0,\"llLen\":8,\"llW\":1}",
+  "json": "687b9e16c66a53ca",
+  "dzy": false,
+  "writes": [
+   "90f08f7f1eed1c8b",
+   "7b985b2738315e01",
+   "a68ed17be109ab5a",
+   "6860f700bd1ca8ae",
+   "6ca5cdf16774cf89"
+  ]
+ },
+ "riley4": {
+  "raw": "{\"tiltAx\":2.5,\"lookBtn\":-2}",
+  "json": "9a518b2614eea03c",
+  "dzy": false,
+  "writes": [
+   "063613b4e4601714",
+   "627f45e757c55c0a",
+   "a9600db9e9913aea",
+   "b63dc61d1096bb92",
+   "a4637c648cfac64f"
+  ]
+ },
+ "loadout": {
+  "raw": "{\"loadout\":[\"stock\",\"stock\",\"stock\"]}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "loadoutBad": {
+  "raw": "{\"loadout\":[\"x\",\"y\",\"z\",\"w\",\"v\"]}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "loadoutStr": {
+  "raw": "{\"loadout\":\"stock\"}",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": [
+   "14a934cf3ee6d17c",
+   "48456e353263edfe",
+   "1a3bf8bf89c58c8e",
+   "355c01ae894df66e",
+   "548de7cd5979db53"
+  ]
+ },
+ "cos": {
+  "raw": "{\"cos\":{\"paint\":\"nope\",\"decal\":7}}",
+  "json": "66db234f3a854c93",
+  "dzy": false,
+  "writes": [
+   "79109293babac926",
+   "19ed930a030f5cee",
+   "17718b978e3d319d",
+   "3810bde7dfe52fbd",
+   "b014d74943134602"
+  ]
+ },
+ "cosNull": {
+  "raw": "{\"cos\":null}",
+  "json": "66db234f3a854c93",
+  "dzy": false,
+  "writes": [
+   "79109293babac926",
+   "19ed930a030f5cee",
+   "17718b978e3d319d",
+   "3810bde7dfe52fbd",
+   "b014d74943134602"
+  ]
+ },
+ "presets": {
+  "raw": "{\"presets\":5}",
+  "json": "4859c822b07fdeb5",
+  "dzy": false,
+  "writes": [
+   "c47c8690a0d675a7",
+   "678366e8231fcbd2",
+   "f1cfa35a3984f89e",
+   "b07cfb0aaba3c9e1",
+   "a6f41780cd9e4c2c"
+  ]
+ },
+ "presetsNull": {
+  "raw": "{\"presets\":null}",
+  "json": "4859c822b07fdeb5",
+  "dzy": false,
+  "writes": [
+   "0f0b001db54003ab",
+   "8a8775bc0332fbc4",
+   "6bbcc4e20f4c2134",
+   "8b40ff60b18490e3",
+   "a6f41780cd9e4c2c"
+  ]
+ },
+ "presetsArr": {
+  "raw": "{\"presets\":[1]}",
+  "json": "25e77dd8e7d0f6ee",
+  "dzy": false,
+  "writes": [
+   "b20865a0ee1a60b4",
+   "5a02bff6ad12ab85",
+   "35b3c5df0c0a938a",
+   "0baccf2574d7485d",
+   "614b3ea5632aa0c3"
+  ]
+ },
+ "rprofBad": {
+  "raw": "{\"rprof\":[{\"type\":\"NOPE\"}],\"rpi\":7}",
+  "json": "6f2f3288592c9ac5",
+  "dzy": false,
+  "writes": [
+   "a86a7fa918641ac5",
+   "86c79e1ce27ba6cc",
+   "0de5115cf2b8c88d",
+   "ab2303ed3be09f35",
+   "45f77095a5ed38d3"
+  ]
+ },
+ "rprofClamp": {
+  "raw": "{\"rprof\":[{\"type\":\"BETAFLIGHT\",\"ax\":[[1,2,3],[1,2,3],[1,2,3]],\"thrMid\":-5,\"thrExpo\":\"x\",\"thrLimit\":10},{\"type\":\"ACTUAL\",\"ax\":[[1,2,3],[1,2,3],[1,2,3]],\"thrMid\":0,\"thrExpo\":150,\"thrLimit\":0},{\"type\":\"KISS\",\"ax\":[[1,2,3],[1,2,3],[1,2,3]]}],\"rpi\":-3}",
+  "json": "d5314e625690033c",
+  "dzy": false,
+  "writes": [
+   "ad4d3ab4b5ce71ca",
+   "b93ca347c1afe0af",
+   "ac2453b219eee171",
+   "0144425e9ab963d0",
+   "4303e87a39e4175c"
+  ]
+ },
+ "rprofNaN": {
+  "raw": "{\"rprof\":[{\"type\":\"BETAFLIGHT\",\"ax\":[[1,2,\"x\"],[1,2,3],[1,2,3]]},1,2]}",
+  "json": "200971e63e3a4352",
+  "dzy": false,
+  "writes": [
+   "1e04de057e2e29ff",
+   "672459c7e31d1892",
+   "ed28c404e571d3f4",
+   "ba2a49852309636f",
+   "4d58b5a9069a8f16"
+  ]
+ },
+ "rpiStr": {
+  "raw": "{\"rpi\":\"2\"}",
+  "json": "8645a3afd942fc5e",
+  "dzy": false,
+  "writes": [
+   "5173a7c94e1735f4",
+   "3fb70fc8dd437a5d",
+   "d690c0f30c2382a7",
+   "d64afc0eb72fbae8",
+   "a9500ee48f14671c"
+  ]
+ },
+ "controls": {
+  "raw": "{\"assist\":3,\"dzy\":0.5,\"xboost\":\"a3-\",\"boostBtn\":40,\"xfire\":\"b\",\"fireBtn\":-1,\"xflip\":2.5,\"flipBtn\":\"a12\"}",
+  "json": "43ec8592b7a4084f",
+  "dzy": true,
+  "writes": [
+   "038ff6222eeeb490",
+   "87ae7aa7445ea54d",
+   "795d82901bd429b8",
+   "a7017dd2e4742841",
+   "58ff1cc8a2e344cc"
+  ]
+ },
+ "controls2": {
+  "raw": "{\"assist\":\"0.4\",\"dzy\":\"abc\",\"boostBtn\":-1}",
+  "json": "03b5dd3416953909",
+  "dzy": false,
+  "writes": [
+   "7a185319e0c4e87b",
+   "29cfa18a6856003e",
+   "cd8695391be973ee",
+   "100f63af24bc41be",
+   "f5dd4bc19c45361f"
+  ]
+ },
+ "controls3": {
+  "raw": "{\"assist\":-1,\"dzy\":null}",
+  "json": "cb1cb977b5044796",
+  "dzy": true,
+  "writes": [
+   "c065a01012a293e7",
+   "20e3e88e64879ed3",
+   "8ab9f2354067b302",
+   "2a78bbe2d7eaf7d5",
+   "493960ef6c16e66d"
+  ]
+ },
+ "controls4": {
+  "raw": "{\"dzy\":\"0.05\",\"xboost\":null}",
+  "json": "59a84692c7718120",
+  "dzy": true,
+  "writes": [
+   "4b1e514ba76cafa5",
+   "a6fe77a909d0dfcf",
+   "d7823823d35d5f3f",
+   "883151459fd16ba3",
+   "9de0a5f3a28231c1"
+  ]
+ },
+ "controls5": {
+  "raw": "{\"dzy\":-1,\"assist\":null}",
+  "json": "72cf503e9f791e6c",
+  "dzy": true,
+  "writes": [
+   "ec2610a27177e02f",
+   "a4b235f6a24ee654",
+   "e79b5e0df9dcc5e6",
+   "6a85d74a6258e701",
+   "c71f8966ae5dfeb4"
+  ]
+ },
+ "train": {
+  "raw": "{\"train\":{\"striker-rookie\":{\"n\":3,\"of\":5,\"t\":12.3},\"BAD ID\":{\"n\":1,\"of\":1,\"t\":1},\"x\":{\"n\":6,\"of\":5,\"t\":1},\"y\":{\"n\":1,\"of\":2,\"t\":99999}}}",
+  "json": "829fd609d23e55bd",
+  "dzy": false,
+  "writes": [
+   "46c2ffdde24b5cab",
+   "d786f7ecd56337d8",
+   "a42f0c537e3198aa",
+   "64c8bcd798795cf9",
+   "aff4ea0c96e344ee"
+  ]
+ },
+ "trainArr": {
+  "raw": "{\"train\":[1]}",
+  "json": "0c8d6fd444e19317",
+  "dzy": false,
+  "writes": [
+   "98018bf5ff86c43b",
+   "5731a92fb106aab5",
+   "c56885f5a01c0b04",
+   "455a7c273bb93ebd",
+   "a262feb9cd9a6dc7"
+  ]
+ },
+ "unknownKeys": {
+  "raw": "{\"zzz\":1,\"aaa\":{\"b\":2},\"mod\":{\"bgrav\":5},\"name\":\"Pilot\",\"fov\":999}",
+  "json": "7249353a2334aa98",
+  "dzy": false,
+  "writes": [
+   "7664eb3ea469a173",
+   "785ba1022d2065a7",
+   "d23a6114ef0ca3b2",
+   "14fe2df441a3fb04",
+   "e274767468cb666f"
+  ]
+ },
+ "proto": {
+  "raw": "{\"__proto__\":{\"x\":1},\"constructor\":5}",
+  "json": "f1302b606f06d32d",
+  "dzy": false,
+  "writes": [
+   "58ba039117504766",
+   "6702d235448511dc",
+   "b927595683b4520c",
+   "49efb06603c3fd2b",
+   "0d3f6ec632e21a43"
+  ]
+ },
+ "full": {
+  "raw": "{\"mode\":\"angle\",\"diff\":1,\"size\":3,\"tilt\":35,\"fov\":120,\"cam\":1,\"thrMode\":\"spring\",\"len\":120,\"dz\":0.05,\"name\":\"Tester\",\"tp\":\"1\",\"map\":\"canyon\",\"ball\":\"soccer\",\"game\":\"league\",\"afire\":false,\"fireBtn\":3,\"sboost\":true,\"bots\":0,\"xcal\":[{\"a\":1,\"c\":0,\"s\":-1,\"m\":\"spring\"},{\"a\":0,\"c\":0,\"s\":1},{\"a\":3,\"c\":0,\"s\":-1},{\"a\":2,\"c\":0,\"s\":1}],\"xfire\":2,\"xflip\":1,\"flipBtn\":\"a5\",\"fireInv\":true,\"mod\":{\"thr\":124,\"maxv\":111,\"dl\":0.14,\"dq\":0.0065,\"spool\":30,\"dbounce\":0.2,\"wash\":1,\"boost\":140,\"bgrav\":5,\"grav\":30,\"kick\":2,\"bogus\":7,\"size\":99},\"presets\":{\"Mine\":{\"thr\":200}},\"rpi\":2,\"rprof\":[{\"type\":\"ACTUAL\",\"ax\":[[7,67,0],[8,70,10],[5,50,0]],\"thrMid\":45,\"thrExpo\":20,\"thrLimit\":90},{\"type\":\"KISS\",\"ax\":[[100,70,0],[100,70,0],[100,70,0]],\"thrMid\":50,\"thrExpo\":0,\"thrLimit\":100},{\"type\":\"BETAFLIGHT\",\"ax\":[[120,75,20],[120,75,20],[110,70,10]],\"thrMid\":50,\"thrExpo\":0,\"thrLimit\":300}],\"physV\":5,\"gfx\":\"med\",\"assist\":0.2,\"dzy\":0.04,\"loadout\":[\"stock\",\"stock\",\"stock\",\"none\"],\"train\":{},\"osd\":true}",
+  "json": "5720a03c5f7bf63f",
+  "dzy": true,
+  "writes": [
+   "5720a03c5f7bf63f"
+  ]
+ },
+ "throws": {
+  "raw": "<throws>",
+  "json": "74e1cbea683332ab",
+  "dzy": false,
+  "writes": []
+ }
+}

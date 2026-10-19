@@ -15,7 +15,7 @@ import {GH,GW,HL,HW,UP,V3,cl} from '../config/constants.js';
 import {BG,BOTV,BR,G} from '../config/tune.js';
 import {ball} from '../physics/ball.js';
 import {GS} from '../state.js';
-import {onHit} from '../physics/world.js';
+import {onEv} from '../core/events.js';
 import {dribble,steer,topOf} from './dribble.js';
 import {plan,strikeV} from './league.js';
 const _v=new V3(),_t=new V3(),_f=new V3(),_r=new V3(),_q=new V3(),_a=new V3(),_lk=new V3();
@@ -81,7 +81,7 @@ function strike(d,D,dt){const ai=d.ai;if(!ai.C){ai.C=new V3();ai.n=new V3();ai.P
  if(ai.tch){ai.fm=null;ai.spinS=0}
  steer(d,D,a,_lk.subVectors(ball.p,d.p));return true}
 export function freestyle(d,D,dt){const ai=d.ai;
- // did this quad touch the ball since its last tick? (counted by the onHit listener below)
+ // did this quad touch the ball since its last tick? (counted by the 'touch' listener below)
  ai.tch=(ai.hitN||0)!==(ai.hitS||0);ai.hitS=ai.hitN;
  if(ball.p.y<BR+.4&&ball.c&&!(ai.fm==='follow'))ai.ch=0;  // the ball touched the floor: the chain is over
  if(ai.fm&&(ai.fmt-=dt)<=0){ai.fm=null;ai.spinS=0}
@@ -99,4 +99,4 @@ export function freestyle(d,D,dt){const ai=d.ai;
   else vd=_v.subVectors(_q,d.p).setLength(vm*.8);  // then go straight through it
   const a=_a.subVectors(vd,d.v).multiplyScalar(D.kd);steer(d,D,a,_lk.subVectors(ball.p,d.p));return}
  strike(d,D,dt)}
-onHit(e=>{if(e.type==='ball'&&e.d?.ai)e.d.ai.hitN=(e.d.ai.hitN||0)+1});
+onEv('touch',e=>{if(e.d?.ai)e.d.ai.hitN=(e.d.ai.hitN||0)+1});

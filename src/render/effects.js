@@ -1,15 +1,15 @@
 // ---------- gameplay effects: code-built, pooled, no per-frame allocation ----------
 // - boost: a flame jet under every motor (one draw call per quad) + a ribbon trail + embers; motor-wash glow under the props at high throttle
 // - prop wash: dust kicked off the ground / walls under a low quad (thrust axis traced against the SDF), tinted per map
-// - ground scrapes: sparks + fading scuff decals where the frame skids or tumbles (physics/world.js onHit type 'ground')
-// - ball: a speed-based ribbon trail, and a flash + shock ring + sparks on hard hits (onHit type 'ball', with p and n from modes/step.js)
+// - ground scrapes: sparks + fading scuff decals where the frame skids or tumbles (the 'ground' event, core/events.js)
+// - ball: a speed-based ribbon trail, and a flash + shock ring + sparks on hard hits (the 'touch' event, with p and n from modes/step.js)
 // Everything scales with the graphics quality (renderer.js qId). Trail colour: d.trailCol (THREE.Color from the Trail cosmetic, render/cos-mat.js, or 0xRRGGBB), else the team colour,
 // fading to d.trailCol2 down the ribbon; d.trailStyle picks the ribbon's look and the boost embers (RSTY), d.trailCols the rainbow.
 import * as THREE from 'three';
 import {COL,V3,cl} from '../config/constants.js';
 import {BR,DRAD,G} from '../config/tune.js';
 import {ball} from '../physics/ball.js';
-import {onHit} from '../physics/world.js';
+import {onEv} from '../core/events.js';
 import {sdN,sdf} from '../physics/sdf.js';
 import {GS} from '../state.js';
 import {mapId} from '../world/maps.js';
@@ -262,9 +262,9 @@ function ballHit(e){const sp=e.speed;if(sp<7||!ballMesh.visible)return;const k=c
 function ringTick(dt){for(const m of RINGS){if(!m.visible)continue;const u=m.userData;u.t+=dt;const x=u.t/u.d;if(x>=1){m.visible=false;continue}
  const e=1-(1-x)**3;m.scale.setScalar(u.r0+(u.r1-u.r0)*e);m.material.opacity=u.a*(1-x)**1.5}}
 
-onHit(e=>{if(e.type==='ground'){if(!e.d.mesh)return;const f=fxOf(e.d);if(!f.g){f.g=1;f.gs=f.gi=0}f.gs=Math.max(f.gs,e.slide);f.gi=Math.max(f.gi,e.speed);f.gp.copy(e.p);f.gn.copy(e.n)}
- else if(e.type==='ball'&&e.p)ballHit(e);
- else if(e.type==='drone'&&e.speed>14&&e.other){const p=_e.addVectors(e.d.p,e.other.p).multiplyScalar(.5),N=Math.round(Math.min(40,e.speed)*QQ.k);
+onEv('ground',e=>{if(!e.d.mesh)return;const f=fxOf(e.d);if(!f.g){f.g=1;f.gs=f.gi=0}f.gs=Math.max(f.gs,e.slide);f.gi=Math.max(f.gi,e.speed);f.gp.copy(e.p);f.gn.copy(e.n)});
+onEv('touch',e=>{if(e.p)ballHit(e)});
+onEv('bump',e=>{if(e.speed>14&&e.other){const p=_e.addVectors(e.d.p,e.other.p).multiplyScalar(.5),N=Math.round(Math.min(40,e.speed)*QQ.k);
   for(let i=0;i<N;i++){_a.set(rnd()-.5,rnd()-.5,rnd()-.5).normalize().multiplyScalar(10+rnd()*25);const h=rnd();SPK.spawn(p.x,p.y,p.z,_a.x,_a.y,_a.z,3,1.6+h,.5+h*.5,1,.2+rnd()*.3,.08,.05,1.5,G*.6,0,.35)}}});
 
 // boost embers, by trail style: stream (team / white) half hot sparks, fire hot col..col2, plasma glowing orbs, sparks fast streaks, sparkle hanging glints, smoke puffs, rainbow every colour

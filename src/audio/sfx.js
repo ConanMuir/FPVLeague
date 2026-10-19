@@ -7,12 +7,12 @@
 // one-shots are a handful of short-lived nodes each, capped by a voice limit (VMAX) and per-sound rate limits.
 // Every entry point counts its trigger in SND.n (tools/sound-check.mjs reads them) and then returns quietly if there is no
 // AudioContext (headless, blocked autoplay, old browser), so nothing here can throw for lack of audio.
-import {AC,BUS,nbuf,near} from './audio.js';
+import {AC,BUS,nbuf,near,tone} from './audio.js';
 import {GH,GW,HL,V3,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
-import {BG,BR} from '../config/tune.js';
+import {BR} from '../config/tune.js';
 import {ball} from '../physics/ball.js';
-import {onHit} from '../physics/world.js';
+import {onEv} from '../core/events.js';
 import {camera} from '../render/renderer.js';
 import {GS} from '../state.js';
 import {inCave} from '../world/caves.js';
@@ -51,10 +51,13 @@ export function sfxInit(){if(L||!AC)return;const pan=()=>AC.createStereoPanner?A
  f1.type=f2.type=f3.type='bandpass';f1.Q.value=4;f2.Q.value=5;f3.Q.value=.6;f1.frequency.value=500;f2.frequency.value=1100;f3.frequency.value=1900;vG.gain.value=0;rG2.gain.value=0;
  vS.connect(f1).connect(vG);vS.connect(f2).connect(vG);vS.connect(f3).connect(rG2);vG.connect(BUS.crowd);rG2.connect(BUS.crowd);vS.start(0,.7);
  L={sG,sP,sF:sF[1].node,rG,rP,rF:rF[0].node,rl,rd,cG,cF:cF[0].node,lf,f1,f2,vG,roar:rG2,ex:0,tens:0};
- onHit(hitEv)}
+ onEv('ground',e=>{try{groundHit(e.d,e.speed,e.p)}catch(err){}});onEv('save',e=>{try{crowdSave(e.d,e.speed)}catch(err){}});onEv('shot',e=>{try{crowdShot(e.d)}catch(err){}});
+ onEv('touch',e=>{try{ballHit(e.d,e.speed,e.verdict)}catch(err){}})}
 
-// ---------- contact events (physics/world.js emitHit) ----------
-function hitEv(e){try{if(e.type==='ground')groundHit(e.d,e.speed,e.p);else if(e.type==='ball')ballHit(e.d,e.speed)}catch(err){}}
+// ---------- game events (core/events.js) ----------
+// contacts (ground, touch) and the crowd's save / shot listen from sfxInit on, once audio exists; the rest from load, like the direct calls they replace
+onEv('bounce',e=>ballBounce(e.speed));onEv('count',e=>countdown(e.n));onEv('goal',e=>goalSfx(e.team,e.p));
+onEv('popEarn',e=>{if(e.d===GS.player)tone(1500,2200,.08,.05)});onEv('popFire',e=>{if(e.d===GS.player)popWhoosh(e.dur)});
 // landing / wall impact of a quad: a low sine thump (pitch drops like a body hitting a floor) + low-passed noise; a hard one adds
 // the frame's ring (three inharmonic partials, a carbon plate) and a short high crack; spinning into it adds clatter
 export function groundHit(d,speed,p){if(!d||!(speed>2))return;const w=now();if(d._sgt&&w-d._sgt<.07&&speed<(d._sgs||0)*1.5)return;cnt('thud');d._sgt=w;d._sgs=speed;if(!AC)return;
@@ -69,7 +72,7 @@ function clatter(d,v){cnt('clatter');if(!AC||v<.01||!slot(.05))return;const t0=A
 // ball touch by a quad: a hollow "thwump" (sine dropping 150+ -> 60 Hz: the big inflated shell), a bandpassed slap that gets brighter
 // with speed, a sub boom on the big ones, and, when the touch left the ball spinning fast, a whistling friction "zip" (narrow noise sweep)
 let ballT=0,ballS=0;
-export function ballHit(d,speed){crowdHit(d,speed);if(!(speed>1.5))return;const w=now();if(w-ballT<.05&&speed<ballS*1.4)return;cnt('ballHit');ballT=w;ballS=speed;const spin=ball.w.length()*BR;
+export function ballHit(d,speed,verdict=''){crowdHit(d,speed,verdict);if(!(speed>1.5))return;const w=now();if(w-ballT<.05&&speed<ballS*1.4)return;cnt('ballHit');ballT=w;ballS=speed;const spin=ball.w.length()*BR;
  if(!AC)return;const t0=AC.currentTime;const k=cl(speed/40,0,1),v=near(ball.p);if(v<.02||!slot(.5))return;const o=dest(ball.p);
  os(t0,150+speed*2.2,60,.14+.14*k,(.18+.42*k)*v,'sine',o);nz(t0,.05+.06*k,1100+speed*35,(.12+.45*k)*v,.8,o);
  if(k>.6)os(t0,72,38,.38,.4*(k-.5)*v,'sine',o);
@@ -95,14 +98,10 @@ function react(kind,lvl,hold=.8){cnt('crowd_'+kind);if(!AC||!crowdOn())return;co
   f1.frequency.setValueAtTime(a1,t);f2.frequency.setValueAtTime(a2,t);f1.frequency.linearRampToValueAtTime(b1,t+.35);f2.frequency.linearRampToValueAtTime(b2,t+.35);
   if(up){f1.frequency.linearRampToValueAtTime(a1,t+hold);f2.frequency.linearRampToValueAtTime(a2,t+hold)}
   vG.gain.setValueAtTime(vG.gain.value,t);vG.gain.linearRampToValueAtTime(.45*lvl,t+.18);vG.gain.setTargetAtTime(0,t+hold*.7,.35)}}
-// on every ball touch: was the ball on target before it? a defender turning it away is a save; a hard hit gets a "whoa"
-const _bv=new V3();
-function onTarget(p,v){const vz=v.z;if(Math.abs(vz)<6)return -1;const gz=vz>0?HL:-HL,tt=(gz-p.z)/vz;if(tt<0||tt>1.8)return -1;const x=p.x+v.x*tt,y=Math.max(BR,p.y+v.y*tt-.5*BG*tt*tt);  // the floor bounces it back up
- return Math.abs(x)<GW/2+BR&&y<GH+BR?(vz>0?0:1):-1}  // the team defending that goal (blue defends +z: blue scores at -z)
-function crowdHit(d,speed){if(!d||GS.state!=='play')return;const pre=onTarget(ball.p,ball.v0),post=onTarget(ball.p,ball.v);
- if(pre>=0&&d.team===pre&&post!==pre){cnt('save');react('cheer',(mine(d.team)?.75:.45)+cl((speed-15)/40,0,.3),1.2);return}
- if(post>=0&&post!==d.team&&speed>12){cnt('shot');react('ooh',mine(d.team)?.55:.4,1)}  // a shot on target: the crowd draws breath
- else if(speed>30){cnt('bigHit');react('cheer',mine(d.team)?.45:.3,.5)}}
+// a touch the crowd reacts to: a save or a shot on target come as their own events (modes/match.js judges them); a hard hit otherwise gets a cheer
+function crowdHit(d,speed,verdict){if(!d||GS.state!=='play'||verdict)return;if(speed>30){cnt('bigHit');react('cheer',mine(d.team)?.45:.3,.5)}}
+const crowdSave=(d,speed)=>{cnt('save');react('cheer',(mine(d.team)?.75:.45)+cl((speed-15)/40,0,.3),1.2)};
+const crowdShot=d=>{cnt('shot');react('ooh',mine(d.team)?.55:.4,1)};  // a shot on target: the crowd draws breath
 // a hard bounce off the back wall right beside / over the goal mouth: "ooooh"
 function nearMiss(hit){if(GS.state!=='play'||hit<8)return;const p=ball.p;if(Math.abs(p.z)<HL-BR-3)return;const ax=Math.abs(p.x)-GW/2,ay=p.y-GH;if(ax>14||ay>14||(ax<0&&ay<0))return;
  cnt('nearMiss');react('ooh',.5+cl((14-Math.max(ax,ay))/14,0,.5),1.3)}
