@@ -2,6 +2,7 @@
 .gmode{display:inline-flex;border:1px solid var(--edge);border-radius:6px;overflow:hidden;margin:4px 0 8px}
 .gmode button{border:0;border-radius:0;padding:8px 20px;font-size:15px;background:rgba(255,255,255,.04);color:var(--dim)}
 .gmode button.on{background:rgba(255,198,64,.18);color:#fff;box-shadow:inset 0 -2px 0 var(--amber)}
+.gmode.zdiff{display:flex;margin:-4px 0 10px}.gmode.zdiff[hidden]{display:none}.gmode.zdiff button{flex:1;padding:6px 10px;font-size:13px}
 .gmdesc{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.45;max-width:52ch}.gmdesc b{color:var(--ink)}
 
 /* in-wave HUD: replaces Classic's score strip and site row */
