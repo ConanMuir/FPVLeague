@@ -4,6 +4,7 @@ import {ARENAS,cl} from './constants.js';
 import {MDEF,cleanMod} from './mods.js';
 import {RTYPES} from './ratetypes.js';
 import {STOCK,cleanLoadout} from '../parts/index.js';
+import {cleanTrain} from '../training/judge.js';
 const DEF={mode:"acro",diff:3,size:2,tilt:30,fov:110,cam:0,thrMode:"full",len:180,cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,name:'',tp:'auto',map:'arena',ball:'classic',game:'league',afire:true,fireBtn:5,sboost:false,bots:1,arena:1,xfire:7,xflip:1,flipBtn:-1,xcal:[{a:1,c:0,s:-1,m:'spring'},{a:0,c:0,s:1},{a:3,c:0,s:-1},{a:2,c:0,s:1}],gfx:'auto',assist:0};
 export let S;try{S={...DEF,...JSON.parse(localStorage.getItem('droneleague')||'{}')}}catch(e){S={...DEF}}
 if(!Array.isArray(S.cal)||S.cal.length!==4||!S.cal.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s)))S.cal=DEF.cal.map(c=>({...c}));
@@ -27,3 +28,4 @@ if(!S.presets||typeof S.presets!=='object')S.presets={};
 {const B=v=>v===-1||Number.isInteger(v)&&v>=0&&v<32||typeof v==='string'&&/^a\d-?$/.test(v),num=Number.isFinite;S.assist=cl(+S.assist||0,0,1);
  if(S.dzy!=null&&!num(+S.dzy))delete S.dzy;else if(S.dzy!=null)S.dzy=cl(+S.dzy,0,.2);for(const k of['xboost','boostBtn','xfire','fireBtn','xflip','flipBtn'])if(k in S&&!B(S[k]))S[k]=DEF[k]??-1;
  for(const c of[...S.cal,...S.xcal]){if('r'in c&&!num(c.r))delete c.r;if(c.nb&&!(num(c.nb.a)&&num(c.nb.c)&&num(c.nb.s)))delete c.nb}}
+S.train=cleanTrain(S.train);  // skill training packs: best result per pack {id: {n, of, t}}; older saves start empty, malformed entries are dropped

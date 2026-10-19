@@ -22,8 +22,9 @@ import {GS,SB,auth} from '../state.js';
 import {banner} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
 import {MODES} from './registry.js';
+import {TR,trainPost,trainPre} from './training.js';
 const _pu=new V3(),_pc=new V3(),_pw2=new V3(),_pr=new V3(),_fr=new V3(),_fs=new V3(),_fc=new V3(),sst=x=>{x=cl(x,0,1);return x*x*(3-2*x)};
-export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state, Rapier moves it
+export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);physStep(dt,false);return}if(TR.on&&trainPre(dt)){physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state, Rapier moves it
  if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);tone(660,660,.12,.12,'square')}else{banner('GO!','',.6);tone(990,990,.25,.15,'square')}}}if(A&&GS.stT<=0)GS.state='play'}
  else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
  else if(GS.state==='end'){GS.stT-=dt;if(A&&GS.stT<=0){banner('');if(GS.net){GS.score=[0,0];GS.clock=S.len;GS.overtime=GS.endPending=false;kickoff()}else{startDemo();return}}}
@@ -64,5 +65,6 @@ export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);ph
    emitHit({type:'drone',d:a,tag:c.ta,other:b,otherTag:c.tb,speed:-rv});
    if(-rv>DEMO&&a.team!==b.team&&live&&!GS.OBSON){const as=a.v.dot(n),bs=-b.v.dot(n),[vic,by]=as>bs?[b,a]:[a,b];if(!vic.remote)demolish(vic,by)}
    else{const ma=a.fl.mass,mb=b.fl.mass,j=-1.5*rv/(1/ma+1/mb);if(!a.remote)a.v.addScaledVector(n,-j/ma);if(!b.remote)b.v.addScaledVector(n,j/mb)}}}  // parts: mass-weighted bump
- if(A&&GS.state==='play'&&!GS.OBSON){if(ball.p.z<-(HL+BR))goal(0);else if(ball.p.z>HL+BR)goal(1)}
+ if(A&&GS.state==='play'&&!GS.OBSON&&!TR.on){if(ball.p.z<-(HL+BR))goal(0);else if(ball.p.z>HL+BR)goal(1)}
+ if(TR.on)trainPost(dt);  // skill training judges its own shots (modes/training.js)
  if(A&&!GS.OBSON){if(++GS.stepN%4===0)predict();if(GS.stepN%45===0)assignRoles()}}
