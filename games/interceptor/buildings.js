@@ -4,7 +4,7 @@
 // per material (plus its collision boxes and fire / smoke points), so changing stage is a visibility swap. Stage 0 is built at load (Classic shows only
 // that); stages 1-4 are built, and their shaders compiled, the first frame Zombies runs. step() follows each site's HP while Zombies is on.
 import * as THREE from 'three';
-import {tex,detail} from '../../engine/render.js';
+import {tex,detail,snowy} from '../../engine/render.js';
 import {hash2,vnoise} from '../../engine/util.js';
 const V3=THREE.Vector3,PI=Math.PI,_m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new V3(),_s=new V3(),_v=new V3(),_n=new THREE.Matrix3();
 const D=[0,.12,.32,.58,1];  // damage amount per stage: thresholds for the seeded per-part rolls
@@ -52,6 +52,7 @@ function bake(k,s){const G=new THREE.Group();G.position.set(s.x,s.y,s.z);
 const H=(a,b)=>hash2(a*1.37+.21,b*2.71+.53);
 // panel-block facade, one tile = 8 bays × 9 floors (24 × 27 m). Damage level L breaks more windows, adds soot plumes, and (L>=2) burning rooms in the emissive map
 function facadeTex(L){const P=[0,.1,.25,.5][L],S=[0,.35,.6,.85][L],em=L>=2?document.createElement('canvas'):null,W=512,FH=W/9,BW=W/8;let eg=null;if(em){em.width=em.height=W;eg=em.getContext('2d');eg.fillStyle='#000';eg.fillRect(0,0,W,W)}
+ const lc=document.createElement('canvas');lc.width=lc.height=W/4;const lg=lc.getContext('2d');lg.fillStyle='#00ff00';lg.fillRect(0,0,W/4,W/4);  /* night lights mask (winLights): r = window, g = switch-off rank, b = tint; only intact windows */
  const map=tex(W,W,g=>{g.fillStyle='#d3cec2';g.fillRect(0,0,W,W);
   for(let f=0;f<9;f++)for(let b=0;b<8;b++){const t=H(b+30,f)*14-7;g.fillStyle=`rgb(${208+t},${203+t},${192+t})`;g.fillRect(b*BW+1,W-(f+1)*FH+1,BW-2,FH-2)}
   g.fillStyle='#b9b2a4';for(let f=0;f<9;f++)g.fillRect(0,W-f*FH-12,W,3);g.fillStyle='#9c968a';g.fillRect(0,W-17,W,17);  // floor-slab joint bands, darker plinth
@@ -61,11 +62,11 @@ function facadeTex(L){const P=[0,.1,.25,.5][L],S=[0,.35,.6,.85][L],em=L>=2?docum
     g.strokeStyle='#cfcac0';g.lineWidth=2;g.beginPath();g.moveTo(x,y+h);g.lineTo(x+w,y+h);if(hs>.5){g.moveTo(x,y);g.lineTo(x,y+h)}g.stroke();
     if(hs<S){g.save();g.translate(x+w/2,y+4);g.scale(1,2.2);const r=g.createRadialGradient(0,-6,2,0,-6,22);r.addColorStop(0,'rgba(14,11,9,.85)');r.addColorStop(1,'rgba(14,11,9,0)');g.fillStyle=r;g.beginPath();g.arc(0,-6,22,0,7);g.fill();g.restore()}
     if(burn){const r=eg.createLinearGradient(0,y,0,y+h);r.addColorStop(0,'#ff7a1a');r.addColorStop(1,'#ffcf70');eg.fillStyle=r;eg.fillRect(x+2,y+3,w-4,h-4);eg.fillStyle='rgba(255,120,30,.35)';eg.fillRect(x-4,y-6,w+8,10)}}
-   else{const r=g.createLinearGradient(0,y,0,y+h);r.addColorStop(0,'#5d6b78');r.addColorStop(1,'#232a31');g.fillStyle=r;g.fillRect(x,y,w,h);if(H(b+3,f+7)<.3){g.fillStyle='rgba(205,190,160,.75)';g.fillRect(x+2,y+2,9,h-4)}
+   else{lg.fillStyle=`rgb(255,${H(b+5,f+11)*250|0},${H(b+2,f+7)*255|0})`;lg.fillRect((x+3)/4,(y+3)/4,(w-6)/4,(h-6)/4);const r=g.createLinearGradient(0,y,0,y+h);r.addColorStop(0,'#5d6b78');r.addColorStop(1,'#232a31');g.fillStyle=r;g.fillRect(x,y,w,h);if(H(b+3,f+7)<.3){g.fillStyle='rgba(205,190,160,.75)';g.fillRect(x+2,y+2,9,h-4)}
     g.strokeStyle='#ece8e0';g.lineWidth=2;g.strokeRect(x,y,w,h);g.beginPath();g.moveTo(x+w/2,y);g.lineTo(x+w/2,y+h);g.moveTo(x,y+9);g.lineTo(x+w,y+9);g.stroke()}
    g.fillStyle='#b4ad9f';g.fillRect(x-3,y+h,w+6,3)}
   if(L>=3)for(let i=0;i<14;i++){const x=H(i,77)*W,y=H(77,i)*W,r=30+H(i,i)*70,gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(20,16,12,.6)');gr.addColorStop(1,'rgba(20,16,12,0)');g.fillStyle=gr;g.fillRect(x-r,y-r,2*r,2*r)}},true);
- let emt=null;if(em){emt=new THREE.CanvasTexture(em);emt.colorSpace=THREE.SRGBColorSpace;emt.wrapS=emt.wrapT=THREE.RepeatWrapping}return{map,em:emt}}
+ let emt=null;if(em){emt=new THREE.CanvasTexture(em);emt.colorSpace=THREE.SRGBColorSpace;emt.wrapS=emt.wrapT=THREE.RepeatWrapping}const lit=new THREE.CanvasTexture(lc);lit.wrapS=lit.wrapT=THREE.RepeatWrapping;return{map,em:emt,lit}}
 // a cut through a damaged block: dark rooms, concrete floor slabs every 3 m, partition walls, faded wallpaper, soot (one tile = 12 × 12 m)
 const cutTex=()=>tex(256,256,g=>{g.fillStyle='#34312e';g.fillRect(0,0,256,256);const F=64;
  for(let f=0;f<4;f++){let x=0;while(x<256){const w=30+H(x,f)*70;g.fillStyle=['#6b6256','#5d6466','#6e5d55','#4d4a45'][(H(f,x)*4)|0];g.globalAlpha=.55;g.fillRect(x+4,f*F+8,w-8,F-16);g.globalAlpha=1;g.fillStyle='#24211f';g.fillRect(x,f*F,4,F);x+=w}}
@@ -82,12 +83,23 @@ const meshTex=()=>tex(64,64,g=>{g.strokeStyle='rgba(165,172,176,1)';g.lineWidth=
 const railTex=()=>tex(64,64,g=>{g.fillStyle='#c9cdd0';g.fillRect(0,0,64,6);g.fillRect(0,30,64,4);g.fillRect(0,0,5,64);g.fillRect(32,0,4,64)},true);
 const cladTex=()=>tex(64,64,g=>{for(let x=0;x<64;x++){const v=200+30*Math.sin(x/64*PI*8);g.fillStyle=`rgb(${v-8},${v},${v+6})`;g.fillRect(x,0,1,64)}},true);
 
+// ---------- night lights (Zombies night weather, zwx.js): lit windows in the blocks and the village houses ----------
+// NIGHT.w = brightness (0 by day and in Classic: the shader then adds nothing); NIGHT.apt / NIGHT.vil = share of windows still lit, which
+// the blocks' damage and the substation's power take down. Each window has its own rank in the mask, so they go out one by one.
+export const NIGHT={w:{value:0},apt:{value:0},vil:{value:0}};
+function winLights(m,lit,thr,inst){m.customProgramCacheKey=()=>'nwin'+(inst?1:0);m.onBeforeCompile=sh=>{sh.uniforms.litMap={value:lit};sh.uniforms.nW=NIGHT.w;sh.uniforms.nT=thr;
+ if(inst)sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vHr;').replace('#include <begin_vertex>','#include <begin_vertex>\nvHr=fract(sin(float(gl_InstanceID)*12.9898)*43758.5453);');
+ sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D litMap;uniform float nW,nT;'+(inst?'varying float vHr;':'')).replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\nif(nW>0.){vec3 lw=texture2D(litMap,vMapUv).rgb;totalEmissiveRadiance+=mix(vec3(1.,.5,.18),vec3(1.,.72,.4),lw.b)*lw.r*step('+(inst?'fract(lw.g+vHr)':'lw.g')+',nT)*nW;}')};return m}
+// village houses: three windows a wall (houseTex), each house its own rank offset
+const houseLit=()=>{const c=document.createElement('canvas');c.width=64;c.height=32;const g=c.getContext('2d');g.fillStyle='#00ff00';g.fillRect(0,0,64,32);[38,128,218].forEach((x,i)=>{g.fillStyle=`rgb(255,${[40,128,215][i]},${[60,200,120][i]})`;g.fillRect((x-12)/4,39/4,24/4,36/4)});return new THREE.CanvasTexture(c)};
+export const houseNight=m=>winLights(m,houseLit(),NIGHT.vil,1);
+
 // ---------- materials ----------
 let M=null;
 function mats(MS){if(M)return M;const std=(o,s1,s2,bk)=>s1?detail(new THREE.MeshStandardMaterial(o),s1,s2,0,bk):new THREE.MeshStandardMaterial(o);
- const F=[0,1,2,3].map(facadeTex),cut=cutTex(),fac=(L,c=0xffffff,k=1)=>{const m=new THREE.MeshStandardMaterial({map:F[L].map,color:new THREE.Color(c).multiplyScalar(k),roughness:.85});if(F[L].em){m.emissiveMap=F[L].em;m.emissive=new THREE.Color(0xff8a3a);m.emissiveIntensity=2.2;m.userData.fire=1}return m};
+ const F=[0,1,2,3].map(facadeTex),cut=cutTex(),fac=(L,c=0xffffff,k=1,lit=1)=>{const m=new THREE.MeshStandardMaterial({map:F[L].map,color:new THREE.Color(c).multiplyScalar(k),roughness:.85});if(F[L].em){m.emissiveMap=F[L].em;m.emissive=new THREE.Color(0xff8a3a);m.emissiveIntensity=2.2;m.userData.fire=1}return lit?winLights(m,F[L].lit,NIGHT.apt):m};
  const tr=(o)=>Object.assign(new THREE.MeshBasicMaterial({transparent:true,depthWrite:false,...o}),{userData:{noCast:1,noRecv:1}});
- M={conc:std({color:0x8c8a83,roughness:.9},3,19,.35),steel:MS.steel,trafo:MS.met,dark:MS.dark,tank:MS.tank,roof:MS.roof,
+ M={conc:std({color:0x8c8a83,roughness:.9},3,19,.35),steel:MS.steel,trafo:MS.met,dark:MS.dark,tank:MS.tank,roof:snowy(MS.roof),
   gravel:std({color:0x7c766b,roughness:1},2.2,11,.45),asph:std({color:0x5a5b5a,roughness:.95},2,13,.3),earth:std({color:0x5f6540,roughness:1},1.3,7,.6),pad:std({color:0x8e897f,roughness:.92},3,19,.35),
   lawn:std({color:0x5b6a3a,roughness:1},.9,6,.5),leaf:std({color:0x2f4a22,roughness:.9},1.3,5,.6),bark:new THREE.MeshStandardMaterial({color:0x4a3b2c,roughness:1}),
   rubble:std({color:0x77716a,roughness:1,flatShading:true},.35,2.2,.9),rubbleB:std({color:0x3c3733,roughness:1,flatShading:true},.35,2.2,.9),tankB:new THREE.MeshStandardMaterial({map:sootTex('#57504a',1),roughness:.95,metalness:.05}),tankBF:new THREE.MeshStandardMaterial({map:sootTex('#4d4741',1),roughness:.95,metalness:.05,flatShading:true}),
@@ -96,13 +108,13 @@ function mats(MS){if(M)return M;const std=(o,s1,s2,bk)=>s1?detail(new THREE.Mesh
   porc:new THREE.MeshStandardMaterial({color:0x7a3622,roughness:.25,metalness:.05}),glassI:new THREE.MeshStandardMaterial({color:0x6d9688,roughness:.15,metalness:.1}),
   brick:std({color:0x9a644a,roughness:.92},.6,4,.35),brickB:std({color:0x3a2a22,roughness:1},.6,4,.4),glass:new THREE.MeshStandardMaterial({color:0x26323c,roughness:.08,metalness:.7}),
   hole:new THREE.MeshStandardMaterial({color:0x080707,roughness:1}),fireWin:new THREE.MeshStandardMaterial({color:0x2a1206,emissive:0xff7a20,emissiveIntensity:2.4,roughness:1}),
-  red:new THREE.MeshStandardMaterial({color:0xa8322a,roughness:.6}),band:new THREE.MeshStandardMaterial({color:0x2f5d8c,roughness:.5,metalness:.3}),tankRoof:new THREE.MeshStandardMaterial({color:0xc9ccc8,roughness:.5,metalness:.35}),
+  red:new THREE.MeshStandardMaterial({color:0xa8322a,roughness:.6}),band:new THREE.MeshStandardMaterial({color:0x2f5d8c,roughness:.5,metalness:.3}),tankRoof:snowy(new THREE.MeshStandardMaterial({color:0xc9ccc8,roughness:.5,metalness:.35})),
   tankS:new THREE.MeshStandardMaterial({color:0xdfe1dc,map:sootTex(),roughness:.85,metalness:.12}),tankIn:new THREE.MeshStandardMaterial({color:0x141210,roughness:1,side:THREE.BackSide}),
   fireSurf:new THREE.MeshStandardMaterial({color:0x000000,emissive:0xff6a14,emissiveIntensity:3,roughness:1}),pipe:new THREE.MeshStandardMaterial({color:0xa6955a,roughness:.55,metalness:.4}),
   clad:new THREE.MeshStandardMaterial({map:cladTex(),color:0xb9c3c9,roughness:.5,metalness:.4}),sand:std({color:0x9c8d68,roughness:1},.5,3,.5),
   balc:new THREE.MeshStandardMaterial({color:0xc7ccc9,roughness:.8}),car:[0x7d1f1f,0x2c3e57,0xb9bbb7,0x2d2f31,0x5c6b3a,0x8a7a5a].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.35,metalness:.5})),
   fence:new THREE.MeshStandardMaterial({map:meshTex(),alphaTest:.45,side:THREE.DoubleSide,roughness:.6,metalness:.5}),rail:new THREE.MeshStandardMaterial({map:railTex(),alphaTest:.5,side:THREE.DoubleSide,roughness:.5,metalness:.5}),
-  fac:[0,1,2,3].map(L=>fac(L)),facT:[0,1,2,3].map(L=>fac(L,0xc5d1dc)),fac4:fac(3,0x6a645c),facT4:fac(3,0x5c6268),cut:new THREE.MeshStandardMaterial({map:cut,roughness:1}),
+  fac:[0,1,2,3].map(L=>fac(L)),facT:[0,1,2,3].map(L=>fac(L,0xc5d1dc)),fac4:fac(3,0x6a645c,1,0),facT4:fac(3,0x5c6268,1,0),cut:new THREE.MeshStandardMaterial({map:cut,roughness:1}),
   scorch:tr({map:blobTex('8,6,5'),side:THREE.DoubleSide}),crater:tr({map:blobTex('20,16,12',1)}),spill:tr({map:blobTex('4,4,4'),opacity:.9}),dirt:tr({map:blobTex('62,48,32',1),opacity:.85})};
  for(const m of[M.fence,M.rail,M.clad])m.map.repeat.set(1,1);
  return M}

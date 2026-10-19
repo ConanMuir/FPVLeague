@@ -129,9 +129,9 @@ export function initZombies(api){
   if(ply&&G.burst){G.burst.n++;if(G.burst.n>1){c+=MULTI_BONUS;why=why||' MULTI'}}
   earn(c,t.p,why)};
  // every payout is scaled by the difficulty and the early-wave boost (x2.2 on wave 1, x1 from wave 10)
- function earn(c,p,why){c=Math.round(c*DF().cash*earlyK(Math.max(1,G.wave)));G.cash+=c;G.earned+=c;if(p)pop(p,`+${money(c)}${why||''}`,why?'#ffe23c':'#3ddc84');return c}
+ function earn(c,p,why){c=Math.round(c*DF().cash*earlyK(Math.max(1,G.wave)));G.cash+=c;G.earned+=c;if(p)pop(p,`+${money(c)}${why||''}`,why?'#ffe23c':'#3ddc84',c);return c}
  Z.earn=earn;
- const pop=Z.pop=(p,txt,col)=>{if(G.pops.length>40)G.pops.shift();G.pops.push({p:p.clone(),txt,col,t:0})};
+ const pop=Z.pop=(p,txt,col,amt=0)=>{if(G.pops.length>40)G.pops.shift();G.pops.push({p:p.clone(),txt,col,t:0,amt,t0:performance.now()})};  // amt: money, which flies into the cash counter (Z.flyPop, zannounce.js)
 
  // player warhead in Zombies: Riley's kill model (pkill from miss distance + fuse delay), plus the one-hit/armor rules
  Z.detonate=()=>{const d=api.player,out=[];G.burst={n:0};
@@ -212,7 +212,7 @@ export function initZombies(api){
   oc.font='700 13px "JetBrains Mono",monospace';
   for(const t of hardT()){_a.copy(t.aim).project(cam);if(_a.z>1||Math.abs(_a.x)>1.05||Math.abs(_a.y)>1.05)continue;const X=(_a.x*.5+.5)*W,Y=(-_a.y*.5+.5)*H;oc.strokeStyle=oc.fillStyle='#ff4d4d';oc.lineWidth=2;oc.setLineDash([5,4]);oc.beginPath();oc.arc(X,Y,26,0,7);oc.stroke();oc.setLineDash([]);oc.fillText(`IMPACT ${Math.ceil(ttImpact(t))}s`,X,Y+42)}
   oc.font='700 14px "JetBrains Mono",monospace';
-  for(let i=G.pops.length-1;i>=0;i--){const p=G.pops[i];if(p.t>1.6){G.pops.splice(i,1);continue}_a.copy(p.p).project(cam);if(_a.z>1)continue;
+  for(let i=G.pops.length-1;i>=0;i--){const p=G.pops[i];if(p.amt&&Z.flyPop){if(Z.flyPop(oc,p,W,H))G.pops.splice(i,1);continue}if(p.t>1.6){G.pops.splice(i,1);continue}_a.copy(p.p).project(cam);if(_a.z>1)continue;
    oc.globalAlpha=cl(2-p.t*1.25,0,1);oc.fillStyle=p.col;oc.fillText(p.txt,(_a.x*.5+.5)*W,(-_a.y*.5+.5)*H-30-p.t*40)}
   pk.overlay(oc,W,H);oc.restore()};
  // performance governor (Zombies only): the forest's shadow pass is the biggest frame cost; if frames stay slow for a few seconds, trees stop casting shadows.
