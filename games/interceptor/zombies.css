@@ -87,4 +87,5 @@ body.zb-open #hud{visibility:hidden}
 .zcoop{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 10px;border:1px solid rgba(95,227,255,.35);border-radius:8px;background:rgba(95,227,255,.06);font:12px var(--mono)}
 .zcoop b{color:#5fe3ff;letter-spacing:.08em}.zcoop span{padding:3px 8px;border-radius:4px;background:rgba(255,255,255,.05);color:var(--dim)}.zcoop span.rd{background:rgba(61,220,132,.18);color:#9ff0c0}
 .zcoop em{font:12px var(--disp);font-style:normal;color:var(--dim);flex-basis:100%}.zcoop button{margin-left:auto}
+body.zcoop #menu{z-index:4}  /* in co-op the menu (Leave co-op game) opens over the base screen */
 #zco{font:700 12px var(--mono);color:#5fe3ff;text-shadow:0 0 3px #000}#zco:empty{display:none}

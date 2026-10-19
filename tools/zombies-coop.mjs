@@ -90,7 +90,7 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !docum
   ok(!hp.perks.warhead && !ap.perks.warhead, 'Shop: the host and Ash do not get Bea\'s personal perk');
   await ev(B, () => { const i = __z.G.cards.findIndex(c => c.k === 'radar'); document.querySelector(`[data-buy="${i}"]`)?.click(); });
   ok(await until(H, () => __z.G.perks.radar === 1) && await until(A, () => __z.G.perks.radar === 1 && __z.Z.radarK() === 1.3), 'Shop: Bea buys Long-range radar, a team perk: the host and Ash have it too');
-  await ev(A, () => { const i = __z.G.cards.findIndex(c => c.k === 'freeze'); document.querySelector(`[data-buy="${i}"]`)?.click(); });
+  await A.p.click('[data-tab="shop"]'); await ev(A, () => { const i = __z.G.cards.findIndex(c => c.k === 'freeze'); document.querySelector(`[data-buy="${i}"]`)?.click(); });
   ok(await until(A, () => __z.G.perks.freeze === 1 && __z.G.ch.freeze === 1) && await until(H, () => __z.G.cash === 3200), 'Shop: Ash buys Freeze (an active perk, personal): one charge, purse -$900');
   await ev(H, () => { __z.api.SITES[0].hp -= 120; });
   ok(await until(A, () => __z.api.SITES[0].hp === __z.api.SITES[0].max - 120), 'Site HP sync: damage on the host shows on the clients');

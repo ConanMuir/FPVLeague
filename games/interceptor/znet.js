@@ -68,13 +68,13 @@ export function initNet(api,G,Z){
    out:[],oseq:Date.now(),evSeen:-1,drSeen:0,ts:new Map(),tm:new Map(),pl:[],gid0:0,late:false,rd:0,pil:new Map(),sig:'',nx:null,nxJ:'',pkJ:''};
   r.onPeers(ch=>{if(net!==n)return;n.peers=ch.peers;const me=ch.peers.find(p=>p.sameTab);if(me)n.me=me.peer},
    e=>{if(net===n)ended(e.code==='host_left'?'The host left the game. Co-op game over.':`Lost connection to the game (${e.code}).`)});
-  r.presence({z:1,n:myName()}).catch(()=>{});lobby();
+  r.presence({z:1,n:myName()}).catch(()=>{});lobby();document.body.classList.add('zcoop');
   if(isHost){if(S.gmode!=='z'){S.gmode='z';save();Z.syncMode?.()}G.dfo=undefined;api.startMatch();if(room.p2p){try{history.replaceState(null,'','#z'+code)}catch(e){}}
    msg(`Hosting co-op game ${code.toUpperCase()}. Friends open this page, pick Zombies, type ${code.toUpperCase()} and press Join${room.p2p?' (or open this page\'s link, it now ends in #z'+code+')':''}.`)}
   else msg(`Joining ${code.toUpperCase()}… waiting for the host.`)}
  function leave(){if(!net)return;const n=net;net=null;n.r.leave().catch(()=>{});for(const r of n.pil.values())api.scene.remove(r.d.mesh);n.pil.clear();G.dfo=undefined;for(const t of TH)t.pc=null;
   if(n.host&&!room?.p2p)room?.presence?.({zg:null,host:null,pl:null})?.catch?.(()=>{});
-  $('leave').textContent='Quit to menu';try{if(/^#z/.test(location.hash))history.replaceState(null,'',location.pathname+location.search)}catch(e){}lobby()}
+  $('leave').textContent='Quit to menu';document.body.classList.remove('zcoop');try{if(/^#z/.test(location.hash))history.replaceState(null,'',location.pathname+location.search)}catch(e){}lobby()}
  // the game ends for this pilot (host gone, connection lost, game full): back to the menu with the reason on it
  function ended(why){leave();if(G.on||!api.demo){$('zover').hidden=true;api.startDemo()}msg(why,1);banner('')}
  const zs=Z.start;Z.start=()=>{zs();if(!net)return;$('leave').textContent='Leave co-op game';if(net.host){net.gid++;net.perks={};net.kc={};net.dr={};net.rd=0}};
