@@ -20,7 +20,7 @@ import {GS} from '../state.js';
 import {ANCHOR,DRILLS,ROOM,makeDrill} from '../tuner/drills.js';
 import {LAB} from '../tuner/labstate.js';
 import {buildRoom,labG} from '../tuner/room.js';
-import {extras,makeTuner,onAlt,onHold,onHover,onRest,onSnap,onTrack,profile} from '../tuner/tuner.js';
+import {extras,makeTuner,onAlt,onHold,onHover,onHoverPhys,onRest,onSnap,onTrack,profile} from '../tuner/tuner.js';
 export {LAB};
 const D2R=Math.PI/180,R2D=180/Math.PI,_u=new V3(),_a=new V3(),_q=new QT(),_qt=new QT(),_qe=new QT(),_f=new V3(),_r=new V3(),LEVEL=new QT(),AXC=['z','x','y'];
 Object.assign(LAB,{speed:'gradual',testT:0,st:'off',pid:'def',di:0,drill:null,T:null,cd:0,t:0,ang:[0,0,0],err:[0,0,0],tv:[0,0,0],last:'',before:null,saved:false,flash:0,hits:0});
@@ -39,7 +39,8 @@ export function exitLab(){if(!LAB.on)return;LAB.on=false;LAB.st='off';clearOv();
  GS.camMode=LAB.cam??GS.camMode;$('leave').textContent='Leave game';setGame(S.game)}
 // adapt speed: Default always steps gently; Pro picks Gradual (the preset's own step) or Quick (bigger steps, sooner)
 export const speedOf=pid=>pid==='pro'?(LAB.speed==='quick'?1.8:1):.85;
-export function startPack(pid){LAB.pid=pid;clearOv();LAB.T=makeTuner(pid,clone(RT()),{dz:S.dz,dzy:S.dzy,assist:S.assist,speed:speedOf(pid)});LAB.hits=0;LAB.last='';apply();startDrill(0)}
+const hoverOf=d=>d?.fl?(G/(THR*d.fl.thr))**(1/(TE*d.fl.te)):null;  // motor share that holds this quad up (its parts' thrust and weight)
+export function startPack(pid){LAB.pid=pid;clearOv();LAB.T=makeTuner(pid,clone(RT()),{dz:S.dz,dzy:S.dzy,assist:S.assist,speed:speedOf(pid)});onHoverPhys(LAB.T,hoverOf(GS.player));LAB.hits=0;LAB.last='';apply();startDrill(0)}
 function startDrill(i){LAB.di=i;LAB.drill=makeDrill(DRILLS[i]);LAB.st='ready';LAB.cd=3;LAB.t=0;LAB.ang=[0,0,0];place(GS.player,startY(LAB.drill.rig));tone(660,660,.1,.08,'square')}
 function handle(evs){const T=LAB.T;for(const e of evs){let ch=[];
  if(e.kind==='rest'){ch=onRest(T,e.N);LAB.last=e.N?`Sticks at rest: roll/pitch within ${Math.max(e.N[0].need,e.N[1].need).toFixed(3)}, yaw ${e.N[2].need.toFixed(3)}`:'No stick data'}
@@ -57,7 +58,7 @@ export function discard(){clearOv()}
 export function revert(){const B=LAB.before;if(!B)return;S.rprof=clone(B.rprof);S.rpi=B.rpi;S.dz=B.dz;if(B.dzy==null)delete S.dzy;else S.dzy=B.dzy;S.assist=B.assist;clearOv();save();LAB.saved=false}
 export function again(){clearOv();LAB.T=null;LAB.drill=null;LAB.st='intro';place(GS.player,.15)}
 // Retry training: run the drills again starting from the tuned values, and keep improving on them
-export function retry(){if(!LAB.T){again();return}LAB.saved=false;LAB.hits=0;LAB.last='';apply();startDrill(0)}
+export function retry(){if(!LAB.T){again();return}onHoverPhys(LAB.T,hoverOf(GS.player));LAB.saved=false;LAB.hits=0;LAB.last='';apply();startDrill(0)}
 // Test first: TEST_S of freeplay (you and the ball, no bots) flying the tuned settings, then back to the results
 export const TEST_S=60;
 export function startTest(){const d=GS.player;if(!LAB.T||!d)return;apply();LAB.st='test';LAB.testT=TEST_S;labG.visible=false;$('lab').hidden=true;setGame('free');
