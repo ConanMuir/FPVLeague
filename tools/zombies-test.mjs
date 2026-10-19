@@ -48,9 +48,11 @@ if (!ONLY) {
   await p.evaluate(() => __z.sim(4));
   const b1 = await p.evaluate(() => ({base: !document.getElementById('zbase').hidden, st: __z.G.state, wave: __z.G.wave}));
   ok(b1.base && b1.st === 'base' && b1.wave === 1, 'Zombies: wave 1 clear opens the base screen (no timer)');
-  // shop: buy a drone rack from its card, place it, upgrade it in the Armory, reroll
+  // shop: the whole catalogue is listed; buy a drone rack, place it, upgrade it in the Armory, buy a perk
   await p.evaluate(() => { __z.G.cash = 6000; __z.Z.def && document.querySelector('[data-tab="shop"]').click(); });
-  const bought = await p.evaluate(() => { if (!__z.G.cards.some(c => c.k === 'rack')) { __z.G.cards[0] = {k: 'rack', sold: false}; __z.Z.base.render(); } const i = __z.G.cards.findIndex(c => c.k === 'rack'); if (i < 0) return 'no rack card'; document.querySelector(`[data-buy="${i}"]`).click(); return !!document.querySelector('[data-slot]'); });
+  const cat = await p.evaluate(() => ({n: __z.G.cards.length, all: Object.keys(__z.ITEMS).length, groups: [...document.querySelectorAll('.ztab h3')].map(h => h.textContent).join('/'), reroll: !!document.getElementById('zreroll')}));
+  ok(cat.n === cat.all && cat.groups === 'Helpers/Active perks/Passive perks' && !cat.reroll, `Shop lists every item (${cat.n}) in groups ${cat.groups}, no reroll`);
+  const bought = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); if (i < 0) return 'no rack'; document.querySelector(`[data-buy="${i}"]`).click(); return !!document.querySelector('[data-slot]'); });
   ok(bought === true, 'Base: buying the rack card asks for a position');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-place.png'});
   await p.click('[data-slot]');
@@ -59,8 +61,8 @@ if (!ONLY) {
   await p.click('[data-up$=":tier"]');
   const up = await p.evaluate(() => ({tier: __z.Z.def.D[0].tier, cash: __z.G.cash}));
   ok(up.tier === 1 && up.cash === 4700, 'Armory: Mk II upgrade bought for $600');
-  await p.click('[data-tab="shop"]'); const c0 = await p.evaluate(() => __z.G.cards.map(c => c.k).join()); await p.click('#zreroll');
-  ok(await p.evaluate(() => __z.G.cash) === 4600, 'Shop: reroll costs $100 and redeals the cards');
+  await p.click('[data-tab="shop"]'); const fz = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'freeze'), c0 = __z.G.cash; document.querySelector(`[data-buy="${i}"]`).click(); return {paid: c0 - __z.G.cash, lvl: __z.Z.perkLevel('freeze'), still: !!document.querySelector(`[data-buy="${i}"]`)}; });
+  ok(fz.paid === 900 && fz.lvl === 1 && fz.still, 'Shop: buying a perk charges its price and keeps it listed for the next level');
   await p.evaluate(() => { __z.G.cash = 6000; }); await p.click('[data-tab="sites"]');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-sites.png'});
   await p.click('[data-tab="shop"]'); await sleep(200);
@@ -152,6 +154,19 @@ if (!ONLY) {
   ok(r.m1.kill > r.m0.kill + 15, `Mark: Mk I rack vs armored heavy, kills ${r.m0.kill}/120 unmarked -> ${r.m1.kill}/120 marked`);
   const P = r.perks;
   ok(Math.abs(P.frozen - .5) < .01 && P.airKills >= 5 && P.leth === 5 && Math.abs(P.aid - .7) < 1e-9 && P.radar === 1.3 && P.mark, `Perks: freeze x${P.frozen}, airstrike ${P.airKills}/6, warhead ${P.leth} m, Foreign Aid repairs x${P.aid}, radar x${P.radar}, mark set`);
+  // Rocket Assist: a 15 s burn from lift-off; full-throttle cruise top speed with and without it, and it switches off by itself
+  await p.keyboard.down('KeyW');
+  const rk = await p.evaluate(() => {
+    const {api, G, Z} = __z, V = api.THREE.Vector3, me = () => api.player;
+    for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.state = 'wave';
+    function fly(withRocket) { G.perks.rocket = withRocket ? 1 : 0; api.launch(); __z.sim(.05); const d = me(); d.p.set(0, api.gh(0, 800) + 1500, 800); d.q.setFromAxisAngle(new V(1, 0, 0), -85 * Math.PI / 180); d.w.set(0, 0, 0); d.v.set(0, 0, -80);
+      let top = 0, t = 0; const burn = []; for (let i = 0; i < 16 * 120; i++) { api.step(1 / 120); t += 1 / 120; top = Math.max(top, d.v.length()); if (i % 120 === 0) burn.push(+(Z.rk.st.t).toFixed(1)); if (d.dead > 0) break; }
+      return {top: Math.round(top * 3.6), boostAfter: d.boost || 0, alive: d.dead <= 0, burn: burn.slice(0, 3).concat(burn.slice(-2))}; }
+    return {base: fly(false), rocket: fly(true)};
+  });
+  await p.keyboard.up('KeyW');
+  console.log('  rocket assist:', JSON.stringify(rk));
+  ok(rk.rocket.top > rk.base.top * 1.5 && rk.rocket.top < 1100 && !rk.rocket.boostAfter && rk.rocket.alive, `Rocket Assist: top speed ${rk.base.top} -> ${rk.rocket.top} km/h, burn ends by itself, still flying`);
   ok(!errs.length, 'Helpers/perks: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
@@ -167,13 +182,13 @@ if (argv.includes('--balance')) {  // about 10 minutes
       function shop() {
         for (const s of api.SITES) { const need = s.max - s.hp; if (s.hp > 0 && need > 0) { const k = Z.repairK(), hp = Math.min(need, Math.floor(G.cash * .5 / (2.2 * k))); G.cash -= Math.ceil(hp * 2.2 * k); s.hp += hp; } }
         for (let pass = 0; pass < 6; pass++) {
-          const cards = G.cards.map((c, i) => ({...c, i})).filter(c => !c.sold).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));
+          const cards = G.cards.map((c, i) => ({...c, i})).filter(c => G.wave + 1 >= __z.ITEMS[c.k].from && !(__z.ITEMS[c.k].type === 'perk' && Z.perkMaxed(c.k))).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));
           for (const c of cards) { const it = __z.ITEMS[c.k], price = it.type === 'perk' ? Z.perkPrice(c.k) : it.price; if (G.cash < price) continue;
             if ((c.k === 'idome' && G.wave < 22) || (c.k === 'gdome' && G.wave < 27)) continue;
             if (it.type === 'helper' && !def.SLOTS.some((_, j) => def.slotFree(j))) { const w = def.D.filter(d => d.type === 'flak' || d.type === 'ew').sort((a, b) => a.kills - b.kills)[0]; if (!w || PRIO.indexOf(c.k) > PRIO.indexOf('gepard')) continue; Z.base.sell(w.id); Z.base.sell(w.id); }  // make room for better helpers
             Z.base.buy(c.i); if (G.placing) { const j = def.SLOTS.findIndex((_, j) => def.slotFree(j)); if (j < 0) { G.placing = null; continue; } Z.base.place(j); } }
           for (const d of def.D) { Z.base.upgrade(d.id, d.type === 'rack' ? 'tier' : 'lvl'); if (d.type === 'rack') Z.base.upgrade(d.id, 'cap'); }
-          if (G.cash > 1500 && G.cards.some(c => !c.sold)) Z.base.reroll(); else break;
+          if (pass >= 2) break;
         }
       }
       while (G.state !== 'over' && G.wave < 45) {
