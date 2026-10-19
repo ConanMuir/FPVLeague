@@ -37,3 +37,24 @@ export const streakMult=s=>1+Math.min(1,.1*Math.max(0,s-1));  // +10% per streak
 export const CLUTCH_R=600,CLUTCH_K=.5;  // killed within 600 m of its aim point: +50% clutch-save bonus
 export const MULTI_BONUS=50;  // per extra kill in one burst
 export const REPAIR_PER_HP=2.2;
+export const REROLL=n=>100+75*n;  // n = rerolls already bought this visit
+
+// How well each defence works against each kind (0 = can't engage). Shown on the shop cards and used by the defences' target choice.
+export const RESIST={
+ rack:{shahed:1,jet:.85,decoy:1,swarm:.75,heavy:1,cruise:.45,ballistic:0,hyper:0,icbm:0,boss:.6},
+ flak:{shahed:1,jet:0,decoy:1,swarm:1,heavy:1,cruise:0,ballistic:0,hyper:0,icbm:0,boss:.4},
+ gepard:{shahed:1,jet:.8,decoy:1,swarm:.9,heavy:.7,cruise:.7,ballistic:0,hyper:0,icbm:0,boss:.5},
+ sam:{shahed:1,jet:1,decoy:1,swarm:.25,heavy:1,cruise:1,ballistic:0,hyper:0,icbm:0,boss:1},
+ ew:{shahed:1,jet:.5,decoy:1,swarm:0,heavy:.6,cruise:0,ballistic:0,hyper:0,icbm:0,boss:0},
+ idome:{shahed:.6,jet:.6,decoy:.6,swarm:.2,heavy:.6,cruise:1,ballistic:1,hyper:0,icbm:0,boss:.6},
+ gdome:{shahed:0,jet:0,decoy:0,swarm:0,heavy:0,cruise:0,ballistic:1,hyper:1,icbm:1,boss:0}};
+
+// Interceptor drone rack: Mk I-V. hit = chance a drone that reaches its target kills it (before kind modifiers and Mark);
+// direct = share of those hits that are direct hits (the only ones that get through armor without Mark).
+export const RACK_TIERS=[{n:'Mk I',hit:.30,direct:.25,cost:0,note:'basic seeker'},{n:'Mk II',hit:.50,direct:.35,cost:600,note:'better tracking'},
+ {n:'Mk III',hit:.65,direct:.45,cost:1200,note:'predicts manoeuvres'},{n:'Mk IV',hit:.80,direct:.55,cost:2200,note:'endgame shaping'},{n:'Mk V',hit:.90,direct:.7,cost:3600,note:'top seeker and fuse; ignores decoys'}];
+export const RACK_CAP=[2,3,4],RACK_CAP_COST=[0,500,800],RACK_REARM=12,RACK_RANGE=3200,DRONE_SPD=118,DRONE_FUEL=60;
+
+// shop items: helpers are placed on a slot; perks are the player's (checkpoint 4 adds the rest)
+export const ITEMS={
+ rack:{type:'helper',n:'Interceptor drone rack',price:700,from:1,glyph:'▲',blurb:'Launches interceptor drones at tracks in range (3.2 km). A drone claims its track: it turns yellow for you. Upgrade Mk I→V in the Armory.'}};
