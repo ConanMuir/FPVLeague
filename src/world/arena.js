@@ -54,9 +54,11 @@ for(const t of[0,1]){const s=t?-1:1,c=COL[t],pm=glow(c,2);
 scene.children.slice(_n0).forEach(o=>goalG.add(o));scene.add(goalG);
 // stadium crowd + light towers + stars (Neon Arena map only)
 export const neonG=new THREE.Group();scene.add(neonG);
-{const geo=new THREE.BoxGeometry(1,1.3,1),N=16000,im=new THREE.InstancedMesh(geo,new THREE.MeshBasicMaterial(),N),m=new THREE.Matrix4(),col=new THREE.Color();let n=0;
+/** a spectator for the crowds (instanced; local +z turned away from the pitch): a box without its back and bottom faces, which are never seen (a third fewer vertices) */
+export function crowdGeo(h,y=0){const g=new THREE.BoxGeometry(1,h,1).translate(0,y,0),I=g.index.array;g.setIndex([...I.slice(0,18),...I.slice(30,36)]);g.clearGroups();return g}
+{const geo=crowdGeo(1.3),N=16000,im=new THREE.InstancedMesh(geo,new THREE.MeshBasicMaterial(),N),m=new THREE.Matrix4(),col=new THREE.Color();let n=0;
  for(let k=0;k<14&&n<N;k++){const o=14+k*2.3,y=1.5+k*1.75;for(const[x,z]of contour(o,1.45,Math.round((RC+o)*1.08))){if(n>=N)break;
-  m.makeTranslation(x,y,z);im.setMatrixAt(n,m);const r=Math.random(),team=z>0?0:1;
+  m.makeRotationY(Math.atan2(x-cl(x,RC-HW,HW-RC),z-cl(z,RC-HL,HL-RC))).setPosition(x,y,z);im.setMatrixAt(n,m);const r=Math.random(),team=z>0?0:1;  // each box faces the pitch (the rounded plan's normal)
   if(r<.012)col.setRGB(1.15,1.15,1.25);else if(r<.12)col.set(COL[Math.random()<.75?team:1-team]).multiplyScalar(.4+Math.random()*.45);else col.setRGB(.04,.05,.08).multiplyScalar(.6+Math.random());
   im.setColorAt(n++,col)}}
  im.count=n;neonG.add(im);

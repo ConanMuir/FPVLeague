@@ -1,6 +1,7 @@
 // ---------- dogfight mode: guns, obstacles, ground turrets, dogfighting bots (same flight model and arena) ----------
 // Highlands map: terrain, obstacles and their SDF, spawn slots, look; meshes built by buildDF() on first use
 import * as THREE from 'three';
+import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {COL,QT,UP,V3,cl} from '../config/constants.js';
 import {dot} from '../render/particles.js';
 import {glow,scene,sun} from '../render/renderer.js';
@@ -19,10 +20,10 @@ export {CANY,DBASE,DCEIL,DHL,DHW,DLEN,DW,cxR,dfGrid,dfH,dfHt} from './terrain.js
 export const OBS=[],OGRID=new Map(),OC=40;
 // tree species (geometry: world/outdoor.js props, scaled s = h*w across): trunk radius tr*s up to th*h, crown a cone [base, top (x h), radius (x s)] or a capsule [centre, half length (x h), radius (x s)]; slightly inside the drawn foliage
 const TREE={pine:{w:.75,tr:.045,th:.3,cone:[.16,.96,.3]},snowpine:{w:.75,tr:.045,th:.3,cone:[.16,.96,.3]},oak:{w:1,tr:.07,th:.5,cap:[.68,.05,.3]},birch:{w:.9,tr:.04,th:.55,cap:[.74,.1,.17]},poplar:{w:1,tr:.04,th:.3,cap:[.62,.36,.14]}};
-// a tree at (x, z) in forest fo: species from a hash of the place (so the seeded layout is unchanged), broadleaf toward a forest's edge (e: 0 centre .. 1 edge) and low down
-function tree(x,z,h,e,fo,k){const y0=dfH(x,z)-.5;if(!k){const u=hash2(x*.71+3.1,z*.53-1.7),v=hash2(z*.37-5.3,x*.61+2.2);
+// a tree at (x, z): species k, or from a hash of the place (so the seeded layout is unchanged), broadleaf toward a forest's edge (e: 0 centre .. 1 edge) and low down
+function tree(x,z,h,e,k){const y0=dfH(x,z)-.5;if(!k){const u=hash2(x*.71+3.1,z*.53-1.7),v=hash2(z*.37-5.3,x*.61+2.2);
   k=u<.12+.5*e*e+(y0<40?.15:0)?(v<.5?'oak':v<.8?'birch':'poplar'):y0>120?'snowpine':'pine';h*=k==='oak'?.72:k==='birch'?.78:k==='poplar'?.9:1}
- const T=TREE[k],s=h*T.w,cr=(T.cone?T.cone[2]:T.cap[2])*s;return{t:'tree',k,x,y0,z,h,s,tr:Math.max(.4,T.tr*s),cr,rb:cr,fo}}
+ const T=TREE[k],s=h*T.w,cr=(T.cone?T.cone[2]:T.cap[2])*s;return{t:'tree',k,x,y0,z,h,s,tr:Math.max(.4,T.tr*s),cr,rb:cr}}
 {const rnd=seeded(21),R=(a,b)=>a+rnd()*(b-a),placed=[];
  const free=(x,z,r,canyon)=>Math.abs(x)<DHW-200&&Math.abs(z)<DHL-200&&Math.hypot(x,Math.abs(z)-DBASE)>130+r&&(canyon||Math.abs(x-cxR(z))>r+40)&&placed.every(p=>Math.hypot(p[0]-x,p[1]-z)>p[2]+r+14&&Math.hypot(p[0]+x,p[1]+z)>p[2]+r+14);
  const spot=(r,canyon,tries=80)=>{for(let i=0;i<tries;i++){const x=R(-DHW+200,DHW-200),z=R(0,DHL-200);if(free(x,z,r,canyon))return[x,z]}return null};
@@ -30,7 +31,7 @@ function tree(x,z,h,e,fo,k){const y0=dfH(x,z)-.5;if(!k){const u=hash2(x*.71+3.1,
  const clear=(x,z,r)=>{const h=dfH(x,z);return sdCave(x,h-3,z)>r+10&&sdCave(x,h+12,z)>r+10};  // nothing stands in a cave mouth
  const add=(o,big=true)=>{if(!clear(o.x,o.z,o.rb||4))return;if(big)placed.push([o.x,o.z,o.rb]);OBS.push(o,{...o,x:-o.x,z:-o.z,mir:1,...(o.yaw!=null&&{yaw:o.yaw+Math.PI})})};  // the mirror image: turned half round
  for(let k=0;k<7;k++){const c=spot(55);if(!c)continue;placed.push([c[0],c[1],55]);for(let i=0;i<34;i++){const a=rnd()*6.3,d=Math.sqrt(rnd())*55,x=c[0]+Math.cos(a)*d,z=c[1]+Math.sin(a)*d,h=R(14,26);
-  if(Math.abs(x-cxR(z))<40)continue;add(tree(x,z,h,d/55,k),false)}}  // forests: mostly pines, broadleaf round the edges
+  if(Math.abs(x-cxR(z))<40)continue;add(tree(x,z,h,d/55),false)}}  // forests: mostly pines, broadleaf round the edges
  for(let i=0;i<13;i++){const r=R(14,36),s=spot(r);if(!s)continue;const y0=gmin(s[0],s[1],r)-6;add({t:'cyl',x:s[0],z:s[1],r,y0,y1:y0+R(90,330),rb:r})}  // mesas
  for(let k=0;k<2;k++){const c=spot(70);if(!c)continue;placed.push([c[0],c[1],70]);for(let i=0;i<9;i++){const x=c[0]+R(-60,60),z=c[1]+R(-60,60),r=R(3.5,8),y0=gmin(x,z,r)-3;const o={t:'cyl',x,z,r,y0,y1:y0+R(55,180),rb:r};if(clear(x,z,r))OBS.push(o,{...o,x:-x,z:-z,mir:1})}}  // spire fields
  for(let i=0;i<5;i++){const s=spot(34);if(!s)continue;const ax=rnd()<.5,hx=ax?30:14,hz=ax?14:30,hy=10,g=gmin(s[0],s[1],20),y=g+hy-1.5;add({t:'hang',x:s[0],y,z:s[1],hx,hy,hz,ix:ax?hx+2:hx-1.5,iy:hy-1.5,iz:ax?hz-1.5:hz+2,rb:34})}  // hangars, open at both ends
@@ -53,7 +54,7 @@ function tree(x,z,h,e,fo,k){const y0=dfH(x,z)-.5;if(!k){const u=hash2(x*.71+3.1,
    for(let i=OBS.length-1;i>=0;i--){const b=OBS[i];if(b.t==='rock'&&Math.min(Math.hypot(b.x-o.x,b.z-o.z),Math.hypot(b.x+o.x,b.z+o.z))<o.rb+b.r+3)OBS.splice(i,1)}}else add(o,false)};  // g: drawn as one mesh; boulders under it go
  for(let k=0;k<2;k++){const s=site(22,10,(x,z)=>rough(x,z,15)<22&&dfH(x,z)<110,400,(x,z)=>-rough(x,z,15));if(!s)continue;level(s[0],s[1],22,10);
   const fy=rnd()*6.3,c=Math.cos(fy),n=Math.sin(fy),at=(lx,lz)=>[s[0]+c*lx+n*lz,s[1]-n*lx+c*lz];
-  put([building('house',...at(-10.5,-6),fy),building('barn',...at(7,3),fy+Math.PI/2),building('silo',...at(19,-6),fy),...[-12,-3,6,15].map(lz=>tree(...at(-24,lz),R(17,22),1,'f'+k,'poplar')),tree(...at(-6,14),R(13,16),1,'f'+k,'oak')],'farm'+k)}
+  put([building('house',...at(-10.5,-6),fy),building('barn',...at(7,3),fy+Math.PI/2),building('silo',...at(19,-6),fy),...[-12,-3,6,15].map(lz=>tree(...at(-24,lz),R(17,22),1,'poplar')),tree(...at(-6,14),R(13,16),1,'oak')],'farm'+k)}
  {const s=site(18,12,(x,z)=>rough(x,z,13)<16,400,(x,z)=>dfH(x,z));if(s){level(s[0],s[1],18,12);put([building('church',s[0],s[1],rnd()*6.3)],'church')}}
  for(let k=0;k<2;k++){const s=site(8,0,(x,z)=>rough(x,z,4)<3,150,(x,z)=>dfH(x,z),70);if(s)put([building('tower',s[0],s[1],rnd()*6.3)],'tower'+k)}
  // spatial hash: each 40 m cell lists the obstacles within 10 m of it; sdObs is exact up to 10 m and capped there
@@ -94,9 +95,11 @@ const DFC={sky:['#3b6fb0','#79a6d8','#c5dbee','#e6eef2','#9fb38f','#4d6340'],sun
 LOOKS.df={bg:null,fog:new THREE.Fog(DFC.fog,380,1750),hemi:[0xdde9ff,0x55663f,1.05],sun:[0xfff0dc,3],sp:new V3(...DFC.sun).normalize().multiplyScalar(300),sc:[170,170,800],exp:1,bk:.6,th:1.25,br:.3};
 scene.add(sun.target);
 // collision for physics/world.js: the heightfield (column-major, rows along z) and one collider per obstacle part, taken from the meshes below
-const DFOBS=[],ROCK=new THREE.DodecahedronGeometry(1,0);let TLOD=[];
-/** per frame in Dogfight (render/camera.js): forests further than 300 m from the camera draw their low-detail trees */
-export function dfLod(cam){for(const im of TLOD){const s=im.boundingSphere,far=cam.position.distanceTo(s.center)-s.radius>300;im.geometry=im.userData.lod[far?1:0]}}
+const DFOBS=[],ROCK=new THREE.DodecahedronGeometry(1,0),TLOD=[];let lodAt=null;
+/** per frame in Dogfight (render/camera.js): every 20 m the camera moves, trees within 230 m go to their species' near (full detail) mesh, the rest to the far one */
+export function dfLod(cam){const p=cam.position;if(lodAt&&lodAt.distanceToSquared(p)<400)return;(lodAt||(lodAt=new V3())).copy(p);
+ for(const T of TLOD){let h=0,l=0;for(const t of T.L){const near=(t.x-p.x)**2+(t.z-p.z)**2<230*230,im=near?T.hi:T.lo,j=near?h++:l++;im.setMatrixAt(j,t.m);im.setColorAt(j,t.c)}
+  for(const[im,n]of[[T.hi,h],[T.lo,l]]){im.count=n;im.instanceMatrix.needsUpdate=true;im.instanceColor.needsUpdate=true;im.computeBoundingSphere()}}}
 let TERR=null,CAVES=null;const tri=M=>({vertices:new Float32Array(M.p),indices:new Uint32Array(M.i)});
 export function dfCollision(){buildDF();return{terrain:tri(TERR),caves:tri(CAVES.walls),obs:DFOBS}}  // the drawn triangles: terrain cut open at the cave mouths, and the cave walls
 // the map's meshes are built the first time Dogfight is opened
@@ -125,13 +128,13 @@ export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC)
   const ring=new THREE.Mesh(new THREE.TorusGeometry(60,.5,10,192),glow(COL[t],1.6));ring.rotation.x=Math.PI/2;ring.position.set(0,8.2,s*DBASE);dfG.add(ring)}
  const mRock=new THREE.MeshStandardMaterial({color:0x7a6450,roughness:.95,flatShading:true}),mCon=new THREE.MeshStandardMaterial({color:0x7a7f86,roughness:.9,envMapIntensity:.6}),mMet=new THREE.MeshStandardMaterial({color:0x6a737c,roughness:.5,metalness:.5}),
   mWood=new THREE.MeshStandardMaterial({color:0x6b5440,roughness:.9}),mStripe=glow(0xffc640,1.2);
- const mesh=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;dfG.add(m);return m};
+ const mesh=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;m.userData.st=1;dfG.add(m);return m};  // st: merged below
  const I={rock:[]},TC=new Map(),m4=new THREE.Matrix4(),q=new QT(),sv=new V3(),pv=new V3(),BG=new Map();
  for(const o of OBS){
   if(o.t==='cyl'){const g=new THREE.CylinderGeometry(o.r*.92,o.r,o.y1-o.y0,o.r>10?11:7,4);const P=g.attributes.position;for(let i=0;i<P.count;i++){const k=1+(rnd()-.5)*.08;P.setX(i,P.getX(i)*k);P.setZ(i,P.getZ(i)*k)}g.computeVertexNormals();mesh(g,mRock,o.x,(o.y0+o.y1)/2,o.z);DFOBS.push({s:'hull',pts:[...P.array],p:[o.x,(o.y0+o.y1)/2,o.z]})}
-  else if(o.t==='box'){DFOBS.push({s:'box',h:[o.hx,o.hy,o.hz],p:[o.x,o.y,o.z]});const m=mesh(new THREE.BoxGeometry(o.hx*2,o.hy*2,o.hz*2),o.hx>40?mWood:mCon,o.x,o.y,o.z);if(o.hx>40)m.add(new THREE.Mesh(new THREE.BoxGeometry(o.hx*2,.3,.6).translate(0,o.hy+.1,o.hz-.5),mStripe))}
+  else if(o.t==='box'){DFOBS.push({s:'box',h:[o.hx,o.hy,o.hz],p:[o.x,o.y,o.z]});const m=mesh(new THREE.BoxGeometry(o.hx*2,o.hy*2,o.hz*2),o.hx>40?mWood:mCon,o.x,o.y,o.z);if(o.hx>40){const st=new THREE.Mesh(new THREE.BoxGeometry(o.hx*2,.3,.6).translate(0,o.hy+.1,o.hz-.5),mStripe);st.userData.st=1;m.add(st)}}
   else if(o.t==='hang'){const ax=o.ix>o.hx,L=ax?o.hx:o.hz,W2=ax?o.hz:o.hx,th=W2-(ax?o.iz:o.ix),G2=new THREE.Group();G2.position.set(o.x,o.y,o.z);if(!ax)G2.rotation.y=Math.PI/2;dfG.add(G2);
-   const slab=(w,h,d,x,y,z,m,c=1)=>{const s=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);s.position.set(x,y,z);s.castShadow=s.receiveShadow=true;G2.add(s);
+   const slab=(w,h,d,x,y,z,m,c=1)=>{const s=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);s.position.set(x,y,z);s.castShadow=s.receiveShadow=true;s.userData.st=1;G2.add(s);
     if(c){G2.updateMatrixWorld();const wp=s.getWorldPosition(new V3()).sub(dfG.position),wq=G2.quaternion;DFOBS.push({s:'box',h:[w/2,h/2,d/2],p:wp.toArray(),q:[wq.x,wq.y,wq.z,wq.w]})}};
    slab(L*2,o.hy-o.iy,W2*2,0,(o.hy+o.iy)/2,0,mMet);slab(L*2,o.hy*2,th,0,0,W2-th/2,mMet);slab(L*2,o.hy*2,th,0,0,-W2+th/2,mMet);slab(L*2,.4,W2*2-th*2,0,-o.iy+.2,0,mCon);
    for(const sx of[-1,1])slab(.5,.5,W2*2-th*2,sx*(L-.3),o.iy-.4,0,mStripe,0)}
@@ -139,17 +142,21 @@ export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC)
    for(let i=0;i<40;i++){const a0=i/40*Math.PI*2,a1=(i+1)/40*Math.PI*2,p0=new V3(Math.cos(a0)*o.R,Math.sin(a0)*o.R,0),p1=new V3(Math.cos(a1)*o.R,Math.sin(a1)*o.R,0);if(o.ax){p0.applyAxisAngle(UP,Math.PI/2);p1.applyAxisAngle(UP,Math.PI/2)}
     const dv=p1.clone().sub(p0),cq=new QT().setFromUnitVectors(UP,dv.clone().normalize());DFOBS.push({s:'cap',hh:dv.length()/2,r:o.r,p:[o.x+(p0.x+p1.x)/2,o.y+(p0.y+p1.y)/2,o.z+(p0.z+p1.z)/2],q:[cq.x,cq.y,cq.z,cq.w]})}}  // the torus as a ring of capsules
   else if(o.t==='tree'){const T=TREE[o.k],h=o.h,s=o.s;DFOBS.push({s:'cyl',hh:T.th*h/2,r:o.tr,p:[o.x,o.y0+T.th*h/2,o.z]},T.cone?{s:'cone',hh:(T.cone[1]-T.cone[0])*h/2,r:T.cone[2]*s,p:[o.x,o.y0+(T.cone[0]+T.cone[1])*h/2,o.z]}:{s:'cap',hh:T.cap[1]*h,r:T.cap[2]*s,p:[o.x,o.y0+T.cap[0]*h,o.z]});
-   const key=o.fo+(o.mir?'m':'')+'|'+o.k,L=TC.get(key)||TC.set(key,[]).get(key),u=hash2(o.x*1.3,o.z*.7),v=.86+.26*hash2(o.z*.9,o.x*1.1);
-   L.push(m4.compose(pv.set(o.x,o.y0-.02*h,o.z),q.setFromAxisAngle(UP,u*6.28),sv.set(s*(.92+.16*u),h,s*(1.08-.16*u))).clone(),c3.setRGB(v*(1.04-.08*u),v,v*(.96+.08*u)).clone())}
+   const L=TC.get(o.k)||TC.set(o.k,[]).get(o.k),u=hash2(o.x*1.3,o.z*.7),v=.86+.26*hash2(o.z*.9,o.x*1.1);
+   L.push({x:o.x,z:o.z,m:m4.compose(pv.set(o.x,o.y0-.02*h,o.z),q.setFromAxisAngle(UP,u*6.28),sv.set(s*(.92+.16*u),h,s*(1.08-.16*u))).clone(),c:c3.setRGB(v*(1.04-.08*u),v,v*(.96+.08*u)).clone()})}
   else if(o.t==='bld'){DFOBS.push(...bldColliders(o));(BG.get(o.g)||BG.set(o.g,[]).get(o.g)).push(o)}
   else{I.rock.push(m4.compose(pv.set(o.x,o.y,o.z),q.setFromEuler(new THREE.Euler(o.x,o.z,o.r)),sv.set(o.r,o.r*.8,o.r)).clone());
    const R4=new THREE.Matrix4().compose(new V3(),q,sv),P=ROCK.attributes.position,pts=[];for(let i=0;i<P.count;i++)pts.push(...new V3().fromBufferAttribute(P,i).applyMatrix4(R4).toArray());DFOBS.push({s:'hull',pts,p:[o.x,o.y,o.z]})}}
  {const im=new THREE.InstancedMesh(ROCK,mRock,I.rock.length);I.rock.forEach((m,j)=>im.setMatrixAt(j,m));im.castShadow=im.receiveShadow=true;im.frustumCulled=false;dfG.add(im)}
- // trees: one instanced mesh per forest and species (so whole forests cull, in the shadow pass too); far forests swap to the low-detail geometry
- {const mT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85}),F=[];
-  for(const[key,L]of TC){const k=key.split('|')[1],N=L.length/2,im=new THREE.InstancedMesh(propGeo(k),mT,N);for(let j=0;j<N;j++){im.setMatrixAt(j,L[2*j]);im.setColorAt(j,L[2*j+1])}
-   im.computeBoundingSphere();im.castShadow=im.receiveShadow=true;im.userData.lod=[propGeo(k),propGeo(k,1)];F.push(im);dfG.add(im)}
-  TLOD=F}
+ // the static obstacles (mesas, spires, towers, hangars, bridges, arches) merged into one mesh per material and half of the map: they were ~130 draw calls, all drawn again in the shadow pass
+ {dfG.updateMatrixWorld(true);const B=new Map(),dead=[];dfG.traverse(o=>{if(!o.isMesh||!o.userData.st)return;const k=o.material.uuid+(o.getWorldPosition(pv).z>0);(B.get(k)||B.set(k,[]).get(k)).push(o);dead.push(o)});
+  for(const L of B.values()){const m=new THREE.Mesh(mergeGeometries(L.map(o=>o.geometry.clone().applyMatrix4(o.matrixWorld))),L[0].material);m.castShadow=m.receiveShadow=true;dfG.add(m)}
+  for(const o of dead)o.removeFromParent()}
+ // trees: per species a near mesh (full detail, casts shadows, culls as a whole when you look away) and a far one (low detail, no shadows: it is
+ // beyond the sun's shadow box); dfLod sorts the trees between them as the camera moves
+ {const mT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85});
+  for(const[k,L]of TC){const hi=new THREE.InstancedMesh(propGeo(k),mT,L.length),lo=new THREE.InstancedMesh(propGeo(k,1),mT,L.length);hi.castShadow=hi.receiveShadow=true;TLOD.push({L,hi,lo});dfG.add(hi,lo)}
+  lodAt=null;dfLod({position:new V3(0,0,DBASE)})}
  // buildings: one mesh per farmstead / church / tower
  for(const L of BG.values())dfG.add(bldMesh(L));
  const sunS=new THREE.Sprite(new THREE.SpriteMaterial({map:dot,color:new THREE.Color(0xfff0dc).multiplyScalar(2),fog:false,toneMapped:false,depthWrite:false}));sunS.position.copy(LOOKS.df.sp).setLength(1300);sunS.scale.setScalar(150);dfG.add(sunS)}
