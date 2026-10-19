@@ -136,6 +136,21 @@ if (want('night')) {
   await p.evaluate(() => { const {api, Z} = __z; for (const s of api.SITES) s.hp = s.max; Z.wx.set('clear'); });
 }
 
+if (want('snowtrees')) {
+  // tree crowns under snow: the pixels the forest covers (a render with the forest minus one without it) must not go near-black against the white fields
+  await p.evaluate(() => { const {api, Z} = __z; __clear(); Z.wx.set('snow'); for (let i = 0; i < 30; i++) api.visuals(1 / 30, performance.now()); });
+  const r = await p.evaluate(async () => { const {api} = __z, V = api.THREE.Vector3, m = new api.THREE.Matrix4(), v = new V(), F = api.scene.children.filter(o => o.isInstancedMesh && o.userData.forest);
+    let best = null; for (const o of F) if (o.geometry.attributes.position.count > 50) for (let i = 0; i < o.count; i += 2) { o.getMatrixAt(i, m); v.setFromMatrixPosition(m); const d = Math.hypot(v.x, v.z - 1950); if (!best || d < best.d) best = {d, p: v.clone()}; }
+    const b = best.p, img = async () => { const im = new Image(); im.src = __render([b.x + 45, b.y + 18, b.z + 32], [b.x, b.y, b.z], 60); await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
+    const a = await img(); F.forEach(o => o.visible = false); const n = await img(); F.forEach(o => o.visible = true);
+    let s = 0, k = 0, gs = 0, gk = 0; const L = (d, i) => .2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2];
+    for (let i = 0; i < a.length; i += 8) { const la = L(a, i), ln = L(n, i); if (Math.abs(la - ln) > 12) { s += la; k++; } else { gs += la; gk++; } }
+    return {trees: +(s / k).toFixed(1), rest: +(gs / gk).toFixed(1), px: k}; });
+  await render('snow-trees', ...(await p.evaluate(() => { const c = __z.api.camera; return [[c.position.x, c.position.y, c.position.z], [c.position.x - 45, c.position.y - 18, c.position.z - 32]]; })), 60);
+  ok(r.px > 2000 && r.trees > 68 && r.trees > r.rest * .45, `snow: tree crowns frost over instead of going near-black (mean luma ${r.trees} on ${r.px} tree pixels, ${r.rest} elsewhere)`);
+  await p.evaluate(() => __z.Z.wx.set('clear'));
+}
+
 if (want('integ')) {
   // a real wave with nothing defending: hits on the sites (fires, smoke, damage stages), then real time and views of the sites
   await p.evaluate(() => { const {api, G, Z} = __z; __clear(); Z.def.clear(); if (G.state !== 'base') { G.state = 'clear'; G.clearT = 0; __z.sim(.1); } __z.jump(9, 0); G.next = __z.plan(9); G.next.wx = {id: 'clear'}; __z.cont();
@@ -156,21 +171,6 @@ if (want('integ')) {
   await p.evaluate(() => window.__look(700, -1300, 120, 12, 2.4)); await sleep(1500); await shot('integ-snow-fields');
   await p.evaluate(s => window.__look(s.x, s.z, 300, 50, 2.2), s0); await sleep(1200); await shot('integ-snow-site');
   await p.evaluate(() => { clearInterval(window.__keep); clearInterval(window.__hold); });
-}
-
-if (want('snowtrees')) {
-  // tree crowns under snow: the pixels the forest covers (a render with the forest minus one without it) must not go near-black against the white fields
-  await p.evaluate(() => { const {api, Z} = __z; __clear(); Z.wx.set('snow'); for (let i = 0; i < 30; i++) api.visuals(1 / 30, performance.now()); });
-  const r = await p.evaluate(async () => { const {api} = __z, V = api.THREE.Vector3, m = new api.THREE.Matrix4(), v = new V(), F = api.scene.children.filter(o => o.isInstancedMesh && o.userData.forest);
-    let best = null; for (const o of F) if (o.geometry.attributes.position.count > 50) for (let i = 0; i < o.count; i += 2) { o.getMatrixAt(i, m); v.setFromMatrixPosition(m); const d = Math.hypot(v.x, v.z - 1950); if (!best || d < best.d) best = {d, p: v.clone()}; }
-    const b = best.p, img = async () => { const im = new Image(); im.src = __render([b.x + 45, b.y + 18, b.z + 32], [b.x, b.y, b.z], 60); await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
-    const a = await img(); F.forEach(o => o.visible = false); const n = await img(); F.forEach(o => o.visible = true);
-    let s = 0, k = 0, gs = 0, gk = 0; const L = (d, i) => .2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2];
-    for (let i = 0; i < a.length; i += 8) { const la = L(a, i), ln = L(n, i); if (Math.abs(la - ln) > 12) { s += la; k++; } else { gs += la; gk++; } }
-    return {trees: +(s / k).toFixed(1), rest: +(gs / gk).toFixed(1), px: k}; });
-  await render('snow-trees', ...(await p.evaluate(() => { const c = __z.api.camera; return [[c.position.x, c.position.y, c.position.z], [c.position.x - 45, c.position.y - 18, c.position.z - 32]]; })), 60);
-  ok(r.px > 2000 && r.trees > 68 && r.trees > r.rest * .45, `snow: tree crowns frost over instead of going near-black (mean luma ${r.trees} on ${r.px} tree pixels, ${r.rest} elsewhere)`);
-  await p.evaluate(() => __z.Z.wx.set('clear'));
 }
 
 // Classic afterwards: no time scale, no cinematic, no night lights

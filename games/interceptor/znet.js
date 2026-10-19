@@ -64,7 +64,7 @@ export function initNet(api,G,Z){
   try{r=await(room.p2p?room.join('z'+code,isHost):room.join('dlz-'+code))}catch(e){const c=e?.code||'error';if(isHost&&c==='taken')return enter(Math.random().toString(36).slice(2,6),true);
    msg(c==='not_found'?'No game found with that code.':c==='timeout'?'Could not reach that game. Check the code and your connection.':c==='load_failed'?'Could not load the online library. Check your internet connection.':`Could not open that game (${c}). Try again.`,1);return}
   const n=net={r,code,host:isHost,me:null,hostPeer:null,peers:[],last:{},t0:performance.now(),gone:0,tk:0,sendT:0,vt:0,
-   eid:0,evs:[],hk:{},ak:{},esv:{},rdv:{},ltv:{},skv:{},perks:{},kc:{},dr:{},names:{},order:[],rj:[],ps:{},gid:1,sn:0,snapIv:100,mute:0,
+   eid:0,evs:[],hk:{},ak:{},esv:{},rdv:{},ltv:{},skv:{},perks:{},kc:{},dr:{},names:{},order:[],rj:[],gid:1,sn:0,snapIv:100,mute:0,
    out:[],oseq:Date.now(),evSeen:-1,drSeen:0,ts:new Map(),tm:new Map(),pl:[],gid0:0,late:false,rd:0,pil:new Map(),sig:'',nx:null,nxJ:'',pkJ:''};
   r.onPeers(ch=>{if(net!==n)return;n.peers=ch.peers;const me=ch.peers.find(p=>p.sameTab);if(me)n.me=me.peer},
    e=>{if(net===n)ended(e.code==='host_left'?'The host left the game. Co-op game over.':`Lost connection to the game (${e.code}).`)});
@@ -112,13 +112,13 @@ export function initNet(api,G,Z){
  function claims(){for(const t of TH)t.pc=null;for(const[k,r]of net.pil){if(!r.sl||r.dead||!r.seen)continue;const t=TH.find(u=>u.id===r.sl);if(t&&api.live(t)&&t.p.distanceTo(r.d.p)<1600)t.pc=nameOf(k)}}
 
  // ---------- host: the roster (up to 4 pilots), requests, events, snapshots ----------
- function hostPeer(k,pr){const n=net;if(n.rj.includes(k))return false;if(okArr(pr.s,10))n.ps[k]=pr.s;
+ function hostPeer(k,pr){const n=net;if(n.rj.includes(k))return false;
   if(!n.names[k]){if(Object.keys(n.names).length>=MAXP-1){n.rj.push(k);return false}n.names[k]=clean(pr.n);n.order.push(k);n.kc[k]=n.kc[k]|0;n.hk[k]=0;
    team(`<b>${n.names[k]}</b> joined${G.state==='base'||G.state==='over'?'':' · in at the next base screen'}`)}
   n.names[k]=clean(pr.n);n.skv[k]=pr.sk|0;n.rdv[k]=pr.rd|0;n.ltv[k]=pr.lt?1:0;n.esv[k]=Number.isFinite(+pr.es)?+pr.es:-1;
   if(Array.isArray(pr.ev))for(const e of pr.ev){if(!Array.isArray(e)||!(+e[0]>(n.hk[k]||0)))continue;n.hk[k]=+e[0];try{apply(k,e.slice(1),+e[0])}catch(err){console.warn('co-op request',err)}}
   n.ak[k]=n.hk[k];return true}
- function gone(k){const n=net,nm=n.names[k];if(!nm)return;for(const o of[n.names,n.esv,n.rdv,n.ltv,n.skv,n.hk,n.ak,n.dr,n.ps])delete o[k];n.order=n.order.filter(x=>x!==k);team(`<b>${nm}</b> left the game`)}
+ function gone(k){const n=net,nm=n.names[k];if(!nm)return;for(const o of[n.names,n.esv,n.rdv,n.ltv,n.skv,n.hk,n.ak,n.dr])delete o[k];n.order=n.order.filter(x=>x!==k);team(`<b>${nm}</b> left the game`)}
  const ev=e=>{const n=net;n.evs.push([++n.eid,...e]);if(n.evs.length>240)n.evs.splice(0,n.evs.length-240)};
  const team=h=>{feed(h);if(net?.host)ev(['f',h])};
  const tell=(k,t)=>{if(k===net.me)feed(`<span class="co">${t}</span>`);else ev(['m',k,t])};
@@ -126,7 +126,7 @@ export function initNet(api,G,Z){
  // a request from pilot k (the host's own come through here too, so every purchase is announced the same way)
  function apply(k,e,seq){const nm=nameOf(k),T=e[0];
   if(T==='d')return hostDet(k,seq,e[1],e[2]);
-  if(T==='h'){const t=TH.find(u=>u.id===e[1]);if(t&&api.live(t)&&reach(k,t)){who(t,k);G.burst={n:0};api.killThreat(t,true);G.burst=null}net.dr[k]={s:seq,o:t?[[e[1],'k',0]]:[],nr:0,dh:1};return}
+  if(T==='h'){const t=TH.find(u=>u.id===e[1]);if(t&&api.live(t)){who(t,k);G.burst={n:0};api.killThreat(t,true);G.burst=null}net.dr[k]={s:seq,o:t?[[e[1],'k',0]]:[],nr:0,dh:1};return}
   if(T==='u'){Z.pk.use(String(e[1]),{lv:e[2]|0,sel:e[3]|0,by:k,n:nm});return}
   if(G.state!=='base'){tell(k,'The shop is open between waves.');return}
   const B=Z.base.act;
@@ -139,11 +139,8 @@ export function initNet(api,G,Z){
   else if(T==='r'){const i=e[1]|0,hp=B.repair(i,e[2]|0);if(hp)team(`<b>${nm}</b> repaired the ${SITES[i].n.toLowerCase()} · +${hp} hp`)}
   baseSig(true)}
  // a client's burst: [track id, miss distance, closing speed] per track it saw within 30 m; rolled here with the solo rules (Z.outcome)
- // a pilot's burst or direct hit only counts on tracks near where that pilot last said it was (its own lag and the track's speed allowed for):
- // a client can't down tracks across the map by sending their ids
- function reach(k,t){const s=net.ps[k];if(!okArr(s,10))return false;return _a.fromArray(s,0).distanceTo(t.p)<60+(t.spd+Math.hypot(s[7],s[8],s[9]))*.6}  // s: the state in the same packet as the request
  function hostDet(k,seq,hits,nr){const out=[];G.burst={n:0};
-  if(Array.isArray(hits))for(const h of hits.slice(0,40)){if(!Array.isArray(h))continue;const t=TH.find(u=>u.id===h[0]),r=cl(+h[1]||0,0,30),cv=cl(+h[2]||0,0,3000);if(!t||!api.live(t)||!reach(k,t)){out.push([h[0],'m',r]);continue}
+  if(Array.isArray(hits))for(const h of hits.slice(0,40)){if(!Array.isArray(h))continue;const t=TH.find(u=>u.id===h[0]),r=cl(+h[1]||0,0,30),cv=cl(+h[2]||0,0,3000);if(!t||!api.live(t)){out.push([h[0],'m',r]);continue}
    who(t,k);const o=Z.outcome(t,r,cv);
    if(t.k==='boss'){if(o!=='miss'){Z.bossHit(t);out.push([t.id,'b',r])}else out.push([t.id,'m',r]);continue}
    if(o==='kill'){api.killThreat(t,r<2.4&&Math.random()<.55);out.push([t.id,'k',r])}else if(o==='damage'){api.damage(t);out.push([t.id,'d',r])}else out.push([t.id,'m',r])}

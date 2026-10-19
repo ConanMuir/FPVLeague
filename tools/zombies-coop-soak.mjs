@@ -93,6 +93,8 @@ for (let w = 0; w < WAVES; w++) {
   console.log(`  wave ${w + 1}: ${t} s, ${s[0].st}, purse $${s[0].cash}, sites ${s[0].hp}, defs ${s[0].defs} | sync worst ${syncWorst.toFixed(1)} m (${syncLag.toFixed(2)} s of flight), ${syncMiss} missing of ${samples} samples | snapshot max ${s[0].snap?.max} B (last ${s[0].snap?.last}, max tracks ${s[0].snap?.T}) | objs ${s.map(x => x.objs)} geo ${s.map(x => x.geo)} th ${s.map(x => x.th)} | client ts/tm/out ${[1, 2].map(i => `${s[i].ts}/${s[i].tm}/${s[i].out}`)} host evs ${s[0].evs}${heaps ? ' | heap MB ' + heaps : ''}`);
   if (s[0].st === 'over') break;
 }
+// the clients' bursts (made where they see the tracks) count on the host: kills on the roster
+{ const R = await ev(H, () => __z.net.rows()); ok(R.filter(r => r[1] !== 'Hosty').every(r => r[2] > 0), `Co-op: the clients' bursts count (${R.map(r => r[1] + ' ' + r[2]).join(', ')} kills)`); }
 // solo-only features in a live co-op wave: no slow-mo after a multi-kill, no cinematic cam, the menu doesn't pause the game
 const solo = await ev(H, () => { const {api, G, Z} = __z; if (G.state !== 'base') return null; __z.cont(); return true; });
 if (solo) {

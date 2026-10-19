@@ -72,11 +72,7 @@ if (SHOTS) {
   const h1 = await st(H), ash = h1.rows.find(r => r[1] === 'Ash');
   ok(ash && ash[2] === 1 && h1.kills.p === h0.kills.p + 1 && h1.cash > h0.cash, `Kill counts: Ash 1 kill on the roster, pilot kills ${h0.kills.p} -> ${h1.kills.p}, purse $${h0.cash} -> $${h1.cash}`);
   ok(await until(B, id => !__z.api.TH.some(t => t.id === id && __z.api.live(t)) && __z.net.rows().find(r => r[1] === 'Ash')?.[2] === 1, k), 'Bea: sees the track go down and Ash\'s kill on the roster');
-  if (SHOTS) { await sleep(300); await A.p.screenshot({path: SHOTS + '/coop-ash-kill.png'}); }
-  // a forged burst / direct hit on a track far from Ash (just its id, 0 m miss) must not count
-  const far = await ev(H, () => { const me = __z.api.player, t = __z.make('shahed', 0, -3000); return {id: t.id, km: +(t.p.distanceTo(me.p) / 1000).toFixed(1)}; }); await sleep(500);
-  const ashKm = await ev(A, id => { const t = __z.api.TH.find(u => u.id === id); __z.Z.req(['d', [[id, 0, 0]], 0]); __z.Z.req(['h', id]); return t ? +(t.p.distanceTo(__z.api.player.p) / 1000).toFixed(1) : null; }, far.id); await sleep(800);
-  ok(await ev(H, id => __z.api.TH.some(t => t.id === id && __z.api.live(t)), far.id), `Co-op: a forged burst and direct hit on T${far.id}, ${ashKm} km from Ash, are ignored by the host`); }
+  if (SHOTS) { await sleep(300); await A.p.screenshot({path: SHOTS + '/coop-ash-kill.png'}); } }
 
 // ---------- the host clears the wave; everyone goes back to the base screen ----------
 await ev(H, () => { for (let i = 0; i < 400 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0) __z.botKill(.8); } __z.sim(4); });
