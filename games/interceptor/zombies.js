@@ -9,6 +9,7 @@ import {initPerks} from './zperk.js';
 import {initFX} from './zfx.js';
 import {initWeather} from './zwx.js';
 import {initRocket} from './zrocket.js';
+import {initNet} from './znet.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -20,7 +21,7 @@ export function initZombies(api){
  const SITE_C={x:0,z:1950};  // centre of the defended area
 
  // ---------- mode choice and Zombies difficulty on the start menu; best wave is kept per difficulty ----------
- const DF=()=>ZDIFF[cl(S.zdiff??1,0,ZDIFF.length-1)];
+ const DF=()=>ZDIFF[cl(G.dfo??S.zdiff??1,0,ZDIFF.length-1)];  // G.dfo: the host's difficulty while in a co-op game
  const bestOf=d=>((S.zbests||{})[d.n]||(d.n==='Normal'&&S.zbest)||{}).wave|0;  // S.zbest = best from before difficulties existed (Normal)
  {const box=$('gmode'),desc=$('gmdesc'),dbox=document.createElement('div');dbox.className='gmode zdiff';dbox.id='zdiff';dbox.setAttribute('role','group');dbox.setAttribute('aria-label','Zombies difficulty');
   dbox.innerHTML=ZDIFF.map((d,i)=>`<button data-d="${i}">${d.n}</button>`).join('');box.after(dbox);
@@ -92,7 +93,7 @@ export function initZombies(api){
  Z.kindNote=k=>({decoy:'cheap and harmless, but looks like a Shahed on radar and soaks up helpers. Cold on thermal.',swarm:'many tiny quads, low and erratic. One burst can take several.',
   heavy:'armored: a proximity burst only damages it. Needs a direct hit, or a marked target for helpers.',cruise:'low, fast and terrain-following. Detected far out.',
   ballistic:'very fast and steep. Only a dome-class defence or a direct hit stops it.',hyper:'extremely fast. Only Golden Dome stops it.',icbm:'the fastest thing in the sky. Golden Dome only.',boss:'a carrier that launches swarms until destroyed. Breaks apart in stages.'})[k]||'';
- Z.waves=dt=>{if(api.demo)return;if(G.state==='wave'){G.wt+=dt;
+ Z.waves=dt=>{if(api.demo||Z.mirror)return;if(G.state==='wave'){G.wt+=dt;  /* Z.mirror: a co-op client, the host runs the director */
    while(G.wq.length&&G.wq[0].at<=G.wt){const q=G.wq.shift();spawn(q)}
    if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn(clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0),null,null);
     banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);feed(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`)}}
@@ -108,22 +109,22 @@ export function initZombies(api){
   const spd=K.spd*(K.spd<150?speedK(G.wave):1)*rnd(.94,1.06);
   const t={id:api.nextId(),k,p,v:new V3(wps[0].x-x,0,wps[0].z-z).setLength(spd),spd,cs:spd,alt,wps,tgt:s,aim,st:'cruise',jet:!!K.jet,mesh:null,prop:null,pd:1e9,dmin:1e9,cvm:0,bank:0,roll:0,spin:0,smoke:0,rb:null,claim:null,by:null};
   en.dress(t);TH.push(t);return t}
- Z.make=make;
+ Z.make=make;Z.plan=plan;Z.integrity=integrity;Z.openBase=openBase;
  // movers for the kinds Riley's flight code doesn't cover (zenemy.js); true = handled there
  Z.tstep=(t,dt)=>en.tstep(t,dt);
 
  // ---------- impacts, kills, money ----------
- Z.impact=t=>{t.st='dead';t.impacted=1;if(G.state==='trial')return;const K=KIND[t.k]||KIND.shahed;api.boom(t.aim,K.dmg>100?6:K.dmg>20?4:K.dmg?1.5:.8);if(api.demo||G.state==='over')return;const s=t.tgt;
+ Z.impact=t=>{t.st='dead';t.impacted=1;if(G.state==='trial')return;const K=KIND[t.k]||KIND.shahed;if(!Z.mirror)api.boom(t.aim,K.dmg>100?6:K.dmg>20?4:K.dmg?1.5:.8);if(api.demo||G.state==='over')return;const s=t.tgt;  /* a co-op client gets the host's explosion as an event */
   if(!K.dmg){feed(`<span class="co">${K.n} hit the ${s.n.toLowerCase()}: a decoy, no damage</span>`);return}
   if(s.hp>0){const was=s.hp;s.hp=Math.max(0,s.hp-K.dmg);G.perfect=false;
    feed(`<span class="cr">${K.n} hit the ${s.n.toLowerCase()}</span> −${K.dmg}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(220,110,.6,.12,'sawtooth');
    if(was>0&&!s.hp)banner(s.n+' DESTROYED','cr',2)}
   pop(t.aim,'−'+K.dmg,'#ff4d4d');
-  if(integrity().hp<=0)gameOver()};
+  if(integrity().hp<=0&&!Z.mirror)gameOver()};
  // every kill comes through here (Riley's killThreat calls it): pays out to the player (t.by==='p') or the helpers
  Z.kill=t=>{if(api.demo||t.paid)return;t.paid=1;const K=KIND[t.k]||KIND.shahed,ply=t.by!=='h';
   if(ply)G.kills.p++;else G.kills.h++;
-  let c=K.cash*(ply?streakMult(G.streak+1):HELPER_SHARE),why='';
+  let c=K.cash*(ply?streakMult((t.by==='o'?t.sk|0:G.streak)+1):HELPER_SHARE),why='';  /* t.by 'o': another co-op pilot (t.sk = their streak) */
   const da=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z);if(da<CLUTCH_R&&K.dmg){c+=K.cash*CLUTCH_K;why=' CLUTCH'}
   if(ply&&G.burst){G.burst.n++;if(G.burst.n>1){c+=MULTI_BONUS;why=why||' MULTI'}}
   earn(c,t.p,why)};
@@ -167,10 +168,10 @@ export function initZombies(api){
   if(nb){S.zbests={...(S.zbests||{}),[D.n]:{wave:G.wave,kills:G.kills.p+G.kills.h,earned:G.earned}};save();G.best=G.wave}
   banner('');
   $('zover').innerHTML=`<div class="zpanel zgo"><h2>Defense collapsed</h2><div class="zbig">WAVE ${G.wave}</div>
-   <div class="zstats"><span>Intercepts</span><b>${G.kills.p+G.kills.h}</b><span>by you</span><b>${G.kills.p}</b><span>by helpers</span><b>${G.kills.h}</b><span>Money earned</span><b>${money(G.earned)}</b><span>Best on ${D.n}</span><b>${nb?'NEW BEST · ':''}wave ${G.best}</b></div>
-   <div class="btns"><button class="go" id="zagain">Try again</button><button id="zmenu">Menu</button></div></div>`;
-  $('zover').hidden=false;$('zagain').onclick=()=>{$('zover').hidden=true;banner('');api.startMatch()};$('zmenu').onclick=()=>{$('zover').hidden=true;api.startDemo()};
-  Z.syncMode?.();setTimeout(()=>$('zagain')?.focus(),50)}
+   <div class="zstats"><span>Intercepts</span><b>${G.kills.p+G.kills.h}</b><span>by ${Z.online?'pilots':'you'}</span><b>${G.kills.p}</b><span>by helpers</span><b>${G.kills.h}</b><span>Money earned</span><b>${money(G.earned)}</b><span>Best on ${D.n}</span><b>${nb?'NEW BEST · ':''}wave ${G.best}</b></div>
+   <div class="btns">${Z.overBtns?.()||'<button class="go" id="zagain">Try again</button><button id="zmenu">Menu</button>'}</div>${Z.overNote?.()||''}</div>`;
+  $('zover').hidden=false;const ag=$('zagain'),mn=$('zmenu');if(ag)ag.onclick=()=>{$('zover').hidden=true;banner('');api.startMatch()};if(mn)mn.onclick=()=>{$('zover').hidden=true;api.startDemo()};
+  Z.syncMode?.();setTimeout(()=>($('zagain')||$('zmenu'))?.focus(),50)}
  Z.gameOver=gameOver;
 
  // ---------- per-step ----------
@@ -181,6 +182,7 @@ export function initZombies(api){
  // fast tracks (or your interceptor under Rocket Assist) move metres per step, faster than the fuse's sampling: check the closest approach over the step itself. Only a direct hit counts.
  function directHits(me){const fast=me.v.lengthSq()>150*150;for(const t of TH){if(!api.live(t)||!t.pp||t.spd<150&&!fast)continue;const K=KIND[t.k];
    const r0=_a.subVectors(t.pp,G.pp),dr=_b.subVectors(t.p,me.p).sub(r0),L=dr.lengthSq(),s=L>1e-9?cl(-r0.dot(dr)/L,0,1):0,d=r0.addScaledVector(dr,s).length();
+   if(d<K.hitR+.4&&Z.mirror){G.streak++;G.detFlag=true;Z.req(['h',t.id]);banner('DIRECT HIT','cg',1.6);api.lose('det');return}  /* co-op client: the host confirms it */
    if(d<K.hitR+.4){t.by='p';G.burst={n:0};api.killThreat(t,true);G.burst=null;G.streak++;G.detFlag=true;feed(`<span class="cg">DIRECT HIT: ${Z.tname(t)} destroyed</span>`);banner('DIRECT HIT','cg',1.6);api.lose('det');return}}}
 
  // ---------- track display: claimed = yellow, free = red; the selected track gets a white ring ----------
@@ -191,14 +193,14 @@ export function initZombies(api){
  const inRange=t=>{const K=KIND[t.k]||KIND.shahed;return Math.hypot(t.p.x-api.PADP.x,t.p.z-api.PADP.z)<K.det*(Z.radarK?.()??1)};
  // in the FPV overlay: swarm members and far tracks (over 4 km, unless selected) are dots, not labelled brackets
  Z.quiet=t=>t.k==='swarm'&&lead.get(t.grp)!==t||t!==G.selNow&&t.p.distanceToSquared(api.camera.position)>16e6;
- Z.rcol=t=>t.claim?'255,226,60':'255,77,77';
- Z.ocol=t=>t.claim?'#ffe23c':'#ff4d4d';
+ Z.rcol=t=>t.claim||t.pc?'255,226,60':'255,77,77';
+ Z.ocol=t=>t.claim||t.pc?'#ffe23c':'#ff4d4d';  // t.pc: another co-op pilot is running this one down (znet.js)
  const shown=t=>t.k==='decoy'&&!t.ident?KIND.shahed:KIND[t.k]||KIND.shahed;  // a decoy passes for a Shahed until identified (close, thermal, or optics)
  Z.tname=t=>`T${String(t.id).padStart(2,'0')} ${shown(t).n}`;
- Z.label=t=>{const K=shown(t),n=t.k==='swarm'?TH.reduce((a,u)=>a+(u.grp===t.grp&&api.live(u)?1:0),0):0;return`${K.tag}${n>1?` ×${n}`:''}${t.k==='boss'?` STAGES ${t.stages}`:''}${K.armor===1?' <span class="co">ARMORED</span>':K.armor==='hard'?' <span class="cr">DIRECT HIT ONLY</span>':''}${t.mark?' <span style="color:#ff6bd6">MARKED</span>':''}${t.claim?' <span style="color:#ffe23c">CLAIMED</span>':''}${Z.eta?.()?` · → ${t.tgt.n} ${Math.ceil(t.p.distanceTo(t.aim)/Math.max(1,t.spd))} s`:''}`};
+ Z.label=t=>{const K=shown(t),n=t.k==='swarm'?TH.reduce((a,u)=>a+(u.grp===t.grp&&api.live(u)?1:0),0):0;return`${K.tag}${n>1?` ×${n}`:''}${t.k==='boss'?` STAGES ${t.stages}`:''}${K.armor===1?' <span class="co">ARMORED</span>':K.armor==='hard'?' <span class="cr">DIRECT HIT ONLY</span>':''}${t.mark?' <span style="color:#ff6bd6">MARKED</span>':''}${t.claim?' <span style="color:#ffe23c">CLAIMED</span>':''}${t.pc?` <span style="color:#ffe23c">${t.pc.toUpperCase()}'S</span>`:''}${Z.eta?.()?` · → ${t.tgt.n} ${Math.ceil(t.p.distanceTo(t.aim)/Math.max(1,t.spd))} s`:''}`};
  Z.slabel=s=>s.hp>0?`${s.n} ${Math.ceil(s.hp)}/${s.max}`:`${s.n} · DESTROYED`;
  // auto-selected track: the most urgent one nobody has claimed, preferring ones you can actually stop
- Z.urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(api.live(t)){let tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(t.claim)tt+=1e6;if(KIND[t.k]?.armor==='hard')tt+=1e5;if(t.k==='swarm'&&lead.get(t.grp)!==t)tt+=1e4;if(tt<bt){bt=tt;b=t}}return b};
+ Z.urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(api.live(t)){let tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(t.claim||t.pc)tt+=1e6;if(KIND[t.k]?.armor==='hard')tt+=1e5;if(t.k==='swarm'&&lead.get(t.grp)!==t)tt+=1e4;if(tt<bt){bt=tt;b=t}}return b};
  const hardT=()=>TH.filter(t=>api.live(t)&&KIND[t.k]?.armor==='hard');
  Z.radar=(rc,P,sel)=>{def.radar(rc,P);
   for(const t of TH)if(t.k==='swarm'&&api.live(t)&&lead.get(t.grp)!==t&&inRange(t)){const q=P(t.p.x,t.p.z);rc.fillStyle=t.claim?'#ffe23c':'#ff4d4d';rc.fillRect(q[0]-1.5,q[1]-1.5,3,3)}
@@ -240,5 +242,6 @@ export function initZombies(api){
    def.D.splice(def.D.indexOf(d),1);TH.push(...keep);Object.assign(G,{cash:save.cash,earned:save.earned,kills:save.kills,state:save.st});SITES.forEach((s,i)=>s.hp=save.hp[i]);return res},
   // scripted player: put the interceptor just behind the most urgent free track, matched to its velocity, and detonate
   botKill(off=1){const me=api.player,t=Z.urgent();if(!me||me.dead>0||!t)return null;me.p.copy(t.p).addScaledVector(_a.copy(t.v).normalize(),-off);me.v.copy(t.v);Z.detonate();return t.k}};
- initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above, so it goes last
+ initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
+ initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
  return Z}

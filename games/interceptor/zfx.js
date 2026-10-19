@@ -24,7 +24,7 @@ export function initFX(api,G,Z){
  const rt=()=>performance.now()/1000;
  function slowmo(lo,hold,ease,stop=.06){const t=rt();if(TS.s<1&&lo>TS.lo)return;Object.assign(TS,{t0:t,lo,hold,ease,stop})}
  function tsTick(){const t=rt()-TS.t0;TS.s=t<TS.stop?.04:t<TS.stop+TS.hold?TS.lo:t<TS.stop+TS.hold+TS.ease?TS.lo+(1-TS.lo)*sm((t-TS.stop-TS.hold)/TS.ease):1;au.dilate(TS.s)}
- Object.defineProperty(Z,'tsc',{get:()=>G.on&&(G.state==='wave'||G.state==='clear')&&!api.menuOpen?TS.s:1,configurable:true});
+ Object.defineProperty(Z,'tsc',{get:()=>G.on&&!Z.online&&(G.state==='wave'||G.state==='clear')&&!api.menuOpen?TS.s:1,configurable:true});  // co-op: no slow-mo, the host's clock is everyone's
 
  // ---------- kill cam: after your own burst the dead-cam follows the wreck down and slowly orbits it ----------
  const KC={on:false,t:null,p:new V3(),off:new V3()};
@@ -129,7 +129,7 @@ export function initFX(api,G,Z){
 
  // ---------- kills: grouped per frame (one burst, one airstrike) so a multi-kill is one call ----------
  const KB=[];
- const k0=Z.kill;Z.kill=(t,cat)=>{const c0=G.cash,hb=t.claim;k0(t,cat);if(!G.on||api.demo||G.state==='trial'||!t.paid||t._kf)return;t._kf=1;KB.push({t,c:G.cash-c0,ply:t.by!=='h',by:HN[hb&&(hb.type||hb.d?.type)]})};
+ const k0=Z.kill;Z.kill=(t,cat)=>{const c0=G.cash,hb=t.claim;k0(t,cat);if(!G.on||api.demo||G.state==='trial'||!t.paid||t._kf||t.by==='o')return;t._kf=1;KB.push({t,c:G.cash-c0,ply:t.by!=='h',by:HN[hb&&(hb.type||hb.d?.type)]})};
  const HN={rack:'DRONE RACK',flak:'FLAK',gepard:'GEPARD',sam:'SAM',idome:'IRON DOME',gdome:'GOLDEN DOME'};
  let hRad=0;
  function flushKills(){if(!KB.length)return;const P=[],H=[];for(const k of KB)(k.ply?P:H).push(k);KB.length=0;W.you+=P.length;W.help+=H.length;
@@ -215,7 +215,7 @@ export function initFX(api,G,Z){
  const CN={on:null,t0:0,dur:0,t:null,p:new V3(),f:new V3(),r:new V3(),pos:new V3(),look:new V3(),last:-99,fov0:0,my:0},hudEl=document.getElementById('hud');
  const cineEl=document.createElement('div');cineEl.id='zcine';cineEl.innerHTML='<i></i><i></i><div class="c"><b></b><span></span><em>any key: skip</em></div>';hudEl.append(cineEl);
  Z.cine=false;
- function cine(kind,t,p,title,sub){if(CN.on||api.menuOpen||api.demo)return;CN.on=kind;CN.t=t;CN.t0=rt();CN.dur=kind==='boss'?2.6:1.9;CN.fov0=api.camera.fov;CN.my=0;CN.p.copy(p);
+ function cine(kind,t,p,title,sub){if(CN.on||api.menuOpen||api.demo||Z.online)return;  /* co-op: time can't crawl (the host's clock is everyone's), so no cams that take your view */CN.on=kind;CN.t=t;CN.t0=rt();CN.dur=kind==='boss'?2.6:1.9;CN.fov0=api.camera.fov;CN.my=0;CN.p.copy(p);
   if(t)CN.f.set(t.v.x,0,t.v.z);else{const c=cam();CN.f.set(c.x-p.x,0,c.z-p.z)}if(CN.f.lengthSq()<1e-4)CN.f.set(0,0,1);CN.f.normalize();CN.r.set(-CN.f.z,0,CN.f.x);
   slowmo(kind==='boss'?.08:.25,CN.dur-.3,.45,0);Z.cine=true;cineEl.querySelector('b').textContent=title;cineEl.querySelector('span').textContent=sub;hudEl.classList.add('zcine');au.whoosh(.22,0)}
  function endCine(){if(!CN.on)return;CN.on=null;Z.cine=false;CN.last=rt();hudEl.classList.remove('zcine');const cm=api.camera;cm.fov=CN.fov0;cm.updateProjectionMatrix();TS.t0=-9;TS.s=1;au.dilate(1)}
