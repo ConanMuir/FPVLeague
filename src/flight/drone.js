@@ -36,7 +36,7 @@ export class Drone{
  // is world point P on top of the quad and inside the square of its four motors (inset 10%)?
  popZone(P){const c=_pz.copy(P).sub(this.p).applyQuaternion(_qb.copy(this.q).invert()),M=this.popM;if(c.y<-.05||!M||M.length<3)return false;let sg=0;
   for(let i=0;i<M.length;i++){const A=M[i],B=M[(i+1)%M.length],cr=(B[0]-A[0])*.9*(c.z-A[2]*.9)-(B[2]-A[2])*.9*(c.x-A[0]*.9);if(Math.abs(cr)<1e-9)continue;const s=cr>0?1:-1;if(sg&&s!==sg)return false;sg=s}return true}
- step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;this.at=gd?0:(this.at||0)+dt;this.ct=gd?(this.ct||0)+dt:this.at>.3?0:(this.ct||0);  // ct: time in contact with the ground or a wall (short hops while sliding don't reset it)
+ step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;this.piv=0;this.at=gd?0:(this.at||0)+dt;this.ct=gd?(this.ct||0)+dt:this.at>.3?0:(this.ct||0);  // ct: time in contact with the ground or a wall (short hops while sliding don't reset it)
   if(this.flipT>0){this.flipT=Math.max(0,this.flipT-dt);rightUp(this,this.flipT?1-Math.exp(-dt*16):1);this.v.multiplyScalar(Math.exp(-dt*6));this.v.y=Math.max(this.v.y,2.5);this.ms+=(this.thr-this.ms)*.1;this.w.set(0,0,0);this.wt.set(0,0,0);this.ph=1;if(!this.flipT)this.gt=0;return}
   const lk=this.popT>0;if(lk){this.popT=Math.max(0,this.popT-dt);this.thr=this.popThr;if(this.popT>0)this.w.set(0,0,0).setComponent(this.popAx,this.popS*POP_W);else{this.q.copy(this.popQ);this.w.set(0,0,0)}}  // pop: locked turn, sticks ignored, throttle held
   if(this.popC>0)this.popC=Math.max(0,this.popC-dt);
@@ -49,8 +49,8 @@ export class Drone{
   const cn=this.cn||(this.cn=new V3(0,1,0)),vt=this.v.lengthSq()-this.v.dot(cn)**2,uy=_u.set(0,1,0).applyQuaternion(this.q).y;
   if(!lk&&gd&&uy<.93&&(this.pr?vt<9+(this.pw*DRAD*1.6)**2:cn.y>.6&&uy<-.6&&vt<9)){const up=_u;this.pr=1;const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
    const tg=PEND*(.5+.5*sm((1-up.y)/2))*(this.thr>.3?1.3:1);this.pw=(this.pw||0)+(tg-(this.pw||0))*(1-Math.exp(-dt/.35));
-   if(this.pw>.15&&this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return}else this.pw=this.pr=0
-  if(lk);else if(gd)this.w.lerp(wt,1-Math.exp(-dt/.09));else{const r=F.rmax,a=F.acc,k=1-Math.exp(-dt/TAU);  // parts: the airframe tops out at rmax and its torque/inertia caps angular acceleration (pitch, yaw, roll)
+   if(this.pw>.15){_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw);if(this.pivot(_pw,dt,-1))return;wt=_pw}}else this.pw=this.pr=0  // past the edge (the pivot lost the ground): keep rolling under motor power until upright, so grip can't leave it on its side
+  if(lk);else if(gd&&F.wheels)this.w.lerp(wt,1-Math.exp(-dt/.09));else{const r=F.rmax,am=gd&&this.v.lengthSq()>16?Math.min(1,.02+this.ms*1.5):1,a=[F.acc[0]*am,F.acc[1]*am,F.acc[2]*am],k=1-Math.exp(-dt/(gd?.09:TAU));  // parts: the airframe tops out at rmax and its torque/inertia caps angular acceleration; on the ground (no wheels), sliding faster than 4 m/s, the motors only fight a tumble as hard as their spin allows
    this.w.x+=cl((cl(wt.x,-r[0],r[0])-this.w.x)*k,-a[0]*dt,a[0]*dt);this.w.y+=cl((cl(wt.y,-r[1],r[1])-this.w.y)*k,-a[1]*dt,a[1]*dt);this.w.z+=cl((cl(wt.z,-r[2],r[2])-this.w.z)*k,-a[2]*dt,a[2]*dt)}const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
   if(!lk&&WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const qn=_qn.copy(this.q),wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);qn.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(qn)}  // where this tick ends up
@@ -68,7 +68,7 @@ export class Drone{
   for(const C of this.pts){const r=_br.copy(C.p).applyQuaternion(this.q),P=_bp2.copy(this.p).add(r);if(sdf(P.x,P.y,P.z)+C.r<deep)continue;  // the ground hull's outline (physics/world.js: the loadout's hbp/hbr)
    const n=sdN(P,_an);r.addScaledVector(n,C.r);const s=_vp.crossVectors(ww,r).dot(n);if(-s<bv){bv=-s;_pv.copy(r);ok=true}}  // corner the rotation would push hardest into the ground = pivot
   if(!ok)return false;this.w.copy(wt);this.v.crossVectors(ww,_pv).negate();this.boostOn=false;this.ms+=(this.thr-this.ms)*.1;
-  this.ph=1;this.gt=.12;return true}  // Rapier turns it about the pivot point (which stays put) and keeps it out of the ground
+  this.ph=1;this.piv=1;this.gt=.12;return true}  // Rapier turns it about the pivot point (which stays put) and keeps it out of the ground
  // ground contact, friction and impacts are physics/world.js (groundContacts); the impact sound is in modes/step.js
 }
 const _pv=new V3(),_qn=new QT(),_pa=new V3(),_pw=new V3(),PEND=3.6,_pz=new V3();
