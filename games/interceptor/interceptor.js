@@ -15,16 +15,17 @@ import {keys,pad,axv,thrFull,calib,fireBtnIn,initInput,padEdges,mountPad,mountSw
 import {initMenu,syncUI} from '../../engine/menu.js';
 import {mountMod,initModPanel,toggleMod,tab,modMsg} from '../../engine/modpanel.js';
 import {startLoop} from '../../engine/loop.js';
+import {initZombies} from './zombies.js';
 mountMod();setFeedTime(5500);
 
 // ---------- world constants (metres, seconds; real scale) ----------
 // AO = area of operations, ±AW. Threats enter at SPAWNZ (north, -z) and fly toward the defended sites in the south (+z).
-const AW=3000,TW=9000,TN=360,CEIL=4000,SPAWNZ=-2900;
-let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.22,MAXV=78,TE=1.6,VP=240,DL=.1,DQ=.006,HOV=(G/THR)**(1/TE),TAU=.012,DB=.35,GSPD=1,SHK=1,LETH=4,CRASH=30,RELT=2.5,TSPD=1,TCNT=1,BCAP=16000,MSZ=1;
+let AW=3000;const TW=9000,TN=360,CEIL=4000,SPAWNZ=-2900;  // AW is widened while Zombies runs
+let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.22,MAXV=78,TE=1.6,VP=240,DL=.1,DQ=.006,HOV=(G/THR)**(1/TE),TAU=.012,DB=.35,GSPD=1,SHK=1,LETH=4,CRASH=30,RELT=2.5,TSPD=1,TCNT=1,BCAP=16000,MSZ=1,SAGK=1;
 const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3(),_tl=new V3(),_vr=new V3();
 const DIFF=[{n:'Light',cnt:.7,spd:.92,gap:1.3},{n:'Heavy',cnt:1,spd:1,gap:1},{n:'Saturation',cnt:1.5,spd:1.06,gap:.7}];
 const RRS=[2000,5000,10000];
-const DEF={mode:"acro",diff:1,tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fuse:'auto',fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,guideSw:-1,nextSw:-1,guide:1};
+const DEF={mode:"acro",diff:1,tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fuse:'auto',fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,guideSw:-1,nextSw:-1,guide:1,gmode:'classic'};
 loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the dart's camera sits at 90°, a 5-inch quad's at 30°
 if(S.fuse!=='manual')S.fuse='auto';S.diff=cl(S.diff|0,0,2);S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
@@ -308,7 +309,7 @@ class Drone{
   if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
   const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
   this.ms+=(this.thr-this.ms)*(1-Math.exp(-dt/Math.max(1e-3,this.thr>this.ms?SPOOL:SPOOL*1.6)));  // motor spool-up / spin-down
-  const I=this.amp=6+220*Math.max(this.ms,0)**1.5;this.mah+=I*dt/3.6;this.vp+=(I*.0011-this.vp)*(1-Math.exp(-dt/(I*.0011>this.vp?.6:2.5)));this.vc=ocv(this.mah/BCAP)-I*.0016-this.vp;  // pack current (A), mAh used, per-cell voltage: IR drop (1.6 mΩ/cell) + polarisation that builds over ~0.6 s and recovers over ~2.5 s
+  const I=this.amp=6+220*Math.max(this.ms,0)**1.5;this.mah+=I*dt/3.6;this.vp+=(I*.0011-this.vp)*(1-Math.exp(-dt/(I*.0011>this.vp?.6:2.5)));this.vc=ocv(this.mah/BCAP)-(I*.0016+this.vp)*SAGK;  // pack current (A), mAh used, per-cell voltage: IR drop (1.6 mΩ/cell) + polarisation that builds over ~0.6 s and recovers over ~2.5 s
   let acc=THR*this.ms**TE*Math.min(1.04,(Math.max(this.vc,3)/4.05)**1.6);  // thrust ~ rpm² ~ voltage² at a given throttle: sags with load and as the pack drains (1.0 at a fresh pack in hover)
   acc*=cl(1-va/VP,0,1.15);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
   this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;
@@ -395,7 +396,7 @@ function spawnThreat(jet){const L=liveSites();if(!L.length)return;const s=L[Math
 function turn(t,des,rate,dt){const cur=_tv.copy(t.v).normalize(),a=Math.acos(cl(cur.dot(des),-1,1)),y0=Math.atan2(cur.x,cur.z);
  if(a>1e-5)cur.lerp(des,Math.min(1,rate*dt/a)).normalize();let dy=Math.atan2(cur.x,cur.z)-y0;dy=((dy+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
  t.bank+=(cl(-dy/dt*1.4,-.7,.7)-t.bank)*Math.min(1,dt*2);t.v.copy(cur).multiplyScalar(t.spd)}  // bank into the turn
-function threatStep(t,dt){if(t.st==='dead')return;
+function threatStep(t,dt){if(t.st==='dead')return;if(t.k&&Z.tstep(t,dt))return;
  if(t.st==='fall'){t.v.y-=9.81*dt;t.v.multiplyScalar(1-.15*dt);t.p.addScaledVector(t.v,dt);t.roll+=t.spin*dt;
   if((t.smoke-=dt)<=0){t.smoke=.05;SMK.emit(t.p,0x2a2725,1,1.5,3,null,1,.8);FX.emit(t.p,0xff7a20,2,2,.4,null,2.5)}
   if(sdf(t.p.x,t.p.y,t.p.z)>-.5){boom(t.p,1.6);t.st='dead'}return}
@@ -411,17 +412,17 @@ function threatStep(t,dt){if(t.st==='dead')return;
   _td.setLength(t.spd);_td.y=cl((gy-t.p.y)*.4,-7,7);turn(t,_td.normalize(),.35,dt)}
  else{t.spd=Math.min(t.spd+4*dt,t.cs*1.45);turn(t,_td.subVectors(t.aim,t.p).normalize(),1.1,dt);if(t.p.distanceTo(t.aim)<4||t.p.y<=gh(t.p.x,t.p.z)+.6){impact(t);return}}
  t.p.addScaledVector(t.v,dt).addScaledVector(WIND,dt*.6)}  // wind drift
-function impact(t){t.st='dead';boom(t.aim,4);if(demo||wstate==='over')return;const s=t.tgt;
+function impact(t){if(Z.on)return Z.impact(t);t.st='dead';boom(t.aim,4);if(demo||wstate==='over')return;const s=t.tgt;
  if(s.hp>0){s.hp--;lost++;wl++;FIRES.push({p:t.aim.clone(),t:0});feed(`<span class="cr">Impact</span> on the ${s.n.toLowerCase()}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(220,110,.6,.12,'sawtooth')}
  if(!liveSites().length){wstate='over';wT=8;banner('ALL SITES DESTROYED','cr',0);feed(`Held ${wave-1} wave${wave===2?'':'s'} · ${saved} downed · ${spent} interceptors`)}}
-function killThreat(t,cat){if(cat){t.st='dead';boom(t.p,3.2);SMK.emit(t.p,0x1c1a18,30,14,6,_t.set(0,3,0),1.4,.85);if(!demo){saved++;ws++;tone(660,1320,.25,.12,'triangle')}return}t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
+function killThreat(t,cat){if(Z.on)Z.kill(t,cat);if(cat){t.st='dead';boom(t.p,3.2);SMK.emit(t.p,0x1c1a18,30,14,6,_t.set(0,3,0),1.4,.85);if(!demo){saved++;ws++;tone(660,1320,.25,.12,'triangle')}return}t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
  boom(t.p,1.2);if(demo)return;saved++;ws++;tone(660,1320,.25,.12,'triangle')}
-function boom(p,k){FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
+function boom(p,k){if(Z.on)Z.flash(p,k);FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
  boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*k);shake=Math.max(shake,near(p)*k*.6);noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}
 function fires(dt){for(const f of FIRES)if((f.t-=dt)<=0){f.t=.06;FX.emit(f.p,0xff7a20,3,3,.8,_t.set(0,7,0),2.5);SMK.emit(f.p,0x2b2724,1,2,9,_t.set(0,8,0),1,.75)}}
 const nearestThreat=p=>{let b=null,bd=1e18;for(const t of TH)if(live(t)){const q=t.p.distanceToSquared(p);if(q<bd){bd=q;b=t}}return b};
 // most urgent track: least time to reach its target
-const urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(live(t)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(tt<bt){bt=tt;b=t}}return b};
+const urgent=()=>{if(Z.on)return Z.urgent();let b=null,bt=1e18;for(const t of TH)if(live(t)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(tt<bt){bt=tt;b=t}}return b};
 // selected track: the most urgent unless you picked one with Next track (N); tracks cycle in order of urgency
 let pickT=null,gdNow=null;const selT=()=>pickT&&live(pickT)?pickT:urgent();
 function nextTrack(){const L=TH.filter(live).sort((a,b)=>Math.hypot(a.aim.x-a.p.x,a.aim.z-a.p.z)/a.spd-Math.hypot(b.aim.x-b.p.x,b.aim.z-b.p.z)/b.spd);if(!L.length)return;pickT=L[(L.indexOf(selT())+1)%L.length];if(!demo)banner('T'+String(pickT.id).padStart(2,'0'),'',.6)}
@@ -450,8 +451,8 @@ function lose(why){const d=player;if(d.dead>0)return;d.dead=RELT;spent++;deadP.c
  _f.copy(d.v).setY(0);if(_f.lengthSq()<.01)_f.set(0,0,-1);deadC.copy(d.p).addScaledVector(_f.normalize(),-25).setY(Math.max(d.p.y,gh(d.p.x,d.p.z))+8);
  boom(d.p,why==='det'?.7:.4);if(camMode===0){const f=$('flash');f.style.transition='none';f.style.opacity=why==='det'?.9:.5;requestAnimationFrame(()=>{f.style.transition='opacity .6s';f.style.opacity=0})}
  if(why==='crash')feed('Interceptor lost: crashed');if(why==='bat')feed('Interceptor lost: battery flat')}
-const tName=t=>`T${String(t.id).padStart(2,'0')} ${t.jet?'Geran-3':'Shahed'}`;
-function detonate(){const d=player,out=[];
+const tName=t=>`T${String(t.id).padStart(2,'0')} ${t.k&&Z.on?Z.tname(t):t.jet?'Geran-3':'Shahed'}`;
+function detonate(){if(Z.on)return Z.detonate();const d=player,out=[];
  for(const t of TH)if(live(t)){const r=t.p.distanceTo(d.p);if(r>30)continue;const cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a.subVectors(t.p,d.p))/(r||1)),re=r+cv*FDLY;
   if(Math.random()<pkill(r,cv)){const cat=re<2.4&&Math.random()<.55;killThreat(t,cat);out.push(`<span class="cg">${tName(t)} ${cat?'destroyed: its warhead went up':'hit, going down'}</span> (${r.toFixed(1)} m)`)}
   else if(!t.dmg&&Math.random()<Math.exp(-(((re-1.2)/(5*LETH/4))**2))){damage(t);out.push(`<span class="co">${tName(t)} damaged, still flying</span> (${r.toFixed(1)} m)`)}
@@ -470,15 +471,15 @@ function fuse(){const d=player,fire=fireIn(),edge=fire&&!fireWas;fireWas=fire;le
 // ---------- waves ----------
 function startWave(){wave++;wstate='brief';wT=demo?1:6;toSpawn=2;ws=wl=0;spawnT=0;
  if(!demo){banner('WAVE '+wave,'cr',2.4);feed('Two tracks inbound from the north: a Shahed-136, then a jet Geran-3')}}
-function waves(dt){
+function waves(dt){if(Z.on)return Z.waves(dt);
  if(wstate==='over'){if((wT-=dt)<=0)startDemo();return}
  if(wstate==='brief'){if((wT-=dt)<=0)wstate='wave';return}
  if(wstate==='wave'){if(toSpawn>0&&(spawnT-=dt)<=0){toSpawn--;spawnThreat(toSpawn===0);spawnT=(25+Math.random()*20)*DIFF[demo?1:S.diff].gap}  // each wave: one piston Shahed-136, then one jet Geran-3 a little later
   if(!toSpawn&&!TH.some(live)){wstate='clear';wT=5;if(!demo){banner(`WAVE ${wave} CLEAR`,'cg',2.6);feed(`Wave ${wave}: <span class="cg">${ws} down</span> · <span class="cr">${wl} hit${wl===1?'':'s'}</span>`)}}return}
  if(wstate==='clear'&&(wT-=dt)<=0)startWave()}
 function resetWorld(){pickT=null;TH.forEach(t=>scene.remove(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
-function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);startWave();toSpawn--;spawnThreat(false);spawnT=25+Math.random()*20;launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
-function startDemo(){demo=true;resetWorld();setWeather(S.wx);if(player)player.mesh.visible=false;startWave();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
+function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);if(S.gmode==='z')Z.start();else{Z.stop();startWave();toSpawn--;spawnThreat(false);spawnT=25+Math.random()*20}launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
+function startDemo(){Z.stop();demo=true;resetWorld();setWeather(S.wx);if(player)player.mesh.visible=false;startWave();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
 function showMenu(v){menuOpen=v;$('menu').hidden=!v;paused=v&&!demo}
 
 // ---------- camera ----------
@@ -514,12 +515,12 @@ function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:nul
  const s0=sweep;sweep=(sweep+dt*Math.PI)%(Math.PI*2);const g=rc.createConicGradient?rc.createConicGradient(sweep-Math.PI/2-.6,c,c):null;
  if(g){g.addColorStop(0,'rgba(90,255,150,0)');g.addColorStop(.095,'rgba(90,255,150,.18)');g.addColorStop(.0955,'rgba(90,255,150,0)');rc.fillStyle=g;rc.beginPath();rc.arc(c,c,R,0,7);rc.fill()}
  const sel=selT();rc.font='700 17px "JetBrains Mono",monospace';rc.textAlign='left';
- for(const t of TH){if(t.st==='dead')continue;const q=P(t.p.x,t.p.z),b=(Math.atan2(q[0]-c,c-q[1])+Math.PI*2)%(Math.PI*2),crossed=s0<=sweep?b>s0&&b<=sweep:b>s0||b<=sweep;
+ for(const t of TH){if(t.st==='dead'||Z.on&&!Z.seen(t))continue;const q=P(t.p.x,t.p.z),b=(Math.atan2(q[0]-c,c-q[1])+Math.PI*2)%(Math.PI*2),crossed=s0<=sweep?b>s0&&b<=sweep:b>s0||b<=sweep;
   if(crossed||!t.rb)t.rb={x:t.p.x,z:t.p.z,vx:t.v.x,vz:t.v.z,y:t.p.y,age:0};else t.rb.age+=dt;if(!live(t)&&t.rb.age>1.5)continue;
-  const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':t===sel?'255,198,64':t.jet?'255,150,60':'255,77,77';
+  const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':Z.on?Z.rcol(t,sel):t===sel?'255,198,64':t.jet?'255,150,60':'255,77,77';
   rc.globalAlpha=a;rc.strokeStyle=rc.fillStyle=`rgb(${col})`;rc.lineWidth=2.5;rc.beginPath();rc.moveTo(bq[0],bq[1]-7);rc.lineTo(bq[0]+7,bq[1]);rc.lineTo(bq[0],bq[1]+7);rc.lineTo(bq[0]-7,bq[1]);rc.closePath();live(t)?rc.fill():rc.stroke();
   if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();rc.fillText(`T${String(t.id).padStart(2,'0')} ${Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100)}`,bq[0]+10,bq[1]-8)}}
- rc.globalAlpha=1;rc.restore();
+ rc.globalAlpha=1;if(Z.on)Z.radar(rc,P,sel,K);rc.restore();
  if(gdNow&&gdNow.ph==='MIDCOURSE'){const q=P(GD.pip.x,GD.pip.z);rc.save();rc.setLineDash([10,8]);rc.strokeStyle='#5fe3ff';rc.lineWidth=2;rc.beginPath();rc.moveTo(c,c);rc.lineTo(q[0],q[1]);rc.stroke();rc.setLineDash([]);rc.beginPath();rc.moveTo(q[0],q[1]-8);rc.lineTo(q[0]+8,q[1]);rc.lineTo(q[0],q[1]+8);rc.lineTo(q[0]-8,q[1]);rc.closePath();rc.stroke();rc.restore()}  // guidance line to the PIP
  // own ship, ring labels, north marker
  rc.fillStyle='#3ddc84';rc.beginPath();rc.moveTo(c,c-10);rc.lineTo(c+7,c+8);rc.lineTo(c-7,c+8);rc.closePath();rc.fill();
@@ -533,8 +534,8 @@ function linkQ(me,dt){if((lqT-=dt)>0)return lqS;lqT=.1;const h=me.home,ax=h.x-3,
  return lqS+=(q-lqS)*.35}
 const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';let siteHTML='';
 const hdg=v=>String(Math.round((Math.atan2(v.x,-v.z)*180/Math.PI+360)%360)).padStart(3,'0');
-function hud(dt){if(demo)return;const me=player;$('sw').textContent='WAVE '+wave;$('sv').textContent=saved+' DOWN';$('sl').textContent=lost+' HIT'+(lost===1?'':'S');
- const sh=SITES.map(s=>`<span class="${s.hp?'':'dead'}">${s.n} ${'■'.repeat(s.hp)}${'□'.repeat(s.max-s.hp)}</span>`).join('');if(sh!==siteHTML)$('sites').innerHTML=siteHTML=sh;
+function hud(dt){if(demo)return;if(Z.on)Z.hud(dt);const me=player;$('sw').textContent='WAVE '+wave;$('sv').textContent=saved+' DOWN';$('sl').textContent=lost+' HIT'+(lost===1?'':'S');
+ const sh=Z.on?'':SITES.map(s=>`<span class="${s.hp?'':'dead'}">${s.n} ${'■'.repeat(s.hp)}${'□'.repeat(s.max-s.hp)}</span>`).join('');if(sh!==siteHTML)$('sites').innerHTML=siteHTML=sh;
  const inb=TH.filter(live).length+(wstate==='wave'||wstate==='brief'?toSpawn:0),sel=selT(),alive=me.dead<=0;
  const cv=cellV(me),fl=me.t|0,ws=WIND.length();
  $('osd').innerHTML=`<span><b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE','THREAT CAM'][camMode]} · ${DIFF[S.diff].n.toUpperCase()} · CAM ${camUp?S.tilt+'°':'LVL'}${therm?' · TI WHT':''} · ${WX.n.toUpperCase()} · WIND ${Math.round(ws*3.6)} km/h ${hdg(_t.copy(WIND).negate())}</span>`+
@@ -542,7 +543,7 @@ function hud(dt){if(demo)return;const me=player;$('sw').textContent='WAVE '+wave
    `<span class="${cv<3.5?'r':''}">BAT ${(cv*12).toFixed(1)}V 12S  ${String(Math.round(me.amp||0)).padStart(3)}A  ${String(Math.round(me.mah)).padStart(5)} mAh  ${String(fl/60|0).padStart(2,'0')}:${String(fl%60).padStart(2,'0')}</span>`:`<span class="r">NEXT INTERCEPTOR ${me.dead.toFixed(1)}</span>`)+
   `<span>FUSE ${S.fuse==='auto'?'PROX':'MANUAL'} · INBOUND ${inb} · INTERCEPTORS USED ${spent}</span>`;
  if(sel){const r=_a.subVectors(sel.p,me.p),d=r.length(),c2=-_b.subVectors(sel.v,me.v).dot(r)/d,asp=aspect(sel,me.p),win=fuseR(Math.max(0,c2));
-  $('trk').innerHTML=`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${sel.jet?'GERAN-3 JET':'SHAHED-136'}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}<br>${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}<br>${alive?`ASPECT <span class="${asp==='TAIL'?'cg':asp==='HEAD-ON'?'cr':''}">${asp}</span> · CLOSING ${Math.round(c2*3.6)} km/h · KILL R ${win.toFixed(1)} m`:''}`}else $('trk').textContent='NO TRACKS';
+  $('trk').innerHTML=`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${Z.on?Z.label(sel):sel.jet?'GERAN-3 JET':'SHAHED-136'}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}<br>${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}<br>${alive?`ASPECT <span class="${asp==='TAIL'?'cg':asp==='HEAD-ON'?'cr':''}">${asp}</span> · CLOSING ${Math.round(c2*3.6)} km/h · KILL R ${win.toFixed(1)} m`:''}`}else $('trk').textContent='NO TRACKS';
  const lq=alive?linkQ(me,dt):1;$('warn').textContent=!alive?'':lq<.45?'VIDEO LINK WEAK · CLIMB OR TURN BACK':Math.abs(me.p.x)>AW-300||Math.abs(me.p.z)>AW-300?'LEAVING THE AO · TURN BACK':cv<3.5?'BATTERY LOW · LAND':'';
  $('xh').hidden=camMode!==0||!alive;
  const a=$('arrow');if(!sel||!alive){a.hidden=true}else{_t.copy(sel.p).project(camera);let x=_t.x,y=_t.y;const behind=_t.z>1;if(behind){x=-x;y=-y}
@@ -560,11 +561,11 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
    if(q1&&q2){const mx=(q1[0]+q2[0])/2,my=(q1[1]+q2[1])/2,dx=q2[0]-q1[0],dy=q2[1]-q1[1],L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;oc.strokeStyle='rgba(255,255,255,.75)';oc.lineWidth=2;oc.beginPath();
     for(const s of[-1,1])for(let k=0;k<5;k++){const a=s*(40+k*26),b=s*(56+k*26);oc.moveTo(mx+ux*a,my+uy*a);oc.lineTo(mx+ux*b,my+uy*b)}oc.stroke();oc.lineWidth=1.6}}}
  for(const f of FOBS){const d=Math.hypot(f.x-camera.position.x,f.z-camera.position.z);if(d>4000)continue;const q=scr(_ip.set(f.x,f.y+6,f.z));if(q){oc.fillStyle='#3ddc84';oc.fillText(f.n+' '+rng(d),q[0],q[1])}}
- for(const s of SITES){const q=scr(_ip.set(s.x,s.y+34,s.z));if(!q)continue;oc.fillStyle=s.hp?'#7fd0ff':'#8a8f99';oc.fillText(s.n+(s.hp?' '+'■'.repeat(s.hp):' · DESTROYED'),q[0],q[1])}
+ for(const s of SITES){const q=scr(_ip.set(s.x,s.y+34,s.z));if(!q)continue;oc.fillStyle=s.hp?'#7fd0ff':'#8a8f99';oc.fillText(Z.on?Z.slabel(s):s.n+(s.hp?' '+'■'.repeat(s.hp):' · DESTROYED'),q[0],q[1])}
  for(const t of TH){if(t.st==='dead')continue;const q=scr(t.p);if(!q)continue;const[x,y]=q,d=t.p.distanceTo(camera.position),s=Math.max(9,Math.min(70,2.8/d/ft*H2*.5+5)),L=live(t),k=s*.45;
-  oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':t===sel?'#ffc640':t.jet?'#ff9640':'#ff4d4d';
+  oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':Z.on?Z.ocol(t,sel):t===sel?'#ffc640':t.jet?'#ff9640':'#ff4d4d';if(Z.on&&Z.quiet(t)){oc.fillRect(x-2,y-2,4,4);continue}
   oc.beginPath();for(const[sx,sy]of[[-1,-1],[1,-1],[1,1],[-1,1]]){oc.moveTo(x+sx*s,y+sy*s-sy*k);oc.lineTo(x+sx*s,y+sy*s);oc.lineTo(x+sx*s-sx*k,y+sy*s)}oc.stroke();
-  if(L)oc.fillText(`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`,x,y+s+13);
+  if(L&&!(Z.on&&Z.quiet(t)))oc.fillText(`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`,x,y+s+13);
   // pursuit cue: a point 40 m behind the target along its track, led by your time to get there; fly through it to end up in its six
   if(L&&t===sel&&me){const vh=_tv.copy(t.v).normalize(),r=_a.subVectors(t.p,me.p).length(),tg=cl(r/Math.max(me.v.length(),40),0,8),cue=_ip.copy(t.p).addScaledVector(t.v,tg*.5).addScaledVector(vh,-40),lp=scr(cue);
    if(lp){oc.beginPath();oc.arc(lp[0],lp[1],7,0,7);oc.moveTo(lp[0]-11,lp[1]);oc.lineTo(lp[0]-4,lp[1]);oc.moveTo(lp[0]+4,lp[1]);oc.lineTo(lp[0]+11,lp[1]);oc.stroke()}}}
@@ -580,13 +581,13 @@ function visuals(dt,now){const me=player;
  for(const t of TH){t.mesh.position.copy(t.p);t.mesh.lookAt(_t.copy(t.p).add(t.v));t.mesh.rotateZ(t.st==='fall'?t.roll:t.bank);if(t.prop)t.prop.rotation.z+=dt*90}
  for(let i=TH.length-1;i>=0;i--)if(TH[i].st==='dead'){scene.remove(TH[i].mesh);TH.splice(i,1)}
  if(RADM)RADM.rotation.y+=dt*2;boomL.intensity*=Math.exp(-dt*9);FX.upd(dt);SMK.upd(dt);
- if(audioOn())audioTick(dt)}
+ if(Z.on)Z.visuals(dt);if(audioOn())audioTick(dt)}
 
 // ---------- input events ----------
 function cycleCam(){camMode=(camMode+1)%3;S.cam=camMode;save()}
 function togglePause(){if(demo)return;showMenu(!menuOpen)}
-initInput({menu:()=>menuOpen,pause:togglePause,key:e=>{if(e.code==='KeyC')cycleCam();if(e.code==='KeyL')setCam(!camUp);if(e.code==='KeyH')setTherm(!therm);if(e.code==='KeyG')setGuide(!S.guide);if(e.code==='KeyN')nextTrack();if(e.code==='KeyV'){S.rr=(S.rr+1)%3;save();syncUI()}if(e.code==='KeyR'&&player&&!demo&&wstate!=='over')relaunch()}});
-const padKeys=e=>{if(e(9))togglePause();if(!menuOpen&&!demo){if(e(4))cycleCam();if(e(3)&&player&&wstate!=='over')relaunch()}};
+initInput({menu:()=>menuOpen,pause:togglePause,key:e=>{if(Z.on&&Z.key(e))return;if(e.code==='KeyC')cycleCam();if(e.code==='KeyL')setCam(!camUp);if(e.code==='KeyH')setTherm(!therm);if(e.code==='KeyG')setGuide(!S.guide);if(e.code==='KeyN')nextTrack();if(e.code==='KeyV'){S.rr=(S.rr+1)%RRS.length;save();syncUI()}if(e.code==='KeyR'&&player&&!demo&&wstate!=='over')relaunch()}});
+const padKeys=e=>{if(e(9))togglePause();if(!menuOpen&&!demo){if(Z.on&&Z.pad(e))return;if(e(4))cycleCam();if(e(3)&&player&&wstate!=='over')relaunch()}};
 // ---------- menu / settings ----------
 const FIELDS=[['diff','Threat level','sel',DIFF.map((d,i)=>[i,d.n])],['wx','Weather','sel',[['random','Random'],...Object.entries(WXS).map(([k,w])=>[k,w.n])]],['fuse','Warhead fuse','sel',[['auto','Proximity (auto)'],['manual','Manual (detonate button)']]],
  ['rr','Radar range','sel',RRS.map((r,i)=>[i,r/1000+' km'])],['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
@@ -620,10 +621,15 @@ $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','
 // ---------- main loop ----------
 function step(dt){const me=player;
  if(me&&!demo){if(me.dead>0){if((me.dead-=dt)<=0&&wstate!=='over')launch()}else{humanControl(me,dt);if(me.mah>=BCAP)me.thr=0;const h=me.step(dt);if(h>CRASH)lose('crash');else if(me.mah>=BCAP&&me.gt>0)lose('bat');else fuse()}}
- for(const t of TH)threatStep(t,dt);waves(dt);fires(dt)}
+ for(const t of TH)threatStep(t,dt);waves(dt);fires(dt);if(Z.on)Z.step(dt)}
+// Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
+const Z=initZombies({THREE,scene,camera,renderer,S,save,TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
+ get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pickT(){return pickT},set pickT(v){pickT=v},
+ get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
+ get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get thermLook(){return thermLook},get WX(){return WX},deck,set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
 startDemo();
-startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD,paused:()=>paused,menu:()=>menuOpen,draw:(vd,dt,now)=>{
+startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD,paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now)=>{
  if(!menuOpen&&!demo)switches();
  const fpvOn=!demo&&camMode===0&&player&&player.dead<=0,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
  sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.04-.18*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
- weather(vd,now);visuals(vd,now);updateCam(dt,now);hud(vd);overlay()}});
+ weather(vd,now);visuals(vd,now);updateCam(dt,now);hud(vd);overlay();if(Z.on)Z.overlay(oc)}});

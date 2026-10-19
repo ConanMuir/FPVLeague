@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Owner: Riley   Last updated: 2026-10-19 by Claude
-Based on: riley-test-0u2krq (Riley's test build: long line mode, sling cam, look-down, audio tab, jitter fixes) + origin/main 1d14492 (Jared's PRs #12-#30)
-Doing: second test build so Riley can try Jared's latest main (freeplay, pop, caves, ground grip, ball feel, sound, goal explosions, cosmetics, skill training packs, effects, harder bots, map detail, underground routes) together with Riley's test-build features.
-Touches: merges only; conflicts resolved by hand (keep both sides) in src/audio, src/bots/league.js, src/config/settings.js, src/main.js, src/modes/match.js, src/modes/step.js, src/net/net.js, src/render/drone-mesh.js, src/styles.css, src/ui/menu.js, src/world/maps.js, app.html.
-Open items / help wanted: long line mode with Jared's newer ball feel, ground grip and effects is unverified by a pilot. Jared's interceptor-zombies branch (WIP, not on main) is not merged here.
-Overlaps: riley-test-0u2krq (this branch's parent, left as it was); main.
+Branch: `interceptor-zombies`   Owner: Jared   Last updated: 2026-10-18 by Claude
+Based on: origin/riley-test-2, last merged at 444fc50 (Riley's Interceptor + engine/games split, with Jared's main up to PR #30)
+Doing: a Zombies mode for Riley's Interceptor (endless growing waves, money, base screen between waves, helpers, perks, bosses). Riley's game stays as is under "Classic"; the start menu picks the mode. All five checkpoints are in; see games/interceptor/README.md#zombies-mode.
+Touches: games/interceptor/ (new zombies.js, zdata.js, zenemy.js, zdef.js, zperk.js, zbase.js, zombies.css; one-line hooks in interceptor.js and a mode switch in index.html, every hook behind `Z.on` so Classic is unchanged; Classic's AO constant became a `let`, battery sag got a multiplier that stays 1 in Classic), tools/zlib.mjs, zombies-test.mjs, zombies-shots.mjs, zombies-perf.mjs (headless Edge harnesses).
+Open items / help wanted: not yet flown by a pilot; balance comes from scripted players (casual and good both fall around wave 32-33, at the hypersonic waves); helper and dome outcomes are game-balance kill chances, not a flight/guidance simulation; the standalone interceptor/ copy has no Zombies mode.
+Overlaps: Riley's Interceptor (games/interceptor/interceptor.js). The hooks are one-liners at the start of functions (threatStep, impact, killThreat, detonate, waves, urgent, boom, hud, radar, overlay, step, visuals, input) plus an API object before startDemo(); merge Riley's later changes around them.
 
 ## How to play
 
