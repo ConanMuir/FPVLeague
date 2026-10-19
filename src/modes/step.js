@@ -22,7 +22,7 @@ import {GS,SB,auth} from '../state.js';
 import {banner} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
 import {MODES} from './registry.js';
-const _pu=new V3(),_pc=new V3(),_pw2=new V3(),_pr=new V3();
+const _pu=new V3(),_pc=new V3(),_pw2=new V3(),_pr=new V3(),_fr=new V3(),_fs=new V3(),_fc=new V3(),sst=x=>{x=cl(x,0,1);return x*x*(3-2*x)};
 export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state, Rapier moves it
  if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);tone(660,660,.12,.12,'square')}else{banner('GO!','',.6);tone(990,990,.25,.15,'square')}}}if(A&&GS.stT<=0)GS.state='play'}
  else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
@@ -44,12 +44,19 @@ export function step(dt){testTick(dt);if(LAB.on&&LAB.st!=='test'){labStep(dt);ph
    if(!a.bot&&!(a.popT>0)&&n.dot(_pu.set(0,1,0).applyQuaternion(a.q))>.75&&a.popZone(_pc.copy(ball.p).addScaledVector(n,-BR))){if(!(a.popC>0)){popFx(_pc,n,BR*.75);if(a===GS.player)tone(1500,2200,.08,.05)}a.popC=POP_T}
    // during a pop the spinning frame's own speed at the contact point counts, so where the ball meets the turning quad decides the pop
    const av=a.popT>0?_pw2.copy(a.w).applyQuaternion(a.q).cross(_pr.copy(ball.p).addScaledVector(n,-BR).sub(a.p)).add(a.v):a.v;
-   const rv=_w.subVectors(ball.v,av).dot(n);if(rv<0){const hk=cl((-rv-6)/30,0,1),j=-(1+TB+(.6-TB)*hk+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);
+   // touch bounce: one smooth curve from soft (2 x Touch bounce) to lively (0.6) with hit speed, no dead zone
+   const rv=_w.subVectors(ball.v,av).dot(n);if(rv<0){const pop=a.popT>0,hk=pop?cl((-rv-6)/30,0,1):sst(-rv/36),j=-(1+(pop?TB+(.6-TB)*hk:2*TB+(.6-2*TB)*hk)+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);  // a pop keeps the contact model it was tuned with
     // Rocket League's extra impulse, but along the contact normal: the ball leaves the way the face of your hitbox that hit it was facing.
     // (RL's own version runs along the car's centre line with the vertical squashed to 35%, tuned for a car on the ground; a drone hits from every angle.)
     const aim=_ip.copy(n);
-    const u=BR/.93,rel=Math.min(_t.subVectors(av,ball.v).length(),46*u),sc=rel<=5*u?.65:rel<=23*u?.65-.1*(rel-5*u)/(18*u):.55-.25*(rel-23*u)/(23*u);ball.v.addScaledVector(aim,rel*sc*hk*KICK);  // RL: 0.65 up to 500 uu/s, 0.55 at 2300, 0.30 at 4600 (uu scaled to this ball)
-    const gr=(1-hk)*.35*Math.min(2,a.fl.grip);_t.subVectors(ball.v,av);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr);ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv});  // parts: grip, flat wide bodies carry the ball
+    const u=BR/.93,rel=Math.min(_t.subVectors(av,ball.v).length(),46*u),sc=rel<=5*u?.65:rel<=23*u?.65-.1*(rel-5*u)/(18*u):.55-.25*(rel-23*u)/(23*u);ball.v.addScaledVector(aim,rel*sc*(pop?hk:sst(rel/12))*KICK);  // RL: 0.65 up to 500 uu/s, 0.55 at 2300, 0.30 at 4600 (uu scaled to this ball)
+    // contact friction: the ball's surface rubs on the quad, so glancing hits spin it and a flat top carries it (chassis grip), instead of
+    // dragging the ball's velocity toward the quad's. Solid sphere: tangential effective mass 1/m + R^2/I = 3.5/m. During a pop the frame grips the ball instead (above).
+    if(a.popT>0){const gr=(1-hk)*.35*Math.min(2,a.fl.grip);_t.subVectors(ball.v,av);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr)}  // pop: the spinning frame grips the ball and flings it with its surface speed
+    else{const r=_fr.copy(n).multiplyScalar(-BR),sv=_fs.crossVectors(ball.w,r).add(ball.v).sub(av);sv.addScaledVector(n,-sv.dot(n));const sl=sv.length();
+     if(sl>1e-4){sv.divideScalar(sl);const jt=Math.min((.15+.25*Math.min(2,a.fl.grip))*j,sl/(3.5*ib+id));ball.v.addScaledVector(sv,-jt*ib);a.v.addScaledVector(sv,jt*id);ball.w.addScaledVector(_fc.crossVectors(r,sv),-jt*ib/(.4*BR*BR))}
+     if(hk<.3)ball.w.lerp(_fc.copy(a.w).applyQuaternion(a.q),Math.min(1,.12*Math.min(2,a.fl.grip)));}  // rolling resistance on a resting carry: the ball rides on the frame instead of rolling off it like a marble on glass
+    ball.last=a;emitHit({type:'ball',d:a,tag:tb.tag,speed:-rv});
     if(GS.net&&!GS.net.host&&a===GS.player){GS.net.hit={s:++GS.net.seq,p:r2(ball.p),v:r2(ball.v)};GS.net.hitT=performance.now()}
     if(-rv>6){noise(.18,700+(-rv)*15,cl(-rv/35,0,.7)*near(ball.p));tone(240,90,.12,cl(-rv/120,0,.25)*near(ball.p));emit(ball.p.clone().addScaledVector(n,-BR),0x9fe8ff,cl(-rv,4,30)|0,10,.5)}}}
   for(let k=i+1;k<GS.drones.length;k++){const b=GS.drones[k];if(b.dead>0||a.remote&&b.remote)continue;const c=droneTouch(a,b,_v);if(!c)continue;const n=_v;  // the drones' part colliders (physics/world.js BUMP skin)

@@ -39,5 +39,6 @@ const r = await p.evaluate(async () => {
 });
 r.errors = errs; console.log(JSON.stringify(r, null, 1));
 const sym = Math.abs(r.pops.centre.v[0]) < .5 && Math.abs(r.pops.centreYawed90.v[2]) < .5 && Math.abs(r.pops.rollRight.v[2]) < .5 && Math.abs(r.pops.centreYawed90.v[0] - r.pops.centre.v[2]) < .5;  // straight pops go straight, whatever the heading
-const ok = sym && r.earnCentre && !r.earnOutside && !r.earnBelow && r.noDirection && r.popped && Math.abs(r.turnRate) > .9 && r.backToStart < .5 && r.unlocked && r.spent && !errs.length;
+const dirs = ['front', 'centre', 'back'].every(k => r.pops[k].v[1] > 0 && r.pops[k].v[2] < 0) && r.pops.rollRight.v[0] > 0 && r.pops.rollRight.v[1] > 0;  // pitch-forward pops go up and forward, roll-right goes up and right
+const ok = dirs && sym && r.earnCentre && !r.earnOutside && !r.earnBelow && r.noDirection && r.popped && Math.abs(r.turnRate) > .9 && r.backToStart < .5 && r.unlocked && r.spent && !errs.length;
 console.log(ok ? 'POP CHECK PASSED' : 'POP CHECK FAILED'); await b.close(); await server.close(); process.exit(ok ? 0 : 1);
