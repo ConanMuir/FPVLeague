@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main da7fc78 (pop mechanic, PR #15)
-Doing: Dogfight underground: a cave network under the Highlands (caverns, tunnels, six entrances), collision + bots + checks.
-Touches: src/world/caves.js (new), src/world/terrain.js (new, terrain maths split out of highlands.js), src/world/highlands.js, src/physics/world.js (terrain/cave trimeshes, hybrid CCD), src/bots/dogfight.js, src/render/camera.js, src/modes/dogfight.js (turrets off cave mouths), tools/physics-check.mjs, tools/smoke.mjs (Lab pilot null-band race; page-error stacks).
-Open items / help wanted: how the caves feel to fly (unverified by a pilot); cave walls have no shadows from drones; online play with someone underground untested.
-Overlaps: riley-test-0u2krq (Long line mode) also edits src/physics/world.js (rope); merge by hand.
+Based on: origin/main 5c965f2 (ball feel, PR #21)
+Doing: visual fidelity pass for the outdoor League maps (Meadow, Canyon, Alpine): stadium bowl with crowd, light masts, screens, banners; layered terrain shading; instanced tree/rock/cactus species; lake/river/ice water; quality scaling.
+Touches: src/world/maps.js, src/world/outdoor.js (new), tools/shots.mjs (--perf-all, --cam), tools/map-views.mjs (new), Drone League/claude-project/drone-league-notes.md (4b).
+Open items / help wanted: crowd is static boxes (could cheer on goals); the stadium is sized for the menu orbit camera (no roof, < 32 m); Meadow's lake sits against a hill so its far bank is steep rock.
+Overlaps: none known; the Neon Arena (world/arena.js) and Highlands/caves are untouched.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.
