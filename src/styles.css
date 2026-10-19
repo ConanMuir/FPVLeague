@@ -41,6 +41,15 @@ canvas#gl{position:fixed;inset:0;display:block;width:100%;height:100%}
 #feed{position:absolute;left:18px;top:calc(14px + env(safe-area-inset-top,0px));display:grid;gap:4px;font-size:14px}
 #feed div{background:var(--panel);padding:4px 10px;border-radius:4px;border-left:3px solid var(--edge)}
 .cb{color:var(--blue)}.co{color:var(--orange)}
+/* replays (ui/replay.js): the REPLAY / KILL CAM badge under the score, who scored or shot you down, the skip hint; the rest of the HUD steps aside */
+#rp{position:absolute;left:0;right:0;top:calc(66px + env(safe-area-inset-top,0px));display:grid;justify-items:center;gap:8px;text-align:center;white-space:nowrap}
+#rp .rptag{font:italic 700 24px var(--disp);letter-spacing:.2em;padding:5px 22px 5px 24px;color:#fff;background:linear-gradient(90deg,#c8102e,#ff3d4f);clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);text-shadow:0 1px 3px rgba(0,0,0,.5)}
+#rp .rptag::before{content:"";display:inline-block;width:.5em;height:.5em;border-radius:50%;background:#fff;margin-right:.55em;vertical-align:.1em;animation:rpblink 1s steps(2,start) infinite}
+@keyframes rpblink{to{visibility:hidden}}
+#rp .rpwho{font:italic 700 22px var(--disp);padding:3px 16px;background:var(--panel);border-radius:4px;text-shadow:0 2px 6px #000}#rp .rpwho:empty{display:none}
+#rp .rpskip{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font:500 13px var(--mono);letter-spacing:.1em;color:var(--dim);text-shadow:0 0 4px #000}
+#hud.rp #osd,#hud.rp #dial,#hud.rp #xh,#hud.rp #arrow,#hud.rp #bfosd,#hud.rp #llbox,#hud.rp #llscope,#hud.rp #center,#hud.rp #hurt{visibility:hidden}
+.rplist{display:grid;gap:8px;margin-top:10px}.rplist button{text-align:left}
 /* main menu, Rocket League style: a left column of slanted buttons over the live arena, sub-screens as panels, a compact pause list */
 #menu{position:fixed;inset:0;display:flex;align-items:center;gap:28px;padding:16px clamp(16px,5vw,72px);box-sizing:border-box;background:linear-gradient(90deg,rgba(5,7,13,.92) 0%,rgba(5,7,13,.7) 34%,rgba(5,7,13,.12) 70%);overflow:auto}
 #home{width:min(400px,100%);flex:none;max-height:100%;overflow:auto;padding:6px 10px 6px 4px}
