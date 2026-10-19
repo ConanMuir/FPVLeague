@@ -5,6 +5,7 @@
 // Run: node tools/zombies-bench.mjs [--levels Rookie,Pro,...] [--diff 0,1,2,3] [--runs 5] [--cap 60] [--par 12] [--no-write] [--out FILE] [--raw FILE]
 //   the version stamped in zbench.json is package.json's plus the git commit (or ZBENCH_REV when run from a copy of the repo)
 //   --diag prints, per run, the site damage by enemy kind over the last waves (what ended the run)
+//   --merge RAW keeps the other levels' runs from an earlier --raw file and re-runs only --levels
 //   also for balance checks: [--load '{"doc":"fortress","kit":["lrack","lure"]}'] [--meta full]  (a loadout; full = every goal met, so everything is unlocked)
 import {serve, launch, open, root} from './zlib.mjs';
 import {LEVELS, DODGE, SHOP, WAVE, level} from './zbot.mjs';
@@ -15,7 +16,8 @@ const argv = process.argv.slice(2), arg = (k, d) => argv.includes(k) ? argv[argv
 const LV = arg('--levels', null) ? arg('--levels').split(',').map(n => level(n) || (() => { throw new Error('unknown level ' + n); })()) : LEVELS;
 const DIFFS = String(arg('--diff', '0,1,2,3')).split(',').map(Number), RUNS = +arg('--runs', 5), CAP = +arg('--cap', 60), PAR = +arg('--par', 12);
 const LOAD = arg('--load', null), META = arg('--meta', ''), RAW = arg('--raw', null), DIAG = argv.includes('--diag');
-const WRITE = !argv.includes('--no-write') && !LOAD && !META && LV === LEVELS && DIFFS.length === 4, OUT = arg('--out', path.join(root, 'games/interceptor/zbench.json'));
+const MERGE = arg('--merge', null);  /* --merge RAW: earlier runs (a --raw file) of the levels not being run now, to re-run one level and keep the rest */
+const WRITE = !argv.includes('--no-write') && !LOAD && !META && (LV === LEVELS || MERGE) && DIFFS.length === 4, OUT = arg('--out', path.join(root, 'games/interceptor/zbench.json'));
 const DN = ['Easy', 'Normal', 'Hard', 'Nightmare'], GOALS = ['w10', 'helpers', 'streak', 'boss', 'clutch', 'norep', 'lean', 'perfect3', 'hard20', 'night15'];
 const {server, origin} = await serve();
 const browser = await launch({w: 640, h: 360});
@@ -59,9 +61,10 @@ async function worker() { while (next < jobs.length) { const j = jobs[next++]; t
   console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}, positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
   catch (e) { failed++; console.log('  run failed', j[0].n, DN[j[1]], String(e.message || e).split('\n')[0]); } } }
 await Promise.all(Array.from({length: Math.min(PAR, jobs.length)}, worker));
+const TL = MERGE ? (results.push(...JSON.parse(fs.readFileSync(MERGE, 'utf8')).filter(r => !LV.some(L => L.n === r.lv))), LEVELS) : LV;
 
 const med = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n ? n % 2 ? s[n >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2 : 0; };
-const table = LV.map(L => ({n: L.n, d: DIFFS.map(zd => { const w = results.filter(r => r.lv === L.n && r.zd === zd).map(r => r.wave); return w.length ? {med: med(w), min: Math.min(...w), max: Math.max(...w), n: w.length} : null; })}));
+const table = TL.map(L => ({n: L.n, d: DIFFS.map(zd => { const w = results.filter(r => r.lv === L.n && r.zd === zd).map(r => r.wave); return w.length ? {med: med(w), min: Math.min(...w), max: Math.max(...w), n: w.length} : null; })}));
 console.log(`\n${LOAD ? 'loadout ' + LOAD : 'fresh profile, Standard doctrine, no kit'}${META ? ', meta ' + META : ''}: wave reached, median [range] of ${RUNS} runs (cap ${CAP})`);
 console.log('level'.padEnd(16) + DIFFS.map(zd => DN[zd].padEnd(16)).join(''));
 for (const r of table) console.log(r.n.padEnd(16) + r.d.map(c => (c ? `${c.med} [${c.min}-${c.max}]` : '-').padEnd(16)).join(''));
