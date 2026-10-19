@@ -35,24 +35,26 @@ import {initTraining} from './ui/training.js';
 import {modeHud} from './modes/registry.js';
 import {cosInfo} from './render/cos-mat.js';
 import {setMap} from './world/maps.js';
+import {rpDt,rpFrame,rpIn,rpInit,rpOut,rpRec,rpVis,rpState} from './render/replay.js';
 // ---------- main loop ----------
 // fixed 120 Hz simulation (timeScale / Game speed change how much sim time a frame covers; pause runs none), rendered between
 // the last two ticks: each frame draws drones and the ball at alpha = leftover/DT of the way from the previous tick to the current one.
 let last=performance.now(),acc=0;const DT=1/120,_ip=[];
 const BODIES=()=>[ball,...GS.drones.filter(d=>!d.remote)];  // remote drones are smoothed by visuals() from network state
-function tick(dt){for(const o of BODIES()){(o._pp||(o._pp=new V3())).copy(o.p);(o._pq||(o._pq=new QT())).copy(o.q)}step(dt)}
+function tick(dt){for(const o of BODIES()){(o._pp||(o._pp=new V3())).copy(o.p);(o._pq||(o._pq=new QT())).copy(o.q)}step(dt);rpRec(dt)}  // rpRec: the replay recorder (render/replay.js)
 function lerpIn(a){_ip.length=0;for(const o of BODIES()){if(!o._pp||o._pp.distanceToSquared(o.p)>400)continue;const q=o.q.clone();_ip.push(o,o.p.clone(),q);o.p.lerpVectors(o._pp,o.p,a);o.q.slerpQuaternions(o._pq,q,a)}}  // slerpQuaternions(a,b) copies a into itself first, so b must not be o.q (that froze the rendered attitude a tick behind)
 function lerpOut(){for(let i=0;i<_ip.length;i+=3){_ip[i].p.copy(_ip[i+1]);_ip[i].q.copy(_ip[i+2])}_ip.length=0}
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);
  if(!GS.paused){if(GS.timeScale<1){let r=Math.min(dt,.05)*GS.timeScale*GSPD;while(r>1e-6){const h=Math.min(DT,r);tick(h);r-=h}acc=0}else{acc+=dt*GS.timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){tick(DT);acc-=DT}}}  // slow-mo steps every frame by a smaller dt, so nothing stutters
- lerpIn(GS.timeScale<1?1:Math.min(1,acc/DT));visuals(GS.paused?0:dt*GS.timeScale*GSPD,now);llDraw();updateCam(dt,now);hud();llHudFrame();lerpOut();modeHud(now);  // per-frame UI of the modes and overlays (ui/lab.js, ui/training.js)
- if(GS.menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);draw()}
+ const rp=rpFrame(dt,now);if(rp)rpIn();else lerpIn(GS.timeScale<1?1:Math.min(1,acc/DT));  // a goal replay / kill cam draws recorded state instead (render/replay.js)
+ visuals(rp?rpDt():GS.paused?0:dt*GS.timeScale*GSPD,now);llDraw();updateCam(dt,now);hud();llHudFrame();if(rp)rpOut();else lerpOut();modeHud(now);  // per-frame UI of the modes and overlays (ui/lab.js, ui/training.js)
+ if(GS.menuOpen)menuPad();if(!$('mod').hidden&&!$('paner').hidden)drawRates();netSend(now);draw();if(rp)rpVis()}
 // boot, in v15's order (Rapier's WASM is inlined; it initialises before the first drone is built)
 initPhysics().then(()=>{
-initMenu();initCalib();initModPanel();
+rpInit();initMenu();initCalib();initModPanel();
 renderPresets();applyTune();syncMod();setMap(S.map);setBall(S.ball);
 initRates();initSens();initLab();initGarage();initTraining();syncRates();
 setGame(GS.GM);startDemo();requestAnimationFrame(frame);
 connectRoom()});
 // read-only snapshot for tools/smoke.mjs; nothing in the game reads it
-window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo,train:trainSnap};
+window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo,train:trainSnap,replay:rpState};

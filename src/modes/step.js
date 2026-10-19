@@ -27,7 +27,7 @@ const E_TOUCH={type:'ball',d:null,tag:'',speed:0,p:_bh,n:null,verdict:''},E_BUMP
 // pilot, droneTick and tick hooks, the allowGoals flag, and post(). GS.OBSON is the world (Highlands: no ball, guns), not the mode.
 export function step(dt){const O=overlay();if(O&&O.pre&&O.pre(dt)){physStep(dt,false);return}const M=curMode();if(M.pre&&M.pre(dt)){physStep(dt,false);return}const A=auth();  // the Lab's rigs set the drone's state and training holds a waiting shot; Rapier moves it
  if(GS.state==='kickoff'){GS.stT-=dt;const n=Math.ceil(GS.stT);if(n!==GS.lastCount){GS.lastCount=n;if(!GS.demo){if(n>0){banner(n,'',.9);E_COUNT.n=n;emitEv('count',E_COUNT)}else{banner('GO!','',.6);E_COUNT.n=0;emitEv('count',E_COUNT)}}}if(A&&GS.stT<=0)GS.state='play'}
- else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<2.4)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
+ else if(GS.state==='goal'){GS.stT-=dt;if(GS.stT<GS.goalLen-.8)GS.timeScale=Math.min(1,GS.timeScale+dt*1.2);if(A&&GS.stT<=0){if(GS.endPending)endMatch();else kickoff()}}
  else if(GS.state==='end'){GS.stT-=dt;if(A&&GS.stT<=0){banner('');if(GS.net){GS.score=[0,0];GS.clock=S.len;GS.overtime=GS.endPending=false;kickoff()}else{startDemo();return}}}
  else if(GS.state==='play'&&!GS.demo&&A&&!M.free){if(!GS.overtime){GS.clock-=dt;if(GS.clock<=0){GS.clock=0;if(GS.score[0]===GS.score[1]){GS.overtime=true;banner('OVERTIME','',1.6)}else endMatch()}}else GS.clock+=dt}
  const frozen=GS.state==='kickoff',live=GS.state==='play'||GS.state==='kickoff';

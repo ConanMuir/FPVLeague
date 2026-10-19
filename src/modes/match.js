@@ -14,6 +14,7 @@ import {ball} from '../physics/ball.js';
 import {ballMesh} from '../render/ball.js';
 import {emit} from '../render/particles.js';
 import {qId} from '../render/renderer.js';
+import {goalHold} from '../render/replay.js';
 import {GS,auth,isBot,nick} from '../state.js';
 import {banner,feed,tag} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
@@ -33,7 +34,7 @@ const E_KO={n:0},E_GOAL={team:0,by:null,p:null},E_END={winner:0,score:null},E_DE
 // goal: the explosion (render/goalfx.js) and the sound (audio/sfx.js) listen to the 'goal' event
 export function goalFx(t,lt){ballMesh.visible=false;E_GOAL.team=t;E_GOAL.by=lt??null;E_GOAL.p=ball.p;emitEv('goal',E_GOAL);emit(ball.p,COL[t],qId==='low'?200:400,45,1.8);emit(ball.p,0xffffff,qId==='low'?50:120,25,1.2);
  if(!GS.demo){const d=GS.drones.find(x=>x.key===lt);banner('GOAL!',t?'co':'cb',2.6);feed(`${d&&d.team===t?tag(d):'Own goal'} scores for ${TEAM[t]}`)}}
-export function goal(t){GS.score[t]++;GS.state='goal';GS.stT=3.2;GS.timeScale=GS.net?1:.3;GS.goalSide=t;goalFx(t,ball.last?.key);if(GS.overtime)GS.endPending=true}
+export function goal(t){GS.score[t]++;GS.state='goal';GS.stT=3.2;GS.timeScale=GS.net?1:.3;GS.goalSide=t;goalFx(t,ball.last?.key);GS.goalLen=GS.stT=3.2+goalHold();if(GS.overtime)GS.endPending=true}  // goalHold: the extra wait a goal replay needs (render/replay.js; it ends the wait early once it is over)
 export function endFx(){const w=GS.score[0]>GS.score[1]?0:1;banner(`${TEAM[w]} WINS ${GS.score[0]}–${GS.score[1]}`,w?'co':'cb',0);tone(523,1046,.6,.2,'triangle');E_END.winner=w;E_END.score=GS.score;emitEv('end',E_END)}
 // the crowd's judgement of a ball touch (modes/step.js sends it as a 'save' / 'shot' event before the touch): a defender turning an
 // on-target ball away is a save; sending it on target at the other goal faster than 12 m/s is a shot; '' otherwise, and outside play
