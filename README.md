@@ -3,11 +3,11 @@ Rocket league but with drones
 
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
-Based on: origin/main 8c0182c, merged with the latest origin/main (goal explosions)
-Doing: Underground part 1 (branch underground-routes): more cave routes. Loops, S-bends, 90-degree corners, two crawl-ways, a lower level reached by shafts and a spiral ramp; bot waypoint graph; checks. Part 2 (underground-detail: pipes, arches, crates, lamps, signage) comes next, after part 1 is merged.
-Touches: src/world/caves.js, src/world/highlands.js (clip calls only), tools/physics-check.mjs (section h), Drone League/claude-project/drone-league-notes.md.
-Open items / help wanted: how the new routes feel to fly (no pilot has tried them yet); the cave build now takes about 1 s at map load (node), up from 0.17 s.
-Overlaps: riley-test-2 also edits tools/physics-check.mjs, src/physics/world.js, src/render/camera.js; merge by hand.
+Based on: origin/main 5c965f2 (ball feel, PR #21), merged with 4a49f56 (goal explosions, PR #23)
+Doing: Gameplay effects (`src/render/effects.js`): boost flame jets under every motor + boost ribbon trail + embers, motor-wash glow at high throttle, prop-wash dust off the ground/walls tinted per map (arena haze, Meadow grass clippings, Canyon dust, Alpine snow powder, Highlands grass/dirt), sparks + fading scuff decals when the frame scrapes/tumbles, a speed-based ball trail and a flash + shock ring + sparks on hard ball hits. Scaled by the graphics quality, all pooled.
+Touches: src/render/effects.js (new), src/render/visuals.js (calls `gameFx`, old boost embers removed), src/physics/world.js (`onHit` type `'ground'` event from `groundContacts`), src/modes/step.js (ball `onHit` event carries `p`/`n`; the old hit emit removed), tools/fx-shots.mjs (new: scenario screenshots + frame time with effects on/off).
+Open items / help wanted: remote (online) drones don't send ground contacts, so they get no sparks/scuffs; boost trail colour is `d.trailCol` (0xRRGGBB, null = team colour) for a cosmetic to set; sound can listen to `onHit` `'ground'` (`speed` impact, `slide` scrape speed).
+Overlaps: goal explosions (`src/render/goalfx.js`, merged) and sound may also use `onHit`; event types were only extended, none renamed.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.
