@@ -1,7 +1,7 @@
 // Zombies base screen, shown between waves with no timer. An overview map of the defended area (sites, slots, your defences, where the
-// next wave comes from), a Shop of random cards with a paid reroll, the Armory (upgrade anything you own), Sites (repairs), and Continue.
+// next wave comes from), a Shop listing every helper and perk, the Armory (upgrade anything you own), Sites (repairs), and Continue.
 // Keyboard: arrows move focus, Enter / Space activate, 1-3 tabs, C continue (Esc opens the menu; Cancel backs out of a placement). Gamepad: D-pad, A, B cancel, LB/RB tabs, Y continue.
-import {KIND,ITEMS,RESIST,REPAIR_PER_HP,REROLL,RACK_TIERS,RACK_CAP,RACK_CAP_COST,RACK_RANGE,ORDER,HELP} from './zdata.js';
+import {KIND,ITEMS,RESIST,REPAIR_PER_HP,PERK,RACK_TIERS,RACK_CAP,RACK_CAP_COST,RACK_RANGE,ORDER,HELP} from './zdata.js';
 const $=id=>document.getElementById(id);
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
 const MAPX=[-3200,3200],MAPZ=[-1900,2900],MW=640,MH=Math.round(MW*(MAPZ[1]-MAPZ[0])/(MAPX[1]-MAPX[0]));
@@ -13,26 +13,27 @@ export function initBase(Z,api,G){
  const repairK=()=>Z.repairK?.()??1,repairCost=s=>Math.ceil((s.max-s.hp)*REPAIR_PER_HP*repairK());
  const mx=x=>(x-MAPX[0])/(MAPX[1]-MAPX[0])*MW,mz=z=>(z-MAPZ[0])/(MAPZ[1]-MAPZ[0])*MH;
 
- // ---------- shop cards ----------
- function available(){const w=G.wave+1;return Object.entries(ITEMS).filter(([k,it])=>w>=it.from&&!(it.type==='perk'&&Z.perkMaxed?.(k))).map(([k])=>k)}
- function deal(){const pool=available(),cards=[];const helpers=pool.filter(k=>ITEMS[k].type==='helper'),rest=pool.filter(k=>ITEMS[k].type!=='helper');
-  const take=a=>{if(!a.length)return null;const i=Math.random()*a.length|0;return a.splice(i,1)[0]};
-  const h=take(helpers);if(h)cards.push(h);const all=[...helpers,...rest];while(cards.length<4&&all.length)cards.push(take(all));
-  G.cards=cards.sort(()=>Math.random()-.5).map(k=>({k,sold:false}))}
+ // ---------- shop: the whole catalogue, grouped (helpers, active perks, passive perks); no random cards, no reroll ----------
+ // Helpers can be bought again and again (one per free slot); perks until they reach their top level. Items not unlocked yet show the wave they arrive.
+ const GROUPS=[['Helpers',k=>ITEMS[k].type==='helper'],['Active perks',k=>ITEMS[k].type==='perk'&&!!PERK[k].key],['Passive perks',k=>ITEMS[k].type==='perk'&&!PERK[k].key]];
+ function deal(){G.cards=[];for(const[g,f]of GROUPS)for(const k of Object.keys(ITEMS))if(f(k))G.cards.push({k,g})}
  const price=k=>ITEMS[k].type==='perk'?Z.perkPrice(k):ITEMS[k].price;
- function buy(i){const c=G.cards[i];if(!c||c.sold)return;const it=ITEMS[c.k],p=price(c.k);if(G.cash<p)return;
+ const locked=k=>G.wave+1<ITEMS[k].from,maxed=k=>ITEMS[k].type==='perk'&&Z.perkMaxed(k);
+ function buy(i){const c=G.cards[i];if(!c||locked(c.k)||maxed(c.k))return;const it=ITEMS[c.k],p=price(c.k);if(G.cash<p)return;
   if(it.type==='helper'){if(!Z.def.SLOTS.some((_,j)=>Z.def.slotFree(j)))return;G.placing={i,k:c.k,p};focusSlot=Z.def.SLOTS.findIndex((_,j)=>Z.def.slotFree(j));render();focus('[data-slot]');return}
-  G.cash-=p;c.sold=true;Z.buyPerk(c.k);render();focus('[data-buy]')}
- function place(j){const P=G.placing;if(!P||!Z.def.slotFree(j))return;G.cash-=P.p;G.cards[P.i].sold=true;Z.def.add(P.k,j).spent=P.p;G.placing=null;tab='armory';render();focus('[data-up]')}
+  G.cash-=p;Z.buyPerk(c.k);render();focus(`[data-buy="${i}"]`)}
+ function place(j){const P=G.placing;if(!P||!Z.def.slotFree(j))return;G.cash-=P.p;Z.def.add(P.k,j).spent=P.p;G.placing=null;tab='armory';render();focus('[data-up]')}
  function cancelPlace(){if(!G.placing)return false;G.placing=null;render();focus('[data-buy]');return true}
- function reroll(){const c=REROLL(G.rerolls|0);if(G.cash<c)return;G.cash-=c;G.rerolls=(G.rerolls|0)+1;deal();render();focus('#zreroll')}
 
  // how a defence does against the kinds you have met or are about to meet
  const vsChips=k=>{const R=RESIST[k];if(!R)return'';return ORDER.concat('boss').filter(e=>KIND[e].from<=G.wave+1).map(e=>{const v=R[e]??0;return`<span class="v${v>=.8?'g':v>0?'m':'n'}" title="${KIND[e].n}">${KIND[e].tag}</span>`}).join('')};
- function cardHTML(c,i){const it=ITEMS[c.k],p=price(c.k),lvl=it.type==='perk'?Z.perkLevel(c.k):0;
-  return`<div class="zcard ${c.sold?'sold':''}"><div class="zch"><span class="zg">${it.glyph}</span><b>${it.n}</b>${it.type==='perk'?`<em>${lvl?'LV '+(lvl+1):'PERK'}</em>`:'<em>HELPER</em>'}</div>
-   <p>${it.type==='perk'?Z.perkBlurb(c.k):it.blurb}</p>${it.type==='helper'?`<div class="zvs">${vsChips(c.k)}</div>`:''}
-   <button class="sm" data-buy="${i}" ${c.sold||G.cash<p?'disabled':''}>${c.sold?'Bought':`Buy ${money(p)}`}</button></div>`}
+ // one compact row per item: glyph, name and level, one-line description (and what a helper is good against), price button
+ function rowHTML(c,i){const it=ITEMS[c.k],L=locked(c.k),M=maxed(c.k),p=price(c.k),lvl=it.type==='perk'?Z.perkLevel(c.k):0,own=it.type==='helper'?Z.def.D.filter(d=>d.type===c.k).length:0;
+  const tag=it.type==='perk'?(lvl?`LV ${lvl}${M?' · MAX':''}`:''):(own?`×${own} OWNED`:'');
+  return`<div class="zitem ${L?'lock':''}"><span class="zg">${it.glyph}</span><div class="zid"><b>${it.n}</b>${tag?`<em>${tag}</em>`:''}
+   <p>${L?`Arrives with wave ${it.from}.`:it.type==='perk'?(M?'Fully upgraded.':Z.perkBlurb(c.k)):it.blurb}</p>${it.type==='helper'&&!L?`<div class="zvs">${vsChips(c.k)}</div>`:''}</div>
+   <button class="sm" data-buy="${i}" ${L||M||G.cash<p?'disabled':''}>${L?`Wave ${it.from}`:M?'Max':`${it.type==='perk'&&lvl?'Upgrade':'Buy'} ${money(p)}`}</button></div>`}
+ function shopHTML(){let h='',g='';G.cards.forEach((c,i)=>{if(c.g!==g){h+=`${g?'</div>':''}<h3>${c.g}</h3><div class="zitems">`;g=c.g}h+=rowHTML(c,i)});return h+'</div>'}
  function defRow(d){const s=Z.def.SLOTS[d.slot],it=ITEMS[d.type];let ups='';
   if(d.type==='rack'){const T=RACK_TIERS[d.tier],N=RACK_TIERS[d.tier+1],ci=RACK_CAP.indexOf(d.cap),nc=RACK_CAP[ci+1];
    ups=`<span class="zst">${T.n} · ${Math.round(T.hit*100)}% kill per hit · ${d.cap} drones · ${d.kills} kills</span>
@@ -60,7 +61,7 @@ export function initBase(Z,api,G){
   let body='';
   if(P)body=`<h3>Choose a position for the ${ITEMS[P.k].n.toLowerCase()}</h3><p class="zhint">Pick a slot here or click a free circle on the map. It deploys when the wave starts.</p>
    <div class="zslots">${Z.def.SLOTS.map((s,j)=>Z.def.slotFree(j)?`<button class="sm" data-slot="${j}">${s.n}</button>`:'').join('')}</div><div class="mp"><button class="sm" id="zcancel">Cancel</button></div>`;
-  else if(tab==='shop')body=`<div class="zcards">${G.cards.map(cardHTML).join('')}</div><div class="mp"><button class="sm" id="zreroll" ${G.cash<REROLL(G.rerolls|0)?'disabled':''}>Reroll cards ${money(REROLL(G.rerolls|0))}</button></div>`;
+  else if(tab==='shop')body=shopHTML();
   else if(tab==='armory'){const perks=Z.perkRows?.(money)||'';body=`${Z.def.D.length?Z.def.D.map(defRow).join(''):'<p class="zhint">No defences yet. Buy helpers from the shop cards.</p>'}${perks?`<h3 style="margin-top:14px">Perks</h3>${perks}`:''}`}
   else body=`<div class="zsites">${SITES.map((s,i)=>{const c=repairCost(s),part=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*repairK())));
    return`<div class="zrow"><span>${s.n}</span><span class="zhp"><b><i style="width:${Math.max(0,s.hp)/s.max*100}%" class="${s.hp<s.max*.35?'lo':s.hp<s.max*.7?'mid':''}"></i></b>${Math.max(0,Math.ceil(s.hp))}/${s.max}</span>
@@ -73,8 +74,8 @@ export function initBase(Z,api,G){
    <div class="zcols"><div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
     <div class="zleg"><span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lt"></i>next wave's approach</span></div></div>
    <div class="zside"><nav class="ztabs">${[['shop','Shop'],['armory','Armory'],['sites','Sites']].map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
-   <footer class="zfc"><h3>Wave ${G.wave+1}${fc.boss?' · <span class="cr">BOSS</span>':''}</h3>${fc.html}</footer></div>`;
-  $('zgo').onclick=()=>{if(!G.placing)Z.continue()};$('zreroll')&&($('zreroll').onclick=reroll);$('zcancel')&&($('zcancel').onclick=cancelPlace);
+   <footer class="zfc"><h3>Wave ${G.wave+1}${fc.boss?' · <span class="cr">BOSS</span>':''}${Z.wx?.note(G.next.wx)||''}</h3>${fc.html}</footer></div>`;
+  $('zgo').onclick=()=>{if(!G.placing)Z.continue()};$('zcancel')&&($('zcancel').onclick=cancelPlace);
   for(const b of el.querySelectorAll('[data-tab]'))b.onclick=()=>{if(G.placing)return;tab=b.dataset.tab;render();focus(`[data-tab="${tab}"]`)};
   for(const b of el.querySelectorAll('[data-buy]'))b.onclick=()=>buy(+b.dataset.buy);
   for(const b of el.querySelectorAll('[data-slot]')){b.onclick=()=>place(+b.dataset.slot);b.onfocus=()=>{focusSlot=+b.dataset.slot;drawMap()}}
@@ -116,7 +117,7 @@ export function initBase(Z,api,G){
  function spx(j){const s=Z.def.SLOTS[j];if(s.site){const dx=s.x-s.site.x,dz=s.z-s.site.z,l=Math.hypot(dx,dz)||1;return[mx(s.site.x)+dx/l*24,mz(s.site.z)+dz/l*24]}
   if(/^Radar/.test(s.n))return[mx(PADP.x)+(s.x<PADP.x?-18:18),mz(PADP.z)-6];return[mx(s.x)-14,mz(s.z)+12]}
  const focus=q=>setTimeout(()=>{const b=el.querySelector(q+':not([disabled])');(b||$('zgo'))?.focus();drawMap()},0);
- function open(){document.body.classList.add('zb-open');G.state='base';G.rerolls=0;G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
+ function open(){document.body.classList.add('zb-open');G.state="base";G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
  function close(){el.hidden=true;G.placing=null;document.body.classList.remove('zb-open')}
  // spatial focus move between the visible buttons
  function move(dx,dy){const bs=[...el.querySelectorAll('button:not([disabled])')];if(!bs.length)return;const a=document.activeElement,ra=bs.includes(a)?a.getBoundingClientRect():null;
@@ -133,4 +134,4 @@ export function initBase(Z,api,G){
  function pad(e){if(el.hidden&&over.hidden)return false;const host=el.hidden?over:el;
   if(e(12))move(0,-1);if(e(13))move(0,1);if(e(14))move(-1,0);if(e(15))move(1,0);if(e(0)&&host.contains(document.activeElement))document.activeElement.click();
   if(!el.hidden){if(e(1))cancelPlace();if(e(4)||e(5)){const i=TABS.indexOf(tab);setTab(TABS[(i+(e(5)?1:2))%3])}if(e(3)&&!G.placing)Z.continue()}return true}
- return{open,close,render,key,pad,el,buy,place,reroll,upgrade,setTab,sell}}
+ return{open,close,render,key,pad,el,buy,place,upgrade,setTab,sell}}

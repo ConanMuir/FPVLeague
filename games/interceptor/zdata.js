@@ -23,21 +23,31 @@ export const SITE_HP={SUBSTATION:400,'FUEL DEPOT':400,APARTMENTS:600,'COMMAND BU
 export const BUNKER_WAVE=10;
 
 // wave budget in threat points; wave 1 is the Classic pair (one Shahed, one Geran-3)
-export const budget=(w,diff=1)=>w===1?26:Math.round((14+12*w+.9*w*w)*[.75,1,1.35][diff]);
+export const budget=(w,k=1)=>w===1?26:Math.round((14+12*w+.9*w*w)*k);  // k = the difficulty's wave-size multiplier
+
+// Zombies difficulty (start menu). wave = wave-size multiplier, cash = money per kill and bonus multiplier, start = starting cash,
+// hp = site hit-point multiplier, evade = which kinds jink and break away from your interceptor (none / some / all).
+export const ZDIFF=[
+ {n:'Easy',wave:.7,cash:1.3,start:2500,hp:1.25,evade:'none',txt:'Smaller waves, more money, tougher sites.'},
+ {n:'Normal',wave:1,cash:1,start:1500,hp:1,evade:'none',txt:'The intended game: generous early, hard late.'},
+ {n:'Hard',wave:1.25,cash:.8,start:1000,hp:1,evade:'some',txt:'Bigger waves, less money; jets, heavies, cruise missiles and swarms jink and break away from you.'},
+ {n:'Nightmare',wave:1.5,cash:.6,start:700,hp:.85,evade:'all',txt:'Everything jinks and breaks away. Bring friends.'}];
+export const EVADE_SOME=['jet','heavy','cruise','swarm','boss'];
 export const isBoss=w=>w>0&&w%10===0;
 // relative pick weights once unlocked: the newest kind starts rare and grows
 export const weight=(k,w)=>{const K=KIND[k];if(w<K.from)return 0;const age=w-K.from;return({shahed:6,jet:3.5,decoy:2.5,swarm:2.2,heavy:1.6,cruise:1.4,ballistic:.8,hyper:.5,icbm:.35})[k]*Math.min(1,.45+age*.12)};
 export const speedK=w=>Math.min(1.12,1+.004*w);  // slight pace creep for the slow drones; fast threats keep their speed
 
 // economy
-export const START_CASH=600;
-export const HELPER_SHARE=.25;  // helpers earn this share of a kill's cash
+export const START_CASH=1500;  // Normal; see ZDIFF
+// early rounds pay extra so defences go up fast: x2.2 on wave 1, tapering to x1 by wave 10 (kills and wave bonuses)
+export const earlyK=w=>1+1.2*Math.max(0,(10-w)/9);
+export const HELPER_SHARE=.7;  // a helper's kill pays 70% of what the same kill pays the player (30% less)
 export const clearBonus=w=>150+30*w,perfectBonus=w=>100+20*w;
 export const streakMult=s=>1+Math.min(1,.1*Math.max(0,s-1));  // +10% per streak step after the first, up to x2
 export const CLUTCH_R=600,CLUTCH_K=.5;  // killed within 600 m of its aim point: +50% clutch-save bonus
 export const MULTI_BONUS=50;  // per extra kill in one burst
 export const REPAIR_PER_HP=3;
-export const REROLL=n=>100+75*n;  // n = rerolls already bought this visit
 
 // How well each defence works against each kind (0 = can't engage). Shown on the shop cards and used by the defences' target choice.
 export const RESIST={
@@ -67,7 +77,7 @@ export const HELP={
 // Player perks: prices per level; active ones (freeze, mark, air) have charges per wave. Mark: helper hits on a marked track count double.
 export const PERK={
  freeze:{key:'Q',pad:'D-pad left',cost:[900,800,1200]},mark:{key:'E',pad:'D-pad right',cost:[1000,900,1400]},air:{key:'X',pad:'D-pad up',cost:[1800,1600]},
- radar:{cost:[500,800,1200]},optics:{cost:[600,700,900]},relaunch:{cost:[500,900]},warhead:{cost:[700,1100,1600]},battery:{cost:[500,900]},aid:{cost:[1200]}};
+ radar:{cost:[500,800,1200]},optics:{cost:[600,700,900]},relaunch:{cost:[500,900]},warhead:{cost:[700,1100,1600]},battery:{cost:[500,900]},aid:{cost:[1200]},rocket:{cost:[1500]},fuse:{cost:[800]}};
 
 // shop items: helpers are placed on a slot; perks belong to the player
 export const ITEMS={
@@ -80,4 +90,4 @@ export const ITEMS={
  gdome:{type:'helper',n:'Golden Dome',price:9000,from:28,glyph:'✦',blurb:'Space-based interceptors: the only answer to hypersonic and ICBM tracks. 2 per wave, anywhere on the map.'},
  freeze:{type:'perk',n:'Freeze',from:2,glyph:'❄'},mark:{type:'perk',n:'Mark',from:2,glyph:'◎'},air:{type:'perk',n:'Airstrike',from:6,glyph:'✈'},
  radar:{type:'perk',n:'Long-range radar',from:2,glyph:'◉'},optics:{type:'perk',n:'Optics',from:2,glyph:'◈'},relaunch:{type:'perk',n:'Fast relaunch',from:2,glyph:'↻'},
- warhead:{type:'perk',n:'Bigger warhead',from:2,glyph:'✹'},battery:{type:'perk',n:'Better battery',from:2,glyph:'▮'},aid:{type:'perk',n:'Foreign Aid',from:4,glyph:'$'}};
+ warhead:{type:'perk',n:'Bigger warhead',from:2,glyph:'✹'},battery:{type:'perk',n:'Better battery',from:2,glyph:'▮'},aid:{type:'perk',n:'Foreign Aid',from:4,glyph:'$'},rocket:{type:'perk',n:'Rocket Assist',from:3,glyph:'➹'},fuse:{type:'perk',n:'Proximity fuse',from:1,glyph:'⌾'}};

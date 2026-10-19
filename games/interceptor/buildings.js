@@ -270,7 +270,7 @@ export function houseRoofGeo(){const P=[],q=(a,b,c,d)=>P.push(...a,...b,...c,...
 // impact points (where the threats aim): transformer tops, tank roofs, block roofs
 const AIMS={substation:s=>{for(const x of TX)s.aims.push(new V3(s.x+x,s.y+7,s.z-12))},depot:s=>{for(const[x,z]of TK)s.aims.push(new V3(s.x+x,s.y+16,s.z+z))},
  apartments:s=>{for(const[x,z,,,nf]of BL)s.aims.push(new V3(s.x+x,s.y+nf*3,s.z+z))}};
-export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const reg=[],B={substation,depot,apartments,bunker:bunkerKit},FIRE=psys(1400,3.2,THREE.AdditiveBlending,-5,1.6),SMOKE=psys(3200,17,THREE.NormalBlending,-2.2,.35);
+export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const reg=[],B={substation,depot,apartments,bunker:bunkerKit},FIRE=psys(1400,3.2,THREE.AdditiveBlending,-5,1.6),SMOKE=psys(1600,17,THREE.NormalBlending,-2.2,.35);
  let ready=false,t=0;const _p2=new V3(),_b=new V3();
  function stage(s,d){const k=Kit();B[s.type](k,d,s.sd);const G=bake(k,s);G.visible=d===0;s.root.add(G);
   return{G,sol:k.sol.map(o=>o.c?{...o,x:o.x+s.x,z:o.z+s.z,y0:o.y0+s.y,y1:o.y1+s.y}:{...o,x:o.x+s.x,y:o.y+s.y,z:o.z+s.z}),fx:k.fx.map(f=>({...f,x:f.x+s.x,y:f.y+s.y,z:f.z+s.z,tt:Math.random()}))}}
@@ -281,10 +281,11 @@ export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const re
   const vis=[];for(const s of reg){vis.push([s.mesh,s.mesh.visible]);s.mesh.visible=true;for(const x of s.st)x.G.visible=true}try{renderer.compile(scene,camera)}catch(e){}
   for(const[o,v]of vis)o.visible=v;for(const s of reg)s.st.forEach((x,d)=>x.G.visible=d===s.stg)}
  function setStage(s,d){if(d===s.stg)return;s.st[s.stg].G.visible=false;s.st[d].G.visible=true;s.stg=d;if(!s.noSol){s.sol.length=0;s.sol.push(...s.st[d].sol)}}
- function step(dt,on){t+=dt;if(on&&!ready)prepare();
+ function step(dt,on,plume){t+=dt;if(on&&!ready)prepare();
   for(const s of reg){const d=on&&s.max?stageOf(Math.max(0,s.hp)/s.max):0;if(d!==s.stg&&s.st[d])setStage(s,d);if(!s.stg||!s.mesh.visible||dt<=0)continue;
    for(const f of s.st[s.stg].fx){if((f.tt-=dt)>0)continue;
     if(f.f){f.tt=.05;const n=Math.ceil(f.r*.8);for(let i=0;i<n;i++){_p2.set(f.x+(Math.random()-.5)*f.r*1.6,f.y+Math.random()*f.r*.4,f.z+(Math.random()-.5)*f.r*1.6);FIRE.emit(_p2,Math.random()<.5?0xff8a2a:0xffb347,1,f.r*.35,.9,_b.set(0,3+f.r,0),2.2)}}
+    else if(plume){f.tt=.5/Math.max(.6,f.r)*(.8+.4*Math.random());_p2.set(f.x+(Math.random()-.5)*f.r*2,f.y,f.z+(Math.random()-.5)*f.r*2);plume(_p2,f.r,f.c===0x1c1a18)}
     else{f.tt=.2/Math.max(.5,f.r);_p2.set(f.x+(Math.random()-.5)*f.r*2,f.y,f.z+(Math.random()-.5)*f.r*2);SMOKE.emit(_p2,f.c,1,1+f.r*.4,8+f.r*2,_b.set(0,3+f.r*2.5,0),1,f.c===0x1c1a18?.42:.3)}}}
   const k=1+.25*Math.sin(t*13)+.15*Math.sin(t*31);for(const m of[...M.fac,...M.facT,M.fac4,M.facT4,M.fireWin,M.fireSurf])if(m.emissiveMap||m===M.fireWin||m===M.fireSurf)m.emissiveIntensity=(m===M.fireSurf?3:2.3)*k;
   FIRE.upd(dt);SMOKE.upd(dt)}

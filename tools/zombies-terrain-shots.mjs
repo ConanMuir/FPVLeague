@@ -41,7 +41,11 @@ if (want('ground') || want('sites') || want('gpu')) {
     await save(p, 'ground-sites-200m', [0, 260, 2900], [0, 40, 1800], 60);
     // a village street: the first instanced house, from 45 m off at 14 m up
     const hp = await p.evaluate(() => { const {api} = __z, im = api.scene.children.find(o => o.isInstancedMesh && !o.userData.forest && o.material.map), m = new api.THREE.Matrix4(); im.getMatrixAt(0, m); const v = new api.THREE.Vector3().setFromMatrixPosition(m); return [v.x, v.y, v.z]; });
-    await save(p, 'ground-village', [hp[0] + 40, hp[1] + 14, hp[2] + 25], [hp[0], hp[1] + 2, hp[2]], 60);
+    // snow cover hook (Zombies weather sets it): the same 300 m view under full snow
+    await p.evaluate(() => { __z.api.groundSnow = 1; });
+    await save(p, 'ground-snow-300m', [x, await at(p, x, z, 300), z], [x - 300, await at(p, x - 300, z - 1100, 0), z - 1100], 60);
+    await p.evaluate(() => { __z.api.groundSnow = 0; });
+    await save(p, 'ground-village',[hp[0] + 40, hp[1] + 14, hp[2] + 25], [hp[0], hp[1] + 2, hp[2]], 60);
   }
   if (want('sites')) {
     await p.evaluate(() => { __z.Z.bunker(true); });

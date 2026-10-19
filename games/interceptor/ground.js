@@ -68,11 +68,14 @@ const GLSL=`
    rut=tL*step(dL,${EDGE}.)*(lines(dL-2.35,1e4,.5,fx)+lines(dL-4.05,1e4,.5,fx))+tT*step(dT,${EDGE}.)*(lines(dT-2.35,1e4,.5,fz)+lines(dT-4.05,1e4,.5,fz)),
    bed=tL*(lines(dL-3.2,1e4,2.6,fx))+tT*(lines(dT-3.2,1e4,2.6,fz));
   fc=mix(fc,mix(fc,vec3(.2,.16,.11),.45),clamp(bed,0.,1.)*(1.-in1));fc=mix(fc,vec3(.16,.125,.085),clamp(rut,0.,1.)*.8);bb-=rut*.35;
-  diffuseColor.rgb=mix(diffuseColor.rgb,fc,msk);hb=hb*mix(1.,.5,msk)+bb*msk;}}
+  diffuseColor.rgb=mix(diffuseColor.rgb,fc,msk);hb=hb*mix(1.,.5,msk)+bb*msk;}
+ // snow (Zombies weather sets uSnow): settles on the flatter ground first, patchy, and hides the furrows
+ if(uSnow>.001){vec3 upV=normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz);float sn=uSnow*smoothstep(.55,.85,dot(normal,upV))*smoothstep(.15,.5,M3*.5+uSnow*.75)*(.62+.26*M3+.1*M);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.74,.76,.8)*(.92+.1*M),sn);hb*=1.-sn*.7;}}
 `;
 // the ground material: engine detail (grain and bump, no crop rows of its own) plus the field shader above
-export function groundMaterial(map,fTex,mTex){const m=detail(new THREE.MeshStandardMaterial({map,roughness:1}),7,53,0,.45),ob=m.onBeforeCompile;
+// m.userData.snow: uniform {value 0..1} for a snow cover (Zombies weather)
+export function groundMaterial(map,fTex,mTex){const m=detail(new THREE.MeshStandardMaterial({map,roughness:1}),7,53,0,.45),ob=m.onBeforeCompile,snow=m.userData.snow={value:0};
  m.customProgramCacheKey=()=>'ifields1';
- m.onBeforeCompile=sh=>{ob(sh);sh.uniforms.fTex={value:fTex};sh.uniforms.mTex={value:mTex};
-  sh.fragmentShader=sh.fragmentShader.replace('uniform sampler2D dTex;','uniform sampler2D dTex;uniform sampler2D fTex;uniform sampler2D mTex;'+GLSL_FN).replace('#include <normal_fragment_maps>',GLSL+'#include <normal_fragment_maps>')};
+ m.onBeforeCompile=sh=>{ob(sh);sh.uniforms.fTex={value:fTex};sh.uniforms.mTex={value:mTex};sh.uniforms.uSnow=snow;
+  sh.fragmentShader=sh.fragmentShader.replace('uniform sampler2D dTex;','uniform sampler2D dTex;uniform sampler2D fTex;uniform sampler2D mTex;uniform float uSnow;'+GLSL_FN).replace('#include <normal_fragment_maps>',GLSL+'#include <normal_fragment_maps>')};
  return m}
