@@ -26,6 +26,7 @@ The game is now a Vite project at the repo root. Source is plain ES modules in `
   | maps (`OUT LOOKS buildOutdoor setMap snowP skyTex`) | `world/maps.js` |
   | particles (`emit updParts dot`) | `render/particles.js` |
   | audio (`audioInit audioTick noise tone near`) | `audio/audio.js` |
+| sound effects (`groundHit ballHit ballBounce goalSfx countdown popWhoosh bulletRock sfxTick SND`) | `audio/sfx.js` |
   | physics: `sdf sdN` (League: `arenaSD`, Highlands: `sdDF`), `los` re-exported from `physics/world.js` | `physics/sdf.js` |
   | arena profile: `arenaSD buildArena arenaTrimesh arenaData RM RG` (meshes, collision and SDF from one profile) | `physics/arena-shape.js` |
   | Rapier world: `initPhysics physStep buildDroneBody defaultDroneDesc bulletCast los ballTouch droneTouch onHit PHYS` | `physics/world.js` |
@@ -96,6 +97,7 @@ The game is now a Vite project at the repo root. Source is plain ES modules in `
 - Bots: throttle = (need/THR)^(1/TE); accel cap uses BTHR = min(THR, 160*G/34.5) so they don't get 10:1 punch.
 - BSPD 320 -> 400. Highlands: DCEIL 520, hills x1.5, edge walls 430, mesas 90-330 m tall, spires 55-180, towers taller.
 - Audio: 4 motor voices at blade-pass freq (shaft Hz x3) with per-motor detune and Betaflight quad-X mixer split from angular accel; motor whine (x7 pole pairs); prop hiss; wind by speed; prop-wash flutter; nearest other quad with distance, Doppler and stereo pan. `audioTick(dt)` in visuals.
+- Sound pass (2026-10-18, audio/sfx.js): volume buses BUS.mst > mot/wind/oth/fx/crowd (Settings > Audio, `S.vMaster..vCrowd` in %, squared to gain). Looped voices built once (scrape, ball roll, crowd bed, crowd formant voices); one-shots capped at 32 voices + per-sound rate limits (wall time). Hooks: world.js emits `{type:'ground', d, speed, p}` (impact > 2 m/s) and sets `d.slide`; step.js calls `countdown(n)` and `ballBounce(ball.hit)`; ball touches sound from the existing 'ball' hit event; match.js goalFx -> `goalSfx`; drone.js tryPop -> `popWhoosh`; guns.js world hit -> `bulletRock`. Crowd only in arena maps (not Dogfight / Lab, sparse in Freeplay). `node tools/sound-check.mjs` checks the triggers. Every entry point counts in `SND.n` and is silent without an AudioContext.
 - v12: softer bumps. Ground impulse factor 1.6 -> 1.15, impact spin x.45, friction torque .3 -> .2 (spin off a bump about half), impact sound lower/quieter (280 Hz, max .25, hit>10). Wall bounce setting untouched.
 - v13: Xbox/standard gamepads get their own profile `S.xcal` + `S.xfire` (radio `S.cal`/`fireBtn` untouched); `padX` set in pad(). Channel source a>=100 = button/trigger (value 0..1), `b` = paired button for the other direction (PAIR LB/RB, LT/RT). Calibration watches buttons too; on Xbox a stick-axis throttle stays spring (centre = hover, m:'spring'), trigger/bumper throttle is full range. Fire moves to A/RT/X if calibration takes it. Shortcut buttons skip ones used for flight. Default Xbox: Mode 2 sticks, fire RT.
 - v13: `S.bots` (Bots: Fill empty spots / No bots) for solo and hosting; clients accept a team with zero drones.
