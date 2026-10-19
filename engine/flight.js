@@ -1,7 +1,9 @@
 // Flight model: LiftOff-style acro quad (rates, spool, thrust curve, prop inflow, body-axis drag, prop wash, super boost),
 // rounded-box ground contact with turtle-style pivots (thrust shoving into the ground slides rather than grips), the attitude controller (bots + Angle mode) and stick input.
 // A game hands it the world's collision shape with setWorld(sdf) and its physics sliders with tuneFlight(T).
-import * as THREE from 'three';
+// The air model, rates maths, attitude controller and flip-over levelling are the shared flight core, src/flight/core.js (one copy
+// for every game: Jared's League flies the same code); this file keeps the Quad's own ground contact, turtle and self-righting.
+import {attitude,quadAir,rightUp,wrapA,ONE} from '../src/flight/core.js';
 import {V3,QT,cl,UP,sm} from './util.js';
 import {S} from './settings.js';
 import {pad,axv,keys,thrFull,calib,flipIn} from './input.js';
@@ -19,13 +21,15 @@ let world=()=>1;
 export const setWorld=f=>{world=f},sdf=(x,y,z)=>world(x,y,z);
 export function sdN(p,out){const h=.02,x=p.x,y=p.y,z=p.z;out.set(sdf(x+h,y,z)-sdf(x-h,y,z),sdf(x,y+h,z)-sdf(x,y-h,z),sdf(x,y,z+h)-sdf(x,y,z-h));const l=out.length();return l>1e-9?out.divideScalar(l):out.set(0,1,0)}
 
-const _q=new QT(),_v=new V3(),_u=new V3(),_x=new V3(),_z=new V3(),_an=new V3();
+const _q=new QT(),_v=new V3(),_u=new V3(),_an=new V3();
 const _H=Array.from({length:16},()=>[new V3(),new V3()]),_pv=new V3();
 const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new V3(),_qb=new QT();
 // a game's drone extends Quad: it builds its own mesh and spawn, and may define onBoost() (super boost just lit)
-// flip-over (E / flip button): level the quad keeping its heading
-const _pa=new V3(),_pw=new V3(),PEND=3.6,_rf=new V3(),_qr=new QT(),wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
-function rightUp(d,k){const f=_rf.set(0,0,-1).applyQuaternion(d.q);f.y=0;if(f.lengthSq()<.01){f.set(0,1,0).applyQuaternion(d.q);f.y=0}_qr.setFromAxisAngle(UP,f.lengthSq()>1e-4?Math.atan2(-f.x,-f.z):0);d.q.slerp(_qr,k)}  // level, keeping the heading
+// flip-over (E / flip button): rightUp (src/flight/core.js) levels the quad keeping its heading
+const _pa=new V3(),_pw=new V3(),PEND=3.6;
+// the tune for quadAir, read live from the lets above (tuneFlight sets them)
+const K={get G(){return G},get THR(){return THR},get TE(){return TE},get VP(){return VP},get TAU(){return TAU},get SPOOL(){return SPOOL},get WASH(){return WASH},
+ get BOOST(){return BOOST},get BKICK(){return BKICK},get DRAIN(){return DRAIN},get DL(){return DL},get DQ(){return DQ},get MAXV(){return MAXV}};
 export class Quad{
  constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),boost:0,boostOn:false,boosting:false,dead:0})}
  flipUp(){if(this.dead<=0&&this.v.lengthSq()<400)this.flipT=.35}
@@ -41,18 +45,10 @@ export class Quad{
   if(gd&&uy<.93&&(this.pr?vt<9+(this.pw*DRAD*1.6)**2:cn.y>.6&&uy<-.6&&vt<9)){const up=_u;this.pr=1;const ax=_pa.crossVectors(up,UP);let sn=ax.length();if(sn<.05)ax.set(0,0,1).applyQuaternion(this.q);else ax.divideScalar(sn);
    const tg=PEND*(.5+.5*sm((1-up.y)/2))*(this.thr>.3?1.3:1);this.pw=(this.pw||0)+(tg-(this.pw||0))*(1-Math.exp(-dt/.35));
    if(this.pw>.15&&this.pivot(_pw.copy(ax).applyQuaternion(_qb.copy(this.q).invert()).multiplyScalar(this.pw),dt,-1))return 0}else this.pw=this.pr=0
-  this.w.lerp(wt,1-Math.exp(-dt/(gd?.09:TAU)));const up=_u.set(0,1,0).applyQuaternion(this.q),va=this.v.dot(up);
-  if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
-  const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
-  this.ms+=(this.thr-this.ms)*(1-Math.exp(-dt/Math.max(1e-3,this.thr>this.ms?SPOOL:SPOOL*1.6)));  // motor spool-up / spin-down
-  const was=this.boostOn;this.boostOn=this.boosting&&this.boost>0;let acc=THR*this.ms**TE;  // thrust ~ rpm², shaped by the thrust curve
-  acc*=cl(1-va/VP,0,1.15);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
-  // super boost: instant (no spool, no inflow loss), with a kick the moment it lights
-  if(this.boostOn){acc+=BOOST;this.boost=Math.max(0,this.boost-DRAIN*dt);if(!was){this.v.addScaledVector(up,BKICK);this.onBoost?.()}}
-  this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;
-  const s=this.v.length();if(s>1e-4){const bx=_x.set(1,0,0).applyQuaternion(this.q),bz=_z.set(0,0,1).applyQuaternion(this.q),k=DQ*s,vx=this.v.dot(bx),vy=this.v.dot(up),vz=this.v.dot(bz);
-   _gw.copy(bx).multiplyScalar(vx*(DL+k*.9)).addScaledVector(up,vy*(DL+k*1.8)).addScaledVector(bz,vz*(DL+k*.7));const dl=_gw.length()*dt;this.v.addScaledVector(_gw,-dt*(dl>s?s/dl:1))}  // body-axis drag: the disc face has ~2x the frontal area
-  const vm=MAXV*(this.boostOn?1.5:1),s2=this.v.length();if(s2>vm)this.v.multiplyScalar(Math.max(vm/s2,1-dt*2));
+  // in the air: the shared League quad (src/flight/core.js quadAir, the same code Jared's League flies): rates (w eases toward wt,
+  // tau TAU, 0.09 s on the ground), prop wash, q turned by w*dt, motor spool, thrust curve and prop inflow, super boost (kick, onBoost),
+  // gravity, body-axis drag (the disc face has ~2x the frontal area), top speed. ONE: no parts multipliers, no rate caps
+  quadAir(this,dt,K,ONE,wt,gd,false,this.q);
   this.p.addScaledVector(this.v,dt);return this.ground()}
  pivot(wt,dt,deep=-.15){const ww=_ww.copy(wt).applyQuaternion(this.q);let bv=-.05,ok=false;
   for(const C of HBP){const r=_br.copy(C).applyQuaternion(this.q),P=_bp2.copy(this.p).add(r);if(sdf(P.x,P.y,P.z)+HBR<deep)continue;
@@ -70,11 +66,8 @@ export class Quad{
    m=Math.max(m,-vn)}
   this.w.copy(ww).applyQuaternion(_qb.copy(this.q).invert());this.gt=.12;return m}}
 
-// ---------- attitude controller (shared by bots + Angle mode) ----------
-const _m=new THREE.Matrix4(),_qd=new QT(),_ax=new V3(),_az=new V3(),_aq=new QT();
-export function attitude(d,up,fwd,k,maxR,yawW){const z=_az.copy(fwd).addScaledVector(up,-fwd.dot(up));if(z.lengthSq()<1e-4)z.set(0,0,-1).applyQuaternion(d.q).addScaledVector(up,-.99);
- z.normalize().negate();_ax.crossVectors(up,z);_m.makeBasis(_ax,up,z);_qd.setFromRotationMatrix(_m);const e=_aq.copy(d.q).invert().multiply(_qd);if(e.w<0){e.x=-e.x;e.y=-e.y;e.z=-e.z;e.w=-e.w}
- const s=Math.sqrt(Math.max(0,1-e.w*e.w));if(s<1e-5){d.wt.set(0,0,0);return}const a=2*Math.atan2(s,e.w);d.wt.set(e.x/s,e.y/s*yawW,e.z/s).multiplyScalar(Math.min(a*k,maxR))}
+// ---------- attitude controller (shared by bots + Angle mode): src/flight/core.js, re-exported for the games ----------
+export {attitude};
 
 // ---------- human input: sticks (or keyboard) to target body rates, Betaflight rates; Angle mode self-levels ----------
 // o.sb: super boost on (top BZ of the stick is boost); o.menu: menu open (sticks are ignored while calibrating)

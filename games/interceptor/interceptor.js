@@ -10,6 +10,7 @@ import {initRender,renderer,scene,camera,composer,bloom,tex,glow,dot,setFov,deta
 import {banner,feed,setFeedTime} from '../../engine/hud.js';
 import {AC,audioInit,audioOn,motorAudio,noise,tone} from '../../engine/audio.js';
 import {attitude,gn,ou,weathervane} from '../../engine/flight.js';
+import {propWash,turn as turnQ,spool,thrust,inflow,bodyDrag,capSpeed,ONE} from '../../src/flight/core.js';  // the shared flight core's air-model blocks (the dart composes its own step from them)
 import {rate,thrCurve,stk,initRates} from '../../engine/rates.js';
 import {keys,pad,axv,thrFull,calib,fireBtnIn,initInput,padEdges,mountPad,mountSwitches,pollSwitches,swRead} from '../../engine/input.js';
 import {initMenu,syncUI} from '../../engine/menu.js';
@@ -325,16 +326,15 @@ class Drone{
   if(gd)this.w.lerp(wt,1-Math.exp(-dt/.09));
   else{const au=AMAX*(.55+.45*sm(Math.min(this.ms,1-this.ms)*4)),dw=_dw.subVectors(wt,this.w).multiplyScalar(1-Math.exp(-dt/TAU)),lim=au*dt;if(dw.length()>lim)dw.setLength(lim);this.w.add(dw);this.aero(dt)}  // rate loop with finite authority: differential thrust runs out near idle and full throttle
   const AIR=_ag.copy(WIND).add(this.gu),up=_u.set(0,1,0).applyQuaternion(this.q),va=_vr.subVectors(this.v,AIR).dot(up);
-  if(WASH>0&&va<-6&&this.ms>.15){const a=WASH*cl((-va-6)/18,0,1)*this.ms*2.5,k=Math.min(1,dt*9);this.wn.x+=(Math.random()-.5-this.wn.x)*k;this.wn.z+=(Math.random()-.5-this.wn.z)*k;this.w.x+=this.wn.x*a;this.w.z+=this.wn.z*a}  // falling into your own prop wash
-  const wl=this.w.length();if(wl>1e-6){_q.setFromAxisAngle(_v.copy(this.w).divideScalar(wl),wl*dt);this.q.multiply(_q).normalize();up.set(0,1,0).applyQuaternion(this.q)}
-  this.ms+=(this.thr-this.ms)*(1-Math.exp(-dt/Math.max(1e-3,this.thr>this.ms?SPOOL:SPOOL*1.6)));  // motor spool-up / spin-down
+  propWash(this,va,dt,WASH);  // falling into your own prop wash (the blocks propWash, turnQ, spool, thrust, inflow, bodyDrag, capSpeed are the shared flight core, src/flight/core.js)
+  if(turnQ(this.q,this.w,dt))up.set(0,1,0).applyQuaternion(this.q);
+  spool(this,dt,SPOOL);  // motor spool-up / spin-down
   const I=this.amp=6+220*Math.max(this.ms,0)**1.5;this.mah+=I*dt/3.6;this.vp+=(I*.0011-this.vp)*(1-Math.exp(-dt/(I*.0011>this.vp?.6:2.5)));this.vc=ocv(this.mah/BCAP)-(I*.0016+this.vp)*SAGK;  // pack current (A), mAh used, per-cell voltage: IR drop (1.6 mΩ/cell) + polarisation that builds over ~0.6 s and recovers over ~2.5 s
-  let acc=THR*this.ms**TE*Math.min(1.04,(Math.max(this.vc,3)/4.05)**1.6);  // thrust ~ rpm² ~ voltage² at a given throttle: sags with load and as the pack drains (1.0 at a fresh pack in hover)
-  acc*=cl(1-va/VP,0,1.15);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
+  let acc=thrust(this.ms,THR,TE)*Math.min(1.04,(Math.max(this.vc,3)/4.05)**1.6);  // thrust ~ rpm² ~ voltage² at a given throttle: sags with load and as the pack drains (1.0 at a fresh pack in hover)
+  acc*=inflow(va,VP);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
   this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;if(this.boost)this.v.addScaledVector(up,this.boost*dt);  // Zombies Rocket Assist: extra thrust along the body axis (never set in Classic)
-  const vr=_vr.subVectors(this.v,AIR),s=vr.length();if(s>1e-4){const bx=_x.set(1,0,0).applyQuaternion(this.q),bz=_z.set(0,0,1).applyQuaternion(this.q),k=DQ*s,vx=vr.dot(bx),vy=vr.dot(up),vz=vr.dot(bz);
-   _gw.copy(bx).multiplyScalar(vx*(DL+k*FS)).addScaledVector(up,vy*(DL+k)).addScaledVector(bz,vz*(DL+k*FS));const dl=_gw.length()*dt;this.v.addScaledVector(_gw,-dt*(dl>s?s/dl:1))}  // body-axis drag on the airspeed (wind included): the dart slips through the air nose-first, while the fuselage and cruciform fins resist sideways flow (FS x), which swings the velocity onto the nose, so it flies where it points and the fins carry it in level flight
-  const s2=this.v.length(),mv=MAXV+(this.bmax||0);if(s2>mv)this.v.multiplyScalar(Math.max(mv/s2,1-dt*2));
+  bodyDrag(this.v,_vr.subVectors(this.v,AIR),this.q,up,DL,DQ,FS,1,FS,ONE.dq,dt);  // body-axis drag on the airspeed (wind included): the dart slips through the air nose-first, while the fuselage and cruciform fins resist sideways flow (FS x), which swings the velocity onto the nose, so it flies where it points and the fins carry it in level flight
+  capSpeed(this.v,MAXV+(this.bmax||0),dt);
   this.p.addScaledVector(this.v,dt);const hit=this.ground();if(hit>9)noise(.12,500,cl(hit/60,0,.4));return hit}
  // airframe aerodynamics and the air it flies through: turbulence (stronger with wind, speed, near the ground and in a Shahed's wake), cruciform fins that
  // weathervane the nose into the airflow and damp pitch/yaw, gusts that push the airframe around. The rate loop has to fight all of it with finite authority.
