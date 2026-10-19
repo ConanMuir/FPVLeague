@@ -31,7 +31,7 @@ export function initRocket(api,G,Z){
    if(st.t<=0)stop()}}
  function visuals(){const me=api.player,on=st.t>0&&me&&me.dead<=0;
   if(on&&flame.parent!==me.mesh)me.mesh.add(flame);flame.visible=!!on;
-  if(on){const k=.85+Math.random()*.3;flame.position.set(0,-.36,0);flame.scale.set(k,.9+Math.random()*.4,k);const f=Math.max(0,st.t)/RK.burn;$i.style.width=(f*100).toFixed(1)+'%';$t.textContent=Math.max(0,st.t).toFixed(1)+' s'}
+  if(on){const k=.85+Math.random()*.3;flame.position.copy(me.nozzle.position);flame.scale.set(k,.9+Math.random()*.4,k);const f=Math.max(0,st.t)/RK.burn;$i.style.width=(f*100).toFixed(1)+'%';$t.textContent=Math.max(0,st.t).toFixed(1)+' s'}
   bar.hidden=!on&&!(st.armed&&owned()&&me&&me.dead<=0);if(!on&&!bar.hidden){$i.style.width='100%';$t.textContent='READY'}}
  const $i=document.getElementById('zrki'),$t=document.getElementById('zrkt');
  return{step,visuals,stop,st}}

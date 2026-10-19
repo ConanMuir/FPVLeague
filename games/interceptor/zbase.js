@@ -74,7 +74,7 @@ export function initBase(Z,api,G){
    <div class="zcols"><div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
     <div class="zleg"><span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lt"></i>next wave's approach</span></div></div>
    <div class="zside"><nav class="ztabs">${[['shop','Shop'],['armory','Armory'],['sites','Sites']].map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
-   <footer class="zfc"><h3>Wave ${G.wave+1}${fc.boss?' · <span class="cr">BOSS</span>':''}</h3>${fc.html}</footer></div>`;
+   <footer class="zfc"><h3>Wave ${G.wave+1}${fc.boss?' · <span class="cr">BOSS</span>':''}${Z.wx?.note(G.next.wx)||''}</h3>${fc.html}</footer></div>`;
   $('zgo').onclick=()=>{if(!G.placing)Z.continue()};$('zcancel')&&($('zcancel').onclick=cancelPlace);
   for(const b of el.querySelectorAll('[data-tab]'))b.onclick=()=>{if(G.placing)return;tab=b.dataset.tab;render();focus(`[data-tab="${tab}"]`)};
   for(const b of el.querySelectorAll('[data-buy]'))b.onclick=()=>buy(+b.dataset.buy);
