@@ -4,10 +4,10 @@ Rocket league but with drones
 ## Branch status
 Owner: Jared   Last updated: 2026-10-18 by Claude (Opus 5.5)
 Based on: origin/main 5c965f2 (ball feel, PR #21)
-Doing: visual fidelity pass for the outdoor League maps (Meadow, Canyon, Alpine): stadium bowl with crowd, light masts, screens, banners; layered terrain shading; instanced tree/rock/cactus species; lake/river/ice water; quality scaling.
-Touches: src/world/maps.js, src/world/outdoor.js (new), tools/shots.mjs (--perf-all, --cam), tools/map-views.mjs (new), Drone League/claude-project/drone-league-notes.md (4b).
-Open items / help wanted: crowd is static boxes (could cheer on goals); the stadium is sized for the menu orbit camera (no roof, < 32 m); Meadow's lake sits against a hill so its far bank is steep rock.
-Overlaps: none known; the Neon Arena (world/arena.js) and Highlands/caves are untouched.
+Doing: Rocket League-style goal explosions (branch `goal-explosions`): flash, team-colour shockwave shell + rings, spark streaks, arena light pulse, goal frame glow, short camera shake.
+Touches: src/render/goalfx.js (new), src/modes/match.js (goalFx calls it; fewer old particles on Low), src/render/visuals.js (one tick call), tools/goalfx-shots.mjs (new: screenshots + frame time).
+Open items / help wanted: not yet seen by a pilot in a real online match; the effect plays in real time (~1.5 s) over the goal slow-mo.
+Overlaps: effects/sound branches may also edit goalFx in src/modes/match.js (one line); merge by hand.
 
 ## Play
 Open `Drone League/Play Drone League.bat` (Windows, Microsoft Edge), or open `Drone League/standalone/index.html` in a browser.
