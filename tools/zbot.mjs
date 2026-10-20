@@ -39,14 +39,14 @@ export const level = n => LEVELS.find(l => key(l.n) === key(n));
 export const SHOP = `(function(P){
   const {api, G, Z, KIND} = __z, def = Z.def, B = Z.base, IT = __z.ITEMS, kf = k => Z.kindFrom ? Z.kindFrom(k) : KIND[k].from, nw = G.wave + 1;
   const ORDERS = {naive: ['flak', 'barrage', 'rack', 'lrack', 'ew', 'smoke', 'gepard', 'laser', 'sam', 'mpads', 'hflak', 'idome', 'gdome'],
-    basic: ['gdome', 'idome', 'sam', 'carrier', 'gepard', 'laser', 'rack', 'mwave', 'mpads', 'flak', 'barrage', 'ew', 'hflak', 'lrack', 'mark', 'air', 'lure', 'salvage', 'swarm'],
-    smart: ['gdome', 'idome', 'sam', 'carrier', 'laser', 'gepard', 'mpads', 'hflak', 'mwave', 'rack', 'barrage', 'lrack', 'flak', 'smoke', 'ew', 'mark', 'air', 'warhead', 'freeze', 'lure', 'salvage', 'radar', 'aid', 'relaunch', 'battery', 'optics', 'rocket', 'swarm', 'swarmk']};
+    basic: ['gdome', 'idome', 'sam', 'carrier', 'gepard', 'mwave', 'laser', 'rack', 'mpads', 'flak', 'barrage', 'ew', 'hflak', 'lrack', 'mark', 'air', 'lure', 'salvage', 'swarm'],
+    smart: ['gdome', 'idome', 'sam', 'mwave', 'gepard', 'carrier', 'laser', 'mpads', 'hflak', 'rack', 'barrage', 'smoke', 'lrack', 'flak', 'ew', 'mark', 'air', 'warhead', 'freeze', 'lure', 'salvage', 'radar', 'aid', 'relaunch', 'battery', 'optics', 'rocket', 'swarm', 'swarmk']};
   // the arsenal's defences (zarsdef.js): how many of each, and when they are worth it; a carrier takes a park spot, not a position
-  const A = Z.ars, nOf = k => def.D.filter(d => d.type === k).length, smart = P.shop === 'smart', CAP = {laser: smart ? 3 : 2, mwave: 2, barrage: smart ? 3 : 2, smoke: smart ? 3 : 1, carrier: 2};
+  const A = Z.ars, nOf = k => def.D.filter(d => d.type === k).length, smart = P.shop === 'smart', CAP = {laser: 2, mwave: smart ? 2 : 1, barrage: smart ? 2 : 1, smoke: smart ? 2 : 1, carrier: smart ? 2 : 1};
   const lwx = () => { const w = G.next && G.next.wx && Z.wx && Z.wx.T[G.next.wx.id]; if (!w) return 1; if ((w.rain || 0) >= 1.5 || w.bolts) return 0; return Math.min(1, (w.fog ? w.fog[1] : 14000) / 6000); };
   const arsOK = k => !CAP[k] || nOf(k) < CAP[k] && (k !== 'mwave' || nw >= kf('swarm') - 1) && (k !== 'laser' || !smart || lwx() > .3 || nOf('laser') > 0);
   const siteSlot = k => def.SLOTS.findIndex((s, j) => def.slotFree(j) && s.site && !def.D.some(d => d.type === k && def.SLOTS[d.slot].site === s.site));
-  const PRIO = [...ORDERS[P.shop], ...(P.perkBuy || [])].filter(k => P.swarm || k !== 'swarm' && k !== 'swarmk'), top = PRIO.indexOf(P.shop === 'smart' && nw >= kf('swarm') - 1 ? 'mwave' : 'gepard');  /* worth selling a weak helper for (and opening a position) */
+  const PRIO = [...ORDERS[P.shop], ...(P.perkBuy || [])].filter(k => P.swarm || k !== 'swarm' && k !== 'swarmk'), top = PRIO.indexOf('gepard');  /* worth selling a weak helper for (and opening a position) */
   const from = k => Z.itemFrom ? Z.itemFrom(k) : IT[k].from, cost = k => IT[k].type === 'perk' ? Z.perkPrice(k) : (Z.itemPrice ? Z.itemPrice(k) : IT[k].price);
   const domeOK = k => k === 'idome' ? nw >= kf('ballistic') - P.domes : k === 'gdome' ? nw >= kf('hyper') - P.domes : true;
   for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp > 0 && s.hp < s.max * P.repairAt) B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)); }
@@ -57,7 +57,7 @@ export const SHOP = `(function(P){
     for (const q of G.next.list) { const [k, c] = q.split(':'); cnt[k] = (cnt[k] | 0) + (+c || 1); }
     const pts = k => (cnt[k] | 0) * (KIND[k] ? KIND[k].pts : 0), hard = ['ballistic', 'hyper', 'icbm'].reduce((a, k) => a + (cnt[k] | 0), 0), noise = {};
     const val = id => { let v = 0; for (const k in cnt) v += pts(k) * (E[id][k] ?? 0);
-      if (P.ars >= 3) { if (id === 'emp') v *= Math.min(1.25, .35 + def.D.length / 12); if (id === 'flare') v += (pts('jet') + pts('cruise')) * .25; if (id === 'dart') v += hard * 40 * (P.fast || 0) * 20; if (id === 'net' && nw < 15) v *= 1.15; if (id === 'cluster' && (cnt.swarm | 0) >= 10) v *= 1.15; }
+      if (P.ars >= 3) { if (id === 'emp') v *= Math.min(1.25, .35 + def.D.length / 12); if (id === 'flare') v += (pts('jet') + pts('cruise')) * .25; if (id === 'dart') v += hard * 40 * (P.fast || 0) * 12; if (id === 'net' && nw < 15) v *= 1.15; if (id === 'cluster' && (cnt.swarm | 0) >= 10) v *= 1.15; }
       else if (P.ars === 2) v *= noise[id] ??= .8 + Math.random() * .4;
       return v; };
     const ok = id => !A.ban.has(id) && nw >= W[id].from;
@@ -75,7 +75,7 @@ export const SHOP = `(function(P){
       if (it.kit && it.type === 'helper' && def.D.filter(d => d.type === c.k).length >= 2) continue;  /* kit helpers as a supplement: two of each at most */
       if (it.type === 'helper' && !open()) {
         if (P.expand && def.canOpen && PRIO.indexOf(c.k) <= top) { const j = def.SLOTS.findIndex((_, j) => def.canOpen(j, Z.meta.doc())); if (j >= 0 && G.cash > price + __z.expCost(G.exp | 0, Z.meta.k('expK'))) B.act.expand(j); }
-        if (!open()) { if (!P.sell) continue; const w = def.D.filter(d => d.type === 'flak' || d.type === 'ew' || d.type === 'lrack').sort((a, b) => a.kills - b.kills)[0]; if (!w || PRIO.indexOf(c.k) > top) continue; B.act.sell(w.id); } }
+        if (!open()) { if (!P.sell) continue; const w = def.D.filter(d => d.type === 'flak' || d.type === 'ew' || d.type === 'lrack' || d.type === 'barrage' && d.kills < 4 * G.wave).sort((a, b) => a.kills - b.kills)[0]; if (!w || PRIO.indexOf(c.k) > top) continue; B.act.sell(w.id); } }
       if (it.type === 'helper') { const s = smart && (c.k === 'barrage' || c.k === 'smoke') ? siteSlot(c.k) : -1, j = s >= 0 ? s : def.SLOTS.findIndex((_, j) => def.slotFree(j)); if (j >= 0) B.act.place(c.k, j); }
       else B.buy(c.i); }
     for (const d of def.D) if (Math.random() < P.up && G.cash > keep + 600) { const rk = def.isRack ? def.isRack(d) : d.type === 'rack'; B.act.upgrade(d.id, rk ? 'tier' : 'lvl'); if (d.type === 'rack') B.act.upgrade(d.id, 'cap'); }
@@ -105,7 +105,7 @@ export const WAVE = `(function(P, dodge){
     if (w === 'dart') return at(t, bad || Math.random() < .3 ? 3 : .6);  /* ramming is harder than a burst; a miss costs no drone */
     __z.botKill(bad ? 7 : .8); };
   while (G.state === 'wave' && n++ < 2400) { __z.sim(.5); const me = api.player, alive = me && me.dead <= 0;
-    if (P.fast && alive && Math.random() < P.fast * (wp() === 'dart' ? 2.5 : 1)) { const h = api.TH.filter(t => api.live(t) && KIND[t.k].armor === 'hard' && t.p.distanceTo(t.aim) < 15000).sort((a, b) => a.p.distanceTo(a.aim) - b.p.distanceTo(b.aim))[0];
+    if (P.fast && alive && Math.random() < P.fast * (wp() === 'dart' ? 1.8 : 1)) { const h = api.TH.filter(t => api.live(t) && KIND[t.k].armor === 'hard' && t.p.distanceTo(t.aim) < 15000).sort((a, b) => a.p.distanceTo(a.aim) - b.p.distanceTo(b.aim))[0];
       if (h) { me.p.copy(h.p).addScaledVector(h.v.clone().normalize(), -.5); me.v.set(0, 0, 0); Z.detonate(); continue; } }
     if (Math.random() < P.rate) { const t = pickT(); if (t && KIND[t.k].armor !== 'hard' && alive) { const bad = Math.random() < P.miss || evades(t) && Math.random() < Math.min(.9, dodge * P.dodgeK); run(t, bad); } }
     if (me && me.dead > 0 && Math.random() < P.relaunch) api.launch();

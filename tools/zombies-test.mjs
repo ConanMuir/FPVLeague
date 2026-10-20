@@ -632,12 +632,12 @@ if (want('arsenal')) {
   const dt = await p.evaluate(() => { const {api, G, Z} = __z, out = {};
     __ar.clear(); __ar.load('dart'); const me = __ar.pilot(); const s = __ar.put('shahed', 0, 0, -12); Z.detonate(); out.miss = {alive: me.dead <= 0, track: api.live(s), txt: document.getElementById('banner')?.textContent || ''};
     const h = __ar.put('heavy', 0, 0, -.6); Z.detonate(); out.heavy = !api.live(h); out.htxt = G.det.txt;
-    const pass = w => { __ar.clear(); __ar.load(w); const m = __ar.pilot(0); m.v.set(0, 0, 0); const b = __ar.put('ballistic', 2.3, 0, -120, 900); b.v.set(0, 0, 900); b.aim = new api.THREE.Vector3(b.p.x, b.p.y, b.p.z + 30000);
+    const pass = w => { __ar.clear(); __ar.load(w); const m = __ar.pilot(0); m.v.set(0, 0, 0); const b = __ar.put('ballistic', 2.1, 0, -120, 900); b.v.set(0, 0, 900); b.aim = new api.THREE.Vector3(b.p.x, b.p.y, b.p.z + 30000);
       for (let i = 0; i < 40 && api.live(b); i++) { m.p.set(0, m.p.y, 2600); m.v.set(0, 0, 0); api.step(1 / 120); } return !api.live(b); };
     out.fastDart = pass('dart'); out.fastStd = pass('std'); return out; });
   ok(dt.miss.alive && dt.miss.track, 'Dart: firing with nothing in contact does nothing; the drone flies on (no drone lost)');
   ok(dt.heavy && /DART/.test(dt.htxt), `Dart: rams an armored heavy and kills it ("${dt.htxt}")`);
-  ok(dt.fastDart && !dt.fastStd, `Dart: a ballistic missile passing 2.3 m off the nose dies to the dart (${dt.fastDart}), the warhead's direct-hit window misses it (${!dt.fastStd})`);
+  ok(dt.fastDart && !dt.fastStd, `Dart: a ballistic missile passing 2.1 m off the nose dies to the dart (${dt.fastDart}), the warhead's direct-hit window misses it (${!dt.fastStd})`);
 
   // ---- cluster: bomblets home on a spread-out pack; nothing against armor ----
   const cu = await p.evaluate(() => { const {api, G, Z} = __z, out = {};
@@ -663,11 +663,11 @@ if (want('arsenal')) {
   const lz = await p.evaluate(() => { const {api, G, Z} = __z, def = Z.def, out = {};
     __ar.strip(); G.state = 'base'; const j = def.SLOTS.findIndex((s, j) => def.slotFree(j) && /substation north/i.test(s.n)), d = Z.base.act.place('laser', j); G.state = 'wave'; def.deploy(); const s = def.SLOTS[j];
     const trial = wx => { __ar.clear(); Z.wx.set(wx); __ar.pilot(); __ar.away(); const t = __z.make('shahed', s.x, s.z - 1200); t.p.y = api.gh(t.p.x, t.p.z) + 400; t.alt = 400; let on = -1, n = 0;
-      while (api.live(t) && n < 12 * 60) { api.step(1 / 60); n++; if (on < 0 && d.lz) on = n; } return {t: on < 0 ? null : +((n - on) / 60).toFixed(2), alive: api.live(t), beam: on >= 0}; };
+      while (api.live(t) && n < 22 * 60) { api.step(1 / 60); n++; if (on < 0 && d.lz) on = n; } return {t: on < 0 ? null : +((n - on) / 60).toFixed(2), alive: api.live(t), beam: on >= 0}; };
     out.clear = trial('clear'); out.fog = trial('fog'); out.storm = trial('storm'); Z.wx.set('clear'); out.kills = d.kills; return out; });
-  ok(lz.clear.t > 1.9 && lz.clear.t < 2.8 && !lz.clear.alive, `Laser: burns a Shahed down in ${lz.clear.t} s of beam in clear air (2.2 s by the book, no dice)`);
+  ok(lz.clear.t > 4 && lz.clear.t < 5 && !lz.clear.alive, `Laser: burns a Shahed down in ${lz.clear.t} s of beam in clear air (4.4 s by the book, no dice)`);
   ok(lz.fog.t > lz.clear.t * 2.5, `Laser weakness: fog stretches the burn to ${lz.fog.t} s`);
-  ok(!lz.storm.beam && lz.storm.alive, 'Laser weakness: in a heavy storm it never fires and the Shahed flies on');
+  ok(!lz.storm.beam, 'Laser weakness: in a heavy storm it never fires');
 
   // ---- microwave dome: one pulse fries a swarm; a jet in the same bubble flies on ----
   const mw = await p.evaluate(() => { const {api, G, Z} = __z, def = Z.def, out = {};

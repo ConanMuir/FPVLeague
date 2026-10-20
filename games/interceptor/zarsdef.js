@@ -110,7 +110,7 @@ export function initArsDef(api,G,Z,A){
     const dc=Math.min(_a.distanceTo(cam),t.p.distanceTo(cam));if(dc<bd){bd=dc;best={d,t,dc}}}
    else if(d.type==='mwave'&&d.ring){const k=d.cd>0?1-Math.min(1,d.cd/LV(d).cd):1;d.ring.material.color.setRGB(1*(.4+1.4*k),.48*(.4+1.4*k),.82*(.4+1.4*k))}
    else if(d.type==='barrage'&&d.bw){const T=performance.now()/1000;d.bal.forEach(q=>{q.b.position.y+=Math.sin(T*.6+q.ph)*.012})}
-   else if(d.type==='smoke'&&on&&G.state==='wave'&&Z.plume){if((d.pf=(d.pf||0)-dt)<=0){d.pf=.55;const s=sl(d),a=Math.random()*6.283,r=Math.sqrt(Math.random())*R(d)*.5,x=s.x+Math.cos(a)*r,z=s.z+Math.sin(a)*r;Z.plume(_b.set(x,gh(x,z)+2,z),.9,false)}
+   else if(d.type==='smoke'&&on&&G.state==='wave'&&Z.plume){if((d.pf=(d.pf||0)-dt)<=0){d.pf=.18;const s=sl(d),W=api.WIND,a=Math.random()*6.283,r=Math.sqrt(Math.random())*R(d)*.55,x=s.x+Math.cos(a)*r-W.x*4,z=s.z+Math.sin(a)*r-W.z*4;Z.plume(_b.set(x,gh(x,z)+3,z),1.3,false)}  /* a thick screen, laid upwind of the site */
     if(!d.hissed){d.hissed=1;const s=sl(d);snd.hiss(_c.set(s.x,s.y+2,s.z))}}}
   spGeo.setDrawRange(0,sp);spGeo.attributes.position.needsUpdate=true;
   for(const m of shells)if(m.on){m.t+=dt;const u=m.t/.7;if(u>=1){m.on=false;m.o.visible=false;continue}m.o.scale.setScalar(Math.max(1,m.r*Math.sqrt(u)));m.o.material.opacity=.32*(1-u)}

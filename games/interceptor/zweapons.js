@@ -131,7 +131,7 @@ export function initWeapons(api,G,Z,A){
     if(ok){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=api.gh(t.aim.x,t.aim.z);t.wps.length=0;feed(`<span class="cb">Chaff: ${Z.tname(t)} decoyed off its target</span>`)}
     else feed(`<span class="co">Chaff: ${Z.tname(t)} burned through it</span>`);
     popFx(d.p,true);A.ev(['ch',key,Math.round(d.p.x),Math.round(d.p.y),Math.round(d.p.z),P.ch,ok?1:0])}}}
- function popFx(p,chaffy){api.FX.emit(p,0xfff0c0,24,12,1.4,_a.set(0,-6,0),3);if(chaffy)api.FX.emit(p,0xd8e0ea,60,8,2.2,_b.set(0,-2,0),1.6);snd.flares(p)}
+ function popFx(p,chaffy){api.FX.emit(p,0xffe2a0,14,10,1.5,_a.set(0,-7,0),2.6);if(chaffy)for(let i=0;i<3;i++)api.FX.emit(_c.copy(p).add(_b.set(rnd(-12,12),rnd(-4,4),rnd(-12,12))),0xc8d4e0,9,5,1.8,_a.set(0,-1.5,0),.9);snd.flares(p)}  // flares fall burning; chaff: a few glittering clouds
  A.popFx=popFx;
  // flares against counter-fire: a feature that shoots at a pilot asks Z.flareSave(key, kind) ('aa', 'pat' or anything else) before applying a hit
  Z.flareSave=(key=myKey(),kind='aa')=>{const P=A.P(key);if(P.cur!=='flare'||P.sch<=0)return false;P.sch--;const d=key===myKey()?me():Z.arsNet?.pil()?.find(q=>q[0]===key)?.[1];if(d)popFx(d.p,false);A.ev(['fl',key,P.sch]);
