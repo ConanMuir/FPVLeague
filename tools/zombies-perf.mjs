@@ -9,7 +9,7 @@ const {server, origin} = await serve(); const b = await launch(); const errs = [
 const frames = p => p.evaluate(() => new Promise(res => { const ts = []; let last = performance.now(); const f = now => { ts.push(now - last); last = now; if (ts.length < 180) requestAnimationFrame(f); else { ts.sort((a, b) => a - b); res({avg: +(ts.reduce((a, b) => a + b) / ts.length).toFixed(1), p50: +ts[90].toFixed(1), p95: +ts[171].toFixed(1)}); } }; requestAnimationFrame(f); }));
 async function run1(mode, setup, arg, wx, gfx) {
   const p = await open(b, origin + '/games/interceptor/', errs);
-  await p.evaluate((m, g) => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: m, wx: 'clear', zwx: 'menu', cam: 0, ...(g ? {gfx: g} : {}), ...(HAZE ? {haze: true} : {})})), mode, gfx);
+  await p.evaluate((m, g, hz) => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: m, wx: 'clear', zwx: 'menu', cam: 0, ...(g ? {gfx: g} : {}), ...(hz ? {haze: true} : {})})), mode, gfx, HAZE);
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 120000}); await sleep(500); await p.click('#play'); await sleep(500);
   const info = await p.evaluate(setup, arg); if (wx) await p.evaluate(id => { __z.api.S.zwx = 'wave'; __z.Z.wx.set(id); }, wx); await sleep(1500);
   const f = await frames(p); await p.close(); return {...f, ...info};
