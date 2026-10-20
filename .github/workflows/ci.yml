@@ -42,7 +42,7 @@ jobs:
         run: npm run build
 
       - name: Committed built game is up to date (warn-only)
-        # postbuild writes games/jared-league/index.html; compare it with the committed one (ignoring CRLF vs LF builds)
+        # postbuild writes games/drone-league/index.html; compare it with the committed one (ignoring CRLF vs LF builds)
         run: node tools/check-build.mjs
 
       - name: Unit tests (node:test)

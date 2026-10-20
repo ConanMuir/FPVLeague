@@ -15,7 +15,7 @@ import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2), opt = k => argv.includes(k), val = k => argv.includes(k) ? argv[argv.indexOf(k) + 1] : null;
 const ALL = opt('--all'), STRICT = opt('--strict'), GHA = !!process.env.GITHUB_ACTIONS;
-const DIRS = ['src', 'engine', 'games/interceptor', 'games/league', 'tools', 'test'], EXT = /\.(m?js)$/;
+const DIRS = ['src', 'engine', 'games/interceptor', 'tools', 'test'], EXT = /\.(m?js)$/;
 const git = (...a) => execFileSync('git', a, {cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 28});
 
 // ---------- comments: a small JS scanner (strings, templates with ${}, regex literals, block comments) ----------
