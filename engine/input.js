@@ -17,17 +17,16 @@ const src=(g,a,f=0)=>a>=100?(g.buttons[a-100]?.value??f):(g.axes[a]??f);
 // calibrated channel: (raw - centre) / signed half-range, so direction is baked in
 export const axv=(g,i)=>{const c=CAL()[i],v=(src(g,c.a,c.c)-c.c)/(c.s||1)-(c.b!=null?src(g,100+c.b):0);return cl(Math.abs(v)<S.dz?0:v,-1,1)};
 // switch mapping: -1 none, a button index, 'aN' = axis N above +0.5, '-aN' = axis N below -0.5, or a learned 'aN>m' / 'aN<m' = axis N past the midpoint m between the
-// off and on positions it was learned at (3-position middles and radios that only send part of the range, e.g. -1 → 0, need this)
-const SWRE=/^(-?)a(\d+)(?:([<>])(-?[\d.]+))?$/;
+// off and on positions it was learned at (3-position middles and radios that only send part of the range, e.g. -1 → 0, need this).
+// Drone League's low form 'aN-' (group 5), the form the shared profile stores (settings.js), reads the same as '-aN'.
+const SWRE=/^(-?)a(\d+)(?:([<>])(-?[\d.]+)|(-))?$/;
 export const swOn=(g,b)=>{if(b===-1||b==null)return null;if(typeof b!=='string')return !!g.buttons[b]?.pressed;const m=SWRE.exec(b);if(!m)return null;const v=g.axes[+m[2]]??0;
- return m[3]?(m[3]==='>'?v>+m[4]:v<+m[4]):m[1]?v<-.5:v>.5};
+ return m[3]?(m[3]==='>'?v>+m[4]:v<+m[4]):m[1]||m[5]?v<-.5:v>.5};
 export const swRead=b=>{const g=pad();return g?swOn(g,b):null};
-export const swName=b=>{if(b===-1||b==null)return'None';if(typeof b!=='string')return'Button '+b;const m=SWRE.exec(b)||[];return`Axis ${m[2]} ${m[3]?(m[3]==='>'?'above ':'below ')+m[4]:m[1]?'low':'high'}`};
+export const swName=b=>{if(b===-1||b==null)return'None';if(typeof b!=='string')return'Button '+b;const m=SWRE.exec(b)||[];return`Axis ${m[2]} ${m[3]?(m[3]==='>'?'above ':'below ')+m[4]:m[1]||m[5]?'low':'high'}`};
 const swAx=b=>typeof b==='string'?+(SWRE.exec(b)||[0,0,-1])[2]:-1;
 // fire / detonate: F, left mouse, or the fire button or switch (S.fireInv: fire with the switch in the other position)
 export function fireBtnIn(){if(keys.KeyF||inp.mouseFire)return true;const g=pad(),b=padX?S.xfire:S.fireBtn;return !!(g&&(typeof b==='string'&&g.axes[swAx(b)]===undefined?false:!!swOn(g,b)!==!!S.fireInv))}
-// flip over: E, or the flip button (Xbox B by default; none on a radio until you map one)
-export const flipIn=()=>{if(keys.KeyE)return true;const g=pad(),b=padX?S.xflip:S.flipBtn;if(!g||b===-1||b==null)return false;return !!swOn(g,b)};
 // keyboard + mouse: o.menu() = menu open, o.pause() toggles it, o.key(e) gets every other key press while flying
 export function initInput(o){
  addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(learn?.seq&&!e.repeat){e.preventDefault();if(e.code==='Escape'){learn=null;syncSw()}else asnStep(learn.k);return}if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!o.menu())e.preventDefault();if(e.repeat)return;

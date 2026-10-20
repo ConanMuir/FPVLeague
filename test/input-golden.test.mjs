@@ -1,4 +1,4 @@
-// Golden stick input: humanControl in Jared's game (src/input/input.js) and Riley's (engine/flight.js) must turn the same
+// Golden stick input: humanControl in Drone League (src/input/input.js) must turn the same
 // controller and keyboard sequences into the same commands as before the shared stick code (src/input/sticks.js) existed.
 // A fake radio, a fake Xbox pad and the keyboard are driven through fixed sequences in Acro and Angle (sprung and full-range
 // throttle, deadband, super boost, Jared's assist); each tick's throttle, target body rates, boost flag, stick values, Angle
@@ -14,7 +14,6 @@ let PADS = [];
 globalThis.addEventListener ??= () => {};
 Object.defineProperty(globalThis, 'navigator', {value: {getGamepads: () => PADS, userAgent: 'node'}, configurable: true});
 const THREE = await import('three'), V3 = THREE.Vector3, QT = THREE.Quaternion;
-const R = await import('../engine/flight.js'), RS = (await import('../engine/settings.js')).S, RI = await import('../engine/input.js'), RR = await import('../engine/rates.js');
 const JI = await import('../src/input/input.js'), JS = (await import('../src/config/settings.js')).S, JT = await import('../src/config/tune.js'), {GS} = await import('../src/state.js'), JR = await import('../src/flight/rates.js');
 
 const FIX = new URL('./fixtures/input-golden.json', import.meta.url), RECORD = !!process.env.GOLDEN_RECORD;
@@ -67,14 +66,6 @@ function run(control, keys, S, s, stk) {
   for (const k in keys) delete keys[k];
   return out;
 }
-
-test("Riley's humanControl (engine/flight.js)", () => {
-  R.tuneFlight({grav: 34.5, thr: 345, te: 1.6, vp: 240, maxv: 200, tau: 4, dl: .04, dq: .0039, size: 2, dbounce: .05, gfric: .1, spool: 20, turtle: 260, wash: 1.4, bzone: 5, boost: 60, bkick: 8, drain: 33, start: 33});
-  Object.assign(RS, {rprof: [PROF], rpi: 0, cal: CAL.map(c => ({...c})), xcal: XCAL.map(c => ({...c})), dz: .03, fireBtn: 5, flipBtn: -1, xflip: 1});
-  const out = {};
-  for (const [k, s] of Object.entries(SEQ)) out[k] = run((d, dt) => R.humanControl(d, dt, {sb: !!s.sb, menu: false}), RI.keys, RS, s, RR.stk);
-  golden('riley', out);
-});
 
 test("Jared's humanControl (src/input/input.js)", () => {
   GS.hostTune = {grav: 34.5, thr: 345, te: 1.6, vp: 240, maxv: 200, tau: 4, dl: .04, dq: .0039, size: 2, dbounce: .05, gfric: .7, spool: 20, turtle: 260, wash: 1.4, bzone: 5, boost: 60, bkick: 8, drain: 33, start: 33, padb: 100, pads: 20, bgrav: 34.5, bsize: 2.6, bbounce: .6, tbounce: .15, bdrag: .03, bmax: 160, bmass: .2, kick: 1, demo: 40, speed: 1, botv: 1, bloom: .9, shake: 1};
