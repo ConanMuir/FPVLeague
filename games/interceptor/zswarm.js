@@ -23,7 +23,7 @@ import {SW,FORMS,MODES,SW_BLURB} from './zswdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),MAXD=64;
 export function initSwarm(api,G,Z){
  const {THREE,scene,TH,S}=api,V3=THREE.Vector3,UP=new V3(0,1,0),$=id=>document.getElementById(id);
- const _a=new V3(),_b=new V3(),_c=new V3(),_u=new V3(),_q=new THREE.Quaternion(),_qy=new THREE.Quaternion(),_m=new THREE.Matrix4(),_s=new V3(1,1,1);
+ const _a=new V3(),_b=new V3(),_c=new V3(),_u=new V3(),_q=new THREE.Quaternion(),_qy=new THREE.Quaternion(),_m=new THREE.Matrix4(),_s=new V3(1.8,1.8,1.8);  /* drawn a little over life size so a formation reads at a glance */
  const lv=k=>Z.perkLevel?.(k)|0,auth=()=>!Z.mirror;
  const pb=Z.perkBlurb;Z.perkBlurb=k=>SW_BLURB[k]?SW_BLURB[k][Math.min(lv(k),SW_BLURB[k].length-1)]:pb(k);
 
@@ -32,7 +32,7 @@ export function initSwarm(api,G,Z){
   ...[[.32,.32],[-.32,.32],[.32,-.32],[-.32,-.32]].map(([x,z])=>new THREE.CylinderGeometry(.16,.16,.012,10).translate(x,.05,z))]);
  const body=new THREE.InstancedMesh(geo,new THREE.MeshStandardMaterial({color:0x2a3036,roughness:.55,metalness:.5}),MAXD);body.count=0;body.frustumCulled=false;body.castShadow=true;scene.add(body);
  const gPos=new Float32Array(MAXD*3),gCol=new Float32Array(MAXD*3),gGeo=new THREE.BufferGeometry();gGeo.setAttribute('position',new THREE.BufferAttribute(gPos,3));gGeo.setAttribute('color',new THREE.BufferAttribute(gCol,3));
- const gPts=new THREE.Points(gGeo,new THREE.PointsMaterial({size:6,sizeAttenuation:false,vertexColors:true,map:dot,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));gPts.frustumCulled=false;gGeo.setDrawRange(0,0);scene.add(gPts);
+ const gPts=new THREE.Points(gGeo,new THREE.PointsMaterial({size:9,sizeAttenuation:false,vertexColors:true,map:dot,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));gPts.frustumCulled=false;gGeo.setDrawRange(0,0);scene.add(gPts);
 
  // ---------- a swarm: one per pilot (mine, and in co-op one per other pilot keyed by their peer) ----------
  const SWS=new Map();
@@ -160,7 +160,7 @@ export function initSwarm(api,G,Z){
  // ---------- visuals ----------
  function visuals(){let k=0;const on=live();
   if(on)for(const s of SWS.values())for(const d of s.d){if(k>=MAXD)break;_q.setFromUnitVectors(UP,d.up);_qy.setFromAxisAngle(UP,d.yaw);_q.multiply(_qy);_m.compose(d.p,_q,_s);body.setMatrixAt(k,_m);
-   const b=d.boost?1:0,c=b?[1.6,.7,.25]:s.col,L=b?1.8:1;gPos[k*3]=d.p.x;gPos[k*3+1]=d.p.y+.08;gPos[k*3+2]=d.p.z;gCol[k*3]=c[0]*L;gCol[k*3+1]=c[1]*L;gCol[k*3+2]=c[2]*L;k++;
+   const b=d.boost?1:0,c=b?[1.6,.7,.25]:s.col,L=b?2.4:1.6;gPos[k*3]=d.p.x;gPos[k*3+1]=d.p.y+.08;gPos[k*3+2]=d.p.z;gCol[k*3]=c[0]*L;gCol[k*3+1]=c[1]*L;gCol[k*3+2]=c[2]*L;k++;
    if(b&&(d.fx-=1)<=0){d.fx=3;const tail=_a.copy(d.v).setLength(-.6).add(d.p);api.FX.emit(tail,0xffa040,2,3,.25,null,2.5);api.SMK.emit(tail,0xcfcac2,1,1,3,null,1,.5)}}
   body.count=k;body.instanceMatrix.needsUpdate=true;gGeo.setDrawRange(0,k);gGeo.attributes.position.needsUpdate=gGeo.attributes.color.needsUpdate=true;hud()}
 
@@ -168,7 +168,7 @@ export function initSwarm(api,G,Z){
  const glyph=FORMS.map((F,fi)=>{const pts=[],f=new V3(0,0,-1),O=new V3();for(let i=0;i<8;i++){const p=slot(fi,i,8,O,f,f,.6,new V3());pts.push(p)}const m=Math.max(1,...pts.map(p=>Math.max(Math.abs(p.x),Math.abs(p.z))));
   return`<svg viewBox="-11 -11 22 22" width="30" height="30">${pts.map(p=>`<circle cx="${(p.x/m*9).toFixed(1)}" cy="${(p.z/m*9).toFixed(1)}" r="1.5" fill="#5fe3ff"/>`).join('')}<path d="M0 -2.6 L2 2 L-2 2Z" fill="#fff"/></svg>`});
  const panel=document.createElement('div');panel.id='zsw';panel.className='osd';panel.hidden=true;$('hud').append(panel);
- const css=document.createElement('style');css.textContent='#zsw{position:absolute;right:18px;top:34%;display:grid;gap:3px;font:700 12px var(--mono);background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:7px 10px;min-width:190px}'+
+ const css=document.createElement('style');css.textContent='#zsw{position:absolute;left:18px;bottom:calc(150px + env(safe-area-inset-bottom,0px));display:grid;gap:3px;font:700 12px var(--mono);background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:7px 10px;min-width:190px}'+
   '#zsw .h{display:flex;align-items:center;gap:8px;font-size:14px;color:#5fe3ff}#zsw .h b{color:#fff}#zsw .h small{color:#9fb3c8;font-size:11px;margin-left:auto}#zsw .m{color:#fff}#zsw .m .a{color:#ffc640}#zsw .k{color:#9fb3c8;font-size:10.5px;line-height:1.5}#zsw kbd{color:var(--amber);font:700 10.5px var(--mono)}'+
   '#zsw .c i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff9a3c;margin-right:3px}#zsw .c i.u{background:none;border:1px solid #ff9a3c}#hud:not(.z) #zsw{display:none}';document.head.append(css);
  let last='';

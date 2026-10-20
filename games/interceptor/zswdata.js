@@ -43,4 +43,4 @@ export const LOCK={cone:5,keep:14,keepT:.8,range:3500,t:1.4,far:.45,decay:1.6,op
 
 // ---------- battery (zbatt.js; Classic keeps Riley's 16,000 mAh) ----------
 // Zombies flies a bigger pack than Classic: k x the tuned capacity (the mod panel's Battery value). Better battery doubles it.
-export const BAT={k:1.6,perk:2,cruise:100};  // cruise: m/s, the full-throttle level speed used for the range readout when hovering
+export const BAT={k:1.6,perk:2,full:226,cruise:100};  // full: pack current at full throttle (A, Riley's motor model); cruise: full-throttle level speed (m/s), for the range readout
