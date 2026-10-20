@@ -130,6 +130,21 @@ Visible objects: 562 → 436, transparent objects to sort: 149 → 20.
 | shader compiles over 20 ms | 25, 25 | **1** (49 ms, a helper's MeshBasic at the boss wave start) |
 | frames over 50 ms CPU | 3, 3 | 2 (87 ms at the boss wave start: deploying the helpers; 65 ms at the snow change: the environment map) |
 
+**Sim tick allocations** (sim-smooth's `tools/zombies-tick.mjs` scene: wave 32, 95–150 tracks, a full defence and a 12-drone swarm;
+2,400 ticks traced for GC, with sampling heap allocation):
+
+| | main | perf-hotpaths |
+|---|---|---|
+| allocated per 120 Hz tick | 122–159 KB (`pickTarget`, `effOf`, `Z.urgent`, `Math.hypot`, `ew`) | 57–68 KB (`threatStep` object fields, the swarm mover, minor ones) |
+| worst tick | 2.5–4.3 ms (the worst coincided with a 3 ms major GC) | 1.3–3.0 ms |
+
+The 12–24 ms tick that sim-smooth saw with one seed did not reproduce here (seeds 1–9, on sim-smooth and on this branch). Its
+fingerprint (outside every Zombies hook, the heap jumping) fits a major GC landing on that tick. With half the garbage per tick, major
+GCs come half as often. A major GC's pause depends on the live heap, so a rare 3 ms one remains.
+
+After merging main with the bosses (#68) and the spectator (#66), the event timeline's worst frame is 66 ms (the boss wave starting:
+deploying the helpers, plus a 35 ms first-sight sprite compile) and frame CPU p95 is 4.1 ms.
+
 ## 4. Look
 
 `tools/zombies-perf-shots.mjs` (same seed, fixed cameras), before vs after, all viewed side by side: forest, sites (scattered cloud), high
