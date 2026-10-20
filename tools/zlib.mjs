@@ -33,12 +33,12 @@ export const launch = ({w = 1280, h = 720, sw = false} = {}) => launchBrowser({p
 
 // a page in its own headless window: tabs behind the active one get no frames (no requestAnimationFrame, clicks never finish),
 // so harnesses that run several pages at once (tools/zombies-coop.mjs) give each one a window
-export async function newWindow(browser) {
+export async function newWindow(browser, {noRender = false} = {}) {  // noRender: stub its draw calls even locally (installRenderStub force)
   const s = await browser.target().createCDPSession();
   const {targetId} = await s.send('Target.createTarget', {url: 'about:blank', newWindow: true});
   const t = await browser.waitForTarget(t => t._targetId === targetId);
   await s.detach();
-  const p = await t.page(); await installRenderStub(p); return p;
+  const p = await t.page(); await installRenderStub(p, noRender); return p;
 }
 const benign = t => /fonts\.(googleapis|gstatic)\.com|favicon\.ico|net::ERR_FAILED/i.test(t);
 // open a page with three.js routed to the local copy; errors collects page errors and console errors
