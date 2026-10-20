@@ -1,7 +1,7 @@
 // Zombies base screen, shown between waves with no timer. An overview map of the defended area (sites, slots, your defences, where the
 // next wave comes from), a Shop listing every helper, supply and perk, the Armory (upgrade, refit, move or sell anything you own), Base (repairs,
 // rebuilding a destroyed site, opening more positions, upkeep), and Continue.
-// Keyboard: arrows move focus, Enter / Space activate, 1-3 tabs, C continue (Esc opens the menu; Cancel backs out of a placement). Gamepad: D-pad, A, B cancel, LB/RB tabs, Y continue.
+// Keyboard: arrows move focus, Enter / Space activate, 1-4 tabs, C continue (Esc opens the menu; Cancel backs out of a placement). Gamepad: D-pad, A, B cancel, LB/RB tabs, Y continue.
 import {KIND,ITEMS,RESIST,REPAIR_PER_HP,PERK,RACK_TIERS,RACK_CAP,RACK_CAP_COST,RACK_RANGE,ORDER,HELP,REFIT,LRACK,SUPPLY,UPKEEP_FROM,expCost,rebuildCost,REBUILD_HP,moveCost} from './zdata.js';
 const $=id=>document.getElementById(id);
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -13,7 +13,7 @@ export function initBase(Z,api,G){
  let tab='shop',focusSlot=-1,mapImg=null;
  const doc=()=>Z.meta.doc(),dk=(k,d=1)=>Z.meta.k(k,d);
  // Z.xTab (sorties, zsortie.js): one extra tab {id, n, html(), wire(el), map(g, W, H), click(x, y, W, H), legend()} that draws its own map
- const tabList=()=>[['shop','Shop'],['armory','Armory'],['sites','Base'],...(Z.xTab?[[Z.xTab.id,Z.xTab.n]]:[])],xt=()=>!!Z.xTab&&tab===Z.xTab.id&&!G.placing;
+ const tabList=()=>[['shop','Shop'],['armory','Armory'],['sites','Base'],...(Z.chainHTML?[['chain','Kill chain']]:[]),...(Z.xTab?[[Z.xTab.id,Z.xTab.n]]:[])],xt=()=>!!Z.xTab&&tab===Z.xTab.id&&!G.placing;
  const repairK=()=>Z.repairK?.()??1,repairCost=s=>Math.ceil((s.max-s.hp)*REPAIR_PER_HP*repairK());
  const upCost=c=>Math.round(c*dk('upK')/10)*10,refund=d=>Math.floor((d.spent||ITEMS[d.type].price)*dk('sellK',.5));
  const mx=x=>(x-MAPX[0])/(MAPX[1]-MAPX[0])*MW,mz=z=>(z-MAPZ[0])/(MAPZ[1]-MAPZ[0])*MH;
@@ -117,6 +117,7 @@ export function initBase(Z,api,G){
    <div class="zslots">${def.SLOTS.map((s,j)=>def.slotFree(j)?`<button class="sm" data-slot="${j}">${s.n}</button>`:'').join('')}</div><div class="mp"><button class="sm" id="zcancel">Cancel</button></div>`;
   else if(tab==='shop')body=shopHTML();
   else if(tab==='armory'){const perks=Z.perkRows?.(money)||'';body=`${def.D.length?def.D.map(defRow).join(''):'<p class="zhint">No defences yet. Buy helpers from the shop cards.</p>'}${perks?`<h3 style="margin-top:14px">Perks</h3>${perks}`:''}`}
+  else if(tab==='chain'&&Z.chainHTML)body=Z.chainHTML();  /* the kill chain against the fast missiles (zchain.js) */
   else if(xt())body=Z.xTab.html();
   else body=baseHTML();
   const fc=forecast(),D=doc(),U=Z.upkeep?.(),sh=Z.def.D.filter(d=>d.short).length;
@@ -139,6 +140,7 @@ export function initBase(Z,api,G){
   for(const b of el.querySelectorAll('[data-perk]'))b.onclick=()=>upPerk(b.dataset.perk);
   for(const b of el.querySelectorAll('[data-sell]'))b.onclick=()=>sell(+b.dataset.sell);
   for(const b of el.querySelectorAll('[data-rb]'))b.onclick=()=>rebuild(+b.dataset.rb);
+  for(const b of el.querySelectorAll('[data-kc]'))b.onclick=()=>{const k=b.dataset.kc,i=k.indexOf(':');Z.chain.req(k.slice(0,i),k.slice(i+1));render();focus(`[data-kc="${k}"]`)};
   if(xt())Z.xTab.wire(el);
   for(const b of el.querySelectorAll('[data-rep]'))b.onclick=()=>{const i=+b.dataset.rep,s=SITES[i],k=repairK(),hp=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return;if(Z.req)Z.req(['r',i,hp]);else act.repair(i,hp);render();focus(`[data-rep="${b.dataset.rep}"]`)};
   const cv=$('zmap');cv.onclick=e=>{const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*MW,y=(e.clientY-r.top)/r.height*MH;let bj=-1,bd=24;if(xt()){Z.xTab.click(x,y,MW,MH);return}
@@ -166,6 +168,7 @@ export function initBase(Z,api,G){
    g.strokeStyle=hp>.7?'#3ddc84':hp>.35?'#ffc640':'#ff4d4d';g.lineWidth=3;g.beginPath();g.arc(mx(s.x),mz(s.z),13,-Math.PI/2,-Math.PI/2+hp*Math.PI*2);g.stroke();
    g.fillStyle='#dfe8ff';g.fillText(s.n,mx(s.x),mz(s.z)+28)}
   g.strokeStyle='#ffc640';g.lineWidth=2;g.strokeRect(mx(PADP.x)-5,mz(PADP.z)-5,10,10);
+  Z.chainMap?.(g,mx,mz,MW,MH);  // boost batteries at their launch edge, point defence at the sites (zchain.js)
   for(const f of FOBS){g.strokeStyle='#3ddc84';g.beginPath();g.moveTo(mx(f.x),mz(f.z)-7);g.lineTo(mx(f.x)+7,mz(f.z)+5);g.lineTo(mx(f.x)-7,mz(f.z)+5);g.closePath();g.stroke()}
   const ae=document.activeElement?.dataset,foc=ae?.up||ae?.fit||ae?.mv?byId(+String(ae.up||ae.fit||ae.mv).split(':')[0]):null;
   def.SLOTS.forEach((s,j)=>{const d=def.D.find(q=>q.slot===j),[X,Y]=spx(j);
@@ -182,7 +185,7 @@ export function initBase(Z,api,G){
  function open(){document.body.classList.add('zb-open');G.state="base";G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
  function close(){el.hidden=true;G.placing=null;document.body.classList.remove('zb-open')}
  // redraw for a change made elsewhere (co-op: the purse, the defences, who is ready), keeping focus and the tab's scroll
- function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','tab','so'].find(x=>a.dataset[x]!=null):null,
+ function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','so','tab'].find(x=>a.dataset[x]!=null):null,
    q=k?`[data-${k}="${a.dataset[k]}"]`:mine&&a.id?'#'+a.id:null,sc=el.querySelector('.ztab')?.scrollTop||0;
   render();const t=el.querySelector('.ztab');if(t)t.scrollTop=sc;if(q)el.querySelector(q)?.focus()}
  // spatial focus move between the visible buttons
@@ -190,11 +193,11 @@ export function initBase(Z,api,G){
   if(!ra){bs[0].focus();return}const cx=ra.x+ra.width/2,cy=ra.y+ra.height/2;let best=null,bd=1e9;
   for(const b of bs){if(b===a)continue;const r=b.getBoundingClientRect(),x=r.x+r.width/2-cx,y=r.y+r.height/2-cy,along=x*dx+y*dy;if(along<=4)continue;const d=along+Math.abs(x*dy+y*dx)*2;if(d<bd){bd=d;best=b}}
   best?.focus();drawMap()}
- const setTab=k=>{if(G.placing)return;tab=k;render();focus(`[data-tab="${k}"]`)},TABS=()=>tabList().map(t=>t[0]);
+ const setTab=k=>{if(G.placing)return;tab=k;render();focus(`[data-tab="${k}"]`)},TABS=()=>tabList().map(t=>t[0]);  // Kill chain (zchain.js) and Sortie (zsortie.js) come with their files, set up after this one
  function key(e){if(el.hidden)return false;const c=e.code;
   if(c==='ArrowUp')move(0,-1);else if(c==='ArrowDown')move(0,1);else if(c==='ArrowLeft')move(-1,0);else if(c==='ArrowRight')move(1,0);
   else if(c==='Space'&&el.contains(document.activeElement))document.activeElement.click();
-  else if(/^Digit[1-4]$/.test(c)&&TABS()[+c.slice(5)-1])setTab(TABS()[+c.slice(5)-1]);
+  else if(/^Digit[1-9]$/.test(c)&&TABS()[+c.slice(5)-1])setTab(TABS()[+c.slice(5)-1]);
   else if(c==='KeyC'&&!G.placing)Z.continue();else if(c==='Escape')return cancelPlace();
   else return true;e.preventDefault?.();return true}
  function pad(e){if(el.hidden&&over.hidden)return false;const host=el.hidden?over:el;

@@ -14,7 +14,8 @@
 //  host, g = snapshot every 100 ms (up to 250 ms in big waves): state, wave, purse, sites, wind, tracks T [id, kind, x y z in dm, vx vy vz in m/s,
 //   flags, phase(, boss stages)], their static part TS [id, site, aim x y z, swarm group, shade] when new and once a second, helper shots S and
 //   defences D (zdef.js netOut), events ev [id, type, ...] (b explosion, k kill + who, i impact, g gun burst, f team feed, m note to one pilot),
-//   per-pilot perks, detonation results dr, acks ak, roster pl, the next wave's plan nx, rejected pilots rj
+//   per-pilot perks, detonation results dr, acks ak, roster pl, the next wave's plan nx, rejected pilots rj, the kill chain and warning state kc
+//   (zchain.js netOut). Client requests include W (a warning action: harden / evacuate / decoy, any time in a wave) and K (a kill chain purchase).
 // Clients dead-reckon tracks and shots from position + velocity and pull toward each snapshot; other pilots' drones are interpolated the same way.
 //
 // Loadouts (zmeta.js): the host's doctrine is the team's (it shapes the shared base: positions, purse, sites); each pilot brings their own kit
@@ -140,6 +141,7 @@ export function initNet(api,G,Z){
  function gone(k){const n=net,nm=n.names[k];if(!nm)return;for(const o of[n.names,n.esv,n.rdv,n.ltv,n.skv,n.ktv,n.hk,n.ak,n.dr])delete o[k];n.order=n.order.filter(x=>x!==k);team(`<b>${nm}</b> left the game`)}
  const ev=e=>{const n=net;n.evs.push([++n.eid,...e]);if(n.evs.length>240)n.evs.splice(0,n.evs.length-240)};
  const team=h=>{feed(h);if(net?.host)ev(['f',h])};
+ Z.team=team;  // the kill chain and warning actions announce through it (zchain.js, zwarn.js)
  const tell=(k,t)=>{if(k===net.me)feed(`<span class="co">${t}</span>`);else ev(['m',k,t])};
  const who=(t,k)=>{t.by=k===net.me?'p':'o';t.byN=k;t.sk=net.skv[k]|0};
  // a request from pilot k (the host's own come through here too, so every purchase is announced the same way)
@@ -148,8 +150,10 @@ export function initNet(api,G,Z){
   if(T==='h'){const t=TH.find(u=>u.id===e[1]);if(t&&api.live(t)){who(t,k);G.burst={n:0};api.killThreat(t,true);G.burst=null}net.dr[k]={s:seq,o:t?[[e[1],'k',0]]:[],nr:0,dh:1};return}
   if(T==='S')return Z.so?.netReq?.(k,e,nm);  // sorties (zsortie.js): bomb impacts, salvage, strike orders
   if(T==='u'){const r=net.pil.get(k);Z.pk.use(String(e[1]),{lv:e[2]|0,sel:e[3]|0,by:k,n:nm,p:r&&r.seen&&!r.dead?r.d.p:null});return}
+  if(T==='W'){if(!Z.warn?.act(String(e[1]),e[2]|0,nm))tell(k,'That warning action is not available right now.');return}  /* harden / evacuate / decoy, mid-wave (zwarn.js) */
   if(G.state!=='base'){tell(k,'The shop is open between waves.');return}
   const B=Z.base.act;
+  if(T==='K'){const r=Z.chain?.act(String(e[1]),String(e[2]??''));if(r)team(`<b>${nm}</b> ${r.msg}${r.c>0?' · '+money(r.c):''}`);else tell(k,'Not possible, or the purse is short.');baseSig(true);return}  /* kill chain purchases (zchain.js) */
   if(T==='b'){const it=ITEMS[e[1]],s=Z.def.SLOTS[e[2]|0],d=it&&B.place(e[1],e[2]|0,nm);if(d)team(`<b>${nm}</b> bought a ${it.n.toLowerCase()} · ${s.n} · ${money(it.price)}`);else tell(k,'That position was taken, or the purse is short.')}
   else if(T==='p'){const kk=String(e[1]),P=PERK[kk],it=ITEMS[kk];if(!P||!it||G.wave+1<Z.itemFrom(kk))return;if(it.kit&&!kitOfPilot(k).includes(kk)){tell(k,'That perk is not in your kit.');return}
    const mine=k===net.me||TEAM.includes(kk),L=mine?G.perks[kk]|0:net.perks[k]?.[kk]|0,c=Z.perkCost(kk,L);
@@ -184,11 +188,11 @@ export function initNet(api,G,Z){
    if(t.k==='boss')a.push(t.stages|0);T.push(a);if(!t.nb)t.nb=now;
    if(full||now-t.nb<1500)TS.push([t.id,Math.max(0,SITES.indexOf(t.tgt)),Math.round(t.aim.x),Math.round(t.aim.y),Math.round(t.aim.z),t.grp|0,t.shade|0])}
   n.snapIv=cl(100+(T.length-60)*1.2,100,250);
-  const es=Object.keys(n.names).map(k=>n.esv[k]??-1),mn=es.length?Math.min(...es):n.eid,D=Z.def.netOut(),nx=G.state==='base'&&G.next?{list:G.next.list,brgs:G.next.brgs.map(b=>+b.toFixed(3)),wx:G.next.wx||null,fs:Z.fastBySector?.(G.next),ct:G.next.cuts||null}:null;
+  const es=Object.keys(n.names).map(k=>n.esv[k]??-1),mn=es.length?Math.min(...es):n.eid,D=Z.def.netOut(),nx=G.state==='base'&&G.next?{list:G.next.list,brgs:G.next.brgs.map(b=>+b.toFixed(3)),wx:G.next.wx||null,ct:G.next.cuts||null}:null;
   return{v:1,gid:n.gid,st:G.state,w:G.wave,c:Math.round(G.cash),e:Math.round(G.earned),k:[G.kills.p,G.kills.h],df:cl(S.zdiff??1,0,3),wt:+(G.wt||0).toFixed(1),iq:G.wq.length,
    sh:SITES.map(s=>Math.ceil(s.hp)),sm:SITES.map(s=>s.max),bk:SITES.length>3?1:0,wb:[+api.WB.x.toFixed(1),+api.WB.z.toFixed(1)],T,TS,S:D.S,D:D.D,
    ev:n.evs.filter(e=>e[0]>mn).slice(-120),eid:n.eid,pk:n.perks,tp:{radar:G.perks.radar|0,aid:G.perks.aid|0},dr:n.dr,ak:n.ak,pl:rows(),nx,rj:n.rj,
-   doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,
+   doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),
    so:Z.so?.netOut?.(now)}}  // sorties: the enemy's side of the map (zsortie.js)
  // roster rows [key, name, kills, ready for the next wave, joined mid-wave]; a client shows its own ready state at once
  function rows(){const n=net;if(!n)return[];const nw=G.wave+1;
@@ -207,7 +211,7 @@ export function initNet(api,G,Z){
  Z.overBtns=()=>!net?null:net.host?'<button class="go" id="zagain">Play again (all pilots)</button><button id="zmenu">End the co-op game</button>':'<button id="zmenu">Leave the game</button>';
  Z.overNote=()=>net&&!net.host?'<p class="zhint">Waiting for the host to start a new game…</p>':'';
  // base screen redraw when something changed elsewhere (purse, defences, perks, who is ready)
- function baseSig(force){if(!net||!G.on||G.state!=='base'||Z.base.el.hidden)return;const s=JSON.stringify([Math.round(G.cash),Z.def.D.map(d=>[d.id,d.tier,d.lvl,d.cap,d.slot,d.refit,d.short]),G.perks,rows(),SITES.map(s=>Math.ceil(s.hp)),net.nxJ,G.open,G.sup,G.doc,Z.meta.teamKit()]);
+ function baseSig(force){if(!net||!G.on||G.state!=='base'||Z.base.el.hidden)return;const s=JSON.stringify([Math.round(G.cash),Z.def.D.map(d=>[d.id,d.tier,d.lvl,d.cap,d.slot,d.refit,d.short]),G.perks,rows(),SITES.map(s=>Math.ceil(s.hp)),net.nxJ,G.open,G.sup,G.doc,Z.meta.teamKit(),G.kc&&[G.kc.boost,G.kc.pd,G.kc.stock,G.kc.ewr,G.kc.decoys]]);
   if(force||s!==net.sig){net.sig=s;Z.base.refresh()}}
 
  // ---------- client: mirror the host's snapshot ----------
@@ -224,7 +228,7 @@ export function initNet(api,G,Z){
   perksIn(g);Z.def.netIn(null,g.D,byId);
   n.tm=new Map(TH.map(t=>[t.id,t]));
   if(Array.isArray(g.ev)){if(n.evSeen<0)n.evSeen=g.eid|0;for(const e of g.ev)if(Array.isArray(e)&&e[0]>n.evSeen){n.evSeen=e[0];try{event(e)}catch(err){console.warn('co-op event',err)}}}
-  tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.so?.netIn?.(g.so);
+  tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.chain?.netIn(g.kc);Z.so?.netIn?.(g.so);
   stateIn(g);if(net!==n)return;
   G.wq=Array.from({length:cl(g.iq|0,0,400)},()=>({k:'',at:1e9}));
   if(g.ak&&+g.ak[n.me])n.out=n.out.filter(e=>e[0]>+g.ak[n.me]);
@@ -232,7 +236,7 @@ export function initNet(api,G,Z){
   baseSig()}
  function stateIn(g){const n=net,st=g.st,w=g.w|0;
   if(g.nx&&typeof g.nx==='object'&&Array.isArray(g.nx.list)){const j=JSON.stringify(g.nx);if(j!==n.nxJ){n.nxJ=j;n.nx={list:g.nx.list.map(String).filter(q=>KIND[q.split(':')[0]]),brgs:(g.nx.brgs||[]).map(Number).filter(Number.isFinite),q:[],wx:g.nx.wx&&Z.wx.T[g.nx.wx.id]?g.nx.wx:null,
-   fs:okArr(g.nx.fs,3)?g.nx.fs.slice(0,3):null,cuts:Array.isArray(g.nx.ct)?g.nx.ct.slice(0,12):null};if(G.state==='base')G.next=n.nx}}
+   cuts:Array.isArray(g.nx.ct)?g.nx.ct.slice(0,12):null};if(G.state==='base')G.next=n.nx}}
   if(st==='base'){n.late=false;if(G.state!=='base'){$('zover').hidden=true;G.wave=w;api.wave=w;Z.rk.stop();G.next=n.nx||Z.plan(w+1);Z.base.open()}else G.wave=w}
   else if(st==='wave'){if(G.state==='base'&&!n.late){G.wave=w-1;G.next=n.nx||{list:[],brgs:[],q:[],wx:null};cont()}
    else if(G.state!=='wave'&&G.state!=='clear'){Z.base.close();G.state='wave';G.wave=w;api.wave=w;n.late=true;Z.def.deploy();banner(`WAVE ${w} IN PROGRESS`,'co',2.4);feed('You join at the next base screen. Watch the radar meanwhile.')}
