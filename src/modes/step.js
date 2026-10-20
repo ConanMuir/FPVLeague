@@ -10,7 +10,7 @@ import {BM,BR,DEMO,DRAD,KICK,PBG,PSM,TB} from '../config/tune.js';
 import {humanControl} from '../input/input.js';
 import {demolish,endMatch,goal,kickoff,startDemo,touchVerdict} from './match.js';
 import {r2} from '../net/net.js';
-import {ball,ballPre} from '../physics/ball.js';
+import {BALL,ball,ballPre} from '../physics/ball.js';
 import {llGoal,llStep,llTouch} from './longline.js';
 import {ballTouch,droneTouch,physStep} from '../physics/world.js';
 import {emit} from '../render/particles.js';
@@ -48,17 +48,20 @@ export function step(dt){const O=overlay();if(O&&O.pre&&O.pre(dt)){physStep(dt,f
    // during a pop the spinning frame's own speed at the contact point counts, so where the ball meets the turning quad decides the pop
    const av=a.popT>0?_pw2.copy(a.w).applyQuaternion(a.q).cross(_pr.copy(ball.p).addScaledVector(n,-BR).sub(a.p)).add(a.v):a.v;
    // touch bounce: one smooth curve from soft (2 x Touch bounce) to lively (0.6) with hit speed, no dead zone
-   const rv=_w.subVectors(ball.v,av).dot(n);if(rv<0){const pop=a.popT>0,hk=pop?cl((-rv-6)/30,0,1):sst(-rv/36),j=-(1+(pop?TB+(.6-TB)*hk:2*TB+(.6-2*TB)*hk)+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);if(S.longline&&!GS.net)llTouch(a);  // a pop keeps the contact model it was tuned with
+   const rv=_w.subVectors(ball.v,av).dot(n);if(rv<0){const gq=_w.lengthSq(),gl=gq>1e-8?1-rv*rv/gq:0,pop=a.popT>0,hk=pop?cl((-rv-6)/30,0,1):sst(-rv/36),j=-(1+(pop?TB+(.6-TB)*hk:2*TB+(.6-2*TB)*hk)+a.fl.kick)*rv/(ib+id);ball.v.addScaledVector(n,j*ib*KICK);a.v.addScaledVector(n,-j*id);if(S.longline&&!GS.net)llTouch(a);  // a pop keeps the contact model it was tuned with
     // Rocket League's extra impulse, but along the contact normal: the ball leaves the way the face of your hitbox that hit it was facing.
     // (RL's own version runs along the car's centre line with the vertical squashed to 35%, tuned for a car on the ground; a drone hits from every angle.)
     if(!S.longline||GS.net){const aim=_ip.copy(n);  // long line: the ball hangs on the cable instead of being shoved and carried
     const u=BR/.93,rel=Math.min(_t.subVectors(av,ball.v).length(),46*u),sc=rel<=5*u?.65:rel<=23*u?.65-.1*(rel-5*u)/(18*u):.55-.25*(rel-23*u)/(23*u);ball.v.addScaledVector(aim,rel*sc*(pop?hk:sst(rel/12))*KICK);  // RL: 0.65 up to 500 uu/s, 0.55 at 2300, 0.30 at 4600 (uu scaled to this ball)
     // contact friction: the ball's surface rubs on the quad, so glancing hits spin it and a flat top carries it (chassis grip), instead of
     // dragging the ball's velocity toward the quad's. Solid sphere: tangential effective mass 1/m + R^2/I = 3.5/m. During a pop the frame grips the ball instead (above).
+    // Spin: gl = sin^2 of the angle between the hit and the normal (0 square, 1 a pure brush). A firm square hit first scrubs off up to 60% of the spin the
+    // ball brought (a ball rolling fast and hit up does not keep that roll in the air); the friction's spin counts 30% on a square hit, all of it on a brush;
+    // the result is capped at BALL.wMax (physics/ball.js). The friction's push on the ball's velocity is unchanged.
     if(a.popT>0){const gr=(1-hk)*.35*Math.min(2,a.fl.grip);_t.subVectors(ball.v,av);_t.addScaledVector(n,-_t.dot(n));ball.v.addScaledVector(_t,-gr)}  // pop: the spinning frame grips the ball and flings it with its surface speed
-    else{const r=_fr.copy(n).multiplyScalar(-BR),sv=_fs.crossVectors(ball.w,r).add(ball.v).sub(av);sv.addScaledVector(n,-sv.dot(n));const sl=sv.length();
-     if(sl>1e-4){sv.divideScalar(sl);const jt=Math.min((.15+.25*Math.min(2,a.fl.grip))*j,sl/(3.5*ib+id));ball.v.addScaledVector(sv,-jt*ib);a.v.addScaledVector(sv,jt*id);ball.w.addScaledVector(_fc.crossVectors(r,sv),-jt*ib/(.4*BR*BR))}
-     if(hk<.3)ball.w.lerp(_fc.copy(a.w).applyQuaternion(a.q),Math.min(1,.12*Math.min(2,a.fl.grip)));}}  // rolling resistance on a resting carry: the ball rides on the frame instead of rolling off it like a marble on glass
+    else{ball.w.multiplyScalar(1-.6*hk*(1-gl));const r=_fr.copy(n).multiplyScalar(-BR),sv=_fs.crossVectors(ball.w,r).add(ball.v).sub(av);sv.addScaledVector(n,-sv.dot(n));const sl=sv.length();
+     if(sl>1e-4){sv.divideScalar(sl);const jt=Math.min((.15+.25*Math.min(2,a.fl.grip))*j,sl/(3.5*ib+id));ball.v.addScaledVector(sv,-jt*ib);a.v.addScaledVector(sv,jt*id);ball.w.addScaledVector(_fc.crossVectors(r,sv),-jt*ib/(.4*BR*BR)*(.3+.7*gl))}
+     if(hk<.3)ball.w.lerp(_fc.copy(a.w).applyQuaternion(a.q),Math.min(1,.12*Math.min(2,a.fl.grip)));const wl=ball.w.length();if(wl>BALL.wMax)ball.w.multiplyScalar(BALL.wMax/wl)}}  // rolling resistance on a resting carry: the ball rides on the frame instead of rolling off it like a marble on glass
     ball.last=a;{const sp=-rv,vd=touchVerdict(a,sp);if(vd){E_JUDGE.d=a;E_JUDGE.speed=sp;emitEv(vd,E_JUDGE)}  // a save / a shot on target: the crowd reacts (audio/sfx.js)
      E_TOUCH.d=a;E_TOUCH.tag=tb.tag;E_TOUCH.speed=sp;_bh.copy(ball.p).addScaledVector(n,-BR);E_TOUCH.n=n;E_TOUCH.verdict=vd;emitEv('touch',E_TOUCH)}  // p, n: contact point and normal (drone -> ball); render/effects.js draws the flash, ring and sparks
     if(GS.net&&!GS.net.host&&a===GS.player){GS.net.hit={s:++GS.net.seq,p:r2(ball.p),v:r2(ball.v)};GS.net.hitT=performance.now()}
