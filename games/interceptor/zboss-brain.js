@@ -13,5 +13,5 @@ export const bossBrain = {name: 'bosses',
     if (s.hp <= 0 && B.act.rebuild) yield {why: `Rebuilding ${s.n} to starve the Undertaker waiting in it`, what: 'rebuild', run: () => B.act.rebuild(i), site: i};
     else if (s.hp > 0 && s.hp < s.max * .4) yield {why: `Repairing ${s.n} above 35% to starve the Undertaker`, what: 'repair', run: () => B.act.repair(i, Math.ceil(s.max * .4 - s.hp)), site: i}; },
   wave(P, E, o = {}) { const {api, Z} = E; if (!Z.bosses) return; const [rate, sk] = skill(P), me = o.me || api.player; if (!me || me.dead > 0 || !(Math.random() < rate)) return;
-    if (o.teleport !== false && !o.real) { Z.bosses.bot(sk); return; }
+    if (o.teleport === true) { Z.bosses.bot(sk); return; }  // the benchmark pilot; the flying pilot (zbotfly.js) only picks the boss
     const t = api.TH.find(u => Z.bosses.BOSSES[u.k] && !Z.bosses.BOSSES[u.k].minor && api.live(u) && !Z.hid?.(u)); if (t && sk >= .55) api.pickT = t; }};

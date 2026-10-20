@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
 // game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR]
-//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,reentry,bosses   run only those sections (CI shards them across jobs); default all
+//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,bosses   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
 import {front as campFront} from '../games/interceptor/zcampaign.js';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
@@ -586,7 +586,7 @@ if (want('swarm')) {
     const hold = (fog, optics) => { __sw.clear(); Z.lk.clear(); G.perks.optics = optics; const t = __sw.ahead('shahed', 1000, 0, 0); t.spd = 0; t.v.set(0, 0, -80); api.scene.fog.far = fog; let s = 0;
       while (!Z.lk.t && s < 10) { __sw.fly(.05, 80, () => t.p); t.p.set(api.player.p.x, api.player.p.y, api.player.p.z - 1000); s += .05; } return +s.toFixed(2); };
     out.clear = hold(14000, 0); out.sel = api.selT() === Z.lk.t; out.fog = hold(1100, 0); out.optics = hold(14000, 3);
-    const t = Z.lk.t; __sw.fly(1.2, 80, () => api.player.p.clone().add(new api.THREE.Vector3(1000, 0, 0))); out.lost = !Z.lk.t && !!t;
+    const t = Z.lk.t; __sw.pin(t, 1000, 0, 0); __sw.fly(2, 80, () => api.player.p.clone().add(new api.THREE.Vector3(-1000, 0, 0))); out.lost = !Z.lk.t && !!t;  /* off the sights and off the flight path (a lock also holds while you fly straight at it) */
     api.scene.fog.far = 14000; G.perks.optics = 0; return out; });
   ok(lk.clear > 1.1 && lk.clear < 2.2 && lk.sel, `Lock-on: ${lk.clear} s to lock a track 1 km out in clear air; it becomes the selected track`);
   ok(lk.fog > lk.clear * 1.5 && lk.optics < lk.clear * .65, `Lock-on: fog slows it (${lk.fog} s), Optics 3 speeds it up (${lk.optics} s)`);
@@ -803,8 +803,9 @@ if (want('bosses')) {
   await p.evaluate(() => { document.getElementById('zover').hidden = true; __z.api.startDemo(); }); await play(p);
   await p.evaluate(() => { const {G} = __z; G.cash = 1e5; __z.jump(24); G.next = __z.plan(24); __z.cont(); __b.clear(); __z.sim(.3); });
   // bots know the roster; HUD boss bar; Classic untouched
-  const {LEVELS} = await import('./zbot.mjs');
-  ok(LEVELS.every(l => Array.isArray(l.boss) && l.boss[1] > 0) && LEVELS[0].boss[1] < LEVELS[5].boss[1], `Bots: every level has a boss skill (${LEVELS.map(l => l.boss[1]).join(' / ')})`);
+  const bb = await p.evaluate(async () => { const brain = await import('./zbotbrain.js'); return {hook: brain.hooks.some(h => h.name === 'bosses')}; });
+  const {LEVELS} = await import('./zbot.mjs'), {bossBrain} = await import('../games/interceptor/zboss-brain.js');
+  ok(bb.hook && typeof bossBrain.wave === 'function' && LEVELS.length === 6, 'Bots: the boss roster rides on the shared bot brain (zbotbrain.js hook: benchmark runs at bosses, the Undertaker starved at the base screen)');
   await p.evaluate(() => { __b.clear(); __z.Z.bosses.spawn('hive'); __z.sim(2); }); await drawFrames(p, 4);
   const bar = await p.evaluate(() => { __z.Z.hud(1 / 60); const b = document.getElementById('zbb'); return {on: !b.hidden, txt: b.textContent.slice(0, 120), dbg: JSON.stringify({st: __z.G.state, on: __z.G.on, demo: __z.api.demo, menu: __z.api.menuOpen, e: __z.Z.bosses.encs.map(e => [e.id, e.over]), t: __z.api.TH.filter(t => t.k === 'hive').map(t => t.st)})}; });
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-boss-bar.png'});
@@ -813,6 +814,84 @@ if (want('bosses')) {
   ok(!cls.on && !cls.boss && cls.bar, 'Classic: no bosses, no boss bar');
   ok(!errs.length, 'Bosses: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); delete s.zboss; localStorage.setItem('dl-interceptor', JSON.stringify(s)); });
+  await p.close();
+}
+
+// ---------- Bot Spectator (zspectate.js, zbotfly.js, zbotbrain.js): a bot pilot plays the real game: it shops visibly, takes off and kills
+// by flying (no teleporting), the speed, cameras and tuning panel work, the report shows at the end, and none of it touches the saves ----------
+if (want('spectator')) {
+  const {p, errs} = await page('z');
+  const saves0 = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); return JSON.stringify([s.zbests, s.zruns, s.zmeta, s.zcamp]); });
+  await p.evaluate(() => { document.getElementById('zspc').open = true; });
+  const card = await p.evaluate(() => ({shown: !document.getElementById('zspc').hidden, lv: document.querySelectorAll('[data-zsl]').length, d: document.querySelectorAll('[data-zsd]').length, go: !!document.getElementById('zspgo')}));
+  ok(card.shown && card.lv === 6 && card.d === 4 && card.go, `Spectator: "Watch a bot" on the Zombies menu (${card.lv} bot levels, ${card.d} difficulties)`);
+  await p.click('[data-zsl="Legend"]'); await p.click('[data-zsd="1"]'); await p.click('#zspgo');
+  await p.waitForFunction(() => __z.spec.on && __z.G.state === 'base', {timeout: 30000});
+  // the base screen plays visibly: a caption per step, then it starts the wave by itself (8x speed: a short delay per step)
+  await p.evaluate(() => __z.spec.setSpeed(8));
+  await p.waitForFunction(() => /Buying|Repairing|Upgrading/.test(document.getElementById('zspcap')?.textContent || ''), {timeout: 30000});
+  const cap = await p.evaluate(() => document.getElementById('zspcap').textContent);
+  await p.waitForFunction(() => __z.G.state === 'wave', {timeout: 60000});
+  const shop = await p.evaluate(() => ({buys: __z.spec.sp.stats.buys.length, defs: __z.Z.def.D.length, cost: __z.spec.sp.stats.buys[0]?.cost | 0}));
+  ok(shop.buys >= 1 && shop.defs >= 1 && shop.cost > 0, `Spectator: the bot shopped one step at a time with a reason ("${cap.replace(/^Base screen · \$[\d,]+/, '')}"), ${shop.defs} defence(s), then started wave 1`);
+  // flying: from the mat, through its own sticks; positions move step by step (no teleport), and a detonation kills something
+  const fl = await p.evaluate(() => { const {api, G, spec} = __z; spec.setSpeed(1); const me = api.player, prev = me.p.clone(); let jump = 0, agl = 0, t = 0, lock = 0, lastT = me.t, steps = 0;
+    const st = spec.sp.stats, tk = () => st.kills.pilot?.n | 0;
+    while (G.state !== 'over' && t < 400 && !tk()) { if (G.state === 'base') { spec.bench.shop(); __z.cont(); } api.step(1 / 120);  /* the helpers can take wave 1's two tracks first: then on into wave 2 */ t += 1 / 120; if (++steps % 12 === 0) api.visuals(.1, performance.now());
+      if (me.dead <= 0) { if (me.t > lastT) jump = Math.max(jump, me.p.distanceTo(prev)); agl = Math.max(agl, me.p.y - api.gh(me.p.x, me.p.z)); if (__z.Z.lk.t) lock = 1; }
+      prev.copy(me.p); lastT = me.t; }
+    return {t: Math.round(t), jump: +jump.toFixed(2), agl: Math.round(agl), kills: tk(), bursts: st.bursts, fired: spec.sp.pilot.st.fired, lock, by: Object.keys(st.kills)}; });
+  console.log('  flight:', JSON.stringify(fl));
+  ok(fl.agl > 30 && fl.jump < 4, `Spectator: the bot took off and flew (up to ${fl.agl} m AGL; largest move in one physics step ${fl.jump} m: no teleporting)`);
+  ok(fl.kills >= 1 && fl.bursts >= 1, `Spectator: the bot killed ${fl.kills} by flying into its warhead's reach (${fl.bursts} detonation${fl.bursts > 1 ? 's' : ''}, ${fl.fired} pressed by the bot, the rest on contact; ${fl.t} s of flying)`);
+  // speed, pause and step
+  const spd = await p.evaluate(() => { const {spec, Z, G} = __z; spec.setSpeed(1); const b = Z.tsc; spec.setSpeed(4); const x4 = Z.tsc / b; spec.setSpeed(8); const x8 = Z.tsc / b, cap = Z.stepCap;
+    spec.setPause(true); const held = Z.hold(), w0 = spec.sp.stats.simT; spec.stepOnce(); const stepped = +(spec.sp.stats.simT - w0).toFixed(3); spec.setSpeed(1); return {x4, x8, cap, held, stepped, after: Z.hold()}; });
+  ok(Math.abs(spd.x4 - 4) < .01 && Math.abs(spd.x8 - 8) < .01 && spd.cap >= 96, `Spectator: speed 4× / 8× (game clock ×${spd.x4.toFixed(1)} / ×${spd.x8.toFixed(1)}, up to ${spd.cap} physics steps a frame)`);
+  ok(spd.held && spd.stepped === .1 && !spd.after, `Spectator: pause holds the game, Step advances it ${spd.stepped} s, a speed button resumes`);
+  // cameras: chase (Riley's chase cam), the bot's FPV, and the spectator's own (free, sites, threat) placed after the game's camera
+  const cams = {};
+  for (const c of ['fpv', 'sites', 'threat', 'free', 'chase']) { await p.evaluate(c => __z.spec.setCam(c, true), c); await frames(p, 3);
+    cams[c] = await p.evaluate(() => { const {api} = __z, c = api.camera.position, me = api.player, s = api.SITES[__z.spec.sp.site % api.SITES.length]; return {mode: api.camMode, toMe: Math.round(c.distanceTo(me.p)), toSite: Math.round(Math.hypot(c.x - s.x, c.z - s.z)), btn: document.querySelector('#zspctl button.on')?.dataset.zcam}; }); }
+  console.log('  cameras:', JSON.stringify(cams));
+  ok(cams.fpv.mode === 0 && cams.chase.mode === 1 && cams.sites.toSite < 450 && Object.entries(cams).every(([k, v]) => v.btn === k), 'Spectator: cameras switch (bot FPV, chase, sites, threat, free) and the bar shows which');
+  // tuning: a value typed into the panel applies live; JSON export lists the changes; Reset puts them back
+  const tn = await p.evaluate(() => { const {spec, ITEMS, KIND, Z} = __z; spec.toggleTune(); const i = document.querySelector('[data-tp="price.flak"]'), k0 = Z.meta.k('cashK'), p0 = ITEMS.flak.price;
+    i.value = 999; i.dispatchEvent(new Event('change')); spec.apply('econ.cashK', 2); spec.apply('kind.shahed.spd', 40); const t = __z.Z.make('shahed', 0, -3000);
+    const out = {price: ITEMS.flak.price, shop: Z.itemPrice('flak'), cash: Z.meta.k('cashK') / k0, spd: Math.round(t.spd), exp: JSON.stringify(spec.TUNE.v), panel: !!document.getElementById('zsptune')};
+    __z.api.TH.splice(__z.api.TH.indexOf(t), 1); __z.api.scene.remove(t.mesh); spec.resetAll(); spec.toggleTune(); out.back = ITEMS.flak.price === p0 && Z.meta.k('cashK') === k0 && KIND.shahed.spd === 51; return out; });
+  ok(tn.panel && tn.price === 999 && tn.shop === 999 && tn.cash === 2 && tn.spd >= 37 && tn.spd <= 45 && /price\.flak/.test(tn.exp) && tn.back, `Tuning: flak $999 in the shop, income ×${tn.cash}, Shaheds spawn at ${tn.spd} m/s; export ${tn.exp}; Reset restores`);
+  // the end: every site but one down, a raid on it: the report replaces the end screen
+  const rep = await p.evaluate(() => { const {api, G} = __z, S = api.SITES; S.forEach((s, i) => s.hp = i ? 0 : 1); const t = __z.make('shahed', S[0].x + 300, S[0].z - 300, S[0]); t.p.copy(t.aim); __z.Z.impact(t);  /* a Shahed arriving on the last site */
+    let n = 0; while (G.state !== 'over' && n++ < 20) __z.sim(.5); const el = document.getElementById('zover');
+    return {st: G.state, shown: !el.hidden, h: el.querySelector('h2')?.textContent, txt: el.textContent, chart: !!el.querySelector('svg path'), bars: el.querySelectorAll('.bars i').length, rows: el.querySelectorAll('.buys tr').length - 1, again: !!document.getElementById('zspagain')}; });
+  ok(rep.st === 'over' && rep.shown && rep.h === 'Bot report' && /Shahed-136 hit the/.test(rep.txt) && /pilot/.test(rep.txt), 'Report: wave reached, cause of death (the Shahed that hit the last site), kills by source' + (rep.h === 'Bot report' && /Shahed-136 hit the/.test(rep.txt) ? '' : `
+  ${rep.h}: ${rep.txt.slice(0, 400)}`));
+  ok(rep.chart && rep.bars >= 1 && rep.rows >= 1 && rep.again, `Report: money-over-time chart, ${rep.bars} kill sources, ${rep.rows} purchases with their wave and reason, Watch again`);
+  const saves1 = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); return JSON.stringify([s.zbests, s.zruns, s.zmeta, s.zcamp]); });
+  ok(saves1 === saves0, "Spectator: a bot's run left the saves alone (best waves, leaderboard runs, goals, campaign)");
+  await p.click('#zmenu');
+  const off = await p.evaluate(() => ({on: __z.spec.on, menu: !document.getElementById('menu').hidden, bar: !!document.getElementById('zspbar'), bot: typeof __z.Z.botIn, cam: __z.api.camMode === (__z.api.S.cam | 0)}));
+  ok(!off.on && off.menu && !off.bar && off.bot === 'undefined' && off.cam, 'Spectator: Menu ends it (hooks off, your camera back)');
+  // lock-on from the chase view: a player flying behind and below a track with the interceptor pointed at it locks it (the sights are the
+  // airframe's boresight in the chase and threat views; the chase camera itself only follows the heading, so a track above could never be locked)
+  await p.click('#play'); await p.waitForFunction(() => __z.G.state === 'base', {timeout: 30000});
+  const hum = await p.evaluate(() => { const {api, G, Z} = __z; __z.cont(); const V = api.THREE.Vector3, me = api.player; api.camMode = 1;
+    for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); Z.lk.clear();
+    const t = __z.make('shahed', 0, -1500), v = new V(0, 0, -50); t.spd = 0; let s = 0, held = 0;
+    for (let i = 0; i < 120 * 8; i++) { t.p.set(0, api.gh(0, -1500) + 600, -1500 - 50 * i / 120); t.v.copy(v);
+      me.p.copy(t.p).add(new V(0, -90, 800)); me.v.copy(v); me.q.setFromUnitVectors(new V(0, 1, 0), t.p.clone().sub(me.p).normalize()); me.w.set(0, 0, 0);
+      api.step(1 / 120); if (Z.lk.t === t) { if (!s) s = i / 120; held++; } }
+    api.camMode = api.S.cam | 0; return {s: +s.toFixed(2), held: +(held / 120).toFixed(1)}; });
+  ok(hum.s > 0 && hum.s < 3 && hum.held > 4, `Lock-on in the chase view: pointing the interceptor at a track 90 m above locks it in ${hum.s} s and holds it (${hum.held} s)`);
+  // a bot coming up behind a track locks it and keeps the lock to the kill
+  const tail = await p.evaluate(() => { const {api, G, Z, spec} = __z; api.startDemo(); spec.bench.start('Legend', 1); __z.cont(); const me = api.player;
+    for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); Z.lk.clear();
+    const f = me.home, t = __z.make('shahed', f.x, f.z + 500); t.p.y = api.gh(t.p.x, t.p.z) + 300; t.alt = 300; t.wps.length = 0; t.aim = new api.THREE.Vector3(f.x, 0, f.z + 7000);  /* a long straight leg south, no dive */ const n0 = {...Z.lk.L.n}; let s = 0, lockAtKill = false, i = 0;
+    for (; i < 120 * 90 && api.live(t); i++) { lockAtKill = Z.lk.t === t; api.step(1 / 120); if (Z.lk.t === t && !s) s = i / 120; }  /* the burst that kills it also ends the interceptor (and its lock) in the same step */
+    const out = {s: +s.toFixed(1), kill: !api.live(t) && t.by === 'p', lockAtKill, t: +(i / 120).toFixed(1), lost: Z.lk.L.n.lost - n0.lost}; spec.stop(); return out; });
+  ok(tail.s > 0 && tail.kill && tail.lockAtKill, `Lock-on, bot: coming up behind a Shahed, Legend locks it ${tail.s} s in and still holds the lock when it kills it ${tail.t} s in (lost ${tail.lost}×)`);
+  ok(!errs.length, 'Spectator: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
 
