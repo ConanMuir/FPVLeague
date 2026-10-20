@@ -52,7 +52,7 @@ if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-base.png'});
   ok(lo[0].cards === 'lrack' && lo[1].cards === 'lrack' && lo[2].cards === 'lrack,lure', `Kit in the shops: host [${lo[0].cards}], Ash [${lo[1].cards}], Bea [${lo[2].cards}] (the lure beacon is Bea's own perk)`); }
 
 // ---------- ready-up: the wave waits for everyone ----------
-await tap(H, '#zgo'); await tap(A, '#zgo'); await sleep(600);
+await tap(H, '#zgo'); await tap(A, '#zgo'); await until(H, () => document.getElementById('zgo').textContent.includes('2/3'), null, 20000); await sleep(300);  // both readies have reached the host (state, not a fixed wait)
 ok((await st(H)).state === 'base' && await ev(H, () => document.getElementById('zgo').textContent.includes('2/3')), 'Ready-up: 2 of 3 ready, the wave has not started (button reads 2/3)');
 await tap(B, '#zgo');
 ok(await until(H, () => __z.G.state === 'wave' && __z.G.wave === 1), 'Ready-up: the third pilot readies, wave 1 starts on the host');
@@ -170,13 +170,13 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   await ev(A, () => __z.Z.sw.command('form#', 1));
   ok(await until(H, k => __z.Z.sw.SWS.get(k)?.form === 1, ashKey) && await until(B, k => __z.Z.sw.SWS.get(k)?.form === 1, ashKey), 'Swarm: Ash picks the wedge; the host and Bea fly his swarm in a wedge (only the formation went over the wire)');
   // a strike from Ash: the host spawns a cloud of Shaheds 1.2 km from Ash's interceptor; Ash strikes it, the host rolls the passes
-  await ev(H, k => { const {api, G} = __z, r = __z.net.n.pil.get(k), P = r.d.p; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
+  await ev(H, k => { const {api, G} = __z, s = __z.Z.sw.SWS.get(k), P = s.A ? s.A.p : __z.net.n.pil.get(k).d.p;  /* 1.2 km from where the host flies Ash's swarm */ G.wq.push({k: 'shahed', at: 1e9, brg: 0});
     for (let i = 0; i < 4; i++) { const t = __z.make('shahed', P.x + i * 30, P.z - 1200); t.p.set(P.x + i * 30, api.gh(P.x, P.z - 1200) + 250, P.z - 1200 - i * 20); t.alt = 250; t.spd = t.cs = 4; } }, ashKey);
   ok(await until(A, () => __z.api.TH.filter(t => __z.api.live(t) && t.k === 'shahed').length >= 4), 'Swarm: Ash sees the Shahed cloud');
   const sk = await ev(A, () => ({ok: __z.Z.sw.command('strike'), ch: __z.Z.sw.mine.ch}));
   ok(sk.ok && sk.ch === 0, 'Swarm: Ash strikes (his one charge spent)');
   ok(await until(H, k => { const s = __z.Z.sw.SWS.get(k); return s && s.ch === 0 && s.d.some(d => d.st === 'strike' || d.boost); }, ashKey), 'Swarm: the host launches Ash’s strike on its copy of his swarm');
-  await ev(H, () => __z.sim(12));  /* the host's own clock: its window may get few frames next to the two clients */
+  await ev(H, k => { for (let i = 0; i < 20 && !(__z.Z.sw.SWS.get(k)?.kills > 0); i++) __z.sim(1); }, ashKey);  /* the host's own clock, until a pass kills (or 20 s): its window may get few frames next to the two clients */
   ok(await until(H, k => __z.Z.sw.SWS.get(k)?.kills > 0, ashKey, 5000), 'Swarm: Ash’s strike kills on the host ' + await ev(H, k => { const s = __z.Z.sw.SWS.get(k); return JSON.stringify({n: s.d.length, k: s.kills, st: s.d.map(d => d.st + ':' + Math.round(d.t ? d.t.p.distanceTo(d.p) : -1)), th: __z.api.TH.filter(t => __z.api.live(t)).map(t => t.k + '@' + Math.round(t.p.distanceTo(s.A.p))).slice(0, 8)}); }, ashKey));
   await sleep(1500);
   const cnt = async () => [await ev(H, k => __z.Z.sw.SWS.get(k).d.length, ashKey), await ev(A, () => __z.Z.sw.drones.length)];
