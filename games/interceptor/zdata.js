@@ -158,12 +158,12 @@ export const sectorOf=brg=>brg<-.43?0:brg>.43?2:1;
 export const chainFrom=kf=>Math.max(2,kf('ballistic')-2);
 // Boost phase: one battery per sector (a forward pad at that edge). mag = shots a wave; each is the one shot a track launched from that sector
 // gets as it climbs out (about 5 s after launch). Its sensors see every launch from its sector: full early warning for those tracks.
-export const BOOST={price:6000,move:1200,lv:[{mag:2,p:{ballistic:.4,hyper:.2,icbm:.25}},{cost:4500,mag:3,p:{ballistic:.5,hyper:.27,icbm:.32},txt:'+1 shot a wave, better seekers'}]};
+export const BOOST={price:6000,move:1200,lv:[{mag:1,p:{ballistic:.4,hyper:.2,icbm:.25}},{cost:4500,mag:2,p:{ballistic:.5,hyper:.27,icbm:.32},txt:'+1 shot a wave, better seekers'}]};
 // Midcourse: space interceptors in stock for the Golden Dome, used once its magazine for the wave is empty; they keep until fired. cap = per Golden Dome.
 export const STOCK={per:800,cap:4};
 // Terminal: point defence (a laser turret) at one site: a last-chance roll at each heavy hitter diving onto that site (inside rng for the fast kinds,
 // 1.5 km for cruise missiles and heavies). ch = charges a wave (heat); it keeps its last charge for a fast track when one is inbound to its site.
-export const PDEF={price:4500,rng:4000,near:1500,lv:[{ch:2,p:{ballistic:.35,hyper:.22,icbm:.15,cruise:.6,heavy:.5}},{cost:4000,ch:3,p:{ballistic:.45,hyper:.3,icbm:.22,cruise:.7,heavy:.6},txt:'+1 charge, sharper tracking'}]};
+export const PDEF={price:4500,rng:4000,near:1500,lv:[{ch:1,p:{ballistic:.35,hyper:.22,icbm:.15,cruise:.6,heavy:.5}},{cost:4000,ch:2,p:{ballistic:.45,hyper:.3,icbm:.22,cruise:.7,heavy:.6},txt:'+1 charge, sharper tracking'}]};
 // Early warning: a fast track shows up (radar, domes, alert) this many seconds before impact: base, + per Long-range radar level, + per
 // early-warning radar level (kill chain tab). A boost battery in its sector sees it launch.
 export const EWARN={base:20,perk:8,lv:[{cost:2200,s:15},{cost:3600,s:15}]};
@@ -171,4 +171,4 @@ export const EWARN={base:20,perk:8,lv:[{cost:2200,s:15},{cost:3600,s:15}]};
 // harden its target site (k = share of the damage the site still takes from every hit until that track is gone; cost by wave; cd = seconds to the next),
 // evacuate it (k = share it takes for the rest of the wave; the site's share of the wave-clear bonus is lost this wave and the next),
 // decoys (a stock bought between waves; p = chance the warhead goes for the dummy site; it needs minT s left to turn).
-export const WACT={harden:{k:.4,cost:w=>Math.round((200+20*w)/10)*10,cd:45},evac:{k:.6},decoy:{per:500,cap:6,p:{ballistic:.4,hyper:.3,icbm:.2},minT:5}};
+export const WACT={harden:{k:.5,cost:w=>Math.round((200+20*w)/10)*10,cd:60},evac:{k:.6},decoy:{per:500,cap:6,p:{ballistic:.4,hyper:.3,icbm:.2},minT:5}};
