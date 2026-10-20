@@ -491,6 +491,9 @@ function damage(t){t.dmg=1;t.cs*=.8;t.spd*=.8;t.fail=Math.random()<.45?6+Math.ra
 // one it didn't see was farther than FR then, and FR covers the fuse window, so for it "opening" can't be true yet. Tracks that came inside
 // 20 m and haven't been reported yet (FW) are followed wherever they go, for the "Passed ... m off" line.
 let FK=0;const FW=new Set(),FC=[];
+// sim tick counter (restarts with each match) and the rotating schedule for AI decisions: think(id) is true on every THINK-th tick, offset
+// by the entity's id, so helpers and tracks spread their target searches and re-plans over the ticks; their movement still runs every tick
+let TK=0;const THINK=4,think=(id,k=THINK)=>(TK+(id|0))%k===0;
 function fuse(){const d=player,fire=fireIn(),edge=fire&&!fireWas;fireWas=fire;let hit=false,rec=false;const k=++FK;FC.length=0;
  GRID.near(d.p,Math.max(30,LETH*1.5+10),t=>{if(live(t))FC.push(t)});let more=false;
  for(const t of FW){if(!live(t)){FW.delete(t);continue}if(!FC.includes(t)&&TH.includes(t)){FC.push(t);more=true}}if(more)FC.sort((a,b)=>TH.indexOf(a)-TH.indexOf(b));
@@ -510,7 +513,7 @@ function waves(dt){if(Z.on)return Z.waves(dt);
   if(!toSpawn&&!TH.some(live)){wstate='clear';wT=5;if(!demo){banner(`WAVE ${wave} CLEAR`,'cg',2.6);feed(`Wave ${wave}: <span class="cg">${ws} down</span> · <span class="cr">${wl} hit${wl===1?'':'s'}</span>`)}}return}
  if(wstate==='clear'&&(wT-=dt)<=0)startWave()}
 const dropMesh=m=>{scene.remove(m);if(m?.userData.own)m.traverse(o=>o.geometry?.dispose())};  // a track mesh with its own geometry (the Mothership) frees it when the track goes
-function resetWorld(){pickT=null;TH.forEach(t=>dropMesh(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
+function resetWorld(){TK=0;pickT=null;TH.forEach(t=>dropMesh(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
 function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);if(S.gmode==='z')Z.start();else{Z.stop();startWave();toSpawn--;spawnThreat(false);spawnT=25+Math.random()*20}launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
 function startDemo(){Z.stop();demo=true;resetWorld();setWeather(S.wx);if(player)player.mesh.visible=false;startWave();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
 function showMenu(v){menuOpen=v;$('menu').hidden=!v;paused=v&&!demo&&!(Z.on&&Z.online)}  // a co-op game (znet.js) keeps running behind the menu
@@ -652,7 +655,7 @@ $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','
  try{navigator.clipboard.writeText(t).then(()=>feed('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 
 // ---------- main loop ----------
-function step(dt){const me=player;IP.snap();GRID.open();try{
+function step(dt){const me=player;TK++;IP.snap();GRID.open();try{
  if(me&&!demo&&!(Z.on&&Z.idle())){if(me.dead>0){  /* Z.idle: a co-op pilot who joined mid-wave waits on the mat for the next base screen */if((me.dead-=dt)<=0&&wstate!=='over')launch()}else{humanControl(me,dt);if(me.mah>=BCAP)me.thr=0;const h=me.step(dt);if(h>CRASH)lose('crash');else if(me.mah>=BCAP&&me.gt>0)lose('bat');else fuse()}}
  GRID.close();for(const t of TH)threatStep(t,dt);GRID.open();waves(dt);fires(dt);if(Z.on)Z.step(dt)}finally{GRID.close()}}
 // Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
@@ -660,7 +663,7 @@ const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone()
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
- interp:IP,grid:GRID,setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
+ interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
 startDemo();
 // each frame draws the moment alpha of the way from the previous tick to the last one (IP.begin), then puts the sim state back (IP.end)
