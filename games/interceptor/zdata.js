@@ -90,7 +90,7 @@ export const HELP={
 // Player perks: prices per level; active ones (freeze, mark, air) have charges per wave. Mark: helper hits on a marked track count double.
 export const PERK={
  freeze:{key:'Q',pad:'D-pad left',cost:[900,800,1200]},mark:{key:'E',pad:'D-pad right',cost:[1000,900,1400]},air:{key:'X',pad:'D-pad up',cost:[1800,1600]},
- radar:{cost:[500,800,1200]},optics:{cost:[600,700,900]},relaunch:{cost:[500,900]},warhead:{cost:[700,1100,1600]},battery:{cost:[500,900]},aid:{cost:[1200]},rocket:{cost:[1500]},fuse:{cost:[800]},
+ radar:{cost:[500,800,1200]},optics:{cost:[600,700,900]},relaunch:{cost:[500,900]},warhead:{cost:[700,1100,1600]},battery:{cost:[900]},aid:{cost:[1200]},rocket:{cost:[1500]},fuse:{cost:[800]},
  lure:{key:'Z',pad:'D-pad down',cost:[1200]},salvage:{cost:[600]}};  // kit perks (zmeta.js): only in the shop of a pilot who brought them
 
 // shop items: helpers are placed on a slot; perks belong to the player
