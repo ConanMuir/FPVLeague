@@ -17,6 +17,7 @@
 // attack target and strike requests; every screen flies every swarm from those; the host rolls the passes and sends each pilot's drone
 // count and strike charges, and the others trim their copies to match. Ground targets for sorties: Z.groundTargets() (see Z.swarm below).
 import {dot} from '../../engine/render.js';
+import {gfx} from '../../engine/gfx.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {KIND,RESIST} from './zdata.js';
 import {SW,FORMS,MODES,SW_BLURB} from './zswdata.js';
@@ -158,10 +159,10 @@ export function initSwarm(api,G,Z){
  function trim(s){while(s.d.length>s.want){const d=s.d.find(q=>q.st==='eng'||q.st==='strike'||q.st==='gnd')||s.d[s.d.length-1];lose(s,d)}}
 
  // ---------- visuals ----------
- function visuals(){let k=0;const on=live();
+ function visuals(){let k=0;const on=live();body.castShadow=gfx.k.swarm>0;  /* Graphics quality Low: no swarm shadows, a third of the booster puffs */
   if(on)for(const s of SWS.values())for(const d of s.d){if(k>=MAXD)break;_q.setFromUnitVectors(UP,d.up);_qy.setFromAxisAngle(UP,d.yaw);_q.multiply(_qy);_m.compose(d.p,_q,_s);body.setMatrixAt(k,_m);
    const b=d.boost?1:0,c=b?[1.6,.7,.25]:s.col,L=b?2.4:1.6;gPos[k*3]=d.p.x;gPos[k*3+1]=d.p.y+.08;gPos[k*3+2]=d.p.z;gCol[k*3]=c[0]*L;gCol[k*3+1]=c[1]*L;gCol[k*3+2]=c[2]*L;k++;
-   if(b&&(d.fx-=1)<=0){d.fx=3;const tail=_a.copy(d.v).setLength(-.6).add(d.p);api.FX.emit(tail,0xffa040,2,3,.25,null,2.5);api.SMK.emit(tail,0xcfcac2,1,1,3,null,1,.5)}}
+   if(b&&(d.fx-=1)<=0){d.fx=gfx.k.swarm?3:9;const tail=_a.copy(d.v).setLength(-.6).add(d.p);api.FX.emit(tail,0xffa040,2,3,.25,null,2.5);api.SMK.emit(tail,0xcfcac2,1,1,3,null,1,.5)}}
   body.count=k;body.instanceMatrix.needsUpdate=true;gGeo.setDrawRange(0,k);gGeo.attributes.position.needsUpdate=gGeo.attributes.color.needsUpdate=true;hud()}
 
  // ---------- HUD: the swarm panel (count, formation diagram, command, strike charges, keys) ----------

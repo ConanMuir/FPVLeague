@@ -38,10 +38,15 @@ let _dTex=null;export const detailTex=()=>_dTex||(_dTex=makeDetail());  // built
 // snow cover (SNOW.value 0..1, set by Interceptor Zombies' weather): upward faces of every detail() material whiten (sn=2, foliage: the sides frost over a little too, so tree crowns do not go black under the dim snow light; sn=0: the material does its own, like the
 // farmland); snowy(m) gives a plain material the same. 0 everywhere else, and the shader then skips it.
 export const SNOW={value:0};
+// LOD.value 1 = Low graphics (engine/gfx.js): the detail bump (and the Interceptor field shader, ground.js) is skipped; a uniform, so no recompile
+export const LOD={value:0};
+// proximity (Graphics quality): DETD = distance (m) past which the detail bump is skipped (it has faded out by then anyway), GFAR = distance by
+// which the Interceptor field shader's detail fades out and is skipped (ground.js); 1e9 = everywhere
+export const DETD={value:1e9},GFAR={value:1e9};
 export function snowy(m){m.customProgramCacheKey=()=>'snowy';m.onBeforeCompile=sh=>{sh.uniforms.uSnowD=SNOW;sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uSnowD;').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nif(uSnowD>.001)diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.74,.76,.8),clamp(uSnowD*smoothstep(.5,.85,dot(normal,normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz))),0.,.92));')};return m}
-export function detail(m,s1=7,s2=53,tr=0,bk=.35,sn=1){m.customProgramCacheKey=()=>`dt${s1},${s2},${tr},${bk},${sn}`;const dTex=detailTex();m.onBeforeCompile=sh=>{sh.uniforms.dTex={value:dTex};sh.uniforms.uSnowD=SNOW;
+export function detail(m,s1=7,s2=53,tr=0,bk=.35,sn=1){m.customProgramCacheKey=()=>`dt${s1},${s2},${tr},${bk},${sn}`;const dTex=detailTex();m.onBeforeCompile=sh=>{sh.uniforms.dTex={value:dTex};sh.uniforms.uSnowD=SNOW;sh.uniforms.uLoD=LOD;sh.uniforms.uDetD=DETD;
  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <project_vertex>','#include <project_vertex>\n#ifdef USE_INSTANCING\nvWP=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;\n#else\nvWP=(modelMatrix*vec4(transformed,1.)).xyz;\n#endif');
- sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;uniform sampler2D dTex;uniform float uSnowD;').replace('#include <map_fragment>',`#include <map_fragment>
+ sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;uniform sampler2D dTex;uniform float uSnowD;uniform float uLoD;uniform float uDetD;').replace('#include <map_fragment>',`#include <map_fragment>
  float hb=0.;{vec2 q=vWP.xz+vec2(0.,vWP.y*.7);vec4 ta=texture2D(dTex,q/${s1.toFixed(2)});float a=ta.r,b=texture2D(dTex,q/${s2.toFixed(2)}+.37).g,fq=max(length(dFdx(q)),length(dFdy(q)));
  hb=(ta.b-.5)*.65*(1.-smoothstep(${(s1/256*1.5).toFixed(4)},${(s1/256*5).toFixed(4)},fq))+(b-.5)*.35*(1.-smoothstep(${(s2/256*2).toFixed(4)},${(s2/256*6).toFixed(4)},fq));a=mix(ta.b*.7+.15,a,1.-smoothstep(${(s1/256*.35).toFixed(4)},${(s1/256*1.2).toFixed(4)},fq));diffuseColor.rgb*=(.78+.44*a)*(.86+.28*b);
  /* the bump uses the smooth noise only (the per-texel grain in r gave blocky, sparkling normals) and fades once its finest detail is under a few pixels;
@@ -49,10 +54,10 @@ export function detail(m,s1=7,s2=53,tr=0,bk=.35,sn=1){m.customProgramCacheKey=()
  ${tr?`float M=texture2D(dTex,vWP.xz/700.+.11).g,M2=texture2D(dTex,vWP.xz/2300.+.53).r;diffuseColor.rgb*=.82+.36*M;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.1,1.,.82),clamp(M2*1.6-.5,0.,1.));
  vec2 rq=mat2(.986,.169,-.169,.986)*vWP.xz;float fw=1.-smoothstep(.05,.14,fwidth(rq.x)),rw=(sin(rq.x*8.38)*.5+.5)*fw*smoothstep(.35,.6,M);diffuseColor.rgb*=1.-.1*rw;hb+=rw*.2;`:''}}`)
   .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
- {vec3 sx=dFdx(-vViewPosition),sy=dFdy(-vViewPosition),r1=cross(sy,normal),r2=cross(normal,sx);float det=dot(sx,r1);vec2 dH=vec2(dFdx(hb),dFdy(hb))*${bk.toFixed(3)};normal=normalize(abs(det)*normal-sign(det)*(dH.x*r1+dH.y*r2));}
+ if(uLoD<.5&&length(vViewPosition)<uDetD){vec3 sx=dFdx(-vViewPosition),sy=dFdy(-vViewPosition),r1=cross(sy,normal),r2=cross(normal,sx);float det=dot(sx,r1);vec2 dH=vec2(dFdx(hb),dFdy(hb))*${bk.toFixed(3)};normal=normalize(abs(det)*normal-sign(det)*(dH.x*r1+dH.y*r2));}
  ${sn?`if(uSnowD>.001)diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.74,.76,.8),clamp(uSnowD*(${sn>1?'.3+.7*':''}smoothstep(.5,.85,dot(normal,normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz))))*(.8+.4*texture2D(dTex,vWP.xz/9.+.2).g),0.,.92));`:''}`)};return m}
 // tree crown: a lumpy sphere (noise-displaced), darker underneath and inside (cheap ambient occlusion)
-export function crownGeo(){const g=new THREE.IcosahedronGeometry(1,2),p=g.attributes.position,c=new Float32Array(p.count*3),v=new V3();
+export function crownGeo(d=2){const g=new THREE.IcosahedronGeometry(1,d),p=g.attributes.position,c=new Float32Array(p.count*3),v=new V3();
  for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const n=v.clone().normalize(),k=1+.22*(vnoise(n.x*2.6+5,n.z*2.6+n.y*1.7)-.5)+.12*(vnoise(n.x*6+1,n.y*6-n.z*3)-.5);v.copy(n).multiplyScalar(k);v.y=v.y*.92-.04;p.setXYZ(i,v.x,v.y,v.z);
   const ao=.42+.58*sm((n.y+.9)/1.6)*(.75+.5*(k-.9));c[i*3]=c[i*3+1]=c[i*3+2]=ao}
  g.setAttribute('color',new THREE.BufferAttribute(c,3));g.computeVertexNormals();return g}

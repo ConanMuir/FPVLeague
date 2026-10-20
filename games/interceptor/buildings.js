@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import {tex,detail,snowy} from '../../engine/render.js';
 import {hash2,vnoise} from '../../engine/util.js';
+import {gfx} from '../../engine/gfx.js';
 const V3=THREE.Vector3,PI=Math.PI,_m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new V3(),_s=new V3(),_v=new V3(),_n=new THREE.Matrix3();
 const D=[0,.12,.32,.58,1];  // damage amount per stage: thresholds for the seeded per-part rolls
 export const stageOf=f=>f>=.999?0:f>.625?1:f>.375?2:f>0?3:4;
@@ -293,12 +294,12 @@ export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const re
   const vis=[];for(const s of reg){vis.push([s.mesh,s.mesh.visible]);s.mesh.visible=true;for(const x of s.st)x.G.visible=true}try{renderer.compile(scene,camera)}catch(e){}
   for(const[o,v]of vis)o.visible=v;for(const s of reg)s.st.forEach((x,d)=>x.G.visible=d===s.stg)}
  function setStage(s,d){if(d===s.stg)return;s.st[s.stg].G.visible=false;s.st[d].G.visible=true;s.stg=d;if(!s.noSol){s.sol.length=0;s.sol.push(...s.st[d].sol)}}
- function step(dt,on,plume){t+=dt;if(on&&!ready)prepare();
-  for(const s of reg){const d=on&&s.max?stageOf(Math.max(0,s.hp)/s.max):0;if(d!==s.stg&&s.st[d])setStage(s,d);if(!s.stg||!s.mesh.visible||dt<=0)continue;
+ function step(dt,on,plume){const B=gfx.k.bld;t+=dt;if(on&&!ready)prepare();  /* B: Graphics quality thins the site fires and smoke (engine/gfx.js); Bs: a third of that past bldFar */
+  for(const s of reg){const Bs=Math.hypot(s.x-camera.position.x,s.z-camera.position.z)>gfx.k.bldFar?B/3:B,d=on&&s.max?stageOf(Math.max(0,s.hp)/s.max):0;if(d!==s.stg&&s.st[d])setStage(s,d);if(!s.stg||!s.mesh.visible||dt<=0)continue;
    for(const f of s.st[s.stg].fx){if((f.tt-=dt)>0)continue;
-    if(f.f){f.tt=.05;const n=Math.ceil(f.r*.8);for(let i=0;i<n;i++){_p2.set(f.x+(Math.random()-.5)*f.r*1.6,f.y+Math.random()*f.r*.4,f.z+(Math.random()-.5)*f.r*1.6);FIRE.emit(_p2,Math.random()<.5?0xff8a2a:0xffb347,1,f.r*.35,.9,_b.set(0,3+f.r,0),2.2)}}
-    else if(plume){f.tt=.5/Math.max(.6,f.r)*(.8+.4*Math.random());_p2.set(f.x+(Math.random()-.5)*f.r*2,f.y,f.z+(Math.random()-.5)*f.r*2);plume(_p2,f.r,f.c===0x1c1a18)}
-    else{f.tt=.2/Math.max(.5,f.r);_p2.set(f.x+(Math.random()-.5)*f.r*2,f.y,f.z+(Math.random()-.5)*f.r*2);SMOKE.emit(_p2,f.c,1,1+f.r*.4,8+f.r*2,_b.set(0,3+f.r*2.5,0),1,f.c===0x1c1a18?.42:.3)}}}
+    if(f.f){f.tt=.05/Bs;const n=Math.ceil(f.r*.8);for(let i=0;i<n;i++){_p2.set(f.x+(Math.random()-.5)*f.r*1.6,f.y+Math.random()*f.r*.4,f.z+(Math.random()-.5)*f.r*1.6);FIRE.emit(_p2,Math.random()<.5?0xff8a2a:0xffb347,1,f.r*.35,.9,_b.set(0,3+f.r,0),2.2)}}
+    else if(plume){f.tt=.5/Bs/Math.max(.6,f.r)*(.8+.4*Math.random());_p2.set(f.x+(Math.random()-.5)*f.r*2,f.y,f.z+(Math.random()-.5)*f.r*2);plume(_p2,f.r,f.c===0x1c1a18)}
+    else{f.tt=.2/Bs/Math.max(.5,f.r);_p2.set(f.x+(Math.random()-.5)*f.r*2,f.y,f.z+(Math.random()-.5)*f.r*2);SMOKE.emit(_p2,f.c,1,1+f.r*.4,8+f.r*2,_b.set(0,3+f.r*2.5,0),1,f.c===0x1c1a18?.42:.3)}}}
   const k=1+.25*Math.sin(t*13)+.15*Math.sin(t*31);for(const m of[...M.fac,...M.facT,M.fac4,M.facT4,M.fireWin,M.fireSurf])if(m.emissiveMap||m===M.fireWin||m===M.fireSurf)m.emissiveIntensity=(m===M.fireSurf?3:2.3)*k;
   FIRE.upd(dt);SMOKE.upd(dt)}
  return{build,step,stageOf,prepare,setStage,get ready(){return ready}}}
