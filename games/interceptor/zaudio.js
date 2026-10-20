@@ -124,4 +124,4 @@ export function initAudio(api){
  // slow-mo: the world goes muffled and comes back as time does
  let dl=1;function dilate(s){if(!A||Math.abs(s-dl)<.02)return;dl=s;A.dil.frequency.setTargetAtTime(s>=1?20000:500+s*s*9000,now(),s>=1?.25:.03)}
  function stopMusic(){if(!A)return;A.mus.gain.setTargetAtTime(0,now(),.2);M.I=0}
- return{dilate,coin,boom,rumble,gun,siren,radio,whoosh,kill,bossDown,sting,clearChord,star,siteHit,alarm,music,stopMusic,get ready(){return!!bus()},M,get dbg(){return{st:AC?.state,nv,step:M.step,I:+M.I.toFixed(2),lv:M.lv.map(v=>+v.toFixed(2))}}}}
+ return{dilate,coin,boom,rumble,gun,siren,radio,whoosh,kill,bossDown,sting,clearChord,star,siteHit,alarm,music,stopMusic,get ready(){return!!bus()},get bus(){return bus()},M,get dbg(){return{st:AC?.state,nv,step:M.step,I:+M.I.toFixed(2),lv:M.lv.map(v=>+v.toFixed(2))}}}}

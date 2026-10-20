@@ -112,11 +112,13 @@ export function initDefences(api,G,Z){
  const _ax=new V3(),_tq=new THREE.Quaternion();
  function turnTo(dir,want,a){const c=cl(dir.dot(want),-1,1),ang=Math.acos(c);if(ang<=a){dir.copy(want);return}
   _ax.crossVectors(dir,want);if(_ax.lengthSq()<1e-10)_ax.set(0,1,0).cross(dir).lengthSq()>1e-6?_ax.set(0,1,0).cross(dir):_ax.set(1,0,0);dir.applyQuaternion(_tq.setFromAxisAngle(_ax.normalize(),a)).normalize()}
+ // time to a collision course with a target at r moving at v, flying at s (straight lines); the time of flight if there is none
+ const icept=(r,v,s,d)=>{const a=v.lengthSq()-s*s,b=2*r.dot(v),c=d*d;if(Math.abs(a)<1e-6)return b<0?-c/b:d/s;const q=b*b-4*a*c;if(q<0)return d/s;const w=Math.sqrt(q),t1=(-b-w)/(2*a),t2=(-b+w)/(2*a),t=Math.min(t1>0?t1:1e9,t2>0?t2:1e9);return t<1e9?t:d/s};
  function shotStep(h,dt){h.fuel-=dt;const P=h.P,t=h.tgt;
   if(!t||!api.live(t)){release(h);const n=h.kind==='drone'&&api.think(h.id)?pickTarget(h.d,h.p.x,h.p.z,1800,{smart:h.tier>=4}):null;  /* a drone that lost its track looks for another on its turn (api.think) */if(n)claim(n,h);else if((h.lost+=dt)>(h.kind==='drone'?4:1.5)||h.fuel<=0)return end(h,null)}
   if(h.fuel<=0)return end(h,null);
   const T=h.tgt,spd=h.v.length(),ns=P.acc?Math.min(P.spd,spd+P.acc*dt):P.spd;const dir=_a.copy(h.v).normalize();
-  if(T){const r=_b.subVectors(T.p,h.p),dist=r.length(),tgo=dist/Math.max(40,ns+(-T.v.dot(r)/dist)),aim=r.addScaledVector(T.v,Math.min(tgo,30)).normalize();
+  if(T){const r=_b.subVectors(T.p,h.p),dist=r.length(),tgo=h.kind==='space'?icept(r,T.v,ns,dist):dist/Math.max(40,ns+(-T.v.dot(r)/dist)),aim=r.addScaledVector(T.v,Math.min(tgo,30)).normalize();  /* space: an exact collision course (the warhead is faster than the kill vehicle) */
    const climb=P.climb&&h.p.y-gh(h.p.x,h.p.z)<P.climb&&h.fuel>P.fuel-4,want=climb?_c.set(aim.x*.3,1,aim.z*.3).normalize():aim;
    turnTo(dir,want,P.turn*dt);
    // closest approach over this step (fast shots move tens of metres per step)
@@ -165,7 +167,7 @@ export function initDefences(api,G,Z){
   gdome(d,dt){if((d.cd-=dt)>0||d.ammo<=0||!api.think(d.id))return;const l=L(d),dome=D.some(e=>e.type==='idome'&&e.ammo>0);
    // saves its magazine for what only it can stop; a ballistic track only as a last-ditch shot when no Iron Dome has interceptors left
    const t=pickTarget(d,0,0,9e9,{only:u=>u.k==='hyper'||u.k==='icbm'?u.p.distanceTo(u.aim)<90000:u.k==='ballistic'&&!dome&&u.p.distanceTo(u.aim)<15000,prio:u=>u.k==='ballistic'?-500:0});if(!t)return;
-   const p0=t.p.clone().addScaledVector(t.v,4).add(_c.set(rnd(-2000,2000),15000,rnd(-2000,2000)));fire(d,t,'space',p0,{pk:l.p,direct:1,dome:true,v:_b.subVectors(t.p,p0).setLength(PK.space.spd)});d.ammo--;d.cd=2;
+   const L0=Z.gdLaunch?.(t,PK.space.spd),p0=L0?L0.p:t.p.clone().addScaledVector(t.v,4).add(_c.set(rnd(-2000,2000),15000,rnd(-2000,2000)));fire(d,t,'space',p0,{pk:l.p,direct:1,dome:true,v:L0?L0.v:_b.subVectors(t.p,p0).setLength(PK.space.spd)});  /* Z.gdLaunch: where the kill vehicle comes out of orbit (zreentry.js) */d.ammo--;d.cd=2;
    api.feed(`<span class="cb">Golden Dome: space interceptor away at ${Z.tname(t)}</span>`)},
   lrack:null,hflak:mortar,
   mpads(d,dt){launcher(d,dt,2.5,{})}};
