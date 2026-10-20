@@ -633,8 +633,8 @@ if (want('bosses')) {
   ok(mr.fav === mr.h0 && mr.off === mr.h0 - 1, `Mirror: it copies your habit (${mr.h}); a burst from there glances off, one from above counts (${mr.h0} → ${mr.off})`);
   // the Ace of Aces: he files your approaches and breaks early against your favourite; his lock and missile; the record between runs
   const ace = await p.evaluate(() => { __b.clear(); const {api, Z, G} = __z, t = Z.bosses.spawn('ace'), me = api.player; __z.sim(1); t.bs.mcd = 99;
-    const run = (up, back, side = 0) => { const f = t.v.clone().setY(0).normalize(), r = __b.V(-f.z, 0, f.x); me.p.copy(t.p).addScaledVector(f, -back).addScaledVector(r, side).add(__b.V(0, up, 0)); me.v.copy(t.v).multiplyScalar(2); t.bs.brkCd = 0; t.bs.brkT = 0; __z.sim(1 / 60); const b = t.bs.brkT > 0;
-      me.p.add(__b.V(0, 3000, 0)); __z.sim(1 / 60); return b; };
+    const run = (up, back, side = 0) => { if (me.dead > 0) api.launch(); const f = t.v.clone().setY(0).normalize(), r = __b.V(-f.z, 0, f.x); me.p.copy(t.p).addScaledVector(f, -back).addScaledVector(r, side).add(__b.V(0, up, 0)); me.v.copy(t.v).multiplyScalar(2); t.bs.brkCd = 0; t.bs.brkT = 0; __z.sim(1 / 60); const b = t.bs.brkT > 0;
+      me.p.add(__b.V(t.p.x > 0 ? -2000 : 2000, 300, 0)); __z.sim(1 / 60); return b; };  /* away toward the middle (straight up would hit the 4 km ceiling, sideways the edge of the area) */
     const out = {}; for (let i = 0; i < 3; i++) run(260, 430); out.fav = t.bs.fav; out.brkFav = run(260, 470); out.brkOther = run(-200, 0, 470);
     t.bs.mcd = 0; t.bs.brkCd = 99; t.bs.ext = 0; const f = t.v.clone().normalize(); let s = 0; while (!(t.bs.mcd > 0) && s < 8) { me.p.copy(t.p).addScaledVector(f, 500); me.v.copy(t.v); __z.sim(.1); s += .1; } out.lockT = +s.toFixed(1);
     const k0 = api.S.zboss.ace.kills | 0; s = 0; while (me.dead <= 0 && s < 10) { __z.sim(.1); s += .1; } out.shot = me.dead > 0; out.kills = (api.S.zboss.ace.kills | 0) - k0;
