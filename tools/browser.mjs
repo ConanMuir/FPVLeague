@@ -6,6 +6,7 @@
 //   DL_SWIFTSHADER=1 / 0             force software WebGL on / off (default: on in CI, off locally)
 //   DL_TIMING_WARN=1 / 0             timing (ms budget) checks only warn / fail (default: warn in CI, fail locally)
 //   DL_NORENDER=1 / 0                skip WebGL draw calls except where a check asks for drawn frames (default: on in CI, off locally)
+//   DL_HIGHGPU=1                     use the high-performance GPU on a dual-GPU laptop (headless otherwise picks the integrated one)
 import fs from 'node:fs';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
@@ -15,6 +16,7 @@ export const CI = flag('CI', false);
 export const SOFTWARE_GL = flag('DL_SWIFTSHADER', CI);
 export const TIMING_WARN = flag('DL_TIMING_WARN', CI);
 export const NO_RENDER = flag('DL_NORENDER', CI);
+export const HIGH_GPU = flag('DL_HIGHGPU', false);
 
 function candidates() {
   const pf = ['PROGRAMFILES(X86)', 'PROGRAMFILES', 'LOCALAPPDATA'].map(k => E[k]).filter(Boolean);
@@ -45,6 +47,7 @@ export const browserEnv = Object.fromEntries(Object.entries(E).filter(([k]) => !
 export function browserArgs(args = []) {
   let a = args.filter(x => !(SOFTWARE_GL && /^--(ignore-gpu-blocklist|enable-gpu|use-angle=)/.test(x)));
   if (SOFTWARE_GL) a.push('--use-angle=swiftshader');
+  else if (HIGH_GPU) a.push('--force_high_performance_gpu');
   if (!a.includes('--enable-unsafe-swiftshader')) a.push('--enable-unsafe-swiftshader');  // Chrome 137+ only falls back to SwiftShader with this
   if (CI && process.platform === 'linux') a.push('--no-sandbox', '--disable-dev-shm-usage');
   return [...new Set(a)];

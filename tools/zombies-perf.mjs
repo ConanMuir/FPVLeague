@@ -2,7 +2,7 @@
 import {serve, launch, open, sleep} from './zlib.mjs';
 const W = +(process.argv[2] || 28);
 const {server, origin} = await serve(); const b = await launch(); const errs = [];
-const frames = p => p.evaluate(() => new Promise(res => { const ts = []; let last = performance.now(); const f = now => { ts.push(now - last); last = now; if (ts.length < 180) requestAnimationFrame(f); else { ts.sort((a, b) => a - b); res({avg: +(ts.reduce((a, b) => a + b) / ts.length).toFixed(1), p50: +ts[90].toFixed(1), p95: +ts[171].toFixed(1)}); } }; requestAnimationFrame(f); }));
+const frames = p => p.evaluate(() => new Promise(res => { const ts = []; let last = performance.now(); const f = now => { ts.push(now - last); last = now; if (ts.length < 180) requestAnimationFrame(f); else { ts.sort((a, b) => a - b); res({avg: +(ts.reduce((a, b) => a + b) / ts.length).toFixed(1), p50: +ts[90].toFixed(1), p95: +ts[171].toFixed(1), worst: +ts[179].toFixed(1)}); } }; requestAnimationFrame(f); }));
 async function run(mode, setup, arg = W, wx = null) {
   const p = await open(b, origin + '/games/interceptor/', errs);
   await p.evaluate(m => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: m, wx: 'clear', zwx: 'menu', cam: 0})), mode);
