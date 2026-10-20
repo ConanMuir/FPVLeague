@@ -101,7 +101,7 @@ export const ITEMS={
  gepard:{type:'helper',n:'Gepard gun',price:1600,from:3,glyph:'≡',blurb:'Twin 35 mm cannons with radar, 3.5 km. Solid against drones, jets and cruise missiles.'},
  sam:{type:'helper',n:'SAM battery',price:2800,from:6,glyph:'⇑',blurb:'Long-range missiles (9 km): 4 per wave, nearly always a kill and armor doesn\'t matter. Wasted on swarms and decoys.'},
  idome:{type:'helper',n:'Iron Dome',price:4200,from:20,glyph:'◠',blurb:'Dome-class interceptors: stops ballistic and cruise missiles. 6 per wave.'},
- gdome:{type:'helper',n:'Golden Dome',price:9000,from:28,glyph:'✦',blurb:'Space-based interceptors: the only answer to hypersonic and ICBM tracks. 2 per wave, anywhere on the map.'},
+ gdome:{type:'helper',n:'Golden Dome',price:9000,from:28,glyph:'✦',blurb:'Space-based interceptors: the midcourse layer against hypersonic and ICBM tracks. 2 per wave, anywhere on the map; more from the stock in the Kill chain tab.'},
  freeze:{type:'perk',n:'Freeze',from:2,glyph:'❄'},mark:{type:'perk',n:'Mark',from:2,glyph:'◎'},air:{type:'perk',n:'Airstrike',from:6,glyph:'✈'},
  radar:{type:'perk',n:'Long-range radar',from:2,glyph:'◉'},optics:{type:'perk',n:'Optics',from:2,glyph:'◈'},relaunch:{type:'perk',n:'Fast relaunch',from:2,glyph:'↻'},
  warhead:{type:'perk',n:'Bigger warhead',from:2,glyph:'✹'},battery:{type:'perk',n:'Better battery',from:2,glyph:'▮'},aid:{type:'perk',n:'Foreign Aid',from:4,glyph:'$'},rocket:{type:'perk',n:'Rocket Assist',from:3,glyph:'➹'},fuse:{type:'perk',n:'Proximity fuse',from:1,glyph:'⌾'},

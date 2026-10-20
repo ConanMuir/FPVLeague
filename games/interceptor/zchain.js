@@ -24,7 +24,6 @@ export function initChain(api,G,Z){
  const gdomes=()=>Z.def.D.filter(d=>d.type==='gdome');
  const stockCap=()=>STOCK.cap*gdomes().length;
  const say=h=>Z.online&&Z.team?Z.team(h):api.feed(h);  // co-op host: the whole team sees it
- const siteBy=n=>SITES.find(s=>s.n===n);
 
  // ---------- per-track state: t.kc = {sec: launch sector, b: boost status, bt: seconds to the boost roll, cue: seen at launch, det: detected,
  // mc: a dome shot holds it, mm: midcourse misses, pd: point defence status, dc: decoy tried} ----------
