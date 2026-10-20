@@ -29,15 +29,17 @@ export function initLock(api,G,Z){
   tau=Math.min(tau,90);L.ip.copy(t.p).addScaledVector(vt,tau);if(t.spd<150&&vt.lengthSq()>1)L.ip.addScaledVector(_b.copy(vt).normalize(),-15);L.tti=tau}
  function step(dt){const me=api.player,on=G.on&&G.state==='wave'&&me&&me.dead<=0&&!api.demo&&!Z.cine&&!Z.idle?.();
   if(!on){if(L.full||L.prog||L.cand){L.full=false;L.tgt=null;L.cand=null;L.prog=0}L.st=0;return}
-  const cam=api.camera,f=_f.set(0,0,-1).applyQuaternion(cam.quaternion),ang=t=>f.angleTo(_p.subVectors(t.p,cam.position));
+  SC.cam=api.camera;SC.me=me;SC.dt=dt;_f.set(0,0,-1).applyQuaternion(SC.cam.quaternion);
   if(L.full){const t=L.tgt;if(!api.live(t)){drop(t&&t.st!=='dead'&&t.st!=='fall'?'LOCK LOST':'');return step0()}
    const d=t.p.distanceTo(me.p);L.lost=ang(t)>LOCK.keep*D2R||d>LOCK.range*1.25?L.lost+dt:0;if(L.lost>LOCK.keepT){drop('LOCK LOST');return step0()}
    if(evasion(t,dt)){drop('LOCK BROKEN');return step0()}L.held+=dt;intercept(t,me);if(api.pickT!==t)api.pickT=t;L.st=2;return}
-  step0(dt);
-  function step0(){let best=null,ba=LOCK.cone*D2R;for(const t of TH){if(!lockable(t)||t.p.distanceTo(me.p)>LOCK.range)continue;const a=ang(t);if(a<ba){ba=a;best=t}}
+  step0()}
+ // (module-level, so a step makes no closures: SC carries the camera, the pilot and dt)
+ const SC={cam:null,me:null,dt:0},ang=t=>_f.angleTo(_p.subVectors(t.p,SC.cam.position));
+ function step0(){const me=SC.me,dt=SC.dt;let best=null,ba=LOCK.cone*D2R;for(const t of TH){if(!lockable(t)||t.p.distanceTo(me.p)>LOCK.range)continue;const a=ang(t);if(a<ba){ba=a;best=t}}
    if(best){if(best!==L.cand){L.cand=best;L.prog=0}if(!(best.brk>0&&Z.evades?.(best)))L.prog+=(dt||0)/lockTime(best,me);if(L.prog>=1)acquire(best)}
    else if(L.cand){L.prog=Math.max(0,L.prog-(dt||0)*LOCK.decay/LOCK.t);if(!L.prog||!api.live(L.cand))L.cand=null}
-   L.st=L.full?2:L.cand?1:0}}
+   L.st=L.full?2:L.cand?1:0}
 
  // ---------- sound: beeps that speed up and rise while it builds, a steady warbling tone at lock ----------
  function snd(){const AC=api.AC;if(!AC)return null;if(L.snd)return L.snd;const o=AC.createOscillator(),f=AC.createBiquadFilter(),g=AC.createGain();o.type='square';o.frequency.value=600;f.type='lowpass';f.frequency.value=2400;g.gain.value=0;

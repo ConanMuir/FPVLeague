@@ -160,7 +160,7 @@ export function initZombies(api){
    P.q.splice(i,1);const j=P.list.lastIndexOf(q.k);if(j>=0)P.list.splice(j,1);c++}return c};
  // movers for the kinds Riley's flight code doesn't cover (zenemy.js); true = handled there
  // Nightmare feints (tac.feint): a track marked at spawn switches to another site (the weakest) about 2.2 km out, straight in from there
- Z.tstep=(t,dt)=>{if(t.feint===1&&t.st==='cruise'&&Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)<2200){t.feint=2;const L=api.liveSites().filter(s=>s!==t.tgt);
+ Z.tstep=(t,dt)=>{if(t.feint===1&&t.st==='cruise'&&hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)<2200){t.feint=2;const L=api.liveSites().filter(s=>s!==t.tgt);
    if(L.length&&!t.spoof&&!(t.lure>0)){const s=weakest(L);t.tgt=s;t.aim=pick(s.aims);t.wps.length=0}}
   return en.tstep(t,dt)};
 
