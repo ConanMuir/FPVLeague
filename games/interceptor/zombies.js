@@ -12,6 +12,7 @@ import {initFX} from './zfx.js';
 import {initWeather} from './zwx.js';
 import {initRocket} from './zrocket.js';
 import {initNet} from './znet.js';
+import {initCampaign} from './zcampaign.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -24,14 +25,15 @@ export function initZombies(api){
 
  // ---------- mode choice and Zombies difficulty on the start menu; best wave is kept per difficulty ----------
  if(!Number.isInteger(S.zdiff))S.zdiff=1;  // a hand-edited or foreign save: Normal (a string here broke the start menu)
- const DF=()=>ZDIFF[cl(G.dfo??S.zdiff??1,0,ZDIFF.length-1)];  // G.dfo: the host's difficulty while in a co-op game
+ // G.dfo: the host's difficulty while in a co-op game, or the campaign's in a campaign sector; Z.dfMod (zcampaign.js) puts the sector's modifiers on top
+ const DFI=Z.dfi=()=>cl(G.dfo??S.zdiff??1,0,ZDIFF.length-1),DF=()=>{const d=ZDIFF[DFI()];return Z.dfMod?Z.dfMod(d):d};
  const bestOf=d=>((S.zbests||{})[d.n]||(d.n==='Normal'&&S.zbest)||{}).wave|0;  // S.zbest = best from before difficulties existed (Normal)
  {const box=$('gmode'),desc=$('gmdesc'),dbox=document.createElement('div');dbox.className='gmode zdiff';dbox.id='zdiff';dbox.setAttribute('role','group');dbox.setAttribute('aria-label','Zombies difficulty');
   dbox.innerHTML=ZDIFF.map((d,i)=>`<button data-d="${i}">${d.n}</button>`).join('');box.after(dbox);
   const sync=()=>{for(const b of box.querySelectorAll('button'))b.classList.toggle('on',b.dataset.m===S.gmode);const D=DF();G.best=bestOf(D);
-   for(const b of dbox.querySelectorAll('button'))b.classList.toggle('on',+b.dataset.d===ZDIFF.indexOf(D));dbox.hidden=S.gmode!=='z';
+   for(const b of dbox.querySelectorAll('button'))b.classList.toggle('on',+b.dataset.d===DFI());dbox.hidden=S.gmode!=='z';
    desc.innerHTML=S.gmode==='z'?`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a boss every 10.<br><b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`:'<b>Classic</b>: Riley\'s Interceptor. One Shahed-136, then one jet Geran-3, each wave.';
-   $('play').textContent=S.gmode==='z'?'Hold the line':'Defend'};
+   $('play').textContent=S.gmode==='z'?'Quick defence':'Defend'};
   for(const b of box.querySelectorAll('button'))b.onclick=()=>{S.gmode=b.dataset.m;save();sync()};
   for(const b of dbox.querySelectorAll('button'))b.onclick=()=>{S.zdiff=+b.dataset.d;save();sync()};
   const qm=new URLSearchParams(location.search).get('mode');if(qm==='zombies'||qm==='z')S.gmode='z';else if(qm==='classic')S.gmode='classic';  /* Drone League's menu links here with ?mode= */
@@ -85,7 +87,7 @@ export function initZombies(api){
   while(b>0){let tot=0;for(const k of ks)tot+=weight(k,w,sh);let r=Math.random()*tot,k=ks[0];for(const q of ks){r-=weight(q,w,sh);if(r<=0){k=q;break}}
    if(k==='swarm'){const n=6+(Math.random()*Math.min(10,2+w/3)|0);out.push('swarm:'+n);b-=n*KIND.swarm.pts}else{out.push(k);b-=KIND[k].pts}}
   const esc=D.tac?.escort;if(esc&&w>=kindFrom('decoy',sh)){const n=Math.round(out.filter(k=>k==='shahed').length*esc);for(let i=0;i<n;i++)out.push('decoy')}
-  return out}
+  return Z.cpCompose?Z.cpCompose(out,w):out}  /* campaign sectors reshape the roster (zcampaign.js) */
  // the next wave is planned when the base screen opens, so it can show what is coming and from where.
  // Time on target (tac.tot): the raids' start times squeeze together and every kind is held back so it lands about when a Shahed from the edge would.
  const TOT_T=5200/KIND.shahed.spd;
@@ -119,7 +121,7 @@ export function initZombies(api){
    while(G.wq.length&&G.wq[0].at<=G.wt){const q=G.wq.shift();spawn(q)}
    if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn((clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0))*dk('clearK'),null,null);
     banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);feed(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`);payUpkeep()}}
-  else if(G.state==='clear'&&(G.clearT-=dt)<=0)openBase()};
+  else if(G.state==='clear'&&(G.clearT-=dt)<=0){if(!Z.cpWin?.())openBase()}};  /* Z.cpWin: a campaign sector's objective is met (zcampaign.js) */
  // upkeep: from UPKEEP_FROM each defence costs UPKEEP_K of what was spent on it per wave (forward positions FWD_UPKEEP times; doctrines scale it).
  // w = the wave being paid for (default: the next one, for the base screen). per = each defence's share.
  Z.upkeep=(w=G.wave+1)=>{const per=new Map();let total=0;if(w<UPKEEP_FROM)return{total,per};const k=dk('upkeepK'),fk=FWD_UPKEEP*dk('fwdUpK');
@@ -206,7 +208,7 @@ export function initZombies(api){
  Z.helperKill=t=>{if(!api.live(t))return;t.by='h';if(KIND[t.k]?.armor==='boss'&&Z.bossHit)return Z.bossHit(t);api.killThreat(t,Math.random()<.4)};
 
  // ---------- game over ----------
- function gameOver(){G.state='over';api.wstate='over';const D=DF(),nb=G.wave>bestOf(D),cur=Z.board.record(ZDIFF.indexOf(D),G.wave,Z.online);
+ function gameOver(){G.state='over';api.wstate='over';if(Z.cpOver?.())return;const D=DF(),nb=G.wave>bestOf(D),cur=Z.board.record(DFI(),G.wave,Z.online);  /* a campaign sector draws its own end screen (zcampaign.js) */
   if(nb){S.zbests={...(S.zbests||{}),[D.n]:{wave:G.wave,kills:G.kills.p+G.kills.h,earned:G.earned}};save();G.best=G.wave}
   banner('');
   $('zover').innerHTML=`<div class="zpanel zgo"><h2>Defense collapsed</h2><div class="zbig">WAVE ${G.wave}</div>
@@ -288,6 +290,7 @@ export function initZombies(api){
    def.D.splice(def.D.indexOf(d),1);TH.push(...keep);Object.assign(G,{cash:save.cash,earned:save.earned,kills:save.kills,state:save.st});SITES.forEach((s,i)=>s.hp=save.hp[i]);return res},
   // scripted player: put the interceptor just behind the most urgent free track, matched to its velocity, and detonate
   botKill(off=1){const me=api.player,t=Z.urgent();if(!me||me.dead>0||!t)return null;me.p.copy(t.p).addScaledVector(_a.copy(t.v).normalize(),-off);me.v.copy(t.v);Z.detonate();return t.k}};
+ initCampaign(api,G,Z);  // the campaign map and its sectors (zcampaign.js): wraps the hooks above, before the effects and co-op wrap them
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
  return Z}

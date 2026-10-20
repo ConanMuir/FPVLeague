@@ -22,7 +22,7 @@ export function initBase(Z,api,G){
  // yet show the wave they arrive. Kit items (zmeta.js) are listed only when a pilot brought them.
  const GROUPS=[['Helpers',k=>ITEMS[k].type==='helper'],['Supplies for the next wave',k=>ITEMS[k].type==='supply'],['Active perks',k=>ITEMS[k].type==='perk'&&!!PERK[k].key],['Passive perks',k=>ITEMS[k].type==='perk'&&!PERK[k].key]];
  const offered=k=>!ITEMS[k].kit||(ITEMS[k].type==='helper'?Z.meta.teamKit():Z.meta.kit()).includes(k);
- function deal(){G.cards=[];for(const[g,f]of GROUPS)for(const k of Object.keys(ITEMS))if(f(k)&&offered(k))G.cards.push({k,g})}
+ function deal(){G.cards=[];for(const[g,f]of GROUPS)for(const k of Object.keys(ITEMS))if(f(k)&&offered(k)&&!Z.cpBan?.(k))G.cards.push({k,g})}  /* Z.cpBan: an item a campaign sector takes out of the shop */
  // a supply's price: per unit x what it applies to (racks, launchers, live sites or helpers), at least one unit
  const supN=k=>{const of=SUPPLY[k].of;return Math.max(1,of==='rack'?def.D.filter(def.isRack).length:of==='launcher'?def.D.filter(d=>def.magOf(d)>0).length:of==='site'?api.liveSites().length:def.D.length)};
  const supPrice=k=>Math.round(SUPPLY[k].per*supN(k)*dk('supplyK')/10)*10;
@@ -120,7 +120,7 @@ export function initBase(Z,api,G){
   el.innerHTML=`<div class="zpanel zb"><header><div><h2>${G.wave?`Wave ${G.wave} cleared`:'Briefing'}</h2><div class="zbig">${money(G.cash)}</div></div>
    <div class="zint"><span>Defense integrity ${Math.round(f*100)}% · ${Math.ceil(integ.hp)}/${integ.max}</span><b><i style="width:${(f*100).toFixed(1)}%" class="${f<.3?'lo':f<.6?'mid':''}"></i></b></div>
    <button class="go" id="zgo">${Z.goTxt?.()||`Start wave ${G.wave+1} ▸`}</button>
-   <div class="zdoc">Doctrine <b>${D.n}</b>${U&&U.total?` · upkeep <b>${money(U.total)}</b> after this wave`:''}${sh?` · <span class="co">${sh} short of ammo (upkeep unpaid)</span>`:''}${G.lastUp?` · last upkeep ${money(G.lastUp)}`:''}</div></header>${Z.coopHTML?.()||''}
+   <div class="zdoc">Doctrine <b>${D.n}</b>${U&&U.total?` · upkeep <b>${money(U.total)}</b> after this wave`:''}${sh?` · <span class="co">${sh} short of ammo (upkeep unpaid)</span>`:''}${G.lastUp?` · last upkeep ${money(G.lastUp)}`:''}</div></header>${Z.coopHTML?.()||''}${Z.cpHTML?.()||''}
    <div class="zcols"><div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
     <div class="zleg"><span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lx">+</i>position to open (Base tab)</span><span><i class="lt"></i>next wave's approach</span></div></div>
    <div class="zside"><nav class="ztabs">${[['shop','Shop'],['armory','Armory'],['sites','Base']].map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>

@@ -155,6 +155,17 @@ ok(await ev(B, () => __z.Z.idle() && document.getElementById('zinb').textContent
 await ev(H, () => { __z.G.wq.length = 0; for (let i = 0; i < 600 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0) __z.botKill(.8); } __z.sim(4); });
 ok(await until(B, () => __z.G.state === 'base' && !__z.net.n.late && __z.net.rows().length === 3), 'Late join: at the base screen Bea is in, roster back to 3');
 
+// ---------- campaign (zcampaign.js): the host plays a sector of their campaign; the clients play it with them; only the host's save moves ----------
+{ const c0 = await ev(A, () => JSON.stringify(__z.api.S.zcamp ?? null));
+  await ev(H, () => __z.Z.cp.start('hosp', true));
+  ok(await until(H, () => __z.G.state === 'base' && __z.Z.cp.run?.id === 'hosp'), 'Campaign co-op: the host launches Hospital Hill for the whole team');
+  for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && __z.Z.cp.run?.id === 'hosp' && /HOSPITAL HILL/.test(document.querySelector('#zbase .zcpbar')?.textContent || '') && __z.api.SITES.some(s => s.n === 'HOSPITAL' && s.max === 360)), `${C.name}: in the host's sector (strip on the base screen, the field hospital at 360 hp)`);
+  await ev(H, () => { const {G, api, Z} = __z; Z.base.close(); G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wave = Z.cp.run.obj; G.state = 'wave'; for (let i = 0; i < 40 && G.state !== 'over'; i++) __z.sim(.5); });
+  ok(await until(H, () => __z.G.state === 'over' && document.querySelector('#zover h2')?.textContent === 'Sector held' && __z.api.S.zcamp.held.includes('hosp')), "Campaign co-op: the host holds the sector; the host's campaign save moves");
+  for (const C of [A, B]) ok(await until(C, () => document.querySelector('#zover h2')?.textContent === 'Sector held' && /Waiting for the host/.test(document.getElementById('zover').textContent)), `${C.name}: sees "Sector held" and waits for the host`);
+  ok(await ev(A, () => JSON.stringify(__z.api.S.zcamp ?? null)) === c0, "Campaign co-op: a client's own campaign save is untouched");
+  if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-campaign-held.png'}); }
+
 // ---------- the host leaves: every client's game ends with a message ----------
 await ev(H, () => __z.api.showMenu(true)); await H.p.click('#leave');
 for (const C of [A, B]) ok(await until(C, () => !__z.G.on && /host left/i.test(document.getElementById('zmpnote').textContent) && !document.getElementById('menu').hidden), `${C.name}: host left -> back on the menu with "${'The host left the game'}"`);
