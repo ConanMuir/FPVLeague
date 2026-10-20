@@ -47,7 +47,7 @@ export function initSwarm(api,G,Z){
   else{A.p.copy(s.home);A.v.set(0,0,0);A.ok=false}
   return A}
  // threat axis (screen formation): toward the tracks around you, the soonest to arrive weighted most
- function axis(s,A){if((s.axT-=1)>0)return;s.axT=30;_b.set(0,0,0);for(const t of TH){if(!api.live(t))continue;const d=t.p.distanceTo(A.p);if(d>4500||d<1)continue;const tt=t.p.distanceTo(t.aim)/Math.max(1,t.spd);_b.addScaledVector(_c.subVectors(t.p,A.p).setY(0).normalize(),1/(tt+5))}
+ function axis(s,A){if((s.axT-=1)>0)return;s.axT=30;_b.set(0,0,0);api.grid.near(A.p,4500,t=>{if(!api.live(t))return;const d=t.p.distanceTo(A.p);if(d>4500||d<1)return;const tt=t.p.distanceTo(t.aim)/Math.max(1,t.spd);_b.addScaledVector(_c.subVectors(t.p,A.p).setY(0).normalize(),1/(tt+5))});
   if(_b.lengthSq()>1e-6)s.ax.lerp(_b.normalize(),.5).normalize();else s.ax.copy(s.f)}
  // formation slots: drone i of n around anchor point A, flying heading f (r = right). Shared by the HUD glyphs (n = 8, north up).
  function slot(form,i,n,A,f,ax,ph,out){const r=_c.set(-f.z,0,f.x);
@@ -74,10 +74,11 @@ export function initSwarm(api,G,Z){
  // escort / screen: threats near you, ahead of a wedge, or (screen) along your formation axis; each gets one drone (armor and the boss two)
  function watch(s,A){const F=FORMS[s.form],n=s.d.length;if(!n)return;const busy=new Map();let eng=0;for(const d of s.d)if(d.t&&(d.st==='eng'||d.st==='strike')){busy.set(d.t,(busy.get(d.t)|0)+1);eng++}
   const cap=Math.ceil(n*SW.maxEng[s.mode==='screen'?1:0]),ax=s.form===3?s.ax:s.f,C=[];if(eng>=cap)return;
-  for(const t of TH){if(!engageable(t))continue;const dx=t.p.x-A.p.x,dz=t.p.z-A.p.z,d=Math.hypot(dx,dz,t.p.y-A.p.y);if(d>Math.max(SW.screenAxis,F.ahead||0)+200)continue;
+  const reach=Math.max(SW.screenAxis,F.ahead||0)+200;
+  api.grid.near(A.p,reach,t=>{if(!engageable(t))return;const dx=t.p.x-A.p.x,dz=t.p.z-A.p.z,d=Math.hypot(dx,dz,t.p.y-A.p.y);if(d>reach)return;
    const al=dx*ax.x+dz*ax.z,lat=Math.abs(dx*ax.z-dz*ax.x);let ok=d<F.engR||F.ahead&&al>0&&lat<al*.7&&d<F.ahead;
    if(!ok&&s.mode==='screen')ok=d<SW.screenR||al>0&&al<SW.screenAxis&&lat<SW.screenW;
-   if(ok&&(busy.get(t)|0)<((KIND[t.k].armor===1||t.k==='boss')?2:1))C.push([t,d])}
+   if(ok&&(busy.get(t)|0)<((KIND[t.k].armor===1||t.k==='boss')?2:1))C.push([t,d])});
   C.sort((a,b)=>a[1]-b[1]);for(const[t]of C){if(eng>=cap)break;let best=null,bd=1e18;for(const d of s.d){if(d.st!=='form'&&d.st!=='ret')continue;const q=d.p.distanceToSquared(t.p);if(q<bd){bd=q;best=d}}
    if(!best)break;go(best,t,'eng');eng++}}
  const go=(d,t,st)=>{d.st=st;d.t=t;d.tt=0;d.pd=1e9};
@@ -85,12 +86,13 @@ export function initSwarm(api,G,Z){
  function attack(s,t){if(!t||!engageable(t))return false;s.mode='attack';s.tgt=t;for(const d of s.d)if(d.st!=='strike'&&d.st!=='gnd')go(d,t,'eng');return true}
  function recall(s,mode='escort'){s.mode=mode;s.tgt=null;for(const d of s.d)if(d.st==='eng'||d.st==='strike'||d.st==='gnd'){d.st='ret';d.t=null;d.boost=0}}
  // strike: the densest cloud of threats within reach (tracks in front of you count double), or a ground target (sorties). Returns the aim point.
- function cluster(s,A,fw){let best=null,bs=0;const L=TH.filter(t=>engageable(t)&&t.p.distanceTo(A.p)<SW.strikeR);
-  for(const t of L){let n=0;for(const u of L)if(u.p.distanceToSquared(t.p)<350*350)n++;if(fw&&_a.subVectors(t.p,A.p).normalize().dot(fw)>.7)n*=2;if(n>bs){bs=n;best=t}}
+ let CLS=0;
+ function cluster(s,A,fw){let best=null,bs=0;const L=[],cs=++CLS;api.grid.near(A.p,SW.strikeR,t=>{if(engageable(t)&&t.p.distanceTo(A.p)<SW.strikeR){L.push(t);t._cl=cs}});
+  for(const t of L){let n=0;api.grid.near(t.p,350,u=>{if(u._cl===cs&&u.p.distanceToSquared(t.p)<350*350)n++});if(fw&&_a.subVectors(t.p,A.p).normalize().dot(fw)>.7)n*=2;if(n>bs){bs=n;best=t}}
   if(!best)return null;const c=new V3();let k=0;for(const u of L)if(u.p.distanceToSquared(best.p)<350*350){c.add(u.p);k++}return c.divideScalar(k)}
  function strikeAt(s,P,g){const n=s.d.length;if(!n)return 0;let k=0;
   if(g){for(const d of s.d){d.st='gnd';d.t=null;d.gp=g;d.tt=0;d.pd=1e9;d.boost=1;k++}s.gid=g.id;return k}
-  const M=TH.filter(t=>engageable(t)&&t.p.distanceTo(P)<450).sort((a,b)=>a.p.distanceTo(P)-b.p.distanceTo(P));if(!M.length)return 0;
+  const M=[];api.grid.near(P,450,t=>{if(engageable(t)&&t.p.distanceTo(P)<450)M.push(t)});M.sort((a,b)=>a.p.distanceTo(P)-b.p.distanceTo(P));if(!M.length)return 0;
   s.gid=null;s.d.forEach((d,i)=>{go(d,M[i%M.length],'strike');d.boost=1});return n}
  const ground=()=>{try{const L=Z.groundTargets?.();return Array.isArray(L)?L.filter(g=>g&&g.p&&g.alive!==false):[]}catch(e){return[]}};
  // mine: from the keys / pad / Z.swarm. Returns true when the command took.
@@ -124,7 +126,7 @@ export function initSwarm(api,G,Z){
     const vd=_b.copy(_V).addScaledVector(e,Math.min(s.form===0?.7:1,fmax*1.3/Math.max(dist,1)));if(vd.length()>vm)vd.setLength(vm);
     _acc.subVectors(vd,d.v).multiplyScalar(far?2.5:3);if(d.st==='ret'&&dist<15)d.st='form';steer(d,_acc,far?110:s.form===0?40:55,vm,dt)}
    else if(d.st==='eng'||d.st==='strike'){const t=d.t;d.tt+=dt;
-    if(!t||!api.live(t)||d.tt>(d.st==='strike'?30:25)||d.p.distanceTo(A.p)>SW.leash&&d.st==='eng'){if(d.st==='strike'&&s.sp){const u=TH.filter(x=>engageable(x)&&x.p.distanceTo(d.p)<600).sort((a,b)=>a.p.distanceTo(d.p)-b.p.distanceTo(d.p))[0];if(u&&d.tt<30){d.t=u;d.pd=1e9;continue}}
+    if(!t||!api.live(t)||d.tt>(d.st==='strike'?30:25)||d.p.distanceTo(A.p)>SW.leash&&d.st==='eng'){if(d.st==='strike'&&s.sp){const U=[];api.grid.near(d.p,600,x=>{if(engageable(x)&&x.p.distanceTo(d.p)<600)U.push(x)});const u=U.sort((a,b)=>a.p.distanceTo(d.p)-b.p.distanceTo(d.p))[0];if(u&&d.tt<30){d.t=u;d.pd=1e9;continue}}
      d.st='ret';d.t=null;d.boost=0;continue}
     const r=_a.subVectors(t.p,d.p),dist=r.length(),sp=Math.min(d.st==='strike'?SW.boost:M.spd,Math.max(t.v.length()+70,dist*.8+50)),cv=Math.max(30,sp-t.v.dot(r)/Math.max(dist,1)),tg=Math.min(dist/cv,3),aim=_b.copy(t.p).addScaledVector(t.v,tg);
     const vd=aim.sub(d.p).setLength(sp);if(d.p.y<api.gh(d.p.x,d.p.z)+12&&vd.y<0)vd.y=0;_acc.subVectors(vd,d.v).multiplyScalar(3);
@@ -143,7 +145,7 @@ export function initSwarm(api,G,Z){
   if(!auth()){d.st='ret';d.t=null;return}
   let p=M.pk*eff(t)*(Z.jink?.(t)??1);if(d.st==='strike'||s.mode==='attack')p*=F.pk;if(d.st==='strike')p*=1.15;p=Math.min(.95,p*q);
   const o=Z.helperHit(t,p,M.direct);if(o==='kill'){t.sw=s.key;s.kills++;Z.helperKill(t);Z.pop?.(t.p,'SWARM','#5fe3ff')}else if(o==='damage'&&t.k!=='boss')api.damage(t);
-  if(F.splash&&t.k==='swarm')for(const u of TH)if(u!==t&&u.k==='swarm'&&api.live(u)&&u.p.distanceTo(t.p)<14&&Math.random()<p*.5){s.kills++;Z.helperKill(u)}
+  if(F.splash&&t.k==='swarm')api.grid.near(t.p,14,u=>{if(u!==t&&u.k==='swarm'&&api.live(u)&&u.p.distanceTo(t.p)<14&&Math.random()<p*.5){s.kills++;Z.helperKill(u)}});
   d.st='ret';d.t=null;if(Math.random()<M.loss*F.loss)lose(s,d)}
  function gpass(s,d,g){d.boost=0;d.st='ret';d.gp=null;if(!auth())return;try{g.hit?.(1,s.key)}catch(e){console.warn('swarm ground hit',e)}api.boom(_a.set(g.p.x,g.p.y,g.p.z),.6);if(Math.random()<SW.mk[s.mk].loss*.7)lose(s,d)}
  function lose(s,d){const i=s.d.indexOf(d);if(i<0)return;s.d.splice(i,1);s.lost++;api.boom(d.p,.35)}

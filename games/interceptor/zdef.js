@@ -94,12 +94,13 @@ export function initDefences(api,G,Z){
 
  // ---------- target choice: free, in range, engageable; most urgent first; marked tracks first; leave the player's terminal track alone ----------
  const tti=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
+ const _g=new V3();
  function pickTarget(dd,x,z,range,o={}){let best=null,bs=-1e9;const me=api.player,sel=api.selT();
-  for(const t of TH){if(!api.live(t)||t.claim||!Z.seen(t)&&t.k!=='swarm')continue;let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)continue;
-   if(o.smart&&t.k==='decoy')continue;if(o.only&&!o.only(t))continue;
-   const d=Math.hypot(t.p.x-x,t.p.z-z);if(d>range)continue;
-   if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)continue;  // t.pc: a co-op pilot is on it
-   const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>bs){bs=sc;best=t}}
+  api.grid.near(_g.set(x,0,z),range,t=>{if(!api.live(t)||t.claim||!Z.seen(t)&&t.k!=='swarm')return;let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)return;
+   if(o.smart&&t.k==='decoy')return;if(o.only&&!o.only(t))return;
+   const d=Math.hypot(t.p.x-x,t.p.z-z);if(d>range)return;
+   if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)return;  // t.pc: a co-op pilot is on it
+   const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>bs){bs=sc;best=t}});
   return best}
  const claim=(t,h)=>{t.claim=h;h.tgt=t};
  const release=h=>{if(h.tgt&&h.tgt.claim===h)h.tgt.claim=null;h.tgt=null};
@@ -129,7 +130,7 @@ export function initDefences(api,G,Z){
   R[o]=(R[o]|0)+1;if(o==='kill'){h.d.kills++;Z.helperKill(t)}else if(o==='damage'&&t.k!=='boss')api.damage(t);
   if(h.kind==='drone'&&t.k==='swarm'){const sp=fit(h.d).splash||1;splash(h.d,h.p,9*sp,RACK_TIERS[h.tier].hit*.6*sp,t)}
   return o}
- function splash(d,p,r,pk,skip){for(const u of TH)if(u!==skip&&u.k==='swarm'&&api.live(u)&&u.p.distanceTo(p)<r&&Math.random()<pk){d.kills++;Z.helperKill(u)}}
+ function splash(d,p,r,pk,skip){api.grid.near(p,r,u=>{if(u!==skip&&u.k==='swarm'&&api.live(u)&&u.p.distanceTo(p)<r&&Math.random()<pk){d.kills++;Z.helperKill(u)}})}
 
  // ---------- each helper's logic ----------
  // launch point on a helper's mesh: the end of tube / cell i (local x, y, z), and its pointing direction in dir; null before the mesh is deployed
@@ -153,9 +154,9 @@ export function initDefences(api,G,Z){
    const p=l.p*effOf(d,t.k)*(1-.5*dist/rng)*jink(t);pend.push({t:tof,fn:()=>{if(!api.live(t)||!G.on)return;const o=Z.helperHit(t,p,f.armor?1:.5);if(o==='kill'){d.kills++;Z.helperKill(t);if(l.ahead&&t.k==='swarm')splash(d,t.p,14,.5,t);release(d)}else if(o==="damage"&&t.k!=="boss")api.damage(t)}})},
   sam(d,dt){launcher(d,dt,3.5,{smart:L(d).smart,prio:u=>u.k==='swarm'?-80:0})},
   // jammer: tracks entering the bubble get one roll; spoofed ones lose their aim and hit an empty field (no damage: zombies.js impact)
-  ew(d){const s=sl(d),l=L(d),f=fit(d),r=rangeOf(d);for(const t of TH){if(!api.live(t)||d.jam.has(t.id))continue;const e=effOf(d,t.k);if(e<=0)continue;
-   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)continue;d.jam.add(t.id);if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
-    api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}}},
+  ew(d){const s=sl(d),l=L(d),f=fit(d),r=rangeOf(d);api.grid.near(s,r,t=>{if(!api.live(t)||d.jam.has(t.id))return;const e=effOf(d,t.k);if(e<=0)return;
+   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)return;d.jam.add(t.id);if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
+    api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}})},
   idome(d,dt){if((d.cd-=dt)>0||d.ammo<=0)return;const s=sl(d),l=L(d),f=fit(d),hard=u=>KIND[u.k].armor==='hard'||u.k==='cruise',over=(l.over||f.over)&&!f.never;
    const t=pickTarget(d,s.x,s.z,HELP.idome.rng,{over,only:u=>hard(u)?u.p.distanceTo(_c.set(s.x,s.y,s.z))<14000:(over&&u.p.distanceTo(_c.set(s.x,s.y,s.z))<5000),prio:u=>hard(u)?200:0});if(!t)return;
    const dv=new V3(),mz=mouth(d,d.ammo%2,rnd(-.8,.8),1.25,0,dv);fire(d,t,'tamir',mz||_a.set(s.x,s.y+3,s.z),{pk:l.p,direct:1,dome:true,v:mz?dv.multiplyScalar(160):new V3(rnd(-10,10),160,rnd(-10,10))});d.ammo--;d.cd=1.6*otK()},

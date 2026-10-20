@@ -1,30 +1,37 @@
-// Zombies sim cost per tick and on-screen smoothness, in one headless page. A late wave with nobody shooting for a while (the tracks pile up,
-// as in tools/zombies-perf.mjs's stress run), then a full defence and a 12-drone personal swarm wake up mid-swarm; Math.random is seeded so
-// two builds see the same scene. It reports:
+// Zombies sim cost per tick and on-screen smoothness, in headless pages. A late wave with nobody shooting for a while (the tracks pile up,
+// as in tools/zombies-perf.mjs's stress run), then a full defence and a 12-drone personal swarm wake up mid-swarm. Math.random is seeded
+// from the page's start and the game runs on a fake clock while it is measured, so two builds play the same scene (until their logic differs).
+// It reports:
 //   tick   the time of api.step (one 1/120 s sim tick, visuals every 12th as __z.sim does): mean, p50, p95, p99 and the worst tick, in ms
 //   frames the real frame loop for a few seconds: frame time (mean, p95) and how evenly a cruising Shahed's mesh moves from frame to frame
 //          (judder = spread of its on-screen speed per frame / its mean; 0 = perfectly even; stalls = frames where it did not move at all)
-// Run: node tools/zombies-tick.mjs [--wave 32] [--ticks 2400] [--seed 7] [--runs 3]
-import {serve, launch, open, sleep} from './zlib.mjs';
+// Run: node tools/zombies-tick.mjs [--wave 32] [--ticks 2400] [--seed 7] [--runs 3]   (DL_NORENDER=1 skips the GPU draws: CPU-bound frames)
+import {serve, launch, open} from './zlib.mjs';
 const argv = process.argv.slice(2), arg = (k, d) => argv.includes(k) ? argv[argv.indexOf(k) + 1] : d;
 const W = +arg('--wave', 32), N = +arg('--ticks', 2400), SEED = +arg('--seed', 7), RUNS = +arg('--runs', 3);
 const {server, origin} = await serve(); const b = await launch(); const errs = [];
 const out = [];
 for (let run = 0; run < RUNS; run++) {
-  const p = await open(b, origin + '/games/interceptor/', errs);
+  const p = await open(b, 'about:blank', errs);
+  await p.evaluateOnNewDocument(s => { Math.random = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; }, SEED + run);
+  await p.goto(origin + '/games/interceptor/', {waitUntil: 'load'});
   await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', cam: 1, zmus: 0})));
-  await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z); await sleep(500); await p.click('#play'); await sleep(300);
+  await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z);
   const r = await p.evaluate((W, N, seed) => {
     let s = seed >>> 0; Math.random = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
-    const {api, G, Z} = __z, hp = () => api.SITES.forEach(q => q.hp = q.max);
-    G.perks = {...G.perks, swarm: 5, swarmk: 2}; Z.pk.apply?.();
-    __z.jump(W, 5000); G.next = __z.plan(W); __z.cont(); __z.sim(70); hp();
-    [['rack', 0, 3], ['rack', 3, 3], ['gepard', 1], ['gepard', 4], ['flak', 6], ['flak', 2], ['sam', 9], ['ew', 10], ['idome', 7], ['gdome', 11], ['rack', 12, 2], ['gepard', 13], ['rack', 5, 4], ['flak', 8]].forEach(([t, sl, l]) => { const d = Z.def.add(t, sl); if (!d) return; if (t === 'rack') { d.tier = l; d.cap = 4; } else d.lvl = 1; });
-    Z.def.deploy(); __z.sim(2);
-    const T = new Float64Array(N), h = 1 / 120; let tr = 0;
-    for (let i = 0; i < N; i++) { if (i % 120 === 0) hp(); tr += api.TH.length; const t0 = performance.now(); api.step(h); T[i] = performance.now() - t0; if (i % 12 === 11) api.visuals(h * 12, performance.now()); }
-    const a = [...T].sort((x, y) => x - y), q = f => +a[Math.min(N - 1, Math.floor(f * N))].toFixed(3);
-    return {tracks: Math.round(tr / N), live: api.TH.filter(api.live).length, shots: Z.def.shots.length, swarm: Z.sw?.drones.length | 0, mean: +(T.reduce((x, y) => x + y) / N).toFixed(3), p50: q(.5), p95: q(.95), p99: q(.99), max: +a[N - 1].toFixed(3)};
+    const clock = performance.now.bind(performance); let T = 1e7; performance.now = () => T;
+    try {
+      const {api, G, Z} = __z, hp = () => api.SITES.forEach(q => q.hp = q.max), sim = n => { for (let i = 0; i < n; i++) { api.step(1 / 120); T += 1000 / 120; if (i % 12 === 11) api.visuals(.1, T); } };
+      api.startMatch(); api.camera.position.set(0, 400, 2600); api.camera.lookAt(0, 300, 0); api.camera.updateMatrixWorld();
+      G.perks.swarm = 5; G.perks.swarmk = 2; Z.pk.apply();
+      __z.jump(W, 5000); G.next = __z.plan(W); __z.cont(); api.WB.set(3, 0, -2); api.WIND.set(3, 0, -2); sim(120 * 70); hp();
+      [['rack', 0, 3], ['rack', 3, 3], ['gepard', 1], ['gepard', 4], ['flak', 6], ['flak', 2], ['sam', 9], ['ew', 10], ['idome', 7], ['gdome', 11], ['rack', 12, 2], ['gepard', 13], ['rack', 5, 4], ['flak', 8]].forEach(([t, sl, l]) => { const d = Z.def.add(t, sl); if (!d) return; if (t === 'rack') { d.tier = l; d.cap = 4; } else d.lvl = 1; });
+      Z.def.deploy(); sim(240);
+      const TT = new Float64Array(N), h = 1 / 120; let tr = 0;
+      for (let i = 0; i < N; i++) { if (i % 120 === 0) hp(); tr += api.TH.length; const t0 = clock(); api.step(h); TT[i] = clock() - t0; T += 1000 / 120; if (i % 12 === 11) api.visuals(h * 12, T); }
+      const a = [...TT].sort((x, y) => x - y), q = f => +a[Math.min(N - 1, Math.floor(f * N))].toFixed(3);
+      return {tracks: Math.round(tr / N), live: api.TH.filter(api.live).length, shots: Z.def.shots.length, swarm: Z.sw?.drones.length | 0, mean: +(TT.reduce((x, y) => x + y) / N).toFixed(3), p50: q(.5), p95: q(.95), p99: q(.99), max: +a[N - 1].toFixed(3)};
+    } finally { performance.now = clock; }
   }, W, N, SEED + run);
   // real frames: frame time, and how evenly one cruising Shahed's mesh moves on screen
   const f = await p.evaluate(() => new Promise(res => { const {api} = __z, keep = setInterval(() => api.SITES.forEach(q => q.hp = q.max), 200);

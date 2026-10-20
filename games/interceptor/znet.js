@@ -248,7 +248,7 @@ export function initNet(api,G,Z){
   const t=byId(e[2]);if(!t||t.st==='dead')return;
   if(T==='k'){if(t.paid)return;const by=String(e[4]||'');t.by=by===net.me?'p':by?'o':'h';t.byN=by;if(e[3])t.st='dead';else{t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3)}
    Z.kill(t,!!e[3]);if(by&&by!==net.me)feed(`<b>${nameOf(by)}</b> · <span class="cg">${Z.tname(t)} down</span>`)}
-  else if(T==='i'){t.p.copy(t.aim);Z.impact(t)}}
+  else if(T==='i'){t.p.copy(t.aim);api.grid?.touch();Z.impact(t)}}
  function tracksIn(T,TS){if(!Array.isArray(T))return;const n=net,seen=new Set();
   if(Array.isArray(TS))for(const a of TS)if(okArr(a,5)){n.ts.set(a[0],a);const t=n.tm.get(a[0]);if(t){t.tgt=SITES[a[1]]||t.tgt;t.aim.set(a[2],a[3],a[4])}}
   for(const a of T){if(!okArr(a,10))continue;let t=n.tm.get(a[0]);if(t&&t.st==='dead')continue;if(!t){const s=n.ts.get(a[0]);if(!s)continue;t=mk(a,s);if(!t)continue;n.tm.set(t.id,t)}seen.add(t.id);upd(t,a)}
@@ -258,7 +258,7 @@ export function initNet(api,G,Z){
   const t={id:a[0],k,p:new V3(),v:new V3(),spd:1,cs:1,alt:0,wps:[],tgt:SITES[s[1]]||SITES[0],aim:new V3(s[2],s[3],s[4]),st:'cruise',jet:!!K.jet,mesh:null,prop:null,pd:1e9,dmin:1e9,cvm:0,bank:0,roll:0,spin:0,smoke:0,rb:null,claim:null,by:null,net:1,np:new V3(),nv:new V3()};
   if(s[5])t.grp=s[5];Z.en.dress(t);t.shade=cl(s[6]|0,0,2);t.st='cruise';t.p.set(a[2]/10,a[3]/10,a[4]/10);t.np.copy(t.p);t.v.set(a[5],a[6],a[7]);TH.push(t);return t}
  function upd(t,a){t.np.set(a[2]/10,a[3]/10,a[4]/10);t.nv.set(a[5],a[6],a[7]);t.v.copy(t.nv);const sp=t.v.length();if(sp>.1)t.spd=t.cs=sp;
-  if(t.p.distanceToSquared(t.np)>Math.max(3600,sp*sp*.25))t.p.copy(t.np);
+  if(t.p.distanceToSquared(t.np)>Math.max(3600,sp*sp*.25)){t.p.copy(t.np);api.grid?.touch()}  /* a snap while a frame is drawn: the grid rebuilds */
   const f=a[8]|0,c=(f>>5)&15;t.dmg=f&1?1:0;if(f&2)t.ident=1;t.mark=f&4?Math.max(t.mark||0,.3):0;t.frz=f&8?Math.max(t.frz||0,.3):0;t.spoof=f&16?1:0;t.lure=f&512?.5:0;t.claim=c?{type:Z.def.HT[c-1]}:null;
   const st=a[9]|0;if(st===2&&t.st!=='fall'){t.st='fall';t.spin=t.spin||(Math.random()<.5?-1:1)*(1+Math.random()*2)}else if(st<2&&t.st!=='fall')t.st=st?'dive':'cruise';
   if(t.k==='boss'&&Number.isFinite(a[10])&&a[10]<t.stages){for(let i=Math.max(0,a[10]);i<t.stages;i++){const p=t.pods?.[i];if(p){p.visible=false;if(p.userData.led)p.userData.led.visible=false}}t.stages=a[10];Z.an?.say('STAGE DOWN',`${t.stages} left`,'#ff9a3c',1)}}

@@ -34,7 +34,7 @@ export function initLock(api,G,Z){
    const d=t.p.distanceTo(me.p);L.lost=ang(t)>LOCK.keep*D2R||d>LOCK.range*1.25?L.lost+dt:0;if(L.lost>LOCK.keepT){drop('LOCK LOST');return step0()}
    if(evasion(t,dt)){drop('LOCK BROKEN');return step0()}L.held+=dt;intercept(t,me);if(api.pickT!==t)api.pickT=t;L.st=2;return}
   step0(dt);
-  function step0(){let best=null,ba=LOCK.cone*D2R;for(const t of TH){if(!lockable(t)||t.p.distanceTo(me.p)>LOCK.range)continue;const a=ang(t);if(a<ba){ba=a;best=t}}
+  function step0(){let best=null,ba=LOCK.cone*D2R;api.grid.near(me.p,LOCK.range,t=>{if(!lockable(t)||t.p.distanceTo(me.p)>LOCK.range)return;const a=ang(t);if(a<ba){ba=a;best=t}});
    if(best){if(best!==L.cand){L.cand=best;L.prog=0}if(!(best.brk>0&&Z.evades?.(best)))L.prog+=(dt||0)/lockTime(best,me);if(L.prog>=1)acquire(best)}
    else if(L.cand){L.prog=Math.max(0,L.prog-(dt||0)*LOCK.decay/LOCK.t);if(!L.prog||!api.live(L.cand))L.cand=null}
    L.st=L.full?2:L.cand?1:0}}
