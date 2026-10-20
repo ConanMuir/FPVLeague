@@ -218,8 +218,11 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   // the host builds a laser battery mid-wave (meshes go up on every screen with a redeploy) and gives it a track
   await ev(H, () => { const def = __z.Z.def, j = def.SLOTS.findIndex((s, j) => def.slotFree(j) && /substation/i.test(s.n)); def.add('laser', j).spent = 2200; def.deploy(); });
   for (const C of [A, B]) if (await until(C, () => __z.Z.def.D.some(d => d.type === 'laser'))) await ev(C, () => __z.Z.def.deploy());
-  await ev(H, () => { const {api} = __z, def = __z.Z.def, d = def.D.find(q => q.type === 'laser'), s = def.SLOTS[d.slot], t = __z.make('shahed', s.x + 200, s.z - 900); t.p.y = api.gh(t.p.x, t.p.z) + 350; t.alt = 350; });
-  ok(await until(A, () => __z.Z.def.D.some(d => d.type === 'laser' && d.lz && __z.api.live(d.lz.t))) && await until(B, () => __z.Z.def.D.some(d => d.type === 'laser' && d.lz)), 'Arsenal: the host\'s laser locks a track and its beam shows on both clients');
+  // the host's own selected track is left to the host (helpers never take it): a far-off decoy is selected so the laser takes the new Shahed
+  await ev(H, () => { const {api} = __z, def = __z.Z.def, d = def.D.find(q => q.type === 'laser'), s = def.SLOTS[d.slot], t = __z.make('shahed', s.x + 200, s.z - 900); t.p.y = api.gh(t.p.x, t.p.z) + 350; t.alt = 350;
+    const far = __z.make('decoy', 3500, -3000); far.p.y = api.gh(far.p.x, far.p.z) + 900; api.pickT = far; });
+  const lz = P => until(P, () => __z.Z.def.D.some(d => d.type === 'laser' && d.lz), null, 20000), lzOk = await lz(H) && await lz(A) && await lz(B);
+  ok(lzOk, 'Arsenal: the host\'s laser locks a track and its beam shows on both clients' + (lzOk ? '' : ' ' + await ev(H, () => { const d = __z.Z.def.D.find(q => q.type === 'laser'); return JSON.stringify({st: __z.G.state, lz: !!d?.lz, wx: d?.wx, cd: d?.cd, mesh: !!d?.mesh, live: __z.api.TH.filter(__z.api.live).map(t => t.k + (t.claim ? '*' : ''))}); })));
   if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-arsenal.png'}); }
 
 // ---------- a client leaves; then rejoins mid-wave (late join), comes in at the next base screen ----------
