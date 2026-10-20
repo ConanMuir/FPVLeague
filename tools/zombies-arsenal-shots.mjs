@@ -55,8 +55,8 @@ if (want('barrage')) {
 // smoke screen over the substation after 15 s of generators running
 if (want('smoke')) {
   await p.evaluate(() => { const {api} = __z, V = api.THREE.Vector3; __S.clear(); const j = __S.slot(/substation west/i), d = __S.build('smoke', j), s = __z.Z.def.SLOTS[j];
-    __S.place(new V(s.x - 500, s.y + 90, s.z + 600), new V(s.x, s.y + 20, s.z)); });
-  await p.evaluate(() => __z.sim(15)); await settle(30); await shot('ars-smoke');
+    __S.place(new V(s.x - 260, s.y + 60, s.z + 330), new V(s.x, s.y + 20, s.z)); });
+  await p.evaluate(() => { __z.G.state = 'wave'; }); await settle(240); console.log('screen', await p.evaluate(() => { const d = __z.Z.def.D[0], g = d.bubble, q = d.puffs[0], w = q.getWorldPosition(new __z.api.THREE.Vector3()); return JSON.stringify({so: d.so, vis: g.visible, inScene: !!g.parent, sc: g.scale.x, op: q.material.opacity, w: [w.x, w.y, w.z].map(Math.round), cam: __z.api.camera.position.toArray().map(Math.round), ws: q.getWorldScale(new __z.api.THREE.Vector3()).x}); })); await shot('ars-smoke');
 }
 // drone carrier parked 900 m north, a volley going up at a raid
 if (want('carrier')) {

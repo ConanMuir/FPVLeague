@@ -18,6 +18,7 @@ export function initArsDef(api,G,Z,A){
  const {M,kit,wheels}=X,LV=d=>HELP[d.type].lv[d.lvl],R=d=>def.rangeOf(d),sl=d=>def.SLOTS[d.slot];
  const mine=t=>def.D.filter(d=>d.type===t);
  const hot=(hex,k)=>new THREE.MeshBasicMaterial({color:new THREE.Color(hex).multiplyScalar(k),toneMapped:false});
+ const SMM=new THREE.SpriteMaterial({map:dot,color:0xa6a6a2,transparent:true,opacity:0,depthWrite:false});
  const MT={lens:hot(0xff5070,2.4),glass:new THREE.MeshStandardMaterial({color:0x223040,roughness:.15,metalness:.8}),dome:new THREE.MeshStandardMaterial({color:0xe9ecef,roughness:.45,metalness:.1}),
   emit:hot(0xff7ad0,1.6),bal:new THREE.MeshStandardMaterial({color:0xb8bec4,roughness:.5,metalness:.35}),cable:new THREE.MeshBasicMaterial({color:0x2a2d30}),can:new THREE.MeshStandardMaterial({color:0x3d4630,roughness:.7,metalness:.3})};
 
@@ -35,7 +36,11 @@ export function initArsDef(api,G,Z,A){
     for(const a of[0,2.094,4.189]){const pv=new THREE.Group(),f=new THREE.Mesh(new THREE.BoxGeometry(.2,3.6,4),MT.bal);f.position.set(0,4,7.6);pv.rotation.z=a;pv.add(f);b.add(pv)}  // three tail fins
     const c=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,1,5),MT.cable);g.add(b,c);d.bal.push({b,c,ph:Math.random()*6})}return g},
   smoke(d){const g=kit();g.add$(new THREE.BoxGeometry(2.6,.9,4.6),M.olive,0,.7,0);wheels(g,1.15,1.6);for(let i=0;i<3;i++){g.add$(new THREE.CylinderGeometry(.42,.42,1.8,12),MT.can,-.75+i*.75,2,-.8);g.add$(new THREE.CylinderGeometry(.16,.22,.9,8),M.dark,-.75+i*.75,3.2,-.8)}
-   g.add$(new THREE.BoxGeometry(2.2,1.2,1.6),M.dark,0,1.7,1.2);return g},
+   g.add$(new THREE.BoxGeometry(2.2,1.2,1.6),M.dark,0,1.7,1.2);
+   // the screen: soft grey sprites in unit coordinates; zdef.js places d.bubble on the position and scales it to the reach (like the EW bubble)
+   const sg=new THREE.Group();sg.material={};sg.userData.free=1;d.puffs=[];for(let i=0;i<30;i++){const sp=new THREE.Sprite(SMM.clone()),a=Math.random()*6.283,r=Math.sqrt(Math.random())*.6;
+    sp.userData={x:Math.cos(a)*r,z:Math.sin(a)*r,y:.03+Math.random()*.05,k:.09+Math.random()*.08,ph:Math.random()*6.283};sp.position.set(sp.userData.x,sp.userData.y,sp.userData.z);sp.scale.setScalar(sp.userData.k);sg.add(sp);d.puffs.push(sp)}
+   sg.visible=false;d.bubble=sg;return g},
   carrier(d){const g=kit();g.add$(new THREE.BoxGeometry(3,1.3,10),M.olive,0,1.2,0);for(const z of[-3.6,-1.2,1.2,3.6])for(const x of[-1.3,1.3])g.add$(new THREE.CylinderGeometry(.6,.6,.45,14).rotateZ(Math.PI/2),M.dark,x,.6,z);
    g.add$(new THREE.BoxGeometry(2.8,1.8,2.2),M.olive,0,2.5,3.7);g.add$(new THREE.BoxGeometry(2.4,.6,.1),MT.glass,0,2.9,2.55);d.cells=[];
    for(let i=0;i<20;i++){const r=i/4|0,c=i%4;d.cells.push(g.add$(new THREE.BoxGeometry(.55,.9,.55),M.tube,-1.05+c*.7,2.35,2-r*.95))}return g}};
@@ -110,7 +115,8 @@ export function initArsDef(api,G,Z,A){
     const dc=Math.min(_a.distanceTo(cam),t.p.distanceTo(cam));if(dc<bd){bd=dc;best={d,t,dc}}}
    else if(d.type==='mwave'&&d.ring){const k=d.cd>0?1-Math.min(1,d.cd/LV(d).cd):1;d.ring.material.color.setRGB(1*(.4+1.4*k),.48*(.4+1.4*k),.82*(.4+1.4*k))}
    else if(d.type==='barrage'&&d.bw){const T=performance.now()/1000;d.bal.forEach(q=>{q.b.position.y+=Math.sin(T*.6+q.ph)*.012})}
-   else if(d.type==='smoke'&&on&&G.state==='wave'&&Z.plume){if((d.pf=(d.pf||0)-dt)<=0){d.pf=.18;const s=sl(d),W=api.WIND,a=Math.random()*6.283,r=Math.sqrt(Math.random())*R(d)*.55,x=s.x+Math.cos(a)*r-W.x*4,z=s.z+Math.sin(a)*r-W.z*4;Z.plume(_b.set(x,gh(x,z)+3,z),1.3,false)}  /* a thick screen, laid upwind of the site */
+   else if(d.type==='smoke'&&d.bubble){const sg=d.bubble,show=on&&G.state==='wave';d.so=cl((d.so||0)+(show?dt/3:-dt/3),0,1);sg.visible=d.so>0;const T=performance.now()/1000,W=api.WIND,rg=R(d);  /* the screen builds over 3 s and drifts with the wind */
+    if(sg.visible)for(const q of d.puffs){const u=q.userData,dx=((u.x+W.x*T*.0015/(rg/600))%1.2+1.8)%1.2-.6;q.position.set(dx,u.y+.01*Math.sin(T*.3+u.ph),u.z);q.material.opacity=.9*d.so*Math.min(1,1.6*(1-Math.abs(dx)/.7))*(.8+.2*Math.sin(T*.5+u.ph))}
     if(!d.hissed){d.hissed=1;const s=sl(d);snd.hiss(_c.set(s.x,s.y+2,s.z))}}}
   spGeo.setDrawRange(0,sp);spGeo.attributes.position.needsUpdate=true;
   for(const m of shells)if(m.on){m.t+=dt;const u=m.t/.7;if(u>=1){m.on=false;m.o.visible=false;continue}m.o.scale.setScalar(Math.max(1,m.r*Math.sqrt(u)));m.o.material.opacity=.32*(1-u)}
