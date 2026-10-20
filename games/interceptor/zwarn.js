@@ -16,7 +16,8 @@ export function initWarn(api,G,Z){
  const tti=t=>t.p.distanceTo(t.aim)/Math.max(1,t.spd);
  const say=h=>Z.online&&Z.team?Z.team(h):api.feed(h);
  // seconds of warning before impact
- const warnS=Z.warnS=()=>EWARN.base+EWARN.perk*(Z.perkLevel?.('radar')|0)+EWARN.lv.slice(0,G.kc?.ewr|0).reduce((a,l)=>a+l.s,0);
+ // (a campaign sector with the 'blind' modifier, zcampaign.js: radar -30%, so 30% less warning)
+ const warnS=Z.warnS=()=>Math.round((EWARN.base+EWARN.perk*(Z.perkLevel?.('radar')|0)+EWARN.lv.slice(0,G.kc?.ewr|0).reduce((a,l)=>a+l.s,0))*(Z.cp?.has?.('blind')?.7:1));
  // the fast kinds are on the radar (and engageable) only once detected; on a co-op client the host's flag counts
  const se0=Z.seen;Z.seen=t=>isFast(t)?!!t.kc?.det:se0(t);
  const alerts=()=>TH.filter(t=>isFast(t)&&TH.includes(t)&&(t.st==='cruise'||t.st==='dive')&&t.kc?.det).sort((a,b)=>tti(a)-tti(b));

@@ -12,7 +12,7 @@
 // Timing: a goal replay starts CEL s after the goal and fits the post-goal wait: goal() (modes/match.js) asks goalHold() how much longer
 // to wait, so the host's stT (sent to joiners) covers it; offline the replay ends the wait when it is over or skipped; online the host
 // ends it early once every pilot's replay is over (each pilot sends rs, see rpVote and net/net.js).
-import {AC,BUS,near,noise,setVolumes} from '../audio/audio.js';
+import {duckReplay,near,noise} from '../audio/audio.js';
 import {COL,GD,GH,GW,H,HL,HW,QT,V3,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {DRAD,GSPD} from '../config/tune.js';
@@ -116,8 +116,7 @@ function begin(c,hl){RP.on=true;RP.hl=hl;RP.c=c;RP.pt=c.tA;RP.i=0;RP.ei=0;while(
  for(let k=0;k<c.nd;k++)RP.pf[k]=c.d[BS+k*DS+12]&2?1:0;CAM.fn=rpCam;duck(true);rpBadge(c.kind==='kill'?'KILL CAM':hl?'HIGHLIGHT':'REPLAY',c.who)}
 function stop(){if(!RP.on)return;const hl=RP.hl;RP.on=false;RP.hl=false;CAM.fn=null;duck(false);rpBadge(null);resetTrails();if(hl)showMenu(true)}
 function resetTrails(){for(const d of GS.drones){if(!d.tp)continue;for(let j=0;j<TN;j++)d.p.toArray(d.tp,j*3)}fxReset()}
-function duck(on){if(!AC||!BUS)return;if(!on){setVolumes();return}const t=AC.currentTime,v=k=>((S[k]??100)/100)**2;BUS.fx.gain.setTargetAtTime(v('vFx')*.4,t,.05);BUS.mot.gain.setTargetAtTime(v('vMotor')*.25,t,.05);
- BUS.wind.gain.setTargetAtTime(0,t,.05);BUS.oth.gain.setTargetAtTime(v('vOther')*.3,t,.05)}
+const duck=on=>duckReplay(on);  // audio/audio.js: effects, crowd, motors and the other quads lower, wind off, while a replay plays
 /** a pause-menu highlight: plays with the match paused, then the pause menu comes back */
 export function playHL(c){if(RP.on||!hlOk(c))return;showMenu(false);GS.paused=true;begin(c,true)}
 export const hlOk=c=>c.nd>0&&c.ros.every(d=>GS.drones.includes(d));
