@@ -201,9 +201,15 @@ for(let i=0;i<RN*3;i++)rP[i]=(Math.random()-.5)*120;
 const rGeo=new THREE.BufferGeometry();rGeo.setAttribute('position',new THREE.BufferAttribute(rL,3));
 const rainL=new THREE.LineSegments(rGeo,new THREE.LineBasicMaterial({color:0xc8d2dc,transparent:true,opacity:.35,depthWrite:false}));rainL.frustumCulled=false;scene.add(rainL);
 const camVel=new V3(),camPrev=new V3();let flashT=8,thunder=null,rainN=RN,wxHook=null;
+// the environment map's backdrop: PMREMGenerator.fromScene draws a solid-colour box with a material it makes and disposes on every call, which
+// freed its shader program, so every weather change linked it again (~150 ms on an integrated GPU). A kept twin (same variant: into a render
+// target, no tone mapping, no fog or lights) holds the program in three.js's cache. Built once, on the first weather.
+let pmK=null;function pmKeep(){if(pmK)return;pmK=new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshBasicMaterial({side:THREE.BackSide,depthWrite:false,depthTest:false}));
+ const rt=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType}),prev=renderer.getRenderTarget(),tm=renderer.toneMapping;renderer.toneMapping=THREE.NoToneMapping;renderer.setRenderTarget(rt);
+ try{renderer.compile(pmK,new THREE.PerspectiveCamera(90,1,.1,100))}finally{renderer.setRenderTarget(prev);renderer.toneMapping=tm;rt.dispose()}}
 // id: a WXS key ('random' or unknown = a random one), or a whole weather object (Zombies' own table, zwx.js); keep = keep the wind direction
 function setWeather(id,keep){const o=id&&typeof id==='object'?id:null;if(!o&&!WXS[id]){const k=Object.keys(WXS);id=k[Math.random()*k.length|0]}WX=o?{...o}:{id,...WXS[id]};
- wxSky();envRT?.dispose();envRT=pmrem.fromScene(envScene);wxLook(thermLook);
+ wxSky();pmKeep();envRT?.dispose();envRT=pmrem.fromScene(envScene);wxLook(thermLook);
  if(keep){WB.setLength(Math.max(.1,WX.wind*.95));return}
  const a=-Math.PI*.15+(Math.random()-.5)*1.2;WB.set(Math.sin(a),0,Math.cos(a)).multiplyScalar(WX.wind*(.7+Math.random()*.5))}  // wind mostly from the north
 function wxSky(){const el=WX.el*Math.PI/180,az=WX.az*Math.PI/180;SUND.set(Math.cos(el)*Math.sin(az),Math.sin(el),Math.cos(el)*Math.cos(az));
