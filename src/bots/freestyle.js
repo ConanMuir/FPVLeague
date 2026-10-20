@@ -12,6 +12,7 @@
 // at the wall), and high by the wall a wall pop (pop it off the wall toward the middle). A loose ball in the air gets a brush (a planned strike
 // moved to graze its side). Same thrust and flight limits as everyone.
 import {GH,GW,H,HL,HW,UP,V3,cl} from '../config/constants.js';
+import {hyp2} from '../core/hypot.js';
 import {BG,BOTV,BR,G} from '../config/tune.js';
 import {ball} from '../physics/ball.js';
 import {GS} from '../state.js';
@@ -44,9 +45,9 @@ export function fsCarry(d,D,dt,a,g,gl){const ai=d.ai;if(!ai.mv)ai.mv=choose(d,gl
  const off=_q.copy(rx).multiplyScalar(M.x*k).addScaledVector(fx,-M.z*k);  // where the ball should be relative to the quad
  const ex=ball.p.x-off.x-d.p.x,ez=ball.p.z-off.z-d.p.z,ke=D.ke??4,kv=D.kv??8;
  const tap=ai.fin==='tap',vc=tap?12:cl(gl/12,4,D.dv||10);const ox=((ce?0:g.x*vc)-ball.v.x)*.8,oz=((ce?0:g.z*vc)-ball.v.z)*.8;
- a.x=kv*(ball.v.x+ke*ex-d.v.x)+ox;a.z=kv*(ball.v.z+ke*ez-d.v.z)+oz;const ah=Math.hypot(a.x,a.z);const am=D.am??40;if(ah>am){a.x*=am/ah;a.z*=am/ah}
+ a.x=kv*(ball.v.x+ke*ex-d.v.x)+ox;a.z=kv*(ball.v.z+ke*ez-d.v.z)+oz;const ah=hyp2(a.x,a.z);const am=D.am??40;if(ah>am){a.x*=am/ah;a.z*=am/ah}
  const cy=ce?H-2*BR-topOf(d)+.2:wh?Math.max(D.cy||9,d.p.y-1):D.cy||9;a.y=6*(cl((cy-d.p.y)*1.5,-4,ce?D.ceV??14:5)-d.v.y);  // high by the wall it stays up there; a ceiling play climbs until the ball touches the ceiling
- const up=_t.set(0,1,0).applyQuaternion(d.q).y,ready=Math.hypot(ex,ez)<(D.rdE??.3)*k&&up>(D.rdU??.93)&&d.p.y>cy-(D.rdY??1)&&(wp||fx.dot(g)>.85);
+ const up=_t.set(0,1,0).applyQuaternion(d.q).y,ready=hyp2(ex,ez)<(D.rdE??.3)*k&&up>(D.rdU??.93)&&d.p.y>cy-(D.rdY??1)&&(wp||fx.dot(g)>.85);
  if(ce){if(ai.ct>(D.ceT??14)){ai.fin=null;ai.mv=null}  // never got there: back to the chain
   else if(ball.p.y>H-BR-1.5&&Math.abs(ball.v.y)<1.5&&d.popC>0&&!(d.popT>0)){let m='hop',b=-2;for(const[k,x,z]of[['hop',fx.x,fx.z],['hopB',-fx.x,-fx.z],['sideR',rx.x,rx.z],['sideL',-rx.x,-rx.z]])if(x*g.x+z*g.z>b){b=x*g.x+z*g.z;m=k}
    if(d.tryPop(MOVES[m].st)){ai.roof=false;ai.fm='ceil';ai.fmt=5;ai.ceD=D.ceD??.5;ai.fin=null;ai.mv=null;ai.cht=0;ai.ch=(ai.ch||0)+1}}  // on the ceiling: pop it goalward off the ceiling (it comes down fast and forward), drop after it and strike it
@@ -64,7 +65,7 @@ export function fsCarry(d,D,dt,a,g,gl){const ai=d.ai;if(!ai.mv)ai.mv=choose(d,gl
   if(ai.fin)ai.cht=0}}
 // air dribble: under the ball and a little behind it (away from the goal), meet it rising so it bounces up and on toward the goal;
 // every top touch earns a pop again, and near the goal it spends one as a drive
-function airDribble(d,D,dt){const ai=d.ai,top=topOf(d),H0=top+BR,r=_v.subVectors(ball.p,d.p),hd=Math.hypot(r.x,r.z),s=d.team?1:-1;
+function airDribble(d,D,dt){const ai=d.ai,top=topOf(d),H0=top+BR,r=_v.subVectors(ball.p,d.p),hd=hyp2(r.x,r.z),s=d.team?1:-1;
  if(ball.p.y<BR+1||hd>6||r.y<H0-.5)return false;
  const g=_t.set(0,0,s*(HL+4)).sub(ball.p);g.y=0;const gl=g.length()||1;g.divideScalar(gl);
  const k=motorOf(d),bx=ball.p.x+ball.v.x*.05-g.x*.35*k,bz=ball.p.z+ball.v.z*.05-g.z*.35*k,a=_a;
@@ -78,19 +79,19 @@ function airDribble(d,D,dt){const ai=d.ai,top=topOf(d),H0=top+BR,r=_v.subVectors
 // drops onto it top first (earning a new pop in mid-air: the reset), rights itself behind the ball and spends that pop as a dodge into it
 // toward the goal (a pitch-forward pop: a 12 m/s shove and the frame turning over through the ball). rs: 0 getting above it, 1 upside down
 function flipReset(d,D,dt){const ai=d.ai,H0=topOf(d)+BR,s=d.team?1:-1,a=_a;
- const g=_lk.set(-ball.p.x,0,s*(HL+4)-ball.p.z);g.normalize();const r=_v.subVectors(ball.p,d.p),hd=Math.hypot(r.x,r.z);ai.rst=(ai.rst||0)+dt;
+ const g=_lk.set(-ball.p.x,0,s*(HL+4)-ball.p.z);g.normalize();const r=_v.subVectors(ball.p,d.p),hd=hyp2(r.x,r.z);ai.rst=(ai.rst||0)+dt;
  if(ai.rs===0){if(ball.p.y<8||ai.rst>(D.rsT??4)){ai.fm=null;return false}
   let A=null;for(let k=1;k<PRED.length;k++)if(PV[k].y<=0){A=PRED[k];break}if(!A){ai.fm=null;return false}  // where it peaks: wait just above that
-  const bh=Math.hypot(ball.v.x,ball.v.z),under=d.p.y<ball.p.y+(D.rsL??1);if(bh>3)_f.set(ball.v.z/bh,0,-ball.v.x/bh);else _f.set(g.z,0,-g.x);if(_f.x*(d.p.x-ball.p.x)+_f.z*(d.p.z-ball.p.z)<0)_f.negate();
+  const bh=hyp2(ball.v.x,ball.v.z),under=d.p.y<ball.p.y+(D.rsL??1);if(bh>3)_f.set(ball.v.z/bh,0,-ball.v.x/bh);else _f.set(g.z,0,-g.x);if(_f.x*(d.p.x-ball.p.x)+_f.z*(d.p.z-ball.p.z)<0)_f.negate();
   _q.copy(ball.p).addScaledVector(ball.v,.15).addScaledVector(_f,under?D.rsO??5:0);_q.y=(under?A.y:ball.p.y)+H0+(D.rsG??1.5);  // below it: climb 5 m to the side of its path (on the side the quad is on), never up into it; above it: over it
-  const ey=_q.y-d.p.y;a.subVectors(_q,d.p).multiplyScalar(3).clampLength(0,D.vmax*BOTV);a.y=ball.v.y+cl(ey*3,-15,D.rsU??24);a.sub(d.v).multiplyScalar(6);a.y=Math.max(a.y,-G*.6);{const ah=Math.hypot(a.x,a.z),hm=(a.y+G)*1.5+4;if(ah>hm){a.x*=hm/ah;a.z*=hm/ah}}  // up past it at no more than 24 m/s relative (only upside down can it brake against the ball); it may tilt far to get over it
+  const ey=_q.y-d.p.y;a.subVectors(_q,d.p).multiplyScalar(3).clampLength(0,D.vmax*BOTV);a.y=ball.v.y+cl(ey*3,-15,D.rsU??24);a.sub(d.v).multiplyScalar(6);a.y=Math.max(a.y,-G*.6);{const ah=hyp2(a.x,a.z),hm=(a.y+G)*1.5+4;if(ah>hm){a.x*=hm/ah;a.z*=hm/ah}}  // up past it at no more than 24 m/s relative (only upside down can it brake against the ball); it may tilt far to get over it
   const vr=Math.max(0,d.v.y-ball.v.y);if(hd<(D.rsH??9)&&-r.y>H0-.3-Math.min(5,vr*vr/(2*(D.rsP??100)*.6))&&-r.y<H0+15){ai.rs=1;ai.rst=0}  // nearly over it (allowing for the climb it has to stop): turn over and push down onto it
   fly(d,D,a,g);return true}
  if(ai.tch){ai.fm=null;if(d.popC>0){ai.fm='rsd';ai.fmt=D.rsF??4}return false}  // reset: now play the ball with the planned strike and spend the pop as a dodge into it (strike, below)
  if(ai.rst>(D.rsI??1.6)||r.y>2.5||d.p.y<10||ball.p.y<6){ai.fm=null;return false}  // upside down: it missed, or it is getting low
   const ay=d.v.y-ball.v.y>-cl(3*(-r.y-H0),D.rsV??6,30)*(hd<1.2?1:.25)?-(D.rsP??100):-(D.rsM??4);  // relative to the ball (both fall alike; upside down it can only push toward it, never brake): get it closing at 4 m/s, then hold that
   if(-r.y<H0+(D.rsC2??1.5)&&hd<4.6&&hd>.1)_q.set(ball.p.x-r.x/hd*4.6,0,ball.p.z-r.z/hd*4.6);else _q.copy(ball.p);  // not well above it yet: stay clear to the side (a tilted frame reaches lower)
-  a.set(12*(_q.x-d.p.x)+7*(ball.v.x-d.v.x),0,12*(_q.z-d.p.z)+7*(ball.v.z-d.v.z));const ah=Math.hypot(a.x,a.z),hm=hd>1.2?D.rsW??30:-ay*.6;if(ah>hm){a.x*=hm/ah;a.z*=hm/ah}a.y=ay-BG;  // over it, tilting no more than ~30 deg so the top meets it
+  a.set(12*(_q.x-d.p.x)+7*(ball.v.x-d.v.x),0,12*(_q.z-d.p.z)+7*(ball.v.z-d.v.z));const ah=hyp2(a.x,a.z),hm=hd>1.2?D.rsW??30:-ay*.6;if(ah>hm){a.x*=hm/ah;a.z*=hm/ah}a.y=ay-BG;  // over it, tilting no more than ~30 deg so the top meets it
   fly(d,D,a,g);return true}  // the thrust points down along that, so the quad is upside down
 // spin shots and double taps with the shot planner (bots/league.js plan/strikeV)
 function strike(d,D,dt){const ai=d.ai;if(!ai.C){ai.C=new V3();ai.n=new V3();ai.P=new V3();ai.C0=new V3();ai.n0=new V3();ai.P0=new V3()}
@@ -113,7 +114,7 @@ export function freestyle(d,D,dt){const ai=d.ai;
  if(ball.p.y<BR+.4&&ball.c&&!(ai.fm==='follow'))ai.ch=0;  // the ball touched the floor: the chain is over
  if(ai.fm&&(ai.fmt-=dt)<=0){ai.fm=null;ai.spinS=0}
  if(ball.p.y<BR+.4&&ball.c)ai.epi=false;
- else if(!ai.fm&&!ai.epi&&ball.p.y>6&&ball.v.y<0&&!(d.popT>0)){ai.epi=true;const s=d.team?1:-1,gl=Math.hypot(ball.p.x,s*HL-ball.p.z),hd=Math.hypot(ball.p.x-d.p.x,ball.p.z-d.p.z);
+ else if(!ai.fm&&!ai.epi&&ball.p.y>6&&ball.v.y<0&&!(d.popT>0)){ai.epi=true;const s=d.team?1:-1,gl=hyp2(ball.p.x,s*HL-ball.p.z),hd=hyp2(ball.p.x-d.p.x,ball.p.z-d.p.z);
   if(gl<150&&hd>15&&ball.v.y<0&&Math.random()<.6){ai.fm='spin';ai.fmt=4}}  // a loose ball in the air it can't get under in time: play a trick shot on it instead
  if(!ai.fm&&ball.last===d&&!(d.popT>0)&&ball.p.y>4&&(D.tapF??1)&&(ai.tfT=(ai.tfT||0)-dt)<=0){ai.tfT=.1;const s=d.team?1:-1;  // its own touch (a pop or a shot) is going to hit the backboard: go for the second touch
   for(let i=3;i<125;i+=3){const P=PRED[i];if(P.z*s>HL-BR-2.5){if((P.y>GH+1||Math.abs(P.x)>GW/2+1)&&Math.abs(P.x)<GW*.8&&P.y<GH+28){ai.fm='follow';ai.fmt=4.5;ai.wall=false}break}}}  // above or beside the goal mouth, not in it

@@ -1,5 +1,6 @@
 // ---------- bots (League): ball prediction, intercept, roles, cascaded controller into attitude() ----------
 import {DIFF,GD,GH,GW,H,HL,HW,UP,V3,cl} from '../config/constants.js';
+import {hyp2} from '../core/hypot.js';
 import {LL,hoopMode,hoops,ropeLen} from '../modes/longline.js';
 import {S} from '../config/settings.js';
 import {BG,BOOST,BOTV,BR,BTHR,DL,DQ,G,TE,THR} from '../config/tune.js';
@@ -81,10 +82,10 @@ export function plan(d,D){const ai=d.ai,acc=BTHR*D.thr*.72,vm=D.vmax*BOTV,vs=vm*
  if(D.aim)bestAim(d,D,ai.tt>0&&ai.P?ai.P:ball.p,ai.tt>0?ai.tt:0);else if(!ai.fsAim)ai.gx=null;
  for(let i=1;i<PRED.length;i+=2){const P=PRED[i],t=(i+1)*PDT;
   goalAim(d,P,kp,_g).sub(P).normalize();_n.copy(_g).multiplyScalar(vs*1.2).sub(PV[i]).normalize();
-  const ny=(P.y-1.6)/(R+10);if(_n.y>ny){const h=Math.hypot(_n.x,_n.z)||1,k=Math.sqrt(Math.max(0,1-ny*ny))/h;_n.x*=k;_n.z*=k;_n.y=ny}  // the contact point and a 10 m run-up to it stay above the floor
+  const ny=(P.y-1.6)/(R+10);if(_n.y>ny){const h=hyp2(_n.x,_n.z)||1,k=Math.sqrt(Math.max(0,1-ny*ny))/h;_n.x*=k;_n.z*=k;_n.y=ny}  // the contact point and a 10 m run-up to it stay above the floor
   _c.copy(P).addScaledVector(_n,-R);const sd=sdf(_c.x,_c.y,_c.z);if(sd>-1){sdN(_c,_lat);_c.addScaledVector(_lat,-(sd+1));_n.subVectors(P,_c).normalize()}  // ...and off the walls: then it plays the ball along them
   _k.subVectors(_c,d.p);const dist=_k.length(),al=dist<1?1:_k.dot(_n)/dist;let tr;
-  if(i0<0){_n0.subVectors(P,d.p).normalize().addScaledVector(_n,.7).normalize();if(_n0.y>ny){const h=Math.hypot(_n0.x,_n0.z)||1,k=Math.sqrt(Math.max(0,1-ny*ny))/h;_n0.x*=k;_n0.z*=k;_n0.y=ny}
+  if(i0<0){_n0.subVectors(P,d.p).normalize().addScaledVector(_n,.7).normalize();if(_n0.y>ny){const h=hyp2(_n0.x,_n0.z)||1,k=Math.sqrt(Math.max(0,1-ny*ny))/h;_n0.x*=k;_n0.z*=k;_n0.y=ny}
    _c0.copy(P).addScaledVector(_n0,-R);if(reachT(d,_c0,acc,vm)*D.slack+.1<=t){i0=i;ai.t0=t;ai.n0.copy(_n0);ai.C0.copy(_c0);ai.P0.copy(P)}}  // the quickest touch: straight at it, bent toward the shot
   if(al>.4)tr=reachT(d,_c,acc,vm);else{const L=6+6*(1-al);tr=reachT(d,_e.copy(_c).addScaledVector(_n,-L),acc,vm)+L/vs+.3*(1-al)}  // from the wrong side it has to go round first
   if(tr*D.slack+.1<=t||i>=PRED.length-2){if(i0<0){i0=i;ai.t0=t;ai.n0.copy(_n);ai.C0.copy(_c);ai.P0.copy(P)}pick=i;ai.al=al;ai.tt=t;ai.n.copy(_n);ai.C.copy(_c);ai.P.copy(P);break}}

@@ -67,6 +67,12 @@ export const glow=(hex,k=1.6)=>new THREE.MeshBasicMaterial({color:new THREE.Colo
 export function scaleUV(g,sx,sy){const uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*sx,uv.getY(i)*sy);return g}
 // fat line segments (pairs of points) for rims and cages: w metres wide up close, never thinner than o.px pixels far away (so they stay solid lines
 // instead of 1-px shimmer or broken dashes), nudged a little toward the camera so they don't z-fight the surface they sit on. MSAA/SMAA smooth the edges.
+// instanced shadow casters get their own depth material, set up as three's shared one: three draws every caster into the shadow map with
+// one shared depth material, and each switch between a plain and an instanced mesh made it re-check that material's shader program
+// (Highlands: trees and rocks among plain meshes, many times a frame). Materials that need their own depth variant (alpha-tested maps,
+// alpha / displacement maps, clipping) keep three's handling. world/maps.js setMap() runs it after a map is built.
+const IDEPTH=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
+export function instDepth(root){root.traverse(o=>{const m=o.material;if(!o.isInstancedMesh||!o.castShadow||o.customDepthMaterial||!m||Array.isArray(m)||m.alphaMap||m.displacementMap||m.map&&m.alphaTest>0||m.clippingPlanes?.length)return;o.customDepthMaterial=IDEPTH})}
 export function fatLines(pos,w,o={}){const g=new LineSegmentsGeometry().setPositions(pos);if(o.colors)g.setColors(o.colors);
  const m=new LineMaterial({linewidth:1,vertexColors:!!o.colors,color:o.color??0xffffff,toneMapped:false,fog:o.fog??true,transparent:!!o.transparent,opacity:o.opacity??1,depthWrite:!o.transparent});
  m.uniforms.worldW={value:w};m.userData.px=o.px??1.5;m.vertexShader=m.vertexShader.replace('uniform float linewidth;','uniform float linewidth,worldW;')

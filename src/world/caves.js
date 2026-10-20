@@ -5,6 +5,7 @@
 // terrain is clipped where the caves open (clipIndexed). Those same triangles are drawn and given to Rapier, so what you see is
 // what you hit. Caves sit 70-130 m down (the lowest ground is the river canyon at -40), so they keep a solid roof except at entrances.
 import {COL} from '../config/constants.js';
+import {hyp2,hyp3} from '../core/hypot.js';
 import {DBASE,cxR,dfGrid,dfH,dfHt} from './terrain.js';
 import {fbm} from './noise.js';
 const mir=p=>[-p[0],p[1],-p[2]],mn=n=>n==='H0'?n:n.endsWith("'")?n.slice(0,-1):n+"'";
@@ -51,9 +52,9 @@ function dense(P,f,round){const R=[P[0]];for(let i=1;i<P.length-1;i++){const u=n
 function inside(a,q){for(let i=1;i<8;i++){const w=i/8;if(sdCave(a[0]+(q.x-a[0])*w,a[1]+(q.y-a[1])*w,a[2]+(q.z-a[2])*w)>-2)return false}return true}
 // signed distance to one piece (negative inside its free space); drums are exact, ellipsoids use the k0(k0-1)/k1 bound (exact zero set)
 export function sdPiece(o,x,y,z){if(o.k==='r'){let m=1e9;for(const s of o.segs){const dx=Math.max(s.lo[0]-x,x-s.hi[0],0),dy=Math.max(s.lo[1]-y,y-s.hi[1],0),dz=Math.max(s.lo[2]-z,z-s.hi[2],0);if(dx*dx+dy*dy+dz*dz>=(m+o.r)*(m+o.r))continue;
-  const px=x-s.a[0],py=y-s.a[1],pz=z-s.a[2];let t=px*s.d[0]+py*s.d[1]+pz*s.d[2];t=t<0?0:t>s.L?s.L:t;const d=Math.hypot(px-s.d[0]*t,py-s.d[1]*t,pz-s.d[2]*t)-o.r;if(d<m)m=d}return m}  // a route: the union of its segments' capsules
- if(o.k==='d'){const px=Math.hypot(x-o.c[0],z-o.c[2])-(o.r[0]-o.rr),py=Math.abs(y-o.c[1])-(o.r[1]-o.rr);return Math.min(Math.max(px,py),0)+Math.hypot(Math.max(px,0),Math.max(py,0))-o.rr}  // a drum (exact)
- const qx=(x-o.c[0])/o.r[0],qy=(y-o.c[1])/o.r[1],qz=(z-o.c[2])/o.r[2],k0=Math.hypot(qx,qy,qz),k1=Math.hypot(qx/o.r[0],qy/o.r[1],qz/o.r[2]);return k1>1e-9?k0*(k0-1)/k1:-Math.min(...o.r)}
+  const px=x-s.a[0],py=y-s.a[1],pz=z-s.a[2];let t=px*s.d[0]+py*s.d[1]+pz*s.d[2];t=t<0?0:t>s.L?s.L:t;const d=hyp3(px-s.d[0]*t,py-s.d[1]*t,pz-s.d[2]*t)-o.r;if(d<m)m=d}return m}  // a route: the union of its segments' capsules
+ if(o.k==='d'){const px=hyp2(x-o.c[0],z-o.c[2])-(o.r[0]-o.rr),py=Math.abs(y-o.c[1])-(o.r[1]-o.rr);return Math.min(Math.max(px,py),0)+hyp2(Math.max(px,0),Math.max(py,0))-o.rr}  // a drum (exact)
+ const qx=(x-o.c[0])/o.r[0],qy=(y-o.c[1])/o.r[1],qz=(z-o.c[2])/o.r[2],k0=hyp3(qx,qy,qz),k1=hyp3(qx/o.r[0],qy/o.r[1],qz/o.r[2]);return k1>1e-9?k0*(k0-1)/k1:-Math.min(...o.r)}
 // the whole network, capped at 60 m (or less: clipping only needs the sign, and a small cap skips most primitives). Primitives (caverns
 // and single route segments) are bucketed on a 3D grid (32 m cells, each listing those whose box comes within 60 m of it; a finer one,
 // 8 m cells within 4 m, for small caps); outside the grid nothing is nearer than the cap. Boxes farther than the best so far are skipped.
