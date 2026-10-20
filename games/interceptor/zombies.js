@@ -12,6 +12,9 @@ import {initFX} from './zfx.js';
 import {initWeather} from './zwx.js';
 import {initRocket} from './zrocket.js';
 import {initNet} from './znet.js';
+import {initLock} from './zlock.js';
+import {initSwarm} from './zswarm.js';
+import {initBatt} from './zbatt.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -288,6 +291,7 @@ export function initZombies(api){
    def.D.splice(def.D.indexOf(d),1);TH.push(...keep);Object.assign(G,{cash:save.cash,earned:save.earned,kills:save.kills,state:save.st});SITES.forEach((s,i)=>s.hp=save.hp[i]);return res},
   // scripted player: put the interceptor just behind the most urgent free track, matched to its velocity, and detonate
   botKill(off=1){const me=api.player,t=Z.urgent();if(!me||me.dead>0||!t)return null;me.p.copy(t.p).addScaledVector(_a.copy(t.v).normalize(),-off);me.v.copy(t.v);Z.detonate();return t.k}};
+ initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
  return Z}
