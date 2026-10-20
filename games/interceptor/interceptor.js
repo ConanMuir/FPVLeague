@@ -22,6 +22,9 @@ import {makeGrid} from './grid.js';
 import {strelaBody} from './strela.js';
 import {FA,CW,CH,CROPS,fieldLayout,partRects,fieldData,groundMaterial} from './ground.js';
 import {initBuildings,houseTex,houseWallGeo,houseRoofGeo,houseNight} from './buildings.js';
+import {cleanPref,NAMES as GFXN} from '../../engine/gfx.js';
+import {initGfx} from './igfx.js';
+import {warmUp} from '../../engine/warm.js';
 mountMod();setFeedTime(5500);
 
 // ---------- world constants (metres, seconds; real scale) ----------
@@ -31,9 +34,9 @@ let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.
 const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3(),_tl=new V3(),_vr=new V3();
 const DIFF=[{n:'Light',cnt:.7,spd:.92,gap:1.3},{n:'Heavy',cnt:1,spd:1,gap:1},{n:'Saturation',cnt:1.5,spd:1.06,gap:.7}];
 const RRS=[2000,5000,10000];
-const DEF={mode:"acro",diff:1,tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fuse:'auto',fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,guideSw:-1,nextSw:-1,guide:1,gmode:'classic',skin:'dart',zwx:'wave'};
+const DEF={mode:"acro",diff:1,tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fuse:'auto',fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,guideSw:-1,nextSw:-1,guide:1,gmode:'classic',skin:'dart',zwx:'wave',gfx:'auto',fps:true,haze:false,fcap:0};
 loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the dart's camera sits at 90°, a 5-inch quad's at 30°
-if(S.fuse!=='manual')S.fuse='auto';S.diff=cl(S.diff|0,0,2);S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);
+if(S.fuse!=='manual')S.fuse='auto';S.diff=cl(S.diff|0,0,2);S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
 
 // ---------- renderer ----------
@@ -149,7 +152,9 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
   tGeo=new THREE.CylinderGeometry(.2,.35,1,7).translate(0,.5,0),tMat=detail(new THREE.MeshStandardMaterial({color:0x4a3b2c,roughness:1}),.6,3,0,.25),
   cGeo=crownGeo(),cMat=detail(new THREE.MeshStandardMaterial({roughness:.9,vertexColors:true}),1.3,5,0,.6,2);
  for(const t of TREES){const k=Math.floor((t[0]+TW/2)/CK)+Math.floor((t[1]+TW/2)/CK)*64;let a=tiles.get(k);if(!a)tiles.set(k,a=[]);a.push(t)}
- for(const L of tiles.values()){const trunk=new THREE.InstancedMesh(tGeo,tMat,L.length),crown=new THREE.InstancedMesh(cGeo,cMat,L.length*2);
+ const cLo=crownGeo(1),shuf=seeded(5);  /* Graphics quality (igfx.js): low-poly crowns, and a shuffled order so drawing the first n instances thins a tile evenly */
+ for(const[key,L]of tiles){for(let i=L.length-1;i>0;i--){const j=shuf()*(i+1)|0;[L[i],L[j]]=[L[j],L[i]]}const trunk=new THREE.InstancedMesh(tGeo,tMat,L.length),crown=new THREE.InstancedMesh(cGeo,cMat,L.length*2);
+  const tx=(key%64)*CK-TW/2,tz=Math.floor(key/64)*CK-TW/2;trunk.userData.tile=crown.userData.tile=[tx,tz,tx+CK,tz+CK];trunk.userData.n=L.length;crown.userData.n=L.length*2;crown.userData.geo=[cGeo,cLo];
   L.forEach(([x,z,h],i)=>{const y=gh(x,z)-.3,r=h*.26;m4.compose(_t.set(x,y,z),q.identity(),s.set(1+h*.03,h*.55,1+h*.03));trunk.setMatrixAt(i,m4);
    c.setHSL(.23+Math.random()*.08,.38+Math.random()*.15,.12+Math.random()*.08,THREE.SRGBColorSpace);
    for(let k=0;k<2;k++){q.setFromAxisAngle(UP,x*z+k);m4.compose(_t.set(x+(k?r*.4:-r*.3),y+h*(k?.72:.55),z+(k?-r*.3:r*.3)),q,s.set(r*(k?.8:1),r*(k?.9:1.15),r*(k?.8:1)));crown.setMatrixAt(i*2+k,m4);crown.setColorAt(i*2+k,c)}});
@@ -160,7 +165,7 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
   roofs=new THREE.InstancedMesh(houseRoofGeo(),detail(new THREE.MeshStandardMaterial({roughness:.75,metalness:.15,side:THREE.DoubleSide}),.9,4,0,.3),HOUSES.length);
  HOUSES.forEach(([x,z,a,k],i)=>{const y=gh(x,z)-.3;q.setFromAxisAngle(UP,-a);m4.compose(_t.set(x,y,z),q,s.set(8,3.2,11));walls.setMatrixAt(i,m4);walls.setColorAt(i,c.set(W[i%5]));
   m4.compose(_t.set(x,y+3.1,z),q,s.set(9.2,2.5,12));roofs.setMatrixAt(i,m4);roofs.setColorAt(i,c.set(RF[(k*5)|0]))});
- for(const o of[walls,roofs]){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;scene.add(o)}
+ for(const o of[walls,roofs]){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;o.userData.house=1;scene.add(o)}
  // 110 kV line: lattice pylons every 320 m with sagging conductors (visual only)
  const mS=new THREE.MeshStandardMaterial({color:0x8c9298,roughness:.5,metalness:.6}),leg=new THREE.BoxGeometry(.35,1,.35),arm=new THREE.BoxGeometry(14,.5,.5),wp=[];
  const s0=SITES[0];for(let k=0;k<16;k++){const x=s0.x-160-k*300,z=s0.z-80-k*190+Math.sin(k)*40;if(Math.abs(x)>4300)break;PYL.push([x,z])}
@@ -452,7 +457,7 @@ const nearestThreat=p=>GRID.nearest(p,live);
 const urgent=()=>{if(Z.on)return Z.urgent();let b=null,bt=1e18;for(const t of TH)if(live(t)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(tt<bt){bt=tt;b=t}}return b};
 // selected track: the most urgent unless you picked one with Next track (N); tracks cycle in order of urgency
 let pickT=null,gdNow=null;const selT=()=>pickT&&live(pickT)?pickT:urgent();
-function nextTrack(){const L=TH.filter(live).sort((a,b)=>Math.hypot(a.aim.x-a.p.x,a.aim.z-a.p.z)/a.spd-Math.hypot(b.aim.x-b.p.x,b.aim.z-b.p.z)/b.spd);if(!L.length)return;pickT=L[(L.indexOf(selT())+1)%L.length];if(!demo)banner('T'+String(pickT.id).padStart(2,'0'),'',.6)}
+function nextTrack(){const L=TH.filter(t=>live(t)&&!(Z.on&&Z.hid?.(t))).sort((a,b)=>Math.hypot(a.aim.x-a.p.x,a.aim.z-a.p.z)/a.spd-Math.hypot(b.aim.x-b.p.x,b.aim.z-b.p.z)/b.spd);if(!L.length)return;pickT=L[(L.indexOf(selT())+1)%L.length];if(!demo)banner('T'+String(pickT.id).padStart(2,'0'),'',.6)}
 // midcourse guidance: the ground station turns the latest radar plot of the selected track (updated each sweep, dead-reckoned between) into a predicted intercept point
 // 60 m behind the target, solved for your speed (at least cruise), so you arrive in its six. Inside 1.5 km it hands over to terminal: your eyes, the brackets and the pursuit cue.
 const GD={pip:new V3(),tp:new V3(),tv:new V3()};
@@ -600,6 +605,7 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
  for(const f of FOBS){const d=Math.hypot(f.x-camera.position.x,f.z-camera.position.z);if(d>4000)continue;const q=scr(_ip.set(f.x,f.y+6,f.z));if(q){oc.fillStyle='#3ddc84';oc.fillText(f.n+' '+rng(d),q[0],q[1])}}
  for(const s of SITES){const q=scr(_ip.set(s.x,s.y+34,s.z));if(!q)continue;oc.fillStyle=s.hp?'#7fd0ff':'#8a8f99';oc.fillText(Z.on?Z.slabel(s):s.n+(s.hp?' '+'■'.repeat(s.hp):' · DESTROYED'),q[0],q[1])}
  for(const t of TH){if(t.st==='dead')continue;const q=scr(t.p);if(!q)continue;const[x,y]=q,d=t.p.distanceTo(camera.position),s=Math.max(9,Math.min(70,2.8/d/ft*H2*.5+5)),L=live(t),k=s*.45;
+  if(Z.on&&Z.hid?.(t))continue;  /* Zombies: a hidden boss (stealth, jammer, disguise) gets no bracket */
   oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':Z.on?Z.ocol(t,sel):t===sel?'#ffc640':t.jet?'#ff9640':'#ff4d4d';if(Z.on&&Z.quiet(t)){oc.fillRect(x-2,y-2,4,4);continue}
   oc.beginPath();for(const[sx,sy]of[[-1,-1],[1,-1],[1,1],[-1,1]]){oc.moveTo(x+sx*s,y+sy*s-sy*k);oc.lineTo(x+sx*s,y+sy*s);oc.lineTo(x+sx*s-sx*k,y+sy*s)}oc.stroke();
   if(L&&!(Z.on&&Z.quiet(t)))oc.fillText(`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`,x,y+s+13);
@@ -628,8 +634,8 @@ const padKeys=e=>{if(e(9))togglePause();if(!menuOpen&&!demo){if(Z.on&&Z.pad(e))r
 // ---------- menu / settings ----------
 const FIELDS=[['diff','Threat level','sel',DIFF.map((d,i)=>[i,d.n])],['wx','Weather','sel',[['random','Random'],...Object.entries(WXS).map(([k,w])=>[k,w.n])]],['fuse','Warhead fuse','sel',[['auto','Proximity (auto)'],['manual','Manual (detonate button)']]],
  ['rr','Radar range','sel',RRS.map((r,i)=>[i,r/1000+' km'])],['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
- ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['guide','Midcourse guidance','sel',[[1,'On (PIP cue from ground radar)'],[0,'Off']]],['skin','Interceptor look (Classic)','sel',[['dart',"Riley's dart"],['strela','Strela-2 missile']]],['zwx','Zombies weather','sel',[['wave','New forecast each wave'],['menu','Use the Weather setting']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
-mountPad($('pilotpad'),{flip:false,fire:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx);if(k==='skin')player?.look()});
+ ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['guide','Midcourse guidance','sel',[[1,'On (PIP cue from ground radar)'],[0,'Off']]],['skin','Interceptor look (Classic)','sel',[['dart',"Riley's dart"],['strela','Strela-2 missile']]],['zwx','Zombies weather','sel',[['wave','New forecast each wave'],['menu','Use the Weather setting']]],['gfx','Graphics quality','sel',['auto','high','med','low'].map(k=>[k,k==='auto'?'Auto (lowers resolution, then detail, when slow)':k==='low'?'Low (integrated GPUs)':GFXN[k]])],['fps','FPS meter','sel',[[true,'On'],[false,'Off']]],['haze','Distance haze','sel',[[false,'Off (the weather fog only)'],[true,'On (hazier far out, faster)']]],['fcap','Frame cap','sel',[[0,'Unlimited'],[120,'120 FPS'],[80,'80 FPS'],[60,'60 FPS']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
+mountPad($('pilotpad'),{flip:false,fire:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx);if(k==='gfx'||k==='fps'||k==='haze'||k==='fcap')IG.sync();if(k==='skin')player?.look()});
 mountSwitches([['fire','Detonate','F'],['tiltSw','Cam tilt','L'],['thermSw','Thermal','H'],['guideSw','Guidance','G'],['nextSw','Next track','N']]);
 syncUI();
 $('play').onclick=startMatch;$('resume').onclick=()=>showMenu(false);$('leave').onclick=startDemo;
@@ -651,7 +657,7 @@ function applyTune(){const T=S.mod;G=T.grav;THR=T.thr;TE=T.te;VP=T.vp;MAXV=T.max
   HBP=[[.15,-.36,0],[-.15,-.36,0],[0,-.36,.15],[0,-.36,-.15],[.27,.15,.27],[-.27,.15,.27],[.27,.15,-.27],[-.27,.15,-.27],[0,.4,0]].map(([x,y,z])=>new V3(x,y,z).multiplyScalar(k))}SPOOL=T.spool/1000;GF=T.gfric;TURT=T.turtle*Math.PI/180;WASH=T.wash;DB=T.dbounce;BCAP=T.bcap;
  LETH=T.leth;CRASH=T.crash;RELT=T.relt;TSPD=T.tspd;TCNT=T.tcnt;GSPD=T.speed;SHK=T.shake;bloom.strength=T.bloom*.33;HOV=(G/THR)**(1/TE)}
 $('modbtn').onclick=toggleMod;let zTune=()=>{};initModPanel({mods:MODS,presets:PRESETS,migrate,onApply:()=>{applyTune();zTune()}});initRates('Drone League Interceptor');
-$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','cam','thrMode','dz','fuse','fireBtn','wx','rr','fpvMix','grain','guide','skin','zwx','tiltSw','thermSw','guideSw','nextSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
+$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','cam','thrMode','dz','fuse','fireBtn','wx','rr','fpvMix','grain','guide','skin','zwx','gfx','fps','haze','fcap','tiltSw','thermSw','guideSw','nextSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>feed('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 
@@ -666,6 +672,10 @@ const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone()
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
  interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
+// Graphics quality and the FPS meter (igfx.js); the shader warm-up (engine/warm.js) runs once the menu is up: the scene with and without the
+// sky's environment map (cloud decks, night and thermal drop it), and one frame through the camera-feed pass
+const IG=initGfx({renderer,composer,bloom,resize,scene,camera,sun,clouds:cloudG,S,feed,rain:()=>{if(WX)wxLook(thermLook)},active:()=>!menuOpen&&!demo&&!paused&&!(Z.on&&Z.hold()),steps:()=>Z.on&&Z.G.state==='wave'});
+setTimeout(()=>{let e=null;const se=sens.enabled;sens.enabled=true;try{composer.render()}catch(x){}sens.enabled=se;warmUp({variants:[[()=>{e=scene.environment;scene.environment=e?null:envRT?.texture||null},()=>scene.environment=e]]})},1200);
 startDemo();
 // each frame draws the moment alpha of the way from the previous tick to the last one (IP.begin), then puts the sim state back (IP.end)
 startLoop({pre:()=>padEdges(padKeys),step,cap:()=>Z.stepCap||12,speed:()=>GSPD*(Z.on?Z.tsc:1),paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now,alpha)=>{IP.begin(alpha);GRID.open();try{

@@ -104,6 +104,9 @@ jobs:
           - check: zombies-test (helpers, weather, chain)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=helpers,weather,chain
+          - check: zombies-test (bosses)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=bosses
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor

@@ -18,10 +18,13 @@ import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
 import {initBatt} from './zbatt.js';
+import {gfx} from '../../engine/gfx.js';
 import {initSpectate} from './zspectate.js';
 import {initThreatSfx} from './zthreatsfx.js';
 import {initReentry} from './zreentry.js';
 import {initStratRadar} from './zstratradar.js';
+import {initBosses} from './zbosses.js';
+import './zboss-roster.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -96,14 +99,15 @@ export function initZombies(api){
   while(b>0){let tot=0;for(const k of ks)tot+=weight(k,w,sh);let r=Math.random()*tot,k=ks[0];for(const q of ks){r-=weight(q,w,sh);if(r<=0){k=q;break}}
    if(k==='swarm'){const n=6+(Math.random()*Math.min(10,2+w/3)|0);out.push('swarm:'+n);b-=n*KIND.swarm.pts}else{out.push(k);b-=KIND[k].pts}}
   const esc=D.tac?.escort;if(esc&&w>=kindFrom('decoy',sh)){const n=Math.round(out.filter(k=>k==='shahed').length*esc);for(let i=0;i<n;i++)out.push('decoy')}
+  Z.bossCompose?.(out,w);  /* boss roster: some replace the Mothership, others are rare events (zbosses.js) */
   return Z.cpCompose?Z.cpCompose(out,w):out}  /* campaign sectors reshape the roster (zcampaign.js) */
  // the next wave is planned when the base screen opens, so it can show what is coming and from where.
  // Time on target (tac.tot): the raids' start times squeeze together and every kind is held back so it lands about when a Shahed from the edge would.
  const TOT_T=5200/KIND.shahed.spd;
  function plan(w){const tot=DF().tac?.tot||0,list=compose(w),raids=w===1?1:1+Math.min(4,w/4|0),win=w===1?30:Math.min(100,25+3*w);
   const brgs=[];for(let i=0;i<raids;i++)brgs.push(w===1?(Math.random()-.5)*.6:(Math.random()-.5)*2.6);  // edge bearing per raid: 0 = north, ±1.3 rad = west/east
-  const q=list.map((k,i)=>{const ri=w===1?0:i%raids,K=KIND[k.split(':')[0]];let at=w===1?(i?25:0):(K===KIND.boss?5:ri*win/raids*(1-tot)+rnd(0,10));
-   if(tot&&w>1&&K!==KIND.boss)at+=tot*Math.max(0,TOT_T-(K.far||5200)/K.spd);return{k,at,brg:brgs[ri]+rnd(-.12,.12)}}).sort((a,b)=>a.at-b.at);
+  const q=list.map((k,i)=>{const ri=w===1?0:i%raids,K=KIND[k.split(':')[0]];let at=w===1?(i?25:0):(K.armor==='boss'?5:ri*win/raids*(1-tot)+rnd(0,10));
+   if(tot&&w>1&&K.armor!=='boss')at+=tot*Math.max(0,TOT_T-(K.far||5200)/K.spd);return{k,at,brg:brgs[ri]+rnd(-.12,.12)}}).sort((a,b)=>a.at-b.at);
   return{list,brgs,q,wx:wx.plan(w)}}
  // what the next wave's raids will do (base-screen forecast), on the difficulties that use tactics
  Z.tacNote=()=>{const t=DF().tac||{},a=[];if(t.tot)a.push('raids timed to arrive together');if(t.escort)a.push('decoys escort the Shaheds');if(t.focus)a.push('they go for your weakest site');if(t.feint)a.push('some switch targets on the way in');if(t.jink)a.push('evading kinds dodge your helpers too');
@@ -266,7 +270,7 @@ export function initZombies(api){
  Z.label=t=>{const K=shown(t),n=t.k==='swarm'?TH.reduce((a,u)=>a+(u.grp===t.grp&&api.live(u)?1:0),0):0;return`${K.tag}${n>1?` ×${n}`:''}${t.k==='boss'?` STAGES ${t.stages}`:''}${K.armor===1?' <span class="co">ARMORED</span>':K.armor==='hard'?' <span class="cr">DIRECT HIT ONLY</span>':''}${t.mark?' <span style="color:#ff6bd6">MARKED</span>':''}${t.claim?' <span style="color:#ffe23c">CLAIMED</span>':''}${t.pc?` <span style="color:#ffe23c">${t.pc.toUpperCase()}'S</span>`:''}${Z.eta?.()?` · → ${t.tgt.n} ${Math.ceil(t.p.distanceTo(t.aim)/Math.max(1,t.spd))} s`:''}`};
  Z.slabel=s=>s.hp>0?`${s.n} ${Math.ceil(s.hp)}/${s.max}`:`${s.n} · DESTROYED`;
  // auto-selected track: the most urgent one nobody has claimed, preferring ones you can actually stop
- Z.urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(api.live(t)){let tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(t.claim||t.pc)tt+=1e6;if(KIND[t.k]?.armor==='hard')tt+=1e5;if(t.k==='swarm'&&lead.get(t.grp)!==t)tt+=1e4;if(tt<bt){bt=tt;b=t}}return b};
+ Z.urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(api.live(t)&&!Z.hid?.(t)){let tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(t.claim||t.pc)tt+=1e6;if(KIND[t.k]?.armor==='hard')tt+=1e5;if(t.k==='swarm'&&lead.get(t.grp)!==t)tt+=1e4;if(tt<bt){bt=tt;b=t}}return b};
  const hardT=()=>TH.filter(t=>api.live(t)&&KIND[t.k]?.armor==='hard'&&Z.seen(t));  // the fast tracks early warning has picked up (zwarn.js)
  Z.radar=(rc,P,sel)=>{def.radar(rc,P);
   for(const t of TH)if(t.k==='swarm'&&api.live(t)&&lead.get(t.grp)!==t&&inRange(t)){const q=P(t.p.x,t.p.z);rc.fillStyle=t.claim?'#ffe23c':'#ff4d4d';rc.fillRect(q[0]-1.5,q[1]-1.5,3,3)}
@@ -281,13 +285,12 @@ export function initZombies(api){
   for(let i=G.pops.length-1;i>=0;i--){const p=G.pops[i];if(p.amt&&Z.flyPop){if(Z.flyPop(oc,p,W,H))G.pops.splice(i,1);continue}if(p.t>1.6){G.pops.splice(i,1);continue}_a.copy(p.p).project(cam);if(_a.z>1)continue;
    oc.globalAlpha=cl(2-p.t*1.25,0,1);oc.fillStyle=p.col;oc.fillText(p.txt,(_a.x*.5+.5)*W,(-_a.y*.5+.5)*H-30-p.t*40)}
   pk.overlay(oc,W,H);oc.restore()};
- // performance governor (Zombies only): the forest's shadow pass is the biggest frame cost; if frames stay slow for a few seconds, trees stop casting shadows.
- // Classic is never touched: the shadows come back when Zombies stops.
- const perf={ema:16,last:0,slow:0,off:false,trees:null};
- const trees=()=>perf.trees||(perf.trees=api.scene.children.filter(o=>o.userData.forest&&o.castShadow));
- function govern(){const now=performance.now(),ft=now-(perf.last||now);perf.last=now;if(ft<=0||ft>500||G.state!=='wave')return;perf.ema+=(ft-perf.ema)*.05;
-  perf.slow=perf.ema>26?perf.slow+ft:0;if(!perf.off&&perf.slow>3000){perf.off=true;for(const o of trees())o.castShadow=false;feed('<span class="co">Performance: tree shadows off to keep the frame rate up</span>')}}
- Z.shadowsBack=()=>{if(perf.off){for(const o of trees())o.castShadow=true;perf.off=false}perf.slow=0;perf.last=0};
+ // performance governor: Graphics quality owns it (engine/gfx.js, igfx.js). On Auto it lowers the render resolution, then (in a Zombies wave) the
+ // level; Low drops the tree shadows, as this governor used to. A fixed level is left alone. Z.perf keeps the smoothed wave frame time (zwx.js
+ // halves the weather particles while it is slow); off = the tree shadows are dropped (Low). Leaving Zombies puts Auto back to High.
+ const perf={ema:16,last:0,get off(){return gfx.k.treeSh===0}};
+ function govern(){const now=performance.now(),ft=now-(perf.last||now);perf.last=now;if(ft<=0||ft>500||G.state!=='wave')return;perf.ema+=(ft-perf.ema)*.05}
+ Z.shadowsBack=()=>{gfx.resetAuto();perf.last=0};
  Z.perf=perf;
  Z.visuals=dt=>{govern();wx.step(dt,performance.now());G.selNow=api.selT();for(const p of G.pops)p.t+=dt;lead.clear();for(const t of TH)if(t.k==='swarm'&&api.live(t)&&!lead.has(t.grp))lead.set(t.grp,t);def.visuals();en.visuals(dt);rk.visuals()};
  Z.key=e=>base.el.hidden?pk.key(e):base.key(e);
@@ -312,6 +315,7 @@ export function initZombies(api){
  initWarn(api,G,Z);  // early warning: launch alerts and the harden / evacuate / decoy actions (zwarn.js)
  initCampaign(api,G,Z);  // the campaign map and its sectors (zcampaign.js): wraps the hooks above, before the effects and co-op wrap them
  initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
+ initBosses(api,G,Z);  // the boss roster (zbosses.js + zboss-*.js): wraps the hooks above, before the effects and co-op layers
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
  initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last

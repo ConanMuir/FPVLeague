@@ -7,10 +7,11 @@ import {composer} from './render.js';
 import {menuPad} from './input.js';
 import {drawRates} from './rates.js';
 import {ratesOpen} from './modpanel.js';
+import {capSkip} from '../src/ui/fpsmeter.js';
 export const TICK=1/120,MAXTICKS=12;
-// o.cap() ticks per frame at most (default MAXTICKS; a fast-forwarding spectator raises it); o.pre(now) before stepping; o.step(dt) one tick (dt is always TICK); o.speed() time scale; o.paused(); o.draw(dt,realDt,now,alpha) visuals/camera/HUD; o.menu() menu open; o.post(now) before render
+// capSkip(now): the frame cap (src/ui/fpsmeter.js) skips the whole frame. o.cap() ticks per frame at most (default MAXTICKS; a fast-forwarding spectator raises it); o.pre(now) before stepping; o.step(dt) one tick (dt is always TICK); o.speed() time scale; o.paused(); o.draw(dt,realDt,now,alpha) visuals/camera/HUD; o.menu() menu open; o.post(now) before render
 export function startLoop(o){let last=performance.now(),acc=0;
- function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;o.pre?.(now);
+ function frame(now){requestAnimationFrame(frame);if(capSkip(now))return;const dt=Math.min(.05,(now-last)/1000);last=now;o.pre?.(now);
   if(!o.paused()){acc+=dt*o.speed();let n=0;const cap=o.cap?.()||MAXTICKS;while(acc>=TICK&&n<cap){o.step(TICK);acc-=TICK;n++}if(acc>=TICK)acc=TICK*.999}
   o.draw(o.paused()?0:dt*o.speed(),dt,now,Math.min(1,acc/TICK));if(o.menu())menuPad();if(ratesOpen())drawRates();o.post?.(now);composer.render()}
  requestAnimationFrame(frame)}
