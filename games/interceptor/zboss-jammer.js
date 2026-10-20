@@ -94,7 +94,7 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
   for(const p of U.props)p.rotation.z+=dt*30;U.dome.rotation.y+=dt*.8;
   const sil=B.sil>0;t.mesh.visible=sil||seen||d<1100;if(U.sw!==sil){U.sw=sil;for(const m of U.all)if(m!==U.em){m.userData.m0=m.userData.m0||m.material;m.material=sil?M.sil:m.userData.m0}}
   const w=winOf(B),hot=B.ph>=2||B.surf>0||B.exposed;U.st.visible=!sil&&(w||hot)&&Math.sin(performance.now()/(w?70:160))>-.2;U.em.visible=w||hot;
-  if(hot&&(B.sm=(B.sm||0)-dt)<=0){B.sm=.12;C.api.FX.emit(t.p.clone().add(new C.V3(0,-1.6,0)),0xc77dff,3,4,.5,null,2.5)}},
+  if(hot&&(B.sm=(B.sm||0)-dt)<=0){B.sm=.12;C.FX.emit(t.p.clone().add(new C.V3(0,-1.6,0)),0xc77dff,3,4,.5,null,2.5)}},
  radar(C,rc,P,t){const B=t.bs,{api}=C,pd=P(api.PADP.x,api.PADP.z);
   if(jamOn(C,t)){rc.fillStyle='rgba(199,125,255,.5)';for(let i=0;i<70;i++)rc.fillRect(C.rnd(0,500),C.rnd(0,500),C.rnd(1,4),1.5);rc.strokeStyle='rgba(199,125,255,.18)';rc.lineWidth=3;for(let i=0;i<4;i++){const y=C.rnd(0,500);rc.beginPath();rc.moveTo(0,y);rc.lineTo(500,y+C.rnd(-20,20));rc.stroke()}}
   rc.setLineDash([6,6]);rc.strokeStyle='rgba(199,125,255,.55)';rc.lineWidth=2;for(const u of api.TH)if(u.k==='jpod'&&api.live(u)){const a=Math.atan2(u.p.x-api.PADP.x,u.p.z-api.PADP.z),q=P(api.PADP.x+Math.sin(a)*9000,api.PADP.z+Math.cos(a)*9000);rc.beginPath();rc.moveTo(pd[0],pd[1]);rc.lineTo(q[0],q[1]);rc.stroke()}

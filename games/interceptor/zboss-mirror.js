@@ -52,7 +52,7 @@ registerBoss({id:'mirror',n:'The Mirror',tag:'MIRROR',col:'#ff2a2a',spd:90,alt:[
  status(C,e){const B=e.main.bs,h=B.h||C.habit(),L=B.L||{};return`your habit: <b>${h.fav}</b> ${Math.round((h.favK||0)*100)}% · it turns <b>${h.turn>0?'LEFT':'RIGHT'}</b> like you · come in any other way<br>its loadout: warhead ${L.warhead|0}${L.rocket?' · rocket':''}${L.swarm?` · swarm ${L.swarm}`:''}`},
  tname:(C,t)=>`T${String(t.id).padStart(2,'0')} YOU?`,
  vis(C,t,dt){const U=t.mesh.userData,B=t.bs;for(const p of U.dr.props)p.rotation.y+=dt*95;U.eye.material.opacity=.7+.3*Math.sin(performance.now()/(B.ph>1?40:200));
-  U.au.material.opacity=.45+.15*Math.sin(performance.now()/300);if(B.ph>1&&Math.random()<dt*8)C.api.FX.emit(t.p,0xff2020,4,4,.3,null,2.5);if(B.ref>0){B.ref-=dt;t.mesh.visible=B.ref<.6||Math.random()<.5}},
+  U.au.material.opacity=.45+.15*Math.sin(performance.now()/300);if(B.ph>1&&Math.random()<dt*8)C.FX.emit(t.p,0xff2020,4,4,.3,null,2.5);if(B.ref>0){B.ref-=dt;t.mesh.visible=B.ref<.6||Math.random()<.5}},
  netOut:(C,t)=>[t.bs.h?.turn??1],netIn(C,t,a){t.bs.h=t.bs.h||C.habit()},
  aim(C,t,s){const H=t.bs.h,fav=H&&H.fav==='LEVEL SIX';return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s*(fav?.4:1)?-.8:-7)}},
  winTxt:'The Mirror shattered. You flew unlike yourself.',
@@ -62,5 +62,5 @@ registerBoss({id:'mirror',n:'The Mirror',tag:'MIRROR',col:'#ff2a2a',spd:90,alt:[
  reward:{id:'shard',n:'Mirror Shard',short:'40% faster relaunch; streak kept when you lose an interceptor',txt:'Your reflection is yours now: the next interceptor is on the mat 40% sooner, and losing an interceptor no longer ends your streak.',
   grant(C){const{Z,api}=C;if(!Z.pk._shard){Z.pk._shard=1;const a0=Z.pk.apply;Z.pk.apply=()=>{a0();if(C.G.brw?.shard)api.RELT=api.S.mod.relt*[1,.6,.36][Z.perkLevel('relaunch')|0]*.6}}Z.pk.apply()},
   step(C){const{G,api}=C,d=api.player;if(!d)return;if(d.dead<=0)G.shs=G.streak;else if(!G.detFlag&&G.shs&&!G.streak)G.streak=G.shs}}});
-function reform(C,t){const B=t.bs,{api}=C;api.SMK.emit(t.p,0x050505,40,12,3,null,1,.9);B.cd=4;B.ref=1.2;const P=C.nearPilot(t.p),a=Math.random()*6.28;
+function reform(C,t){const B=t.bs,{api}=C;C.SMK.emit(t.p,0x050505,40,12,3,null,1,.9);B.cd=4;B.ref=1.2;const P=C.nearPilot(t.p),a=Math.random()*6.28;
  if(P){t.p.set(P.p.x+Math.cos(a)*1200,0,P.p.z+Math.sin(a)*1200);t.p.y=Math.max(api.gh(t.p.x,t.p.z)+60,P.p.y);t.v.subVectors(P.p,t.p).setLength(60)}else{t.p.y+=300}}

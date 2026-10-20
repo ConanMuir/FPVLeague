@@ -66,9 +66,10 @@ registerBoss({id:'twins',n:'The Twins',tag:'TWINS',col:'#7fb2ff',spd:100,alt:[35
  status(C,e){const L=e.list.filter(t=>!t.bs.dead);if(L.length<2)return'<b>ENRAGED</b>: it rams you when close and dives on sites';const t=L[0];
   return linked(C,t)?`link <b>HOLDING</b> · strain ${t.bs.strain|0}/2 · proximity bursts glance off · freeze one to split them`:`link <b>BROKEN</b>${t.bs.snap>0?` ${Math.ceil(t.bs.snap)} s`:''} · every hit counts`},
  tname:(C,t)=>`T${String(t.id).padStart(2,'0')} ${t.bs?.role?'POLLUX':'CASTOR'}`,
- vis(C,t,dt){const B=t.bs,r=t.mesh.userData.rage;if(r)r.material.opacity=B.rage?.5+.2*Math.sin(performance.now()/90):0;if(B.rage&&(B.sm=(B.sm||0)-dt)<=0){B.sm=.05;C.api.FX.emit(t.p,0xff4020,2,3,.4,null,2.5)}
+ vis(C,t,dt){const B=t.bs,r=t.mesh.userData.rage;if(r)r.material.opacity=B.rage?.5+.2*Math.sin(performance.now()/90):0;if(B.rage&&(B.sm=(B.sm||0)-dt)<=0){B.sm=.05;C.FX.emit(t.p,0xff4020,2,3,.4,null,2.5)}
   if(B.role!==1)return;const m=mate(C,t),L=tether(C);L.visible=!!m&&linked(C,t);if(!L.visible)return;const a=L.geometry.attributes.position,T=performance.now()/1000;
   for(let i=0;i<32;i++){const f=i/31,j=Math.sin(f*Math.PI)*(1.5+Math.sin(T*20+f*9));a.setXYZ(i,t.p.x+(m.p.x-t.p.x)*f+Math.sin(T*31+i)*j*.3,t.p.y+(m.p.y-t.p.y)*f-Math.sin(f*Math.PI)*3+Math.cos(T*27+i)*j*.3,t.p.z+(m.p.z-t.p.z)*f)}a.needsUpdate=true},
+ clear(){if(TL)TL.visible=false},fxLeft:()=>({tether:TL?.visible?1:0}),
  g:{stop(){if(TL)TL.visible=false},vis(C){if(TL&&!C.api.TH.some(t=>t.k==='twins'&&t.st!=='dead'))TL.visible=false}},
  netOut:(C,t)=>[t.bs.role|0,t.bs.rage|0,Math.ceil(t.bs.snap||0),t.bs.strain|0,t.bs.mate?.id|0],
  netIn(C,t,a){const B=t.bs;if(B.role!==(a[0]|0)&&a[0])swap(C,t);B.role=a[0]|0;B.rage=a[1]|0;B.snap=a[2]|0;B.strain=a[3]|0;

@@ -55,12 +55,12 @@ export function aceModel(C,ghost,charred){const T=C.THREE,g=C.group(),k=(ghost?'
 
 // ---------- the Ace's missiles and gun tracers (host): a homing missile you can out-turn, tracers you can see coming ----------
 const MS=[],TR=[];
-function msStep(C,dt){const{api}=C;for(let i=MS.length-1;i>=0;i--){const m=MS[i],d=m.tg;m.life-=dt;if(!d||d.dead>0||m.life<=0){MS.splice(i,1);api.FX.emit(m.p,0xffd080,12,6,.3,null,2);continue}
+function msStep(C,dt){const{api}=C;for(let i=MS.length-1;i>=0;i--){const m=MS[i],d=m.tg;m.life-=dt;if(!d||d.dead>0||m.life<=0){MS.splice(i,1);C.FX.emit(m.p,0xffd080,12,6,.3,null,2);continue}
   const r=new C.V3().subVectors(d.p,m.p),dist=r.length();if(dist<8){MS.splice(i,1);api.boom(m.p,1.2);if(d===api.player)C.shoot(`${KN}'s missile`)&&C.recAdd('ace','kills');continue}
   const des=r.addScaledVector(d.v,Math.min(2,dist/m.spd)).normalize(),cur=m.v.clone().normalize(),a=Math.acos(C.cl(cur.dot(des),-1,1));if(a>1e-4)cur.lerp(des,Math.min(1,m.turn*dt/a)).normalize();
-  m.v.copy(cur).multiplyScalar(m.spd);m.p.addScaledVector(m.v,dt);if(Math.random()<.8)api.SMK.emit(m.p,0xe8e4dc,1,1,2.6,null,1,.55)}
+  m.v.copy(cur).multiplyScalar(m.spd);m.p.addScaledVector(m.v,dt);if(Math.random()<.8)C.SMK.emit(m.p,0xe8e4dc,1,1,2.6,null,1,.55)}
  for(let i=TR.length-1;i>=0;i--){const t=TR[i];t.life-=dt;t.p.addScaledVector(t.v,dt);if(t.life<=0)TR.splice(i,1)}}
-function fireMissile(C,t,d){MS.push({p:t.p.clone().add(new C.V3(0,-1.2,0)),v:t.v.clone().setLength(150),spd:175,turn:.95,tg:d,life:9});C.api.FX.emit(t.p,0xffc070,30,10,.4,null,2.5)}
+function fireMissile(C,t,d){MS.push({p:t.p.clone().add(new C.V3(0,-1.2,0)),v:t.v.clone().setLength(150),spd:175,turn:.95,tg:d,life:9});C.FX.emit(t.p,0xffc070,30,10,.4,null,2.5)}
 
 // ---------- the duel AI: shared by the Ace and his ghost ----------
 function duel(C,t,dt,o){const{api,G,V3}=C,B=t.bs,ph=B.ph,gh=api.gh;B.mcd=(B.mcd||0)-dt;B.gcd=(B.gcd||0)-dt;B.brkCd=(B.brkCd||0)-dt;B.ext=(B.ext||0)-dt;B.learn=B.learn||{};
@@ -117,7 +117,7 @@ export function legionRaise(C,lead,n,kinds,o={}){const L=[];const tot=Object.val
  for(let i=0;i<n;i++){let r=Math.random()*tot,src='shahed';for(const[k,c]of Object.entries(kinds)){r-=c;if(r<=0){src=k;break}}
   const p=lead.p.clone().add(new C.V3(C.rnd(-40,40),C.rnd(-10,10),C.rnd(-40,40))),t=C.spawn('spectre',{x:p.x,z:p.z,y:p.y,enc:lead.bs.enc,v:lead.v.clone()});if(!t)break;
   t.src=KIND[src]&&!KIND[src].bossy?src:'shahed';t.sv=o.sv||'ghost';t.bs.lead=lead;t.bs.i=i;t.bs.hp=t.bs.max=1;t.bs.init=1;L.push(t)}return L}
-function spectreTick(C,t,dt){const{api,G,V3}=C,B=t.bs,ld=B.lead;if(!ld||ld.bs.dead||ld.st==='dead'){C.vanish(t,'collapsed');api.FX.emit(t.p,t.sv==='mirror'?0xff3020:0x40ffc0,30,10,.8,null,2.5);return true}
+function spectreTick(C,t,dt){const{api,G,V3}=C,B=t.bs,ld=B.lead;if(!ld||ld.bs.dead||ld.st==='dead'){C.vanish(t,'collapsed');C.FX.emit(t.p,t.sv==='mirror'?0xff3020:0x40ffc0,30,10,.8,null,2.5);return true}
  const sq=api.TH.filter(u=>u.k==='spectre'&&u.bs.lead===ld&&u.st!=='dead'&&!u.bs.dive),n=Math.max(1,sq.length),i=Math.max(0,sq.indexOf(t)),form=ld.bs.form|0;
  if(B.dive){const d=C.nearPilot(t.p);if(!d){B.dive=0;return true}const r=d.p.distanceTo(t.p);C.steer(t,C.dirTo(t,d.p),ld.spd*1.2+20,2.2,dt,8);B.dt=(B.dt||0)+dt;
   if(r<7){C.vanish(t,'struck');api.boom(t.p,.8);if(d===api.player)C.shoot(t.sv==='mirror'?'your own drone':'a spectre');return true}if(B.dt>14)B.dive=0;return true}
@@ -154,7 +154,7 @@ const ACE={id:'ace',n:'Ace of Aces',tag:KN,col:'#ff3b3b',spd:88,alt:[500,800],hi
  phase(C,t,i){if(i===1)C.Z.an?.radio(KN,'"A scratch. Now I am angry."',2);if(i===2)C.Z.an?.radio(KN,'"Enough!"',2)},
  jinkK:(C,u,t)=>t===u?.5:1,lockSelf:()=>1.8,
  status(C,e){const B=e.main.bs;return`${B.fav?`READING YOU: <b>${B.fav}</b> · vary your approach`:'learning your approach'}${B.mcd>0&&B.ext>0?' · <b>WINDOW</b>: he is clearing his shot':''}${B.flee?' · <b>RUNNING</b> for the edge':''}`},
- vis(C,t,dt){fxDraw(C);const B=t.bs;if(B.ph>0&&(B.sm=(B.sm||0)-dt)<=0){B.sm=B.ph>1?.04:.09;C.api.SMK.emit(t.p,0x2a2826,1,1.2,4,null,1,.7)}},
+ vis(C,t,dt){fxDraw(C);const B=t.bs;if(B.ph>0&&(B.sm=(B.sm||0)-dt)<=0){B.sm=B.ph>1?.04:.09;C.SMK.emit(t.p,0x2a2826,1,1.2,4,null,1,.7)}},
  overlay:(C,oc,t,W,H)=>warn(C,oc,t,W,H),
  netOut:(C,t)=>[Math.round((t.bs.lock||0)*100),t.bs.flee?1:0],netIn(C,t,a){t.bs.lock=(a[0]|0)/100;t.bs.flee=a[1]|0},
  aim(C,t,s){const B=t.bs,pen=B.fav&&B.fav===B.last?.45*Math.min(1,(B.learn[B.fav]|0)/4):0,good=Math.random()<s*(1-pen)*(B.brkT>0?.5:1);B.learn['LEVEL SIX']=(B.learn['LEVEL SIX']|0)+1;B.last='LEVEL SIX';if(!B.fav&&B.learn['LEVEL SIX']>=3)B.fav='LEVEL SIX';
@@ -166,6 +166,8 @@ const ACE={id:'ace',n:'Ace of Aces',tag:KN,col:'#ff3b3b',spd:88,alt:[500,800],hi
  loop(S){const o=S.out(0),g=S.osc('sawtooth',140,S.t,0),f=S.filt('lowpass',900,1.5),n=S.nz(S.t,0),nf=S.filt('bandpass',2200,.8);g.connect(f).connect(o);n.connect(nf).connect(o);return{g:o,stop(){g.stop();n.stop()},set(C,t){const d=t.p.distanceTo(C.api.camera.position);g.frequency.setTargetAtTime(140+60*(t.spd/120)-d*.01,C.api.AC.currentTime,.2)}}},
  reward:{id:'instinct',n:'Ace Instinct',short:'evaders telegraph their break; jets and cruise missiles lock 40% faster',txt:'Tracks that evade show which way they will break (an amber chevron), and your lock on jets and cruise missiles builds 40% faster.',
   lockK:(C,t)=>t.k==='jet'||t.k==='cruise'?.6:1},
+ clear(C){MS.length=0;TR.length=0;if(FXP)FXP.geo.setDrawRange(0,0);for(const k in SPI)SPI[k].count=0},
+ fxLeft:()=>({missiles:MS.length+TR.length,spectreMeshes:Object.values(SPI).reduce((a,I)=>a+I.count,0)}),
  g:{step(C,dt){if(C.auth())msStep(C,dt)},vis(C){if(!C.api.TH.some(t=>t.k==='ace'||t.k==='gace'))fxDraw(C);spDraw(C)},stop(){MS.length=0;TR.length=0},
   overlay(C,oc,W,H){if(!C.G.brw?.instinct)return;const{api,Z}=C,d=api.player;if(!d||d.dead>0)return;oc.strokeStyle='#ffc640';oc.lineWidth=2.5;
    for(const t of api.TH){if(!api.live(t)||!Z.evades?.(t)||t.p.distanceTo(d.p)>1500)continue;const v=t.v.clone().setY(0).normalize(),lat=new C.V3(-v.z,0,v.x),side=(t.p.x-d.p.x)*lat.x+(t.p.z-d.p.z)*lat.z>0?1:-1;
@@ -178,7 +180,7 @@ registerBoss({id:'spectre',n:'Spectre',tag:'SPECTRE',minor:1,armor:0,spd:80,alt:
  tname:(C,t)=>`T${String(t.id).padStart(2,'0')} ${t.sv==='mirror'?'YOUR DRONE?':'SPECTRE · '+(KIND[t.src]?.n||'drone')}`,
  aim:(C,t,s)=>({p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s?-.6:-6)})});
 
-registerBoss({id:'gace',n:'Ghost of the Ace',tag:'THE DEATHLESS',col:'#5dffc8',spd:96,alt:[500,800],hitR:3,det:12000,cash:3000,bounty:9000,far:6000,
+registerBoss({id:'gace',clear(){if(WK.snd){try{WK.snd.g.gain.value=0;WK.snd.stop()}catch(e){}WK.snd=null}},fxLeft:()=>({whisper:WK.snd?1:0}),n:'Ghost of the Ace',tag:'THE DEATHLESS',col:'#5dffc8',spd:96,alt:[500,800],hitR:3,det:12000,cash:3000,bounty:9000,far:6000,
  resist:{rack:.15,gepard:.2,sam:.4,mpads:.3,idome:.2},hp:9,phases:['HAUNT','LEGION','DEATHLESS'],
  note:'KOSCHEI returns from his wreck with a legion of spectres raised from what you shot down this run.',warn:'he does not stay dead',
  intro:{title:'HE DOES NOT STAY DEAD',sub:C=>`the Ghost of ${KN} · a legion of ${Object.values(C.G.fallen||{}).reduce((a,b)=>a+b,0)} fallen`,col:'#5dffc8',radio:`${KN}: "Did you think a drone could kill me?"`,who:'???'},
@@ -193,7 +195,7 @@ registerBoss({id:'gace',n:'Ghost of the Ace',tag:'THE DEATHLESS',col:'#5dffc8',s
  lockSelf:()=>2.2,jinkK:(C,u,t)=>t===u?.4:1,
  status(C,e){const B=e.main.bs,n=C.api.TH.filter(u=>u.k==='spectre'&&u.bs.lead===e.main&&u.st!=='dead').length;return`LEGION <b>${n}</b> · ${['SCREEN','WEDGE'][B.form===1?1:0]}${B.ph===2?(B.intang?' · <b>INTANGIBLE</b>: wait':' · <b>SOLID</b>: strike now'):''}${B.fav?` · reading you: <b>${B.fav}</b>`:''}`},
  vis(C,t,dt){fxDraw(C);const B=t.bs,a=t.mesh.userData.aura,M=t.mesh.userData.M;if(a){a.material.opacity=B.intang?.15:.45+.15*Math.sin(performance.now()/180)}
-  if(M){M.skin.opacity=B.intang?.18:.58;M.dark.opacity=M.skin.opacity}if((B.sm=(B.sm||0)-dt)<=0){B.sm=.05;C.api.FX.emit(t.p,0x40ffc0,2,3,.9,null,2)}},
+  if(M){M.skin.opacity=B.intang?.18:.58;M.dark.opacity=M.skin.opacity}if((B.sm=(B.sm||0)-dt)<=0){B.sm=.05;C.FX.emit(t.p,0x40ffc0,2,3,.9,null,2)}},
  overlay:(C,oc,t,W,H)=>warn(C,oc,t,W,H),
  netOut:(C,t)=>[Math.round((t.bs.lock||0)*100),t.bs.intang?1:0,t.bs.form|0],netIn(C,t,a){t.bs.lock=(a[0]|0)/100;t.bs.intang=a[1]|0;t.bs.form=a[2]|0},
  aim(C,t,s){if(t.bs.intang)return null;return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s*.8?-.8:-7)}},
@@ -202,10 +204,10 @@ registerBoss({id:'gace',n:'Ghost of the Ace',tag:'THE DEATHLESS',col:'#5dffc8',s
   const n=S.nz(t0,3.5),f=S.filt('bandpass',2400,4);f.frequency.setValueAtTime(3200,t0);f.frequency.exponentialRampToValueAtTime(600,t0+3.4);n.connect(f).connect(S.env(t0,.12,1.5,3.5,o))},  // a whisper falling away
  loop(S){const o=S.out(0),a=S.osc('sine',98,S.t,0),b=S.osc('sine',103.5,S.t,0),n=S.nz(S.t,0),f=S.filt('bandpass',2600,6);a.connect(o);b.connect(o);n.connect(f).connect(o);return{g:o,stop(){a.stop();b.stop();n.stop()}}},
  reward:{id:'deathless',n:'Deathless',short:'once a wave, a lost interceptor comes back where it was',txt:'Once a wave, the first time your interceptor is lost to a crash, a flat battery or enemy fire, it comes back where it was a moment later, streak kept.',
-  save(C,why){const G=C.G;if(G.dlw===G.wave)return false;G.dlw=G.wave;C.api.FX.emit(C.api.player.p,0x40ffc0,60,10,.8,null,3);C.api.banner('DEATHLESS','cg',1.2);return true},
+  save(C,why){const G=C.G;if(G.dlw===G.wave)return false;G.dlw=G.wave;C.FX.emit(C.api.player.p,0x40ffc0,60,10,.8,null,3);C.api.banner('DEATHLESS','cg',1.2);return true},
   step(C){const{api,G}=C,d=api.player;if(!d)return;if(d.dead<=0){(G.dlp||(G.dlp=new C.V3())).copy(d.p);G.dls=G.streak;G.dlm=d.mah;return}
    if(G.state==='wave'&&!G.detFlag&&G.dlw!==G.wave&&G.dlp&&d.dead>0&&!d._dlc){d._dlc=1;G.dlw=G.wave;d.dead=0;d.mesh.visible=true;d.p.copy(G.dlp).y+=4;d.v.set(0,0,0);d.w.set(0,0,0);d.gt=.5;if(d.mah>=api.BCAP*.98)d.mah=api.BCAP*.6;G.streak=G.dls|0;
-    api.FX.emit(d.p,0x40ffc0,80,12,.9,null,3);api.banner('DEATHLESS','cg',1.4);api.feed('<span class="cg">Deathless: your interceptor came back</span>')}if(d.dead<=0)d._dlc=0}},
+    C.FX.emit(d.p,0x40ffc0,80,12,.9,null,3);api.banner('DEATHLESS','cg',1.4);api.feed('<span class="cg">Deathless: your interceptor came back</span>')}if(d.dead<=0)d._dlc=0}},
  g:{start(C){const{G}=C;C.G.wreck=null;wreckClear(C);if((C.rec().ace.beaten|0)>0){G.wreck=wreckPlace(C);wreckBuild(C)}},
   stop(C){wreckClear(C);if(WK.snd){try{WK.snd.g.gain.value=0;WK.snd.stop()}catch(e){}WK.snd=null}},
   step(C,dt){const{G,api}=C,w=G.wreck;if(!w||w.found||!C.auth())return;const d=C.me();if(!d)return;const dh=Math.hypot(d.p.x-w.x,d.p.z-w.z);w.near=dh;
@@ -214,7 +216,7 @@ registerBoss({id:'gace',n:'Ghost of the Ace',tag:'THE DEATHLESS',col:'#5dffc8',s
   wave(C){const{G}=C;if(!G.gnext||!C.auth())return;G.gnext=0;const w=G.wreck;const t=C.spawn('gace',{x:w.x,z:w.z,y:w.y+260});if(t){t.v.set(0,40,60)}wreckClear(C);
    C.Z.an?.say('HE DOES NOT STAY DEAD','the Ghost of the Ace','#5dffc8',3);C.api.feed('<span style="color:#5dffc8">The air goes cold. The Deathless rises from his wreck.</span>')},
   note:C=>C.G.gnext?'<p class="zhint"><b style="color:#5dffc8">Something stirs at the wreck of KOSCHEI</b>: next wave, the dead fly again.</p>':'',
-  vis(C,dt){const w=C.G.wreck;if(!w||w.found||!WK.m)return;if((WK.wisp-=dt)<=0){WK.wisp=.35;C.api.SMK.emit(new C.V3(w.x+C.rnd(-2,2),w.y+2,w.z+C.rnd(-2,2)),0x8affd8,1,1.2,7,new C.V3(0,4,0),1,.35)}
+  vis(C,dt){const w=C.G.wreck;if(!w||w.found||!WK.m)return;if((WK.wisp-=dt)<=0){WK.wisp=.35;C.SMK.emit(new C.V3(w.x+C.rnd(-2,2),w.y+2,w.z+C.rnd(-2,2)),0x8affd8,1,1.2,7,new C.V3(0,4,0),1,.35)}
    const S=C.SND;if(!S.ok)return;const dh=w.near??1e9;if(!WK.snd&&dh<900){const o=S.out(0),n=S.nz(S.t,0),f=S.filt('bandpass',1800,5),l=S.osc('sine',.6,S.t,0),lg=C.api.AC.createGain();lg.gain.value=500;l.connect(lg).connect(f.frequency);n.connect(f).connect(o);WK.snd={g:o,stop(){n.stop();l.stop()}}}
    if(WK.snd)WK.snd.g.gain.setTargetAtTime(C.cl(1-dh/900,0,1)**2*.12*S.vol()*(C.G.state==='wave'||C.Z.so?.S?.on?1:0),C.api.AC.currentTime,.3)}}});
 function BOSSES_sting(C){C.BOSSES.gace.sting?.(C.SND)}

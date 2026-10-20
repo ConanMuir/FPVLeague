@@ -68,8 +68,11 @@ registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14
  introFn(C,t){C.Z.an?.say('THE PUPPETEER','somewhere on the ground · follow the wires','#e8e2d0',3);C.Z.an?.radio('OVERLORD','Some of the drones are moving like they are on strings. Look for wires.',2)},
  build:C=>model(C),
  init(C,t){const B=t.bs,s=spot(C,null);t.p.set(s.x,C.api.gh(s.x,s.z)+.1,s.z);t.v.set(0,0,1);B.dis=C.pick(DIS.slice(1));show(t,B.dis);B.mv=null;B.next=C.rnd(35,50);B.wt=6;B.waves=0},
+ save:(C,t)=>({waves:t.bs.waves|0,exposed:t.bs.exposed|0,hp:t.bs.hp,max:t.bs.max}),
+ restore(C,t,st){const B=t.bs;B.waves=st.waves|0;B.exposed=st.exposed|0;B.hp=Math.max(1,st.hp|0);B.max=Math.max(B.hp,st.max|0);B.ph=B.exposed?1:0;show(t,B.exposed?'spider':B.dis)},
+ withdrawTxt:()=>'<span class="co">The Puppeteer went to ground. It will move in somewhere new next wave.</span>',
+ clear(){W.length=0;PATHS.length=0;RB.dirty=1;if(RB.mesh){RB.mesh.visible=false;RB.wl.visible=RB.gl.visible=false}},fxLeft:()=>({wires:W.length,trails:PATHS.length,wireMesh:RB.mesh?.visible||RB.wl?.visible?1:0}),
  wake(C,t){if(++t.bs.waves>=3){C.vanish(t,'escaped');C.api.feed('<span class="co">The Puppeteer pulled up its strings and left.</span>')}},
- lurk(C,t){t.bs.mv=null},
  tick(C,t,dt){const{api}=C,B=t.bs;B.next-=dt;B.wt-=dt;
   if(B.wt<=0){B.wt=B.ph?9:14;wire(C,t)}
   for(let i=W.length-1;i>=0;i--){const w=W[i];if(w.pp!==t)continue;if(!w.u||w.u.st==='dead'||w.u.st==='fall'||!api.live(w.u)){drop(C,w,w.u?w.u.p:t.p);W.splice(i,1)}}
@@ -82,7 +85,7 @@ registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14
  phase(C,t,i){if(i>=1&&!t.bs.exposed){t.bs.exposed=1;show(t,'spider');t.bs.next=0;C.Z.an?.say('PUPPETEER EXPOSED','it bolts · one more direct strike','#e8e2d0',2)}},
  death(C){for(let i=W.length-1;i>=0;i--)if(W[i].pp&&W[i].pp.bs.dead)W.splice(i,1)},
  status(C,e){const B=e.main.bs,w=W.filter(q=>q.pp===e.main).length;return`wires <b>${w}</b> · drones hijacked ${B.hij|0} · trails ${PATHS.length} · ${B.exposed?'<b>EXPOSED</b>: it bolts between spots':'disguised · it moves every ~40 s'}<br>look for a glint between a drone and the ground; follow fresh trails`},
- vis(C,t,dt){const B=t.bs;if(B.mv&&Math.random()<dt*4)C.api.SMK.emit(t.p.clone().add(new C.V3(0,.5,0)),0x8a7a5a,1,1.5,2,null,1,.4)},
+ vis(C,t,dt){const B=t.bs;if(B.mv&&Math.random()<dt*4)C.SMK.emit(t.p.clone().add(new C.V3(0,.5,0)),0x8a7a5a,1,1.5,2,null,1,.4)},
  netOut:(C,t)=>[DIS.indexOf(t.bs.dis),t.bs.exposed|0,t.bs.mv?1:0],netIn(C,t,a){t.bs.dis=DIS[a[0]]||'hay';t.bs.exposed=a[1]|0;show(t,t.bs.exposed?'spider':a[2]?'truck':t.bs.dis)},
  aim(C,t,s){if(Math.random()>s*.35)return null;return{p:t.p.clone().add(new C.V3(0,1.2,0)),v:new C.V3()}},
  dbg:()=>({wires:W.length,paths:PATHS.length}),
@@ -95,7 +98,7 @@ registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14
   step(C){const{G,api}=C;if(G.state!=='wave'||G.psw===G.wave||!C.auth())return;const u=api.TH.find(t=>api.live(t)&&(t.k==='jet'||t.k==='heavy')&&C.sites().some(s=>Math.hypot(s.x-t.p.x,s.z-t.p.z)<2000));if(!u)return;
    const v=api.TH.filter(t=>t!==u&&api.live(t)&&!C.BOSSES[t.k]&&KOK(t)&&t.p.distanceTo(u.p)<1800).sort((a,b)=>a.p.distanceTo(u.p)-b.p.distanceTo(u.p))[0];if(!v)return;G.psw=G.wave;
    u.by=v.by='h';api.killThreat(v,true);api.killThreat(u,true);api.feed('<span class="cg">Puppet strings: a hijacked drone rammed its own wingman</span>')}},
- g:{vis(C){if(RB.mesh||W.length||PATHS.length)draw(C)},step(C,dt){let ch=0;for(let i=PATHS.length-1;i>=0;i--){const p=PATHS[i];p.age+=dt;if(p.age>90){PATHS.splice(i,1);ch=1}}if(ch)RB.dirty=1;if(RB.mesh)RB.mesh.material.opacity=.75},
+ g:{vis(C){if(W.length||PATHS.length)draw(C);else if(RB.mesh&&(RB.mesh.visible||RB.wl.visible)){RB.mesh.visible=RB.wl.visible=RB.gl.visible=false}},step(C,dt){let ch=0;for(let i=PATHS.length-1;i>=0;i--){const p=PATHS[i];p.age+=dt;if(p.age>90){PATHS.splice(i,1);ch=1}}if(ch)RB.dirty=1;if(RB.mesh)RB.mesh.material.opacity=.75},
   start(C){W.length=0;PATHS.length=0;RB.dirty=1;const{Z}=C;if(!Z._ppg){Z._ppg=1;const g0=Z.groundTargets;Z.groundTargets=()=>{const L=(typeof g0==='function'?g0():null)||[];
    for(const t of C.api.TH)if(t.k==='puppet'&&C.api.live(t)&&t.bs.exposed)L.push({id:'pp'+t.id,p:t.p,r:4,alive:true,hit(){C.hurt(t,1,{src:'p'})}});return L}}},
   stop(){W.length=0;PATHS.length=0;RB.dirty=1;if(RB.mesh){RB.mesh.visible=false;RB.wl.visible=RB.gl.visible=false}}}});

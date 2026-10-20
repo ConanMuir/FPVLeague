@@ -36,7 +36,7 @@ const wpWorld=(C,t,i)=>{t.mesh.updateMatrixWorld();return new C.V3(WP[i][0],WP[i
 const DEB=[];
 function blow(C,t,p){const g=t.mesh;p.m.updateMatrixWorld();const wp=new C.V3(),q=new C.THREE.Quaternion();p.m.getWorldPosition(wp);p.m.getWorldQuaternion(q);g.remove(p.m);p.on=0;
  p.m.position.copy(wp);p.m.quaternion.copy(q);C.api.scene.add(p.m);const out=wp.clone().sub(t.p).normalize();DEB.push({m:p.m,v:out.multiplyScalar(C.rnd(14,26)).add(t.v.clone().multiplyScalar(.6)),w:new C.V3(C.rnd(-4,4),C.rnd(-4,4),C.rnd(-4,4)),life:6});
- C.api.FX.emit(wp,0xfff0c0,40,18,.5,null,3);C.api.boom(wp,1.6)}
+ C.FX.emit(wp,0xfff0c0,40,18,.5,null,3);C.api.boom(wp,1.6)}
 registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt:[140,160],hitR:4,det:16000,cash:2000,bounty:6000,far:5600,
  resist:{sam:.35,idome:.35},burst:1,hp:C=>6/C.hpK(),phases:['ARMOURED','BREACHED','CORE EXPOSED'],phaseAt:[.67,.34],
  note:'a building-sized armoured cruise missile. Only bursts on its glowing weak points hurt it; each stage cleared blows the armour off the next. It hits for 350.',warn:'a building-sized missile',
@@ -60,9 +60,9 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
    if(m>>i&1)w.scale.setScalar(WP[i][3]===st?1+.25*Math.sin(T*6+i):.001)}
   for(const p of U.plates)if(p.on&&p.cover>=0&&WP[p.cover][3]<=st)blow(C,t,p);
   U.hull.color.setScalar(1-.55*f);
-  if((B.sm=(B.sm||0)-dt)<=0){B.sm=Math.max(.025,.2-.18*f);C.api.SMK.emit(t.p.clone().addScaledVector(t.v.clone().normalize(),-20),f>.3?0x1c1a18:0x6a665e,1+Math.round(f*2),2,5+6*f,null,1,.75)}
-  for(let i=0;i<WP.length;i++)if(U.applied[i]){const p=wpWorld(C,t,i);if(Math.random()<.5)C.api.FX.emit(p,Math.random()<.5?0xff7a20:0xffb040,2,3,.5,null,2.5);if(Math.random()<.15)C.api.SMK.emit(p,0x2a2622,1,1.5,4,null,1,.7)}
-  if(f>0&&Math.random()<f*dt*6){const a=Math.random()*6.28,p=t.mesh.localToWorld(new C.V3(Math.cos(a)*3,Math.sin(a)*3,C.rnd(-15,15)));C.api.FX.emit(p,0xfff4d0,14,16,.25,null,3.5)}},
+  if((B.sm=(B.sm||0)-dt)<=0){B.sm=Math.max(.025,.2-.18*f);C.SMK.emit(t.p.clone().addScaledVector(t.v.clone().normalize(),-20),f>.3?0x1c1a18:0x6a665e,1+Math.round(f*2),2,5+6*f,null,1,.75)}
+  for(let i=0;i<WP.length;i++)if(U.applied[i]){const p=wpWorld(C,t,i);if(Math.random()<.5)C.FX.emit(p,Math.random()<.5?0xff7a20:0xffb040,2,3,.5,null,2.5);if(Math.random()<.15)C.SMK.emit(p,0x2a2622,1,1.5,4,null,1,.7)}
+  if(f>0&&Math.random()<f*dt*6){const a=Math.random()*6.28,p=t.mesh.localToWorld(new C.V3(Math.cos(a)*3,Math.sin(a)*3,C.rnd(-15,15)));C.FX.emit(p,0xfff4d0,14,16,.25,null,3.5)}},
  overlay(C,oc,t,W,H){const{api}=C,cam=api.camera;if(t.p.distanceTo(cam.position)>2500)return;oc.strokeStyle=oc.fillStyle='#ffb020';oc.lineWidth=2;
   for(const i of exposed(t)){const q=wpWorld(C,t,i).project(cam);if(q.z>1||Math.abs(q.x)>1||Math.abs(q.y)>1)continue;const X=(q.x*.5+.5)*W,Y=(-q.y*.5+.5)*H,R=12+4*Math.sin(performance.now()/120);oc.beginPath();oc.arc(X,Y,R,0,7);oc.stroke();oc.fillText('WEAK POINT',X,Y-R-6)}
   const S=t.bs.site;if(S){const q=t.p.clone().project(cam);if(q.z<1)oc.fillText(`→ ${S.n} ${Math.ceil(Math.hypot(S.x-t.p.x,S.z-t.p.z)/Math.max(1,t.spd))} s`,(q.x*.5+.5)*W,(-q.y*.5+.5)*H+46)}},
@@ -70,8 +70,9 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
  netOut:(C,t)=>[alive(t)],netIn(C,t,a){if(Number.isFinite(a[0]))t.bs.wm=a[0]},
  aim(C,t,s){const E=exposed(t);if(!E.length)return null;const p=wpWorld(C,t,C.pick(E));if(Math.random()>s)p.add(new C.V3(0,8,0));return{p,v:t.v}},
  winTxt:'The Juggernaut is down. Scrap metal everywhere.',
+ clear(C){for(const d of DEB){C.api.scene.remove(d.m);d.m.geometry.dispose()}DEB.length=0},fxLeft:()=>({debris:DEB.length}),
  g:{vis(C,dt){for(let i=DEB.length-1;i>=0;i--){const d=DEB[i];d.life-=dt;d.v.y-=9.8*dt;d.m.position.addScaledVector(d.v,dt);d.m.rotation.x+=d.w.x*dt;d.m.rotation.y+=d.w.y*dt;
-   if(Math.random()<.3)C.api.SMK.emit(d.m.position,0x2a2622,1,1,2.5,null,1,.6);if(d.life<=0||d.m.position.y<C.api.gh(d.m.position.x,d.m.position.z)){C.api.scene.remove(d.m);d.m.geometry.dispose();DEB.splice(i,1)}}},
+   if(Math.random()<.3)C.SMK.emit(d.m.position,0x2a2622,1,1,2.5,null,1,.6);if(d.life<=0||d.m.position.y<C.api.gh(d.m.position.x,d.m.position.z)){C.api.scene.remove(d.m);d.m.geometry.dispose();DEB.splice(i,1)}}},
   stop(C){for(const d of DEB){C.api.scene.remove(d.m);d.m.geometry.dispose()}DEB.length=0}},
  sting(S){const t0=S.t+.05,o=S.out(1);for(const f of[41.2,61.7,82.4]){const x=S.osc('sawtooth',f,t0,4),lp=S.filt('lowpass',260,2);x.connect(lp).connect(S.env(t0,.14,.6,4,o))}  // a horn from the deep
   for(let i=0;i<3;i++){const n=S.nz(t0+1+i*.55,.3),b=S.filt('bandpass',2600,6);n.connect(b).connect(S.env(t0+1+i*.55,.12,.002,.3,o))}},  // steel clanks

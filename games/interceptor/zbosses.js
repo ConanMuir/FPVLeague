@@ -12,7 +12,10 @@
 //                         h.at = where your warhead went off
 //   phase(ctx,t,i)        the bar's phase changed; phases = names, phaseAt = hit-point fractions where they change (default thirds)
 //   seen(ctx,t) radar, hid(ctx,t) no FPV brackets, lockK / radarK / jinkK while it is alive, overlay(ctx,oc,t,W,H), radar(ctx,rc,P,t)
-//   status(ctx,enc) the bar's status line; done(ctx,enc) the fight is won; persist = it outlives a wave (lurks over the base screen)
+//   status(ctx,enc) the bar's status line; done(ctx,enc) the fight is won; persist = it outlives a wave: when the rest of the wave is down it
+//   withdraws (save(ctx,t) keeps its run state; the track and its effects go) and comes back when the next wave starts (restore(ctx,t,state))
+//   clear(ctx)            drop every effect the module draws or plays (wires, tethers, debris, missiles...): called at the end of each wave,
+//                         at game over, quit and restart, together with the director's own cleanup (clearAll below)
 //   netOut(ctx,t) / netIn(ctx,t,a) co-op extras; aim(ctx,t,skill) where a bot pilot would burst (tools/zbot.mjs)
 //   spawn {boss: first boss wave it can replace the Mothership on, event: {from, p, once}}, reward {id, n, txt, ...effect hooks},
 //   intro {title, sub, col} (or introFn), sting(snd) its signature sound, loop(snd) its presence sound (volume from loopVol(ctx,t))
@@ -66,10 +69,22 @@ export function initBosses(api,G,Z){
   get t(){return AC.currentTime}};
  const sting=id=>{const D=BOSSES[id];if(!D?.sting||!SND.ok)return;try{D.sting(SND)}catch(e){console.warn('boss sting',e)}};
  const LOOPS=new Map();
+ const stopLoops=()=>{for(const L of LOOPS.values())if(L){try{L.g.gain.cancelScheduledValues(0);L.g.gain.value=0;L.stop?.()}catch(e){}}LOOPS.clear()};
  function loops(){const want=new Set();if(SND.ok&&G.on&&!api.menuOpen)for(const t of TH)if(live(t)&&mine(t)&&BOSSES[t.k].loop&&!LOOPS.has(t)){try{LOOPS.set(t,BOSSES[t.k].loop(SND))}catch(e){console.warn('boss loop',e);LOOPS.set(t,null)}}
   for(const[t,L]of LOOPS){const D=BOSSES[t.k];if(!G.on||api.menuOpen||t.st==='dead'||!TH.includes(t)){if(L){try{L.g.gain.setTargetAtTime(0,AC.currentTime,.2);setTimeout(()=>L.stop?.(),800)}catch(e){}}LOOPS.delete(t);continue}
    if(!L)continue;const v=D.loopVol?D.loopVol(ctx,t):cl(1-t.p.distanceTo(api.camera.position)/2500,0,1)**2*.07;L.g.gain.setTargetAtTime(v*SND.vol()*(live(t)?1:.25),AC.currentTime,.15);L.set?.(ctx,t)}}
 
+ // ---------- particle pools of the bosses' own (fire, sparks, smoke, contrails), so the cleanup can empty them; same look as the game's ----------
+ function pool(N,size,blend,grav,drag){const P=new Float32Array(N*3).fill(-1e5),C=new Float32Array(N*4),B=new Float32Array(N*4),VV=new Float32Array(N*3),LF=new Float32Array(N),L0=new Float32Array(N);let i0=0;const c=new THREE.Color();
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setAttribute('color',new THREE.BufferAttribute(C,4));
+  const pts=new THREE.Points(g,new THREE.PointsMaterial({size,map:dot,vertexColors:true,transparent:true,blending:blend,depthWrite:false,toneMapped:blend!==THREE.AdditiveBlending}));pts.frustumCulled=false;scene.add(pts);
+  return{pts,emit(p,hex,n,spd,life=1,bv=null,k=1,a=1){c.set(hex).multiplyScalar(k);for(let j=0;j<n;j++){const i=i0++%N,i3=i*3,i4=i*4;let x=Math.random()*2-1,y=Math.random()*2-1,z=Math.random()*2-1;const m=spd*(.3+Math.random()*.7)/(Math.hypot(x,y,z)||1);
+    P[i3]=p.x;P[i3+1]=p.y;P[i3+2]=p.z;VV[i3]=x*m+(bv?bv.x:0);VV[i3+1]=y*m+(bv?bv.y:0);VV[i3+2]=z*m+(bv?bv.z:0);B[i4]=c.r;B[i4+1]=c.g;B[i4+2]=c.b;B[i4+3]=a;LF[i]=L0[i]=life*(.5+Math.random()*.5)}},
+   upd(dt){const dm=Math.exp(-dt*drag),W=api.WIND,wx=W.x*(1-dm),wz=W.z*(1-dm);for(let i=0;i<N;i++){if(LF[i]<=0)continue;const i3=i*3,i4=i*4;if((LF[i]-=dt)<=0){P[i3+1]=-1e5;C[i4+3]=0;continue}
+    VV[i3]=VV[i3]*dm+wx;VV[i3+1]=VV[i3+1]*dm-grav*dt;VV[i3+2]=VV[i3+2]*dm+wz;P[i3]+=VV[i3]*dt;P[i3+1]+=VV[i3+1]*dt;P[i3+2]+=VV[i3+2]*dt;const f=Math.min(1,LF[i]/L0[i]*2);C[i4]=B[i4];C[i4+1]=B[i4+1];C[i4+2]=B[i4+2];C[i4+3]=B[i4+3]*f}
+    g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true},
+   clear(){LF.fill(0);P.fill(-1e5);C.fill(0);g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true},get active(){let n=0;for(let i=0;i<N;i++)if(LF[i]>0)n++;return n}}}
+ const BFX=pool(1500,1.6,THREE.AdditiveBlending,3,1.8),BSMK=pool(1800,10,THREE.NormalBlending,-2.5,.6);
  // ---------- flight helpers for the movers ----------
  const _tv=new V3();
  // turn the velocity toward des (unit) at rate rad/s, speed toward spd, bank into the turn, move, keep agl metres off the ground
@@ -101,7 +116,7 @@ export function initBosses(api,G,Z){
  function newEnc(t){const D=BOSSES[t.k],e={id:t.k,D,list:[t],main:t,t0:G.wt||0,won:false,over:false,ph:0,st:{}};encs().push(e);t.bs.enc=e;return e}
  function join(e,t){if(!t)return;t.bs.enc=e;if(!e.list.includes(t))e.list.push(t)}
  const fightOf=t=>t?.bs?.enc;
- const encLive=e=>e.list.some(t=>live(t)||t.st==='lurk');
+ const encLive=e=>e.list.some(t=>live(t));
 
  // ---------- spawning ----------
  const SITE_C={x:0,z:1950};
@@ -117,7 +132,7 @@ export function initBosses(api,G,Z){
  api.damage=t=>{if(!mine(t)||!t.bs)return dm0(t);if(t.bs.det)return;if(inDet||pctx===t)hitBy(t,'damage',t.by==='o'?'o':'p');else spark(t.p)};
  Z.bossHit=t=>{if(!mine(t))return bh0?.(t);const air=airNow();hitBy(t,air?'air':'helper',air?'p':'h')};
  const oc0=Z.outcome;Z.outcome=(t,r,cv)=>{if(mine(t)){pctx=t;pr=r;if(BOSSES[t.k].burst&&r<45)return'damage'}return oc0(t,r,cv)};  /* co-op: a client's burst, rolled on the host */
- const spark=p=>{api.FX.emit(p,0xfff0c0,18,14,.35,null,3)};
+ const spark=p=>{BFX.emit(p,0xfff0c0,18,14,.35,null,3)};
  function hitBy(t,q,src){if(Z.mirror||!t.bs||t.bs.dead)return;const D=BOSSES[t.k],d=api.player,h={q,src,at:src==='p'&&d?d.p.clone():null,r:pctx===t?pr:null,txt:''};
   let n=D.hit?D.hit(ctx,t,h):q==='kill'?2:1;n=Math.max(0,n|0);LOG.push({t,n,txt:h.txt});
   if(!n){spark(h.at||t.p);if(h.txt&&src!=='h')Z.pop?.(t.p,h.txt,'#9fb3c8');return}hurt(t,n,h)}
@@ -159,22 +174,31 @@ export function initBosses(api,G,Z){
    if(Math.random()<E.p*EVK[cl(DFI(),0,3)]*(E.again&&seen[id]?E.again:1)){G.bevW=w;for(let i=out.length-1;i>=0;i--)if(Math.random()<.2&&!BOSSES[out[i]])out.splice(i,1);out.push(id);break}}
   return out};
 
- // ---------- per step (host and every screen): first steps, intros, habits, run-wide hooks, lurking bosses, rewards ----------
- Z.tstep=(ts0=>(t,dt)=>{const D=BOSSES[t.k];if(!D||t.net)return ts0(t,dt);if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();if(t.st==='lurk')return true;
-  if(!t.bs.init){t.bs.init=1;t.bs.max=t.bs.hp=maxHp(D);if(!t.bs.enc&&!D.minor){newEnc(t);(G.bseen||(G.bseen={}))[t.k]=1;bump(t.k,'met')}D.init?.(ctx,t)}
+ // ---------- per step (host and every screen): first steps, intros, habits, run-wide hooks, bosses that withdraw, rewards ----------
+ Z.tstep=(ts0=>(t,dt)=>{const D=BOSSES[t.k];if(!D||t.net)return ts0(t,dt);if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();
+  if(!t.bs.init){t.bs.init=1;t.bs.max=t.bs.hp=maxHp(D);if(!t.bs.enc&&!D.minor){newEnc(t);(G.bseen||(G.bseen={}))[t.k]=1;if(!t.bs.keep)bump(t.k,'met')}D.init?.(ctx,t);if(t.bs.keep){D.restore?.(ctx,t,t.bs.keep);if(t.bs.wake)D.wake?.(ctx,t)}}
   t.bs.age=(t.bs.age||0)+dt;if(D.tick)return D.tick(ctx,t,dt)!==false;return false})(Z.tstep);
  let st0=G.state;
  function intro(t){const D=BOSSES[t.k];t.bs.intro=1;if(D.minor)return;sting(t.k);if(D.introFn){D.introFn(ctx,t);return}const I=D.intro||{};
   const title=I.title||D.n.toUpperCase(),sub=typeof I.sub==='function'?I.sub(ctx,t):I.sub||'';Z.fxTest?.cine('boss',t,t.p,title,sub);
   Z.an?.say(title,sub,I.col||D.col||'#ff4d4d',3);if(I.radio)Z.an?.radio(I.who||'OVERLORD',typeof I.radio==='function'?I.radio(ctx,t):I.radio,2)}
  const s0=Z.step;Z.step=dt=>{s0(dt);if(!G.on)return;pctx=null;habits(dt);
-  if(G.state!==st0){const was=st0;st0=G.state;if(G.state==='wave'&&was!=='wave')waveStart();if(G.state==='base'&&was!=='base'){for(const D of Object.values(BOSSES))D.g?.base?.(ctx);for(const R of rew())R.base?.(ctx)}}
+  if(G.state!==st0){const was=st0;st0=G.state;if(was==='wave'&&G.state!=='wave')clearAll('wave over');if(G.state==='wave'&&was!=='wave')waveStart();if(G.state==='base'&&was!=='base'){for(const D of Object.values(BOSSES))D.g?.base?.(ctx);for(const R of rew())R.base?.(ctx)}}
   if(G.state==='wave'||G.state==='clear')for(const t of TH)if(mine(t)&&!t.bs.intro&&live(t))intro(t);
   for(const D of Object.values(BOSSES))D.g?.step?.(ctx,dt);
   for(const R of rew())R.step?.(ctx,dt);
   if(auth()){encTick();
-   if(G.state==='wave'&&!G.wq.length){const L=TH.filter(live);if(L.length&&L.every(t=>mine(t)&&BOSSES[t.k].persist)){for(const t of L){t.st='lurk';BOSSES[t.k].lurk?.(ctx,t)}}}}};
- function waveStart(){for(const t of TH)if(t.st==='lurk'){t.st='cruise';BOSSES[t.k].wake?.(ctx,t)}for(const D of Object.values(BOSSES))D.g?.wave?.(ctx);for(const R of rew())R.wave?.(ctx);
+   if(G.state==='wave'&&!G.wq.length){const L=TH.filter(live);if(L.length&&L.every(t=>mine(t)&&BOSSES[t.k].persist))for(const t of L)withdraw(t)}}};
+ // a boss that outlives the wave: its run state is kept (G.bkeep), the track and every effect go; it comes back next wave
+ function withdraw(t){const D=BOSSES[t.k];(G.bkeep||(G.bkeep={}))[t.k]=D.save?D.save(ctx,t):{};const e=t.bs.enc;if(e)e.over=true;t.bs.dead=1;t.bs.gone='withdrew';t.st='dead';
+  for(const u of TH)if(u.bs?.enc===e&&u!==t&&u.st!=='dead'){u.bs.dead=1;u.st='dead'}if(D.withdrawTxt)feed(D.withdrawTxt(ctx,t))}
+ // ---------- the one cleanup path: every boss effect ends with the wave (and at game over, quit, restart). Kept: records, trophies, withdrawn
+ // bosses' run state, the Ghost of the Ace's wreck (a map feature, not an effect). A boss still in the air here is simply gone. ----------
+ function clearAll(why){for(const t of TH){if(mine(t)&&t.st!=='dead'){if(t.bs&&!t.bs.dead){t.bs.dead=1;t.bs.gone=why}t.st='dead'}if(t.iff)t.iff=0}
+  for(const e of encs())e.over=true;G.benc=[];stopLoops();BO.length=0;bGeo.setDrawRange(0,0);BFX.clear();BSMK.clear();bar.hidden=true;barH='';
+  for(const D of Object.values(BOSSES)){try{D.clear?.(ctx)}catch(e){console.warn('boss clear',e)}}}
+ Z.bossClear=clearAll;
+ function waveStart(){const K=G.bkeep||{};G.bkeep={};if(auth())for(const[id,st]of Object.entries(K)){const D=BOSSES[id];if(!D||!st||st.gone)continue;const t=spawn(id,{...(st.at||{}),set:{keep:st}});if(t)t.bs.wake=1}for(const D of Object.values(BOSSES))D.g?.wave?.(ctx);for(const R of rew())R.wave?.(ctx);
   const nx=TH.filter(t=>mine(t)&&live(t)&&!BOSSES[t.k].minor).length+(G.wq||[]).filter(q=>BOSSES[q.k.split(':')[0]]).length;
   if(nx){const q=(G.wq||[]).find(q=>BOSSES[q.k]);const D=q?BOSSES[q.k]:null;if(D)setTimeout(()=>{if(G.on&&G.state==='wave'){Z.an?.say(`${D.tag||D.n.toUpperCase()} INBOUND`,D.warn||'boss contact','#ff4d4d',3);Z.au?.siren?.(true)}},60)}}
 
@@ -208,7 +232,7 @@ export function initBosses(api,G,Z){
  function boltTick(dt){for(let i=BO.length-1;i>=0;i--){const b=BO[i];b.life-=dt;const t=b.t;if(!t||!live(t)||b.life<=0){if(b.retarget&&b.life>0){b.t=b.retarget();if(b.t)continue}BO.splice(i,1);continue}
    const r=_a.subVectors(t.p,b.p),d=r.length();if(d<9){BO.splice(i,1);api.boom(b.p,.6);if(auth()){const o=Z.helperHit(t,b.pk,.6);if(o==='kill')Z.helperKill(t);else if(o==='damage')api.damage(t)}continue}
    const des=r.addScaledVector(t.v,Math.min(3,d/b.spd)).normalize();b.v.lerp(des.multiplyScalar(b.spd),Math.min(1,dt*3)).setLength(b.spd);b.p.addScaledVector(b.v,dt);
-   if(Math.random()<b.trail)api.SMK.emit(b.p,0xd8d4cc,1,1,2.2,null,1,.45)}
+   if(Math.random()<b.trail)BSMK.emit(b.p,0xd8d4cc,1,1,2.2,null,1,.45)}
   let n=0;for(const b of BO){bPos[n*3]=b.p.x;bPos[n*3+1]=b.p.y;bPos[n*3+2]=b.p.z;bCol[n*3]=b.col[0]*2;bCol[n*3+1]=b.col[1]*2;bCol[n*3+2]=b.col[2]*2;n++}
   bGeo.setDrawRange(0,n);bGeo.attributes.position.needsUpdate=bGeo.attributes.color.needsUpdate=true}
 
@@ -227,14 +251,14 @@ export function initBosses(api,G,Z){
   bar.style.setProperty('--bc',D.col||'#ff4d4d');if(h!==barH)bar.innerHTML=barH=h;bar.hidden=false}
 
  // ---------- hooks: visuals, overlay, radar, hud, start / stop ----------
- const v0=Z.visuals;Z.visuals=dt=>{v0(dt);if(!G.on)return;for(const t of TH)if(mine(t)&&t.bs&&t.st!=='dead')BOSSES[t.k].vis?.(ctx,t,dt);for(const D of Object.values(BOSSES))D.g?.vis?.(ctx,dt);boltTick(api.menuOpen?0:dt);loops()};
+ const v0=Z.visuals;Z.visuals=dt=>{v0(dt);BFX.pts.visible=BSMK.pts.visible=G.on;if(!G.on)return;BFX.upd(dt);BSMK.upd(dt);for(const t of TH)if(mine(t)&&t.bs&&t.st!=='dead')BOSSES[t.k].vis?.(ctx,t,dt);for(const D of Object.values(BOSSES))D.g?.vis?.(ctx,dt);boltTick(api.menuOpen?0:dt);loops()};
  const o0=Z.overlay;Z.overlay=oc=>{o0(oc);if(!G.on||api.demo||Z.cine)return;const W=innerWidth,H=innerHeight;oc.save();oc.textAlign='center';oc.font='700 12px "JetBrains Mono",monospace';oc.shadowColor='#000';oc.shadowBlur=4;
   for(const t of TH)if(mine(t)&&t.bs&&t.st!=='dead')BOSSES[t.k].overlay?.(ctx,oc,t,W,H);for(const D of Object.values(BOSSES))D.g?.overlay?.(ctx,oc,W,H);oc.restore()};
  const r0=Z.radar;Z.radar=(rc,P,sel,K)=>{r0(rc,P,sel,K);if(!G.on)return;rc.save();for(const t of TH)if(mine(t)&&t.bs&&t.st!=='dead')BOSSES[t.k].radar?.(ctx,rc,P,t);for(const D of Object.values(BOSSES))D.g?.radar?.(ctx,rc,P);rc.restore()};
  const h0=Z.hud;Z.hud=dt=>{h0(dt);barTick()};
- const zs=Z.start;Z.start=()=>{zs();G.benc=[];G.brw={};G.bseen={};G.bevW=-99;G.hab=null;G.fallen={};BO.length=0;rec();
+ const zs=Z.start;Z.start=()=>{clearAll('restart');zs();G.bkeep={};G.benc=[];G.brw={};G.bseen={};G.bevW=-99;G.hab=null;G.fallen={};BO.length=0;rec();
   const q=new URLSearchParams(location.search).get('zboss');G.bforce=q&&BOSSES[q]?q:null;for(const D of Object.values(BOSSES))D.g?.start?.(ctx)};
- const zx=Z.stop;Z.stop=()=>{zx();BO.length=0;bGeo.setDrawRange(0,0);bar.hidden=true;for(const D of Object.values(BOSSES))D.g?.stop?.(ctx)};
+ const zx=Z.stop;Z.stop=()=>{zx();clearAll('quit');G.bkeep={};for(const D of Object.values(BOSSES))D.g?.stop?.(ctx)};
  // kills you made of ordinary kinds this run (the Ghost of the Ace raises them as spectres)
  const k0=Z.kill;Z.kill=(t,cat)=>{const was=t.paid;k0(t,cat);if(!was&&t.paid&&!mine(t)&&(t.by==='p'||t.by==='o')&&G.fallen)G.fallen[t.k]=(G.fallen[t.k]|0)+1;if(mine(t))BOSSES[t.k].killed?.(ctx,t);if(!was&&t.paid)for(const D of Object.values(BOSSES))D.g?.kill?.(ctx,t)};
 
@@ -244,7 +268,7 @@ export function initBosses(api,G,Z){
   if(!t.bs.enc&&!D.minor){t.bs.init=1;newEnc(t)}D.netIn?.(ctx,t,a.slice(3))};
 
  // ---------- what the boss modules get ----------
- const ctx={api,G,Z,THREE,V3,S,SND,BOSSES,REWARDS,decal,D2,cl,rnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
+ const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,BOSSES,REWARDS,decal,D2,cl,rnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
   get wt(){return G.wt||0},
   // lose your interceptor to enemy fire (the Ace's missile, the Mirror's burst); the Deathless trophy may save it (zboss-ace.js)
   shoot(why){const d=me();if(!d)return false;if(rew().some(R=>R.save?.(ctx,why)))return false;api.lose('shot');feed(`<span class="cr">Interceptor lost: ${why}</span>`);return true},
@@ -257,7 +281,10 @@ export function initBosses(api,G,Z){
 
  // harness and the spectator: spawn any boss now, force one into the next plan, read the record, grant a trophy
  Z.bosses={BOSSES,ROSTER,REWARDS,ctx,spawn:(id,o)=>spawn(id,o),force:id=>{if(BOSSES[id])G.bforce=id;return!!BOSSES[id]},rec,grant,habit,
-  get encs(){return encs()},alive:()=>TH.filter(t=>mine(t)&&t.st!=='dead'),
+  get encs(){return encs()},
+  // what is left of the bosses' effects (tests: all zero after a wave ends)
+  fx(){const o={tracks:TH.filter(t=>mine(t)&&t.st!=='dead').length,loops:LOOPS.size,fx:BFX.active,smoke:BSMK.active,bolts:BO.length,bar:!bar.hidden,iff:TH.filter(t=>t.iff>0&&t.st!=='dead').length,encs:encs().filter(e=>!e.over).length};
+   for(const D of Object.values(BOSSES))if(D.fxLeft)Object.assign(o,D.fxLeft(ctx));return o},alive:()=>TH.filter(t=>mine(t)&&t.st!=='dead'),
   // a pilot hit as if your warhead went off at the given point (tests): q 'kill' direct, 'damage' proximity
   hitAt(t,q,at){const d=api.player;if(at&&d)d.p.copy(at);inDet=1;try{hitBy(t,q,'p')}finally{inDet=0}},
   // bot pilots (tools/zbot.mjs): a burst on a live boss from where the boss module says a pilot of this skill would be

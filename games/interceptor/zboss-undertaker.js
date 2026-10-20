@@ -43,8 +43,11 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
  introFn(C,t){C.Z.an?.say('THE UNDERTAKER','it feeds on what you neglect','#ff5a40',3);C.Z.an?.radio('OVERLORD','Something is stripping our wreck. It is draining the other sites!',2)},
  build:C=>model(C),
  init(C,t){const B=t.bs;B.anchor=B.anchor||victim(C);B.gt=0;B.waves=0;t.p.y=C.api.gh(t.p.x,t.p.z)+260},
+ save:(C,t)=>{const A=t.bs.anchor;return{anchor:C.api.SITES.indexOf(A),hp:t.bs.hp,max:t.bs.max,waves:t.bs.waves|0,at:A?{x:A.x+8,z:A.z-6}:null}},
+ restore(C,t,st){const B=t.bs,S=C.api.SITES;B.anchor=S[st.anchor]||victim(C);B.hp=Math.max(2,st.hp|0);B.max=Math.max(B.hp,st.max|0);B.waves=st.waves|0;if(B.anchor)t.p.set(B.anchor.x+8,B.anchor.y+30,B.anchor.z-6)},
+ withdrawTxt:(C,t)=>`<span class="cr">The Undertaker sinks into the ${t.bs.anchor?t.bs.anchor.n.toLowerCase()+' wreck':'ground'} to wait out the break. It will be back, bigger.</span>`,
+ clear(){if(TG)TG.visible=false},fxLeft:()=>({tethers:TG?.visible?1:0}),
  wake(C,t){const B=t.bs;B.waves++;grow(C,t,2,'grew over the break');if(B.anchor&&B.anchor.hp>B.anchor.max*STARVE)starve(C,t);C.Z.an?.say('THE UNDERTAKER',`still here · armour ${armor(t)}/${MAXA}`,'#ff5a40',2)},
- lurk(C,t){t.bs.on=0},
  tick(C,t,dt){const{api}=C,B=t.bs;if(B.leave){C.steer(t,C.levelTo(t,new C.V3(t.p.x,0,-6000),300),60,.6,dt,80);if(t.p.z<-4400)C.vanish(t,'escaped');return true}
   if(!B.anchor){B.anchor=victim(C);if(!B.anchor){B.leave=1;return true}}const A=B.anchor;if(A.hp>A.max*STARVE){starve(C,t);return true}
   const P=new C.V3(A.x+8,A.y+30,A.z-6),d=t.p.distanceTo(P);
@@ -58,11 +61,11 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
  phaseName:(C,e)=>{const a=armor(e.main);return a<3?'STRIPPING':a<7?'ENTRENCHED':'IRONCLAD'},
  status(C,e){const t=e.main,B=t.bs,L=drained(C,t);return`armour <b>${armor(t)}/${MAXA}</b> (+1 every 20 s, +2 a break) · ${B.anchor?`stripping the ${B.anchor.n.toLowerCase()}`:'looking'}${L.length?` · <b>draining ${L.length} site${L.length>1?'s':''} −${rate(t).toFixed(1)}/s</b>`:''}<br>repair the ${B.anchor?B.anchor.n.toLowerCase():'wreck'} above ${STARVE*100}% to starve it`},
  vis(C,t,dt){const U=t.mesh.userData,B=t.bs,a=armor(t);for(const f of U.fans)f.rotation.y+=dt*35;U.plates.forEach((p,i)=>{p.visible=i<a});for(const c of U.claws)c.rotation.x=B.on?Math.sin(performance.now()/300)*.4:0;
-  if(B.on&&Math.random()<dt*6&&B.anchor)C.api.FX.emit(new C.V3(B.anchor.x+C.rnd(-12,12),B.anchor.y+2,B.anchor.z+C.rnd(-12,12)),0xfff0c0,10,8,.3,null,3);
+  if(B.on&&Math.random()<dt*6&&B.anchor)C.FX.emit(new C.V3(B.anchor.x+C.rnd(-12,12),B.anchor.y+2,B.anchor.z+C.rnd(-12,12)),0xfff0c0,10,8,.3,null,3);
   const L=drained(C,t),G=tethers(C);G.visible=L.length>0&&t.st!=='dead';if(!G.visible)return;const pa=G.geometry.attributes.position,T=performance.now()/1000;let n=0;
   for(const s of L)for(let i=0;i<24;i++){for(const k of[i,i+1]){const f=k/24,sag=Math.sin(f*Math.PI)*40;pa.setXYZ(n++,t.p.x+(s.x-t.p.x)*f,t.p.y+(s.y+25-t.p.y)*f+sag*(1-f)*.5+Math.sin(T*3+f*20)*1.5,t.p.z+(s.z-t.p.z)*f)}}
   for(let i=n;i<pa.count;i++)pa.setXYZ(i,0,-1e4,0);pa.needsUpdate=true;G.material.opacity=.5+.3*Math.sin(T*4);
-  if(Math.random()<dt*10){const s=C.pick(L),f=(T*.5)%1;C.api.FX.emit(new C.V3(s.x+(t.p.x-s.x)*f,s.y+25+(t.p.y-s.y-25)*f,s.z+(t.p.z-s.z)*f),0xff3020,2,1,.4,null,2.5)}},
+  if(Math.random()<dt*10){const s=C.pick(L),f=(T*.5)%1;C.FX.emit(new C.V3(s.x+(t.p.x-s.x)*f,s.y+25+(t.p.y-s.y-25)*f,s.z+(t.p.z-s.z)*f),0xff3020,2,1,.4,null,2.5)}},
  netOut:(C,t)=>[C.api.SITES.indexOf(t.bs.anchor),t.bs.on|0],netIn(C,t,a){t.bs.anchor=C.api.SITES[a[0]]||null;t.bs.on=a[1]|0},
  aim:(C,t,s)=>({p:t.p.clone().add(new C.V3(0,Math.random()<s?1:8,0)),v:new C.V3()}),
  won(C,e){const a=armor(e.main);if(a)C.Z.earn?.(a*250,e.main.p,' PLATES')},winTxt:'The Undertaker is scrap. Bury it.',
@@ -78,7 +81,7 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
    if(G.utq&&G.state==='wave'&&(G.utq.t-=dt)<=0){const s=G.utq.s;G.utq=null;summon(C,s)}
    if(TG&&!api.TH.some(t=>t.k==='undertaker'&&api.live(t)))TG.visible=false},
   wave(C){const{G}=C;if(!C.auth()||G.wave<6-(C.Z.diff?.().shift|0))return;const v=victim(C);if(v)summon(C,v)},
-  note(C){const t=C.api.TH.find(u=>u.k==='undertaker'&&u.st==='lurk');if(!t)return'';const A=t.bs.anchor,n=C.api.SITES.filter(s=>s!==A&&s.hp>1).length;
-   return`<p class="zhint"><b style="color:#ff5a40">UNDERTAKER</b> waits over the ${A?A.n.toLowerCase()+' wreck':'base'}: armour <b>${armor(t)}/${MAXA}</b>, <b>+2</b> when the wave starts, draining about ${rate(t).toFixed(1)} hp/s from each of ${n} sites. Repair or rebuild the ${A?A.n.toLowerCase():'wreck'} above ${STARVE*100}% to starve it, or kill it early.</p>`}}});
-function summon(C,s){const{G,api}=C;if(api.TH.some(t=>t.k==='undertaker'&&t.st!=='dead')||G.wave-(G.utW??-99)<3)return;G.utW=G.wave;const t=C.spawn('undertaker',{x:s.x,z:s.z-1600,set:{anchor:s}});
+  note(C){const K=C.G.bkeep?.undertaker;if(!K)return'';const A=C.api.SITES[K.anchor],a=Math.max(0,(K.hp|0)-2),n=C.api.SITES.filter(s=>s!==A&&s.hp>1).length;
+   return`<p class="zhint"><b style="color:#ff5a40">UNDERTAKER</b> waits in the ${A?A.n.toLowerCase()+' wreck':'ground'}: armour <b>${a}/${MAXA}</b>, <b>+2</b> when the wave starts, then draining about ${(.5+.12*Math.min(MAXA,a+2)).toFixed(1)} hp/s from each of ${n} sites. Repair or rebuild the ${A?A.n.toLowerCase():'wreck'} above ${STARVE*100}% to starve it, or kill it early.</p>`}}});
+function summon(C,s){const{G,api}=C;if(api.TH.some(t=>t.k==='undertaker'&&t.st!=='dead')||G.bkeep?.undertaker||G.wave-(G.utW??-99)<3)return;G.utW=G.wave;const t=C.spawn('undertaker',{x:s.x,z:s.z-1600,set:{anchor:s}});
  if(t)api.feed(`<span class="cr">Something is coming for the ${s.n.toLowerCase()} wreck…</span>`)}

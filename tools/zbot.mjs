@@ -42,7 +42,7 @@ export const SHOP = `(function(P){
   const from = k => Z.itemFrom ? Z.itemFrom(k) : IT[k].from, cost = k => IT[k].type === 'perk' ? Z.perkPrice(k) : (Z.itemPrice ? Z.itemPrice(k) : IT[k].price);
   const domeOK = k => k === 'idome' ? nw >= kf('ballistic') - P.domes : k === 'gdome' ? nw >= kf('hyper') - P.domes : true;
   for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp > 0 && s.hp < s.max * P.repairAt) B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)); }
-  if (P.bossCare) for (const t of api.TH) if (t.k === 'undertaker' && t.st === 'lurk' && t.bs?.anchor) { const i = api.SITES.indexOf(t.bs.anchor), s = t.bs.anchor; if (s.hp <= 0 && B.act.rebuild) B.act.rebuild(i); else if (s.hp > 0) B.act.repair(i, Math.ceil(s.max * .4 - s.hp)); }  /* starve the Undertaker */
+  { const K = G.bkeep?.undertaker, s = K && api.SITES[K.anchor]; if (P.bossCare && s) { const i = K.anchor; if (s.hp <= 0 && B.act.rebuild) B.act.rebuild(i); else if (s.hp > 0) B.act.repair(i, Math.ceil(s.max * .4 - s.hp)); } }  /* starve the Undertaker waiting in a wreck */
   if (P.rebuild && B.act.rebuild) api.SITES.forEach((s, i) => { if (s.hp <= 0 && G.cash > 9000) B.act.rebuild(i); });
   const open = () => def.SLOTS.some((_, j) => def.slotFree(j)), keep = G.cash * (1 - (P.spend ?? 1)), afford = c => G.cash - c >= keep;
   for (let pass = 0; pass < 3; pass++) {

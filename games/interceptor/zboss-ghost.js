@@ -47,13 +47,14 @@ registerBoss({id:'ghost',n:'Ghost',tag:'GHOST',col:'#b8c4d0',spd:75,alt:[1050,11
  vis(C,t,dt){const B=t.bs,M=mats(C),{api,Z}=C;M.slot.emissiveIntensity=api.thermLook?2.5:0;const f=t.v.clone().normalize();
   for(const s of t.mesh.userData.sh){s.material.opacity=.06+.05*Math.sin(performance.now()/40+s.position.x);s.scale.set(6+Math.sin(performance.now()/70)*1.5,3,1)}
   if((B.ct=(B.ct||0)-dt)<=0){B.ct=.15;for(const x of[-3.4,3.4]){const p=t.mesh.localToWorld(new C.V3(x,1,-8));
-   if(B.ph===0&&t.p.y-api.gh(t.p.x,t.p.z)>800)api.SMK.emit(p,0xf4f6f8,1,.3,14,null,1.1,.55);else if(B.ph>0)api.SMK.emit(p,0x24221f,1,.6,9,null,1,.7)}}
+   if(B.ph===0&&t.p.y-api.gh(t.p.x,t.p.z)>800)C.SMK.emit(p,0xf4f6f8,1,.3,14,null,1.1,.55);else if(B.ph>0)C.SMK.emit(p,0x24221f,1,.6,9,null,1,.7)}}
   // the lock slips: about 2 s held, then 3 s before it can be locked again (each screen runs its own lock)
   if(Z.lk?.t===t){B.lh=(B.lh||0)+dt;if(B.lh>2.1){Z.lk.clear();B.lh=0;B.lcd=3;api.banner('LOCK SLIPPED','co',1)}}else B.lh=0},
  netOut:(C,t)=>[t.bs.pass|0],netIn(C,t,a){t.bs.pass=a[0]|0},
  aim(C,t,s){if(Math.random()>s*.8)return null;return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s?-1:-8)}},
  winTxt:'The Ghost is down. Nobody saw it coming, not even it.',escTxt:'slipped away',
- g:{step(C,dt){if(!C.auth())return;for(let i=BOMBS.length-1;i>=0;i--){const b=BOMBS[i];b.v.y-=9.8*dt;b.v.multiplyScalar(1-.05*dt);b.p.addScaledVector(b.v,dt);if(Math.random()<.4)C.api.SMK.emit(b.p,0x7a766e,1,.5,2,null,1,.5);
+ clear(){BOMBS.length=0},fxLeft:()=>({bombs:BOMBS.length}),
+ g:{step(C,dt){if(!C.auth())return;for(let i=BOMBS.length-1;i>=0;i--){const b=BOMBS[i];b.v.y-=9.8*dt;b.v.multiplyScalar(1-.05*dt);b.p.addScaledVector(b.v,dt);if(Math.random()<.4)C.SMK.emit(b.p,0x7a766e,1,.5,2,null,1,.5);
    if(b.p.y<=C.api.gh(b.p.x,b.p.z)+2){BOMBS.splice(i,1);C.api.boom(b.p,5);const d=Math.hypot(b.p.x-b.s.x,b.p.z-b.s.z);if(b.s.hp>0&&d<220)C.strike(b.t,b.s,90)}}},stop(){BOMBS.length=0}},
  sting(S){const t0=S.t+.05,o=S.out(1),n=S.nz(t0,4),f=S.filt('bandpass',500,2);f.frequency.setValueAtTime(260,t0);f.frequency.linearRampToValueAtTime(900,t0+2);f.frequency.linearRampToValueAtTime(300,t0+4);n.connect(f).connect(S.env(t0,.2,1.5,4,o));  // a hollow wind
   for(let i=0;i<4;i++){const x=S.osc('sine',52,t0+.6+i*.85,.25);x.frequency.exponentialRampToValueAtTime(34,t0+.85+i*.85);x.connect(S.env(t0+.6+i*.85,.3,.01,.25,o))}},  // a heartbeat
