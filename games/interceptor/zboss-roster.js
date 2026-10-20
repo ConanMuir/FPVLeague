@@ -6,4 +6,7 @@ import './zboss-twins.js';
 import './zboss-jugg.js';
 import './zboss-ghost.js';
 import './zboss-hive.js';
-import './zboss-hive.js';
+import './zboss-mirror.js';
+import './zboss-undertaker.js';
+import './zboss-siren.js';
+import './zboss-puppet.js';
