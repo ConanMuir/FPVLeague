@@ -22,7 +22,7 @@ export function initWeapons(api,G,Z,A){
  const pkR=(r,cv,LE)=>{const re=r+cv*api.FDLY;return re<1.2?1:Math.exp(-(((re-1.2)/(2.5*LE/4))**2))};  // Riley's kill model with another lethal radius
 
  // ---------- measuring a burst: per live track within 400 m, its miss distance, closing speed and the cosine of its angle off your heading ----------
- const heading=(d,o)=>d.v.lengthSq()>100?o.copy(d.v).normalize():o.set(0,1,-1).applyQuaternion(d.q).normalize();
+ const heading=(d,o)=>{if(d.v.lengthSq()>100)return o.copy(d.v).normalize();o.set(0,1,-1).applyQuaternion(d.q).setY(0);return o.lengthSq()>1e-4?o.normalize():o.set(0,0,-1)};
  function measure(d){const h=heading(d,_c),M=[];for(const t of TH){if(!live(t))continue;const r=t.p.distanceTo(d.p);if(r>400)continue;_a.subVectors(t.p,d.p);
    const cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a)/(r||1)),c=r>.01?_a.dot(h)/r:1;M.push({t,r,cv,c})}return M}
 
@@ -93,7 +93,7 @@ export function initWeapons(api,G,Z,A){
  // ---------- visuals of a burst (on every screen) ----------
  const SHELL=new THREE.Mesh(new THREE.SphereGeometry(1,24,14),new THREE.MeshBasicMaterial({color:new THREE.Color(0x7fd7ff).multiplyScalar(2),transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,side:THREE.DoubleSide}));
  SHELL.visible=false;SHELL.frustumCulled=false;scene.add(SHELL);let shT=-1,shR=1;
- function empFx(p,r){SHELL.position.copy(p);shR=r;shT=0;SHELL.visible=true;api.FX.emit(p,0x7fd7ff,160,40,.5,null,3);api.FX.emit(p,0xffffff,40,20,.25,null,3);snd.emp(p);Z.flash(p,1.2)}
+ function empFx(p,r){SHELL.position.copy(p);shR=r;shT=0;SHELL.visible=true;api.FX.emit(p,0x7fd7ff,160,40,.5,null,3);api.FX.emit(p,0xffffff,40,20,.25,null,3);api.FX.emit(p,0x9fdcff,60,6,1.2,null,2.5);snd.emp(p)}  // electric, not a fireball
  function flechFx(d,p,v){const h=heading(d||{v,q:new THREE.Quaternion()},_c).clone(),up=Math.abs(h.y)<.9?_a.set(0,1,0):_a.set(1,0,0),s1=new V3().crossVectors(h,up).normalize(),s2=new V3().crossVectors(h,s1),tan=Math.tan(FLECH.cone*Math.PI/180);
   for(let i=0;i<26;i++){const a=Math.random()*6.283,r=Math.sqrt(Math.random())*tan,dir=h.clone().addScaledVector(s1,Math.cos(a)*r).addScaledVector(s2,Math.sin(a)*r).normalize();Z.defx.tracer(p,dir.multiplyScalar(700),.025)}
   api.FX.emit(p,0xffe0a0,30,10,.2,null,3);snd.flech(p)}
@@ -103,12 +103,12 @@ export function initWeapons(api,G,Z,A){
  // ---------- detonating: the loaded weapon decides (std and the pod's warhead go to zombies.js / znet.js as before) ----------
  const myKey=()=>A.me(),me=()=>api.player;
  let ncT=0;
- const d0=Z.detonate;Z.detonate=()=>{const w=A.cur();if(!G.on||w==='std'||w==='flare')return d0();const d=me();if(!d||d.dead>0)return;
+ const d0=Z.detonate;Z.detonate=()=>{const w=A.cur();if(!G.on||w==='std'||w==='flare'||Z.so?.S?.on)return d0();  /* on a sortie (zsortie.js) F drops its bombs */const d=me();if(!d||d.dead>0)return;
   if(w==='dart'){const t=dartContact(d);if(!t){const n=performance.now();if(n-ncT>1500){ncT=n;banner('DART: RAM IT — NO CONTACT','co',1);snd.click()}return}return go(w,d,[{t,r:t.p.distanceTo(d.p),cv:0,c:1}])}
   go(w,d,measure(d))};
  function go(w,d,M){burstFx(w,d.p,d.v,d);G.detFlag=true;
-  if(Z.mirror){Z.req(['A','det',w,M.map(m=>[m.t.id,+m.r.toFixed(2),+m.cv.toFixed(1),+m.c.toFixed(3)]),[+d.p.x.toFixed(1),+d.p.y.toFixed(1),+d.p.z.toFixed(1)],[+d.v.x.toFixed(1),+d.v.y.toFixed(1),+d.v.z.toFixed(1)]]);banner(WPN[w].hud,'co',.8);api.lose('det');return}
-  const R=resolve(w,d.p.clone(),d.v.clone(),M,myKey());readout(R);api.lose(w==='net'?'net':'det')}
+  if(Z.mirror){Z.req(['A','det',w,M.map(m=>[m.t.id,+m.r.toFixed(2),+m.cv.toFixed(1),+m.c.toFixed(3)]),[+d.p.x.toFixed(1),+d.p.y.toFixed(1),+d.p.z.toFixed(1)],[+d.v.x.toFixed(1),+d.v.y.toFixed(1),+d.v.z.toFixed(1)]]);banner(WPN[w].hud,'co',.8);api.lose(w==='net'||w==='emp'?w:'det');return}
+  const R=resolve(w,d.p.clone(),d.v.clone(),M,myKey());readout(R);api.lose(w==='net'||w==='emp'?w:'det')}  // lose('det') is a warhead's fireball
  function readout(R){banner(R.txt,R.col,1.4);G.det={txt:R.txt,t:performance.now()};G.streak=R.kills?G.streak+1:0;
   if(R.kills)api.tone(520,1040,.22,.14,'triangle');else if(R.dmg)api.tone(440,520,.2,.1,'triangle');else api.tone(300,140,.35,.12,'sawtooth');feed(R.out.join('<br>')||R.txt)}
  A.readout=readout;

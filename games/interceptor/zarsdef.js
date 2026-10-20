@@ -31,8 +31,8 @@ export function initArsDef(api,G,Z,A){
    const dm=new THREE.Mesh(new THREE.SphereGeometry(2.4,24,12,0,Math.PI*2,0,Math.PI/2),MT.dome);dm.position.y=2.5;dm.castShadow=true;g.add(dm);d.dome=dm;
    const r=new THREE.Mesh(new THREE.TorusGeometry(2.45,.12,8,32).rotateX(Math.PI/2),MT.emit);r.position.y=2.6;g.add(r);d.ring=r;return g},
   barrage(d){const g=kit();g.add$(new THREE.BoxGeometry(2.4,1.1,4.4),M.olive,0,.8,0);wheels(g,1.1,1.5);g.add$(new THREE.CylinderGeometry(.7,.7,1.6,14).rotateZ(Math.PI/2),M.dark,0,1.9,.9);
-   d.bal=[];for(let i=0;i<BARRAGE.n;i++){const b=new THREE.Group(),body=new THREE.Mesh(new THREE.SphereGeometry(1,16,10).scale(2.6,2.6,6),MT.bal);body.castShadow=true;b.add(body);
-    for(const a of[0,2.094,4.189]){const pv=new THREE.Group(),f=new THREE.Mesh(new THREE.BoxGeometry(.14,2.4,2.6),MT.bal);f.position.set(0,2.6,4.7);pv.rotation.z=a;pv.add(f);b.add(pv)}  // three tail fins
+   d.bal=[];for(let i=0;i<BARRAGE.n;i++){const b=new THREE.Group(),body=new THREE.Mesh(new THREE.SphereGeometry(1,16,10).scale(4,4,9.5),MT.bal);body.castShadow=true;b.add(body);
+    for(const a of[0,2.094,4.189]){const pv=new THREE.Group(),f=new THREE.Mesh(new THREE.BoxGeometry(.2,3.6,4),MT.bal);f.position.set(0,4,7.6);pv.rotation.z=a;pv.add(f);b.add(pv)}  // three tail fins
     const c=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,1,5),MT.cable);g.add(b,c);d.bal.push({b,c,ph:Math.random()*6})}return g},
   smoke(d){const g=kit();g.add$(new THREE.BoxGeometry(2.6,.9,4.6),M.olive,0,.7,0);wheels(g,1.15,1.6);for(let i=0;i<3;i++){g.add$(new THREE.CylinderGeometry(.42,.42,1.8,12),MT.can,-.75+i*.75,2,-.8);g.add$(new THREE.CylinderGeometry(.16,.22,.9,8),M.dark,-.75+i*.75,3.2,-.8)}
    g.add$(new THREE.BoxGeometry(2.2,1.2,1.6),M.dark,0,1.7,1.2);return g},
@@ -72,7 +72,7 @@ export function initArsDef(api,G,Z,A){
  // balloons on a ring around the position, at the cable ceiling over the ground under each, cables down to the ground (world placement, then into the mesh's frame)
  function hoist(d){if(!d.mesh||!d.bal)return;const s=sl(d),l=LV(d),rr=R(d)*.55;d.mesh.updateMatrixWorld(true);d.bw=[];
   d.bal.forEach((q,i)=>{const a=i/d.bal.length*6.283+.4,x=s.x+Math.cos(a)*rr,z=s.z+Math.sin(a)*rr,g0=gh(x,z),y=g0+l.alt;d.bw.push({x,z,y,g0});
-   q.b.position.copy(d.mesh.worldToLocal(_a.set(x,y,z)));q.b.rotation.y=a;const c0=d.mesh.worldToLocal(_b.set(x,g0,z)).clone(),c1=d.mesh.worldToLocal(_c.set(x,y-2.6,z));
+   q.b.position.copy(d.mesh.worldToLocal(_a.set(x,y,z)));q.b.rotation.y=a;const c0=d.mesh.worldToLocal(_b.set(x,g0,z)).clone(),c1=d.mesh.worldToLocal(_c.set(x,y-4,z));
    q.c.position.copy(c0).add(c1).multiplyScalar(.5);q.c.scale.set(1,c1.distanceTo(c0),1)})}
  // a carrier's park spot moves to where it is parked (solo / host; a client gets the 'pk' event)
  function parkAt(d,x,z){const s=sl(d);if(!s?.park)return false;const W=api.AW-150;x=cl(x,-W,W);z=cl(z,-W,4000);s.x=x;s.z=z;s.y=gh(x,z);if(d.mesh){d.mesh.position.set(x,s.y,z);d.mesh.rotation.y=Math.atan2(x,z+1500)+Math.PI}return true}
