@@ -92,15 +92,18 @@ jobs:
           - check: training-check
             area: league
             run: node tools/training-check.mjs
-          - check: zombies-test (classic, saves, meta, chain)
+          - check: zombies-test (classic, saves, meta, campaign)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=classic,saves,meta,chain
+            run: node tools/zombies-test.mjs --sections=classic,saves,meta,campaign
+          - check: zombies-test (swarm)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=swarm
           - check: zombies-test (zombies, roster)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=zombies,roster
-          - check: zombies-test (helpers, weather, sorties)
+          - check: zombies-test (helpers, weather, chain, sorties)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=helpers,weather,sorties
+            run: node tools/zombies-test.mjs --sections=helpers,weather,chain,sorties
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor

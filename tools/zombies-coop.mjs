@@ -1,8 +1,8 @@
 // Zombies co-op harness: one headless Edge, three pages of the game (a host and two clients) talking over the ?netloop transport
 // (engine/net.js: a BroadcastChannel stand-in for the room, with a one-way delay), driven through the real menu, base screen and the
 // window.__z hooks. Checks: lobby (host / join by code), ready-up and forced start, waves and tracks in sync, a client's kill counts,
-// shared purse and shop requests (helper, personal perk, team perk, repair, kill chain), site hit points in sync, launch alerts and
-// warning actions from clients (harden, decoy), late join, a client leaving,
+// shared purse and shop requests (helper, personal perk, team perk, repair, kill chain), personal swarms (formation and strike over the wire),
+// site hit points in sync, launch alerts and warning actions from clients (harden, decoy), late join, a client leaving,
 // the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS]
 import {serve, launch, open, sleep, newWindow} from './zlib.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
@@ -145,17 +145,39 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !docum
 // ---------- kill chain purchases (zchain.js) go through the host: the host's wave is moved up to unlock the tab, then put back ----------
 { await ev(H, () => { __z.G.wave = 29; __z.G.cash = 30000; }); await until(A, () => __z.G.wave === 29 && __z.G.cash === 30000); await until(B, () => __z.G.wave === 29);
   await tap(A, '[data-tab="chain"]'); await tap(A, '[data-kc="bb:1"]');
-  ok(await until(H, () => !!__z.G.kc.boost[1] && __z.G.cash === 25000) && await until(B, () => !!__z.G.kc.boost[1]), 'Kill chain: Ash builds the north boost battery ($5,000) on the host; Bea sees it');
+  ok(await until(H, () => !!__z.G.kc.boost[1] && __z.G.cash === 24000) && await until(B, () => !!__z.G.kc.boost[1]), 'Kill chain: Ash builds the north boost battery ($6,000) on the host; Bea sees it');
   await tap(B, '[data-tab="chain"]'); await tap(B, '[data-kc="dc:1"]');
   ok(await until(H, () => __z.G.kc.decoys === 1) && await until(A, () => __z.G.kc.decoys === 1), 'Kill chain: Bea buys a decoy site; the host and Ash have it in stock');
   if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-chain.png'});
   await ev(H, () => { __z.G.wave = 1; }); await until(A, () => __z.G.wave === 1); await until(B, () => __z.G.wave === 1); }
 
+// ---------- personal swarms (zswarm.js): each pilot's own; given here (they're a wave-12 perk), deployed when wave 2 starts ----------
+const ashKey = await ev(H, () => Object.keys(__z.net.n.names).find(k => __z.net.n.names[k] === 'Ash'));
+await ev(H, k => { const n = __z.net.n; (n.perks[k] ||= {}).swarm = 2; __z.G.perks.swarm = 1; }, ashKey);
+ok(await until(A, () => __z.G.perks.swarm === 2), 'Swarm: Ash has Personal swarm level 2 (6 drones), the host level 1 (4)');
 // ---------- forced start: the host starts wave 2 with nobody else ready ----------
 await tap(H, '#zforce');
 ok(await until(H, () => __z.G.state === 'wave' && __z.G.wave === 2), 'Host: Start now begins wave 2 without the others ready');
 for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'wave' && __z.G.wave === 2), `${C.name}: wave 2 started`);
 ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is deployed on the client too');
+{ const hostKey = await ev(A, () => __z.net.n.hostPeer);
+  ok(await until(H, k => __z.Z.sw.SWS.get(k)?.d.length === 6 && __z.Z.sw.drones.length === 4 && __z.G.spend?.swarm === 300, ashKey), 'Swarm: the host flies its 4 drones and Ash’s 6, upkeep $300 from the purse');
+  ok(await until(A, k => __z.Z.sw.drones.length === 6 && __z.Z.sw.SWS.get(k)?.d.length === 4, hostKey), 'Swarm: Ash flies his 6 and sees the host’s 4');
+  ok(await until(B, ([a, h]) => __z.Z.sw.SWS.get(a)?.d.length === 6 && __z.Z.sw.SWS.get(h)?.d.length === 4, [ashKey, hostKey], 20000), 'Swarm: Bea sees both swarms ' + await ev(B, ([a, h]) => JSON.stringify([__z.Z.sw.SWS.get(a)?.d.length, __z.Z.sw.SWS.get(a)?.want, __z.Z.sw.SWS.get(a)?.ww, __z.Z.sw.SWS.get(h)?.d.length, __z.Z.sw.SWS.get(h)?.want, __z.G.wave, [...__z.Z.sw.SWS.keys()]]), [ashKey, hostKey]));
+  await ev(A, () => __z.Z.sw.command('form#', 1));
+  ok(await until(H, k => __z.Z.sw.SWS.get(k)?.form === 1, ashKey) && await until(B, k => __z.Z.sw.SWS.get(k)?.form === 1, ashKey), 'Swarm: Ash picks the wedge; the host and Bea fly his swarm in a wedge (only the formation went over the wire)');
+  // a strike from Ash: the host spawns a cloud of Shaheds 1.2 km from Ash's interceptor; Ash strikes it, the host rolls the passes
+  await ev(H, k => { const {api, G} = __z, r = __z.net.n.pil.get(k), P = r.d.p; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
+    for (let i = 0; i < 4; i++) { const t = __z.make('shahed', P.x + i * 30, P.z - 1200); t.p.set(P.x + i * 30, api.gh(P.x, P.z - 1200) + 250, P.z - 1200 - i * 20); t.alt = 250; t.spd = t.cs = 4; } }, ashKey);
+  ok(await until(A, () => __z.api.TH.filter(t => __z.api.live(t) && t.k === 'shahed').length >= 4), 'Swarm: Ash sees the Shahed cloud');
+  const sk = await ev(A, () => ({ok: __z.Z.sw.command('strike'), ch: __z.Z.sw.mine.ch}));
+  ok(sk.ok && sk.ch === 0, 'Swarm: Ash strikes (his one charge spent)');
+  ok(await until(H, k => { const s = __z.Z.sw.SWS.get(k); return s && s.ch === 0 && s.d.some(d => d.st === 'strike' || d.boost); }, ashKey), 'Swarm: the host launches Ash’s strike on its copy of his swarm');
+  await ev(H, () => __z.sim(12));  /* the host's own clock: its window may get few frames next to the two clients */
+  ok(await until(H, k => __z.Z.sw.SWS.get(k)?.kills > 0, ashKey, 5000), 'Swarm: Ash’s strike kills on the host ' + await ev(H, k => { const s = __z.Z.sw.SWS.get(k); return JSON.stringify({n: s.d.length, k: s.kills, st: s.d.map(d => d.st + ':' + Math.round(d.t ? d.t.p.distanceTo(d.p) : -1)), th: __z.api.TH.filter(t => __z.api.live(t)).map(t => t.k + '@' + Math.round(t.p.distanceTo(s.A.p))).slice(0, 8)}); }, ashKey));
+  await sleep(1500);
+  const cnt = async () => [await ev(H, k => __z.Z.sw.SWS.get(k).d.length, ashKey), await ev(A, () => __z.Z.sw.drones.length)];
+  ok(await until(A, n => __z.Z.sw.drones.length === n, (await cnt())[0], 5000), `Swarm: Ash's own drone count follows the host's (host / Ash: ${(await cnt()).join(' / ')})`); }
 
 // ---------- site hit points in a wave: a Shahed hits the fuel depot on the host ----------
 { const r = await ev(H, () => { const {api, G} = __z; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); const s = api.SITES[1], aim = s.aims[0], t = __z.make('shahed', aim.x, aim.z - 300); t.tgt = s; t.aim = aim; t.wps.length = 0; t.p.set(aim.x, aim.y + 120, aim.z - 200); t.st = 'dive';
@@ -172,14 +194,14 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   ok(u.used && u.left === 0 && await until(H, () => __z.api.TH.some(t => __z.api.live(t) && t.frz > 0)) && await until(B, () => __z.api.TH.some(t => __z.api.live(t) && t.frz > 0)), 'Perks: Ash uses Freeze (charge spent); the host slows a track and Bea sees it frozen');
   if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-client-wave.png'}); }
 
-// ---------- launch alert in co-op (zwarn.js): the host sees a hypersonic, every pilot gets the alert; Ash hardens with key 1, Bea sends the decoy with key 3 ----------
+// ---------- launch alert in co-op (zwarn.js): the host sees a hypersonic, every pilot gets the alert; Ash hardens with key J, Bea sends the decoy with key U ----------
 { const id = await ev(H, () => { const {api} = __z, t = __z.make('hyper', -17000, 1950 - 11000, api.SITES[1]); return t.id; });  // from the west: no boost battery there to shoot it first
   ok(await until(A, id => __z.Z.warn.alerts().some(t => t.id === id), id) &&await until(B, id => __z.Z.warn.alerts().some(t => t.id === id), id), `Launch alert: T${id} (hypersonic on the fuel depot) is up on Ash's and Bea's screens`);
   const c0 = (await st(H)).cash;
-  await ev(A, () => { dispatchEvent(new KeyboardEvent('keydown', {code: 'Digit1'})); dispatchEvent(new KeyboardEvent('keyup', {code: 'Digit1'})); });
-  ok(await until(H, () => !!__z.G.kc.hard['FUEL DEPOT']) && (await st(H)).cash < c0 && await until(B, () => !!__z.G.kc.hard['FUEL DEPOT']), `Harden: Ash's key 1 is applied by the host (purse $${c0} -> $${(await st(H)).cash}); Bea sees the site hardened`);
-  await ev(B, () => { dispatchEvent(new KeyboardEvent('keydown', {code: 'Digit3'})); dispatchEvent(new KeyboardEvent('keyup', {code: 'Digit3'})); });
-  ok(await until(H, id => __z.G.kc.decoys === 0 && __z.api.TH.find(t => t.id === id)?.kc?.dc === 1, id), 'Decoy: Bea\'s key 3 spends the team\'s decoy on the host');
+  await ev(A, () => { dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyJ'})); dispatchEvent(new KeyboardEvent('keyup', {code: 'KeyJ'})); });
+  ok(await until(H, () => !!__z.G.kc.hard['FUEL DEPOT']) && (await st(H)).cash < c0 && await until(B, () => !!__z.G.kc.hard['FUEL DEPOT']), `Harden: Ash's key J is applied by the host (purse $${c0} -> $${(await st(H)).cash}); Bea sees the site hardened`);
+  await ev(B, () => { dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyU'})); dispatchEvent(new KeyboardEvent('keyup', {code: 'KeyU'})); });
+  ok(await until(H, id => __z.G.kc.decoys === 0 && __z.api.TH.find(t => t.id === id)?.kc?.dc === 1, id), 'Decoy: Bea\'s key U spends the team\'s decoy on the host');
   if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-alert.png'});
   await ev(H, id => { const t = __z.api.TH.find(t => t.id === id); if (t && __z.api.live(t)) __z.Z.helperKill(t); }, id); }
 
@@ -193,6 +215,17 @@ ok(await until(B, () => __z.G.on && __z.G.state === 'wave' && __z.net.n?.late), 
 ok(await ev(B, () => __z.Z.idle() && document.getElementById('zinb').textContent.includes('NEXT BASE')) || await until(B, () => document.getElementById('zinb').textContent.includes('NEXT BASE'), null, 3000), 'Late join: the HUD says she joins at the next base screen');
 await ev(H, () => { __z.G.wq.length = 0; for (let i = 0; i < 600 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0) __z.botKill(.8); } __z.sim(4); });
 ok(await until(B, () => __z.G.state === 'base' && !__z.net.n.late && __z.net.rows().length === 3), 'Late join: at the base screen Bea is in, roster back to 3');
+
+// ---------- campaign (zcampaign.js): the host plays a sector of their campaign; the clients play it with them; only the host's save moves ----------
+{ const c0 = await ev(A, () => JSON.stringify(__z.api.S.zcamp ?? null));
+  await ev(H, () => __z.Z.cp.start('hosp', true));
+  ok(await until(H, () => __z.G.state === 'base' && __z.Z.cp.run?.id === 'hosp'), 'Campaign co-op: the host launches Hospital Hill for the whole team');
+  for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && __z.Z.cp.run?.id === 'hosp' && /HOSPITAL HILL/.test(document.querySelector('#zbase .zcpbar')?.textContent || '') && __z.api.SITES.some(s => s.n === 'HOSPITAL' && s.max === 360)), `${C.name}: in the host's sector (strip on the base screen, the field hospital at 360 hp)`);
+  await ev(H, () => { const {G, api, Z} = __z; Z.base.close(); G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wave = Z.cp.run.obj; G.state = 'wave'; for (let i = 0; i < 40 && G.state !== 'over'; i++) __z.sim(.5); });
+  ok(await until(H, () => __z.G.state === 'over' && document.querySelector('#zover h2')?.textContent === 'Sector held' && __z.api.S.zcamp.held.includes('hosp')), "Campaign co-op: the host holds the sector; the host's campaign save moves");
+  for (const C of [A, B]) ok(await until(C, () => document.querySelector('#zover h2')?.textContent === 'Sector held' && /Waiting for the host/.test(document.getElementById('zover').textContent)), `${C.name}: sees "Sector held" and waits for the host`);
+  ok(await ev(A, () => JSON.stringify(__z.api.S.zcamp ?? null)) === c0, "Campaign co-op: a client's own campaign save is untouched");
+  if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-campaign-held.png'}); }
 
 // ---------- the host leaves: every client's game ends with a message ----------
 await ev(H, () => __z.api.showMenu(true)); await H.p.click('#leave');

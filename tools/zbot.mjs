@@ -25,16 +25,19 @@
 //             2 deep); strike = also orders strikes from the base screen on known launch sites when the purse is comfortable.
 //             With nothing known it scouts the nearest unexplored ground first. It flies at 100 m/s, 70 m up, and hovers over the target
 //             while its bombs fall, so the guns and patrols get their chance.
+//   swarm     personal swarm (zswarm.js): 0 never buys it, 1 buys it and fires commands now and then, 2 flies it well (screen formation and
+//             command, strikes on crowds, attacks what it locks)
+//   lock      chance per half second of locking the most urgent track within 3.5 km of its interceptor (zlock.js), which its swarm then attacks
 // The bots teleport behind their track, so they can't feel evasion; an attempt on a track that evades on this difficulty is shaken off with
 // DODGE[evade mode] x dodgeK instead (a model, not a measurement).
 export const DODGE = {none: 0, some: .3, all: .45};
 export const LEVELS = [
-  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], chain: 0, sortie: {go: .15, pick: 'near', aim: 22, back: .65, depth: 0}},
-  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar'], chain: 1, warn: {rate: .03, mode: 'random'}, sortie: {go: .3, pick: 'near', aim: 14, back: .8, depth: 1}},
-  {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, chain: 2, warn: {rate: .06, mode: 'harden'}, sortie: {go: .5, pick: 'value', aim: 9, back: .88, depth: 1}},
-  {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, chain: 3, warn: {rate: .12, mode: 'smart'}, sortie: {go: .65, pick: 'smart', aim: 6, back: .94, depth: 2}},
-  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, chain: 3, warn: {rate: .2, mode: 'smart'}, sortie: {go: .75, pick: 'smart', aim: 4, back: .97, depth: 2, strike: 1}},
-  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, chain: 4, warn: {rate: .4, mode: 'best'}, sortie: {go: .85, pick: 'smart', aim: 2.5, back: .99, depth: 2, strike: 1}}];
+  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], swarm: 0, lock: 0, chain: 0, sortie: {go: .15, pick: 'near', aim: 22, back: .65, depth: 0}},
+  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar', 'swarm'], swarm: 1, lock: .04, chain: 1, warn: {rate: .015, mode: 'random'}, sortie: {go: .3, pick: 'near', aim: 14, back: .8, depth: 1}},
+  {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, swarm: 1, lock: .08, chain: 2, warn: {rate: .06, mode: 'harden'}, sortie: {go: .5, pick: 'value', aim: 9, back: .88, depth: 1}},
+  {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, swarm: 2, lock: .14, chain: 3, warn: {rate: .12, mode: 'smart'}, sortie: {go: .65, pick: 'smart', aim: 6, back: .94, depth: 2}},
+  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .2, chain: 3, warn: {rate: .2, mode: 'smart'}, sortie: {go: .75, pick: 'smart', aim: 4, back: .97, depth: 2, strike: 1}},
+  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .3, chain: 4, warn: {rate: .25, mode: 'best'}, sortie: {go: .85, pick: 'smart', aim: 2.5, back: .99, depth: 2, strike: 1}}];
 const key = s => String(s).toLowerCase().replace(/[\s-]+/g, '');
 export const level = n => LEVELS.find(l => key(l.n) === key(n));
 
@@ -42,9 +45,9 @@ export const level = n => LEVELS.find(l => key(l.n) === key(n));
 export const SHOP = `(function(P){
   const {api, G, Z, KIND} = __z, def = Z.def, B = Z.base, IT = __z.ITEMS, kf = k => Z.kindFrom ? Z.kindFrom(k) : KIND[k].from, nw = G.wave + 1;
   const ORDERS = {naive: ['flak', 'rack', 'lrack', 'ew', 'gepard', 'sam', 'mpads', 'hflak', 'idome', 'gdome'],
-    basic: ['gdome', 'idome', 'sam', 'gepard', 'rack', 'mpads', 'flak', 'ew', 'hflak', 'lrack', 'mark', 'air', 'lure', 'salvage'],
-    smart: ['gdome', 'idome', 'sam', 'gepard', 'mpads', 'hflak', 'rack', 'lrack', 'flak', 'ew', 'mark', 'air', 'warhead', 'freeze', 'lure', 'salvage', 'radar', 'aid', 'relaunch', 'battery', 'optics', 'rocket']};
-  const PRIO = [...ORDERS[P.shop], ...(P.perkBuy || [])], top = PRIO.indexOf(P.shop === 'naive' ? 'gepard' : 'gepard');
+    basic: ['gdome', 'idome', 'sam', 'gepard', 'rack', 'mpads', 'flak', 'ew', 'hflak', 'lrack', 'mark', 'air', 'lure', 'salvage', 'swarm'],
+    smart: ['gdome', 'idome', 'sam', 'gepard', 'mpads', 'hflak', 'rack', 'lrack', 'flak', 'ew', 'mark', 'air', 'warhead', 'freeze', 'lure', 'salvage', 'radar', 'aid', 'relaunch', 'battery', 'optics', 'rocket', 'swarm', 'swarmk']};
+  const PRIO = [...ORDERS[P.shop], ...(P.perkBuy || [])].filter(k => P.swarm || k !== 'swarm' && k !== 'swarmk'), top = PRIO.indexOf(P.shop === 'naive' ? 'gepard' : 'gepard');
   const from = k => Z.itemFrom ? Z.itemFrom(k) : IT[k].from, cost = k => IT[k].type === 'perk' ? Z.perkPrice(k) : (Z.itemPrice ? Z.itemPrice(k) : IT[k].price);
   const domeOK = k => k === 'idome' ? nw >= kf('ballistic') - P.domes : k === 'gdome' ? nw >= kf('hyper') - P.domes : true;
   for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp > 0 && s.hp < s.max * P.repairAt) B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)); }
@@ -54,18 +57,18 @@ export const SHOP = `(function(P){
   const C = Z.chain, chain = () => { if (!C || !P.chain || nw < C.from) return; const K = G.kc, c = P.chain, fp = Z.fastPlan ? Z.fastPlan() : [], fast = nw >= kf('ballistic');
     const try_ = (a, x, cost) => afford(cost) && C.act(a, x);
     const weakSite = () => api.SITES.map((s, i) => ({s, i})).filter(o => o.s.hp > 0 && !K.pd[o.s.n]).sort((a, b) => a.s.hp / a.s.max - b.s.hp / b.s.max)[0];
-    if (c === 1) { if (fast && !Object.keys(K.pd).length) { const w = weakSite(); if (w) try_('pb', w.i, 4000); } return; }
+    if (c === 1) { if (fast && !Object.keys(K.pd).length) { const w = weakSite(); if (w) try_('pb', w.i, 4500); } return; }
     const want = fp.map((s, i) => ({i, n: s.total})).sort((a, b) => b.n - a.n);
-    if (c === 2) { if (fast && !K.boost.some(Boolean) && want[0].n) try_('bb', want[0].i, 5000); if (fast && Object.keys(K.pd).length < 2) { const w = weakSite(); if (w) try_('pb', w.i, 4000); }
+    if (c === 2) { if (fast && !K.boost.some(Boolean) && want[0].n) try_('bb', want[0].i, 6000); if (fast && Object.keys(K.pd).length < 2) { const w = weakSite(); if (w) try_('pb', w.i, 4500); }
       if (def.D.some(d => d.type === 'gdome') && K.stock < 2) try_('st', 2 - K.stock, 1600); return; }
     // 3+: a battery wherever launches are planned (move one sitting at a quiet edge first), point defence at every site, the radar, decoys, the stock
-    for (const w of want) { if (!w.n || K.boost[w.i]) continue; const idle = K.boost.findIndex((b, j) => b && !fp[j].total); if (idle >= 0) try_('bm', idle + '>' + w.i, 1200); else if (c >= 4 || K.boost.filter(Boolean).length < 2) try_('bb', w.i, 5000); }
-    if (fast) for (const o of api.SITES.map((s, i) => ({s, i})).filter(o => o.s.hp > 0 && !K.pd[o.s.n]).sort((a, b) => a.s.hp - b.s.hp)) try_('pb', o.i, 4000);
+    for (const w of want) { if (!w.n || K.boost[w.i]) continue; const idle = K.boost.findIndex((b, j) => b && !fp[j].total); if (idle >= 0) try_('bm', idle + '>' + w.i, 1200); else if (c >= 4 || K.boost.filter(Boolean).length < 2) try_('bb', w.i, 6000); }
+    if (fast) for (const o of api.SITES.map((s, i) => ({s, i})).filter(o => o.s.hp > 0 && !K.pd[o.s.n]).sort((a, b) => a.s.hp - b.s.hp)) try_('pb', o.i, 4500);
     if (fast && K.ewr < (c >= 4 ? 2 : 1)) try_('ew', 0, 3600);
-    if (fast && K.decoys < (c >= 4 ? 4 : 2)) try_('dc', 1, 450);
+    if (fast && K.decoys < (c >= 4 ? 4 : 2)) try_('dc', 1, 500);
     if (def.D.some(d => d.type === 'gdome')) while (K.stock < C.stockCap() && try_('st', 1, 800)) {}
-    if (c >= 4) { K.boost.forEach((b, i) => { if (b && !b.lvl) try_('bu', i, 4000); }); api.SITES.forEach((s, i) => { if (K.pd[s.n] && !K.pd[s.n].lvl) try_('pu', i, 3500); }); } };
-  if (P.chain >= 3) chain();
+    if (c >= 4) { K.boost.forEach((b, i) => { if (b && !b.lvl) try_('bu', i, 4500); }); api.SITES.forEach((s, i) => { if (K.pd[s.n] && !K.pd[s.n].lvl) try_('pu', i, 4000); }); } };
+  if (P.chain >= 2) chain();  /* from All-Star up the chain comes before more helpers: it needs no free position */
   for (let pass = 0; pass < 3; pass++) {
     const cards = G.cards.map((c, i) => ({...c, i})).filter(c => PRIO.includes(c.k) && nw >= from(c.k) && IT[c.k].type !== 'supply' && !(IT[c.k].type === 'perk' && Z.perkMaxed(c.k))).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));
     for (const c of cards) { const it = IT[c.k], price = cost(c.k); if (!afford(price) || !domeOK(c.k)) continue;
@@ -81,7 +84,7 @@ export const SHOP = `(function(P){
     const want = {rack: nw >= kf('swarm') ? 'swarm' : 'range', flak: 'prox', gepard: nw >= kf('heavy') ? 'ap' : 'radar', sam: 'reload', ew: 'wide', idome: 'bal'}[d.type], r = R.find(x => x.id === want);
     if (r && G.cash > r.cost * 2.5) B.act.refit(d.id, want); }
   if (P.supply && nw >= 12) for (const k of ['reload', 'harden', 'drones', 'overtime']) if (B.act.supply && !G.sup?.[k] && nw >= from(k) && G.cash > cost(k) * 4) B.act.supply(k);
-  if (P.chain && P.chain < 3) chain();
+  if (P.chain === 1) chain();
 })`;
 
 // in-page source: the break's sortie (and strike orders) for a level. Returns what happened ('skip', 'home', 'late', 'lost') and counts it in window.__so.
@@ -155,7 +158,15 @@ export const WAVE = `(function(P, dodge){
           const d = A.filter(t => t.k !== 'ballistic' || M === 'best').find(t => tt(t) > 6 && ok('decoy', t) && (t.k !== 'ballistic' || G.kc.decoys > 2)); if (d) Wn.act('decoy', d.id);
           for (const [s, x] of [...by].sort((a, b) => b[1] - a[1])) { const t = A.find(u => u.tgt === s && tt(u) < 15); if (!t) continue;
             if ((x >= s.hp * .8 || M === 'best' && x >= 300) && ok('harden', t)) { Wn.act('harden', t.id); break; }
-            if (M === 'best' && x >= s.hp && ok('evac', t)) { Wn.act('evac', t.id); break; } } } } } }
+            if (M === 'best' && x >= s.hp && ok('evac', t)) { Wn.act('evac', t.id); break; } } } } }
+    // lock-on and the personal swarm (zlock.js, zswarm.js): a lock on the most urgent track in reach, which the swarm then attacks
+    const sw = Z.sw?.mine;
+    if (P.lock && alive && Z.lk && !Z.lk.t && Math.random() < P.lock) { const t = Z.urgent(); if (t && KIND[t.k].armor !== 'hard' && t.p.distanceTo(me.p) < 3500) Z.lk.force(t); }
+    if (P.swarm && sw && sw.d.length && alive) { const L = live().filter(t => t.p.distanceTo(me.p) < 4500 && KIND[t.k].armor !== 'hard');
+      if (P.swarm >= 2) { if (sw.form !== 3) Z.sw.command('form#', 3); if (sw.mode === 'escort') Z.sw.command('screen');
+        if (Z.lk?.t && sw.mode !== 'attack' && (KIND[Z.lk.t.k].armor === 1 || Z.lk.t.k === 'boss' || L.length < 6)) Z.sw.command('attack');
+        if (sw.ch > 0 && L.length >= 6) Z.sw.command('strike'); }
+      else if (Math.random() < .02) { if (Z.lk?.t) Z.sw.command('attack'); else Z.sw.command(['screen', 'strike', 'next'][Math.random() * 3 | 0]); } } }
   if (G.state === 'clear') __z.sim(4);
   return G.state;
 })`;

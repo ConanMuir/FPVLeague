@@ -90,7 +90,7 @@ export const HELP={
 // Player perks: prices per level; active ones (freeze, mark, air) have charges per wave. Mark: helper hits on a marked track count double.
 export const PERK={
  freeze:{key:'Q',pad:'D-pad left',cost:[900,800,1200]},mark:{key:'E',pad:'D-pad right',cost:[1000,900,1400]},air:{key:'X',pad:'D-pad up',cost:[1800,1600]},
- radar:{cost:[500,800,1200]},optics:{cost:[600,700,900]},relaunch:{cost:[500,900]},warhead:{cost:[700,1100,1600]},battery:{cost:[500,900]},aid:{cost:[1200]},rocket:{cost:[1500]},fuse:{cost:[800]},
+ radar:{cost:[500,800,1200]},optics:{cost:[600,700,900]},relaunch:{cost:[500,900]},warhead:{cost:[700,1100,1600]},battery:{cost:[900]},aid:{cost:[1200]},rocket:{cost:[1500]},fuse:{cost:[800]},
  lure:{key:'Z',pad:'D-pad down',cost:[1200]},salvage:{cost:[600]}};  // kit perks (zmeta.js): only in the shop of a pilot who brought them
 
 // shop items: helpers are placed on a slot; perks belong to the player
@@ -158,17 +158,17 @@ export const sectorOf=brg=>brg<-.43?0:brg>.43?2:1;
 export const chainFrom=kf=>Math.max(2,kf('ballistic')-2);
 // Boost phase: one battery per sector (a forward pad at that edge). mag = shots a wave; each is the one shot a track launched from that sector
 // gets as it climbs out (about 5 s after launch). Its sensors see every launch from its sector: full early warning for those tracks.
-export const BOOST={price:5000,move:1200,lv:[{mag:2,p:{ballistic:.5,hyper:.25,icbm:.3}},{cost:4000,mag:3,p:{ballistic:.6,hyper:.32,icbm:.38},txt:'+1 shot a wave, better seekers'}]};
+export const BOOST={price:6000,move:1200,lv:[{mag:1,p:{ballistic:.4,hyper:.2,icbm:.25}},{cost:4500,mag:2,p:{ballistic:.5,hyper:.27,icbm:.32},txt:'+1 shot a wave, better seekers'}]};
 // Midcourse: space interceptors in stock for the Golden Dome, used once its magazine for the wave is empty; they keep until fired. cap = per Golden Dome.
 export const STOCK={per:800,cap:4};
 // Terminal: point defence (a laser turret) at one site: a last-chance roll at each heavy hitter diving onto that site (inside rng for the fast kinds,
 // 1.5 km for cruise missiles and heavies). ch = charges a wave (heat); it keeps its last charge for a fast track when one is inbound to its site.
-export const PDEF={price:4000,rng:4000,near:1500,lv:[{ch:2,p:{ballistic:.45,hyper:.3,icbm:.2,cruise:.7,heavy:.6}},{cost:3500,ch:3,p:{ballistic:.55,hyper:.4,icbm:.3,cruise:.8,heavy:.7},txt:'+1 charge, sharper tracking'}]};
+export const PDEF={price:4500,rng:4000,near:1500,lv:[{ch:1,p:{ballistic:.35,hyper:.22,icbm:.15,cruise:.6,heavy:.5}},{cost:4000,ch:2,p:{ballistic:.45,hyper:.3,icbm:.22,cruise:.7,heavy:.6},txt:'+1 charge, sharper tracking'}]};
 // Early warning: a fast track shows up (radar, domes, alert) this many seconds before impact: base, + per Long-range radar level, + per
 // early-warning radar level (kill chain tab). A boost battery in its sector sees it launch.
-export const EWARN={base:25,perk:8,lv:[{cost:2200,s:15},{cost:3600,s:15}]};
-// Warning actions while a fast track is inbound (keys 1-3; gamepad RB picks one, R3 does it; or click the alert panel):
+export const EWARN={base:20,perk:8,lv:[{cost:2200,s:15},{cost:3600,s:15}]};
+// Warning actions while a fast track is inbound (keys J / K / U; gamepad Back picks one, L3 does it; or click the alert panel):
 // harden its target site (k = share of the damage the site still takes from every hit until that track is gone; cost by wave; cd = seconds to the next),
 // evacuate it (k = share it takes for the rest of the wave; the site's share of the wave-clear bonus is lost this wave and the next),
 // decoys (a stock bought between waves; p = chance the warhead goes for the dummy site; it needs minT s left to turn).
-export const WACT={harden:{k:.3,cost:w=>Math.round((150+15*w)/10)*10,cd:40},evac:{k:.5},decoy:{per:450,cap:6,p:{ballistic:.5,hyper:.4,icbm:.3},minT:5}};
+export const WACT={harden:{k:.5,cost:w=>Math.round((200+20*w)/10)*10,cd:60},evac:{k:.7},decoy:{per:500,cap:6,p:{ballistic:.4,hyper:.3,icbm:.2},minT:5}};

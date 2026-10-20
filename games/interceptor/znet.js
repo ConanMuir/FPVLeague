@@ -42,6 +42,7 @@ export function initNet(api,G,Z){
  Object.defineProperty(Z,'mirror',{get:()=>!!net&&!net.host&&G.on,configurable:true});
  Object.defineProperty(Z,'req',{get:()=>net&&G.on?req:undefined,configurable:true});
  Z.idle=()=>!!net&&net.late&&G.on;
+ Z.isClient=()=>!!net&&!net.host;  // in someone else's game (zcampaign.js: the host's sector is the one in play)
  Z.pilots=()=>net?[api.player,...[...net.pil.values()].filter(r=>r.seen).map(r=>r.d)]:null;
  // for sorties (zsortie.js): every pilot's interceptor with its key, this pilot's key, the role, ready state, a host event, a pilot's name
  Z.pilotsK=()=>net?[[net.me||'host',api.player],...[...net.pil].filter(([,r])=>r.seen).map(([k,r])=>[k,r.d])]:null;
@@ -81,7 +82,7 @@ export function initNet(api,G,Z){
   if(isHost){if(S.gmode!=='z'){S.gmode='z';save();Z.syncMode?.()}G.dfo=undefined;api.startMatch();if(room.p2p){try{history.replaceState(null,'','#z'+code)}catch(e){}}
    msg(`Hosting co-op game ${code.toUpperCase()}. Friends open this page, pick Zombies, type ${code.toUpperCase()} and press Join${room.p2p?' (or open this page\'s link, it now ends in #z'+code+')':''}.`)}
   else msg(`Joining ${code.toUpperCase()}… waiting for the host.`)}
- function leave(){if(!net)return;const n=net;net=null;n.r.leave().catch(()=>{});for(const r of n.pil.values())api.scene.remove(r.d.mesh);n.pil.clear();G.dfo=undefined;G.docO=undefined;for(const t of TH)t.pc=null;
+ function leave(){if(!net)return;const n=net;net=null;n.r.leave().catch(()=>{});for(const r of n.pil.values())api.scene.remove(r.d.mesh);n.pil.clear();Z.swGone?.();G.dfo=undefined;G.docO=undefined;for(const t of TH)t.pc=null;
   if(n.host&&!room?.p2p)room?.presence?.({zg:null,host:null,pl:null})?.catch?.(()=>{});
   $('leave').textContent='Quit to menu';document.body.classList.remove('zcoop');try{if(/^#z/.test(location.hash))history.replaceState(null,'',location.pathname+location.search)}catch(e){}lobby()}
  // the game ends for this pilot (host gone, connection lost, game full): back to the menu with the reason on it
@@ -96,7 +97,7 @@ export function initNet(api,G,Z){
  setInterval(()=>{if(net&&performance.now()-net.tk>150)tick()},100);
  const pack=d=>[+d.p.x.toFixed(2),+d.p.y.toFixed(2),+d.p.z.toFixed(2),+d.q.x.toFixed(3),+d.q.y.toFixed(3),+d.q.z.toFixed(3),+d.q.w.toFixed(3),+d.v.x.toFixed(1),+d.v.y.toFixed(1),+d.v.z.toFixed(1)];
  function send(now,force){const n=net;if(!n||!force&&now-n.sendT<(n.host?n.snapIv:50))return;n.sendT=now;const me=api.player,P={z:1,n:myName(),rd:n.rd|0,es:n.evSeen,lt:n.late?1:0,sk:G.streak|0,kt:Z.meta.load().kit};
-  if(me&&G.on&&!api.demo){P.s=pack(me);P.d=me.dead>0?1:0;P.rk=(me.boost||0)>1?1:0;const s=api.selT();P.sl=s&&me.dead<=0&&me.v.lengthSq()>64&&api.live(s)&&s.p.distanceTo(me.p)<1500?s.id:0}
+  if(me&&G.on&&!api.demo){P.s=pack(me);P.d=me.dead>0?1:0;P.rk=(me.boost||0)>1?1:0;const s=api.selT();P.sl=s&&me.dead<=0&&me.v.lengthSq()>64&&api.live(s)&&s.p.distanceTo(me.p)<1500?s.id:0;const sw=Z.swOut?.();if(sw)P.sw=sw}
   if(n.host){if(G.on)P.g=snap(now)}else P.ev=n.out.slice(-32);
   n.r.presence(P).catch(()=>{});
   if(n.host&&room&&!room.p2p&&now-lobT>2000){lobT=now;room.presence({zg:n.code,host:myName(),pl:rows().length}).catch(()=>{})}}
@@ -107,7 +108,7 @@ export function initNet(api,G,Z){
    else if(pr.g){onHost(pr.g,now);if(net!==n)return}
    if(!n.host&&!n.pl.some(q=>q[0]===p.peer))continue;
    pilotIn(p.peer,pr,now)}
-  for(const[k,r]of n.pil)if(!seen.has(k)||!n.host&&!n.pl.some(q=>q[0]===k)){api.scene.remove(r.d.mesh);n.pil.delete(k)}
+  for(const[k,r]of n.pil)if(!seen.has(k)||!n.host&&!n.pl.some(q=>q[0]===k)){api.scene.remove(r.d.mesh);n.pil.delete(k);Z.swGone?.(k)}
   if(n.host){for(const k of Object.keys(n.names))if(!seen.has(k))gone(k);n.rj=n.rj.filter(k=>seen.has(k));readyCheck();baseSig()}
   else{const g=n.hostPeer?!n.peers.some(p=>p.peer===n.hostPeer):now-n.t0>8000;if(!g)n.gone=0;else if(!n.gone)n.gone=now;else if(now-n.gone>3000)return ended(n.hostPeer?'The host left the game. Co-op game over.':'No game found with that code.')}
   claims()}
@@ -127,7 +128,7 @@ export function initNet(api,G,Z){
  function pilotIn(k,pr,now){const n=net;if(!G.on)return;let r=n.pil.get(k);if(!r){r={d:api.newDrone(),n:'',np:new V3(),nq:new THREE.Quaternion(),nv:new V3(),at:0,dead:0,seen:0,sl:0,rk:0};r.d.mesh.visible=false;n.pil.set(k,r)}
   r.n=clean(pr.n);r.sl=pr.sl|0;r.rk=pr.rk?1:0;
   if(okArr(pr.s,10)){r.np.fromArray(pr.s,0);r.nq.fromArray(pr.s,3).normalize();r.nv.fromArray(pr.s,7);r.at=now;if(!r.seen){r.seen=1;r.d.p.copy(r.np);r.d.q.copy(r.nq)}}
-  const dead=pr.d?1:0;if(dead&&!r.dead&&r.seen&&G.on){n.mute=1;api.boom(r.d.p,.7);n.mute=0}r.dead=r.d.dead=dead}
+  const dead=pr.d?1:0;if(dead&&!r.dead&&r.seen&&G.on){n.mute=1;api.boom(r.d.p,.7);n.mute=0}r.dead=r.d.dead=dead;if(pr.sw)Z.swIn?.(k,pr.sw,r)}  /* their swarm: formation and commands only (zswarm.js) */
  // a track another pilot is running down shows their name (and helpers on the host leave it alone, zdef pickTarget)
  function claims(){for(const t of TH)t.pc=null;for(const[k,r]of net.pil){if(!r.sl||r.dead||!r.seen)continue;const t=TH.find(u=>u.id===r.sl);if(t&&api.live(t)&&t.p.distanceTo(r.d.p)<1600)t.pc=nameOf(k)}}
 
@@ -189,11 +190,11 @@ export function initNet(api,G,Z){
    if(full||now-t.nb<1500)TS.push([t.id,Math.max(0,SITES.indexOf(t.tgt)),Math.round(t.aim.x),Math.round(t.aim.y),Math.round(t.aim.z),t.grp|0,t.shade|0])}
   n.snapIv=cl(100+(T.length-60)*1.2,100,250);
   const es=Object.keys(n.names).map(k=>n.esv[k]??-1),mn=es.length?Math.min(...es):n.eid,D=Z.def.netOut(),nx=G.state==='base'&&G.next?{list:G.next.list,brgs:G.next.brgs.map(b=>+b.toFixed(3)),wx:G.next.wx||null,ct:G.next.cuts||null}:null;
-  return{v:1,gid:n.gid,st:G.state,w:G.wave,c:Math.round(G.cash),e:Math.round(G.earned),k:[G.kills.p,G.kills.h],df:cl(S.zdiff??1,0,3),wt:+(G.wt||0).toFixed(1),iq:G.wq.length,
+  return{v:1,gid:n.gid,st:G.state,w:G.wave,c:Math.round(G.cash),e:Math.round(G.earned),k:[G.kills.p,G.kills.h],df:cl(Z.dfi?.()??S.zdiff??1,0,3),cp:Z.cpNet?.()||null,wt:+(G.wt||0).toFixed(1),iq:G.wq.length,
    sh:SITES.map(s=>Math.ceil(s.hp)),sm:SITES.map(s=>s.max),bk:SITES.length>3?1:0,wb:[+api.WB.x.toFixed(1),+api.WB.z.toFixed(1)],T,TS,S:D.S,D:D.D,
    ev:n.evs.filter(e=>e[0]>mn).slice(-120),eid:n.eid,pk:n.perks,tp:{radar:G.perks.radar|0,aid:G.perks.aid|0},dr:n.dr,ak:n.ak,pl:rows(),nx,rj:n.rj,
-   doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),
-   so:Z.so?.netOut?.(now)}}  // sorties: the enemy's side of the map (zsortie.js)
+   sw:Z.swSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),
+    so:Z.so?.netOut?.(now)}}  // sorties: the enemy's side of the map (zsortie.js)
  // roster rows [key, name, kills, ready for the next wave, joined mid-wave]; a client shows its own ready state at once
  function rows(){const n=net;if(!n)return[];const nw=G.wave+1;
   if(n.host)return[[n.me||'host',myName(),n.kc[n.me||'host']|0,n.rd===nw?1:0,0],...n.order.filter(k=>n.names[k]).map(k=>[k,n.names[k],n.kc[k]|0,n.rdv[k]===nw?1:0,n.ltv[k]|0])];
@@ -217,6 +218,7 @@ export function initNet(api,G,Z){
  // ---------- client: mirror the host's snapshot ----------
  const byId=id=>net.tm.get(id)||null;
  function onHost(g,now){const n=net;if(!g||typeof g!=='object'||g.v!==1)return;
+  Z.cpIn?.(g.cp);  /* the host's campaign sector, before a restart reads it (zcampaign.js) */
   if(Array.isArray(g.rj)&&g.rj.includes(n.me))return ended(`Game ${n.code.toUpperCase()} is full (${MAXP} pilots).`);
   n.pl=Array.isArray(g.pl)?g.pl.filter(a=>Array.isArray(a)&&typeof a[0]==='string').slice(0,MAXP).map(a=>[a[0],clean(a[1]),a[2]|0,a[3]?1:0,a[4]?1:0]):[];
   if(g.gid!==n.gid0){n.gid0=g.gid;G.dfo=cl(g.df|0,0,3);G.docO=docOf(g.doc);n.ts.clear();n.evSeen=g.eid|0;n.late=g.st!=='base'&&g.st!=='over';n.nxJ='';n.pkJ='';n.rd=0;
@@ -225,7 +227,7 @@ export function initNet(api,G,Z){
   if(!!g.bk!==SITES.length>3)Z.bunker(!!g.bk);
   if(Array.isArray(g.sh))SITES.forEach((s,i)=>{if(Number.isFinite(g.sm?.[i]))s.max=g.sm[i];if(Number.isFinite(g.sh[i]))s.hp=g.sh[i]});
   if(okArr(g.wb,2))api.WB.set(g.wb[0],0,g.wb[1]);
-  perksIn(g);Z.def.netIn(null,g.D,byId);
+  perksIn(g);Z.def.netIn(null,g.D,byId);Z.swHost?.(g.sw,n.me);
   n.tm=new Map(TH.map(t=>[t.id,t]));
   if(Array.isArray(g.ev)){if(n.evSeen<0)n.evSeen=g.eid|0;for(const e of g.ev)if(Array.isArray(e)&&e[0]>n.evSeen){n.evSeen=e[0];try{event(e)}catch(err){console.warn('co-op event',err)}}}
   tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.chain?.netIn(g.kc);Z.so?.netIn?.(g.so);
