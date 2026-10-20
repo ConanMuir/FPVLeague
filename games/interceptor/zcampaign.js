@@ -71,9 +71,9 @@ export const SECTORS=[
  {id:'quarry',n:'Quarry',x:120,y:265,obj:15,mods:['dust','tot',['big',1.15]],rw:{res:'repair'},brief:'Dust and fog over the pits, and raids that all arrive at once.'},
  {id:'air',n:'Airfield',x:450,y:270,obj:15,mods:[['missile',5],'jets'],rw:{relic:'ace'},brief:'The enemy\'s missiles reach the airfield early. Hold the runway.'},
  {id:'ridge',n:'Radar Ridge',x:760,y:270,obj:15,mods:['blind','night',['big',1.1]],rw:{relic:'ewnet'},brief:'The early-warning radars are down. Fly by thermal and nerve.'},
- {id:'dam',n:'The Dam',x:320,y:160,obj:18,mods:['swarm','storm','tot'],rw:{res:'slot'},brief:'Storm swarms on the dam, timed to land together.'},
+ {id:'dam',n:'The Dam',x:320,y:160,obj:18,mods:['swarm','storm','tot',['big',1.1]],rw:{res:'slot'},brief:'Storm swarms on the dam, timed to land together.'},
  {id:'factory',n:'Factory Belt',x:640,y:165,obj:18,mods:['hyper','nogd','armor'],rw:{res:'repair'},brief:'A hypersonic test range, and no Golden Dome this side of the line.'},
- {id:'gate',n:'Launch Complex',x:480,y:55,obj:20,cap:1,mods:[['missile',6],'tot','boss5','raid'],rw:{win:1},brief:'Where every raid starts. Hold 20 waves and the campaign is won.'}];
+ {id:'gate',n:'Launch Complex',x:480,y:55,obj:20,cap:1,mods:[['missile',8],'tot','boss5','raid',['big',1.1]],rw:{win:1},brief:'Where every raid starts. Hold 20 waves and the campaign is won.'}];
 export const SEC=Object.fromEntries(SECTORS.map(s=>[s.id,s])),SEC_IDS=SECTORS.map(s=>s.id);
 const has=(o,k)=>typeof k==='string'&&Object.hasOwn(o,k);
 
