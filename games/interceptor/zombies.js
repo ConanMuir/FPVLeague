@@ -167,7 +167,7 @@ export function initZombies(api){
   if(!K.dmg){feed(`<span class="co">${K.n} hit the ${s.n.toLowerCase()}: a decoy, no damage</span>`);return}
   const dmg=Math.round(K.dmg*(G.sup?.harden?.75:1)*(Z.dmgK?.(s,t)??1));  /* dmgK: a hardened or evacuated site (zwarn.js) */
   if(s.hp>0){const was=s.hp;s.hp=Math.max(0,s.hp-dmg);G.perfect=false;G.lastHit={k:t.k,site:s.n,dmg};
-   feed(`<span class="cr">${K.n} hit the ${s.n.toLowerCase()}</span> −${dmg}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(220,110,.6,.12,'sawtooth');
+   feed(`<span class="cr">${K.n} hit the ${s.n.toLowerCase()}</span> −${dmg}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(150,80,.45,.07,'triangle');
    if(was>0&&!s.hp)banner(s.n+' DESTROYED','cr',2)}
   pop(t.aim,'−'+dmg,'#ff4d4d');
   if(integrity().hp<=0&&!Z.mirror)gameOver()};
@@ -198,7 +198,7 @@ export function initZombies(api){
   let nr=1e9;for(const t of TH)nr=Math.min(nr,t.p.distanceTo(d.p));  // includes the tracks this burst just killed (they leave TH later)
   const dmg=out.some(s=>s.includes('damaged')),txt=kills?`HIT — ${nr.toFixed(1)} m`:dmg?`DAMAGED — ${nr.toFixed(1)} m`:nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';
   banner(txt,kills?'cg':dmg?'co':'cr',1.4);G.det={txt,t:performance.now()};
-  if(kills)tone(520,1040,.22,.14,'triangle');else if(dmg)tone(440,520,.2,.1,'triangle');else tone(300,140,.35,.12,'sawtooth');
+  if(kills)tone(520,1040,.22,.14,'triangle');else if(dmg)tone(440,520,.2,.1,'triangle');else tone(260,190,.16,.045,'triangle');
   api.lose('det');feed(out.join('<br>')||'Detonated: nothing in range')};
  // manual timing is the default in Zombies; the Proximity fuse perk brings back Classic's automatic fuse (contact always fires)
  Z.autoFuse=()=>Z.perkLevel?.('fuse')>0;
