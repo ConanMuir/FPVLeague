@@ -377,10 +377,11 @@ function humanControl(d,dt){const g=pad();let thr=null,yaw=0,pit=0,rol=0;
  const kt=k('KeyW')-k('KeyS');if(kt>0)kbArm=true;kbThr+=((kt>0?1:kt<0||!kbArm?0:HOV)-kbThr)*Math.min(1,dt*10);  // keyboard: motors stay at idle on the mat until W is first pressed
  if(thr===null||kt)thr=kbThr;
  const pick=(a,b)=>Math.abs(b)>Math.abs(a)?b:a;yaw=pick(yaw,ks.y);pit=pick(pit,ks.p);rol=pick(rol,ks.r);
+ const B=Z.on&&Z.botIn?.(d,dt);if(B){thr=B.thr;yaw=B.yaw;pit=B.pit;rol=B.rol}  // Zombies Bot Spectator (zspectate.js): a bot pilot's sticks instead of yours, always through the acro rates
  stk[3]=cl(thr,0,1);d.thr=thrCurve(stk[3]);
  stk[0]=rol;stk[1]=pit;stk[2]=yaw;
  // Betaflight fpv_mix_degrees: roll and yaw are mixed through the camera angle, so roll stick rolls the picture about the camera's line of sight (at 90° it spins the dart about its fuselage)
- if(S.mode==='acro'){const ro=rate(0,rol),yw=rate(2,yaw),a=S.fpvMix?camA()*Math.PI/180:0,c=Math.cos(a),s=Math.sin(a);d.wt.set(-rate(1,pit),ro*s-yw*c,-ro*c-yw*s)}
+ if(S.mode==='acro'||B){const ro=rate(0,rol),yw=rate(2,yaw),a=S.fpvMix?camA()*Math.PI/180:0,c=Math.cos(a),s=Math.sin(a);d.wt.set(-rate(1,pit),ro*s-yw*c,-ro*c-yw*s)}
  else{const f=fwdH(d.q,_f);if(f.lengthSq()<1e-4)f.set(0,0,-1);f.normalize();  // Angle mode: full stick = 88° of tilt, enough for dart cruise
   const r=_r.crossVectors(f,UP),m=Math.min(1,Math.hypot(pit,rol)),u=_v.copy(UP);if(m>1e-3)u.multiplyScalar(Math.cos(m*1.535)).addScaledVector(_b.copy(f).multiplyScalar(pit).addScaledVector(r,rol).normalize(),Math.sin(m*1.535));attitude(d,u,f,16,18,1);d.wt.y-=rate(2,yaw)*.7}}
 // horizontal heading of the airframe: works hovering (camera side) and in dart cruise (nose)
@@ -480,7 +481,7 @@ function detonate(){if(Z.on)return Z.detonate();const d=player,out=[];
 // damaged: smoking, slower, sinking; some fail a little later
 function damage(t){t.dmg=1;t.cs*=.8;t.spd*=.8;t.fail=Math.random()<.45?6+Math.random()*16:0;FX.emit(t.p,0xffb040,30,8,.6,null,2)}
 // warhead: contact always fires it; the proximity fuse fires at closest approach inside its 6 m sensing range; the detonate button fires it any time
-function fuse(){const d=player,fire=fireIn(),edge=fire&&!fireWas;fireWas=fire;let hit=false,rec=false;
+function fuse(){const d=player,fire=Z.on&&Z.botFire?Z.botFire():fireIn(),edge=fire&&!fireWas;fireWas=fire;let hit=false,rec=false;
  for(const t of TH){if(!live(t))continue;const r=_a.subVectors(t.p,d.p).length(),cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a)/(r||1));
   if(r<1.5)hit=true;else if(r<LETH*1.5&&r>t.pd)rec=true;
   if(r<20){t.dmin=Math.min(t.dmin,r);t.cvm=Math.max(t.cvm,cv)}else if(t.dmin<20&&r>t.pd&&!demo){feed(`<span class="co">Passed ${tName(t)} ${Math.round(t.dmin)} m off</span>${S.fuse==='auto'?' · outside the 6 m fuse':''}`);t.dmin=1e9;t.cvm=0}
@@ -644,13 +645,13 @@ function step(dt){const me=player;
  for(const t of TH)threatStep(t,dt);waves(dt);fires(dt);if(Z.on)Z.step(dt)}
 // Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
 const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
- deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pickT(){return pickT},set pickT(v){pickT=v},
+ deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
  setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
 startDemo();
-startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD*(Z.on?Z.tsc:1),slow:()=>Z.on&&Z.tsc<1,paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now)=>{
+startLoop({pre:()=>padEdges(padKeys),step,cap:()=>Z.stepCap||12,speed:()=>GSPD*(Z.on?Z.tsc:1),slow:()=>Z.on&&Z.tsc<1,paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now)=>{
  if(!menuOpen&&!demo)switches();
  const fpvOn=!demo&&camMode===0&&player&&player.dead<=0&&!Z.cine,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
  sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.04-.18*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam

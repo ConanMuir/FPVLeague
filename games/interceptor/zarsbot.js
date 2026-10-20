@@ -22,7 +22,8 @@ export const ARSBOT={name:'arsenal',
  *shop(P,E,ctx={}){const {G,Z,KIND,ITEMS:IT}=E,A=Z.ars,def=Z.def;if(!A||!G.next)return;const lv=lvOf(P),nw=G.wave+1,afford=ctx.afford||(c=>G.cash>=c),keep=ctx.keep??0,part=ctx.part;  // part: 'weapon' / 'early' (microwave, laser, carrier: worth a place ahead of the helpers) / 'def' / all
   const kf=k=>Z.kindFrom?Z.kindFrom(k):KIND[k].from,cnt={};for(const q of G.next.list){const[k,c]=q.split(':');cnt[k]=(cnt[k]|0)+(+c||1)}
   // ---- the pilot weapon: value each on the next wave's threat mix ----
-  if((lv||P.force)&&(!part||part==='weapon')){const me=A.P(A.me()),pts=k=>(cnt[k]|0)*(KIND[k]?KIND[k].pts:0),hard=['ballistic','hyper','icbm'].reduce((a,k)=>a+(cnt[k]|0),0),noise={};
+  const wDone=!part&&G.__arsW===G.wave;if(part==='weapon')G.__arsW=G.wave;  // the weapon is decided once a base screen
+  if((lv||P.force)&&(!part||part==='weapon')&&!wDone){const me=A.P(A.me()),pts=k=>(cnt[k]|0)*(KIND[k]?KIND[k].pts:0),hard=['ballistic','hyper','icbm'].reduce((a,k)=>a+(cnt[k]|0),0),noise={};
    const val=id=>{let v=0;for(const k in cnt)v+=pts(k)*(WEFF[id][k]??0);
     if(lv>=3){if(id==='emp')v*=Math.min(1.25,.35+def.D.length/12);if(id==='flare')v+=(pts('jet')+pts('cruise'))*.25;if(id==='dart')v+=hard*40*(P.fast||0)*8;if(id==='net'&&nw<15)v*=1.15;if(id==='cluster')v*=(cnt.swarm|0)>=10?1.3:1.1}
     else if(lv===2)v*=noise[id]??=.8+Math.random()*.4;return v};
