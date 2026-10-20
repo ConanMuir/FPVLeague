@@ -1,7 +1,7 @@
 // Zombies base screen, shown between waves with no timer. An overview map of the defended area (sites, slots, your defences, where the
 // next wave comes from), a Shop listing every helper, supply and perk, the Armory (upgrade, refit, move or sell anything you own), Base (repairs,
 // rebuilding a destroyed site, opening more positions, upkeep), and Continue.
-// Keyboard: arrows move focus, Enter / Space activate, 1-3 tabs, C continue (Esc opens the menu; Cancel backs out of a placement). Gamepad: D-pad, A, B cancel, LB/RB tabs, Y continue.
+// Keyboard: arrows move focus, Enter / Space activate, 1-4 tabs, C continue (Esc opens the menu; Cancel backs out of a placement). Gamepad: D-pad, A, B cancel, LB/RB tabs, Y continue.
 import {KIND,ITEMS,RESIST,REPAIR_PER_HP,PERK,RACK_TIERS,RACK_CAP,RACK_CAP_COST,RACK_RANGE,ORDER,HELP,REFIT,LRACK,SUPPLY,UPKEEP_FROM,expCost,rebuildCost,REBUILD_HP,moveCost} from './zdata.js';
 const $=id=>document.getElementById(id);
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -115,6 +115,7 @@ export function initBase(Z,api,G){
    <div class="zslots">${def.SLOTS.map((s,j)=>def.slotFree(j)?`<button class="sm" data-slot="${j}">${s.n}</button>`:'').join('')}</div><div class="mp"><button class="sm" id="zcancel">Cancel</button></div>`;
   else if(tab==='shop')body=shopHTML();
   else if(tab==='armory'){const perks=Z.perkRows?.(money)||'';body=`${def.D.length?def.D.map(defRow).join(''):'<p class="zhint">No defences yet. Buy helpers from the shop cards.</p>'}${perks?`<h3 style="margin-top:14px">Perks</h3>${perks}`:''}`}
+  else if(tab==='chain'&&Z.chainHTML)body=Z.chainHTML();  /* the kill chain against the fast missiles (zchain.js) */
   else body=baseHTML();
   const fc=forecast(),D=doc(),U=Z.upkeep?.(),sh=Z.def.D.filter(d=>d.short).length;
   el.innerHTML=`<div class="zpanel zb"><header><div><h2>${G.wave?`Wave ${G.wave} cleared`:'Briefing'}</h2><div class="zbig">${money(G.cash)}</div></div>
@@ -123,7 +124,7 @@ export function initBase(Z,api,G){
    <div class="zdoc">Doctrine <b>${D.n}</b>${U&&U.total?` · upkeep <b>${money(U.total)}</b> after this wave`:''}${sh?` · <span class="co">${sh} short of ammo (upkeep unpaid)</span>`:''}${G.lastUp?` · last upkeep ${money(G.lastUp)}`:''}</div></header>${Z.coopHTML?.()||''}${Z.cpHTML?.()||''}
    <div class="zcols"><div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
     <div class="zleg"><span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lx">+</i>position to open (Base tab)</span><span><i class="lt"></i>next wave's approach</span></div></div>
-   <div class="zside"><nav class="ztabs">${[['shop','Shop'],['armory','Armory'],['sites','Base']].map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
+   <div class="zside"><nav class="ztabs">${[['shop','Shop'],['armory','Armory'],['sites','Base'],['chain','Kill chain']].filter(([k])=>TABS().includes(k)).map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
    <footer class="zfc"><h3>Wave ${G.wave+1}${fc.boss?' · <span class="cr">BOSS</span>':''}${Z.wx?.note(G.next.wx)||''}</h3>${fc.html}</footer></div>`;
   $('zgo').onclick=()=>{if(!G.placing)Z.continue()};$('zcancel')&&($('zcancel').onclick=cancelPlace);
   for(const b of el.querySelectorAll('[data-tab]'))b.onclick=()=>{if(G.placing)return;tab=b.dataset.tab;render();focus(`[data-tab="${tab}"]`)};
@@ -136,6 +137,7 @@ export function initBase(Z,api,G){
   for(const b of el.querySelectorAll('[data-perk]'))b.onclick=()=>upPerk(b.dataset.perk);
   for(const b of el.querySelectorAll('[data-sell]'))b.onclick=()=>sell(+b.dataset.sell);
   for(const b of el.querySelectorAll('[data-rb]'))b.onclick=()=>rebuild(+b.dataset.rb);
+  for(const b of el.querySelectorAll('[data-kc]'))b.onclick=()=>{const k=b.dataset.kc,i=k.indexOf(':');Z.chain.req(k.slice(0,i),k.slice(i+1));render();focus(`[data-kc="${k}"]`)};
   for(const b of el.querySelectorAll('[data-rep]'))b.onclick=()=>{const i=+b.dataset.rep,s=SITES[i],k=repairK(),hp=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return;if(Z.req)Z.req(['r',i,hp]);else act.repair(i,hp);render();focus(`[data-rep="${b.dataset.rep}"]`)};
   const cv=$('zmap');cv.onclick=e=>{const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*MW,y=(e.clientY-r.top)/r.height*MH;let bj=-1,bd=24;
    const can=j=>G.placing?def.slotFree(j):tab==='sites'&&def.canOpen(j,doc());def.SLOTS.forEach((s,j)=>{const[sx,sy]=spx(j),d=Math.hypot(sx-x,sy-y);if(can(j)&&d<bd){bd=d;bj=j}});
@@ -161,6 +163,7 @@ export function initBase(Z,api,G){
    g.strokeStyle=hp>.7?'#3ddc84':hp>.35?'#ffc640':'#ff4d4d';g.lineWidth=3;g.beginPath();g.arc(mx(s.x),mz(s.z),13,-Math.PI/2,-Math.PI/2+hp*Math.PI*2);g.stroke();
    g.fillStyle='#dfe8ff';g.fillText(s.n,mx(s.x),mz(s.z)+28)}
   g.strokeStyle='#ffc640';g.lineWidth=2;g.strokeRect(mx(PADP.x)-5,mz(PADP.z)-5,10,10);
+  Z.chainMap?.(g,mx,mz,MW,MH);  // boost batteries at their launch edge, point defence at the sites (zchain.js)
   for(const f of FOBS){g.strokeStyle='#3ddc84';g.beginPath();g.moveTo(mx(f.x),mz(f.z)-7);g.lineTo(mx(f.x)+7,mz(f.z)+5);g.lineTo(mx(f.x)-7,mz(f.z)+5);g.closePath();g.stroke()}
   const ae=document.activeElement?.dataset,foc=ae?.up||ae?.fit||ae?.mv?byId(+String(ae.up||ae.fit||ae.mv).split(':')[0]):null;
   def.SLOTS.forEach((s,j)=>{const d=def.D.find(q=>q.slot===j),[X,Y]=spx(j);
@@ -177,7 +180,7 @@ export function initBase(Z,api,G){
  function open(){document.body.classList.add('zb-open');G.state="base";G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
  function close(){el.hidden=true;G.placing=null;document.body.classList.remove('zb-open')}
  // redraw for a change made elsewhere (co-op: the purse, the defences, who is ready), keeping focus and the tab's scroll
- function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','tab'].find(x=>a.dataset[x]!=null):null,
+ function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','tab'].find(x=>a.dataset[x]!=null):null,
    q=k?`[data-${k}="${a.dataset[k]}"]`:mine&&a.id?'#'+a.id:null,sc=el.querySelector('.ztab')?.scrollTop||0;
   render();const t=el.querySelector('.ztab');if(t)t.scrollTop=sc;if(q)el.querySelector(q)?.focus()}
  // spatial focus move between the visible buttons
@@ -185,14 +188,14 @@ export function initBase(Z,api,G){
   if(!ra){bs[0].focus();return}const cx=ra.x+ra.width/2,cy=ra.y+ra.height/2;let best=null,bd=1e9;
   for(const b of bs){if(b===a)continue;const r=b.getBoundingClientRect(),x=r.x+r.width/2-cx,y=r.y+r.height/2-cy,along=x*dx+y*dy;if(along<=4)continue;const d=along+Math.abs(x*dy+y*dx)*2;if(d<bd){bd=d;best=b}}
   best?.focus();drawMap()}
- const setTab=k=>{if(G.placing)return;tab=k;render();focus(`[data-tab="${k}"]`)},TABS=['shop','armory','sites'];
+ const setTab=k=>{if(G.placing)return;tab=k;render();focus(`[data-tab="${k}"]`)},TABS=()=>['shop','armory','sites',...(Z.chainHTML?['chain']:[])];  // the Kill chain tab comes with zchain.js (set up after this file)
  function key(e){if(el.hidden)return false;const c=e.code;
   if(c==='ArrowUp')move(0,-1);else if(c==='ArrowDown')move(0,1);else if(c==='ArrowLeft')move(-1,0);else if(c==='ArrowRight')move(1,0);
   else if(c==='Space'&&el.contains(document.activeElement))document.activeElement.click();
-  else if(c==='Digit1'||c==='Digit2'||c==='Digit3')setTab(TABS[+c.slice(5)-1]);
+  else if(/^Digit[1-9]$/.test(c)&&TABS()[+c.slice(5)-1])setTab(TABS()[+c.slice(5)-1]);
   else if(c==='KeyC'&&!G.placing)Z.continue();else if(c==='Escape')return cancelPlace();
   else return true;e.preventDefault?.();return true}
  function pad(e){if(el.hidden&&over.hidden)return false;const host=el.hidden?over:el;
   if(e(12))move(0,-1);if(e(13))move(0,1);if(e(14))move(-1,0);if(e(15))move(1,0);if(e(0)&&host.contains(document.activeElement))document.activeElement.click();
-  if(!el.hidden){if(e(1))cancelPlace();if(e(4)||e(5)){const i=TABS.indexOf(tab);setTab(TABS[(i+(e(5)?1:2))%3])}if(e(3)&&!G.placing)Z.continue()}return true}
+  if(!el.hidden){if(e(1))cancelPlace();if(e(4)||e(5)){const T=TABS(),i=T.indexOf(tab);setTab(T[(i+(e(5)?1:T.length-1))%T.length])}if(e(3)&&!G.placing)Z.continue()}return true}
  return{open,close,render,refresh,act,key,pad,el,buy,place,upgrade,refit,startMove,expand,rebuild,setTab,sell,offered,supPrice}}
