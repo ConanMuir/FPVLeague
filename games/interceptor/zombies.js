@@ -1,7 +1,7 @@
 // Interceptor: Zombies mode. Endless, growing waves from the map edges against the defended sites; money per intercept, a base screen between
 // waves, helpers and perks. interceptor.js stays Riley's Classic game: it calls the hooks below only while Z.on is true.
 // api = live access to interceptor.js internals (see the initZombies call there).
-import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,kindFrom,speedK,HELPER_SHARE,ZDIFF,EVADE_SOME,earlyK,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP,UPKEEP_FROM,UPKEEP_K,FWD_UPKEEP,REFIT,expCost} from './zdata.js';
+import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,kindFrom,speedK,HELPER_SHARE,ZDIFF,EVADE_SOME,earlyK,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP,UPKEEP_FROM,UPKEEP_K,FWD_UPKEEP,REFIT,expCost,FAST,SECTORS,sectorOf} from './zdata.js';
 import {initMeta} from './zmeta.js';
 import {initBoard} from './zboard.js';
 import {initBase} from './zbase.js';
@@ -12,6 +12,8 @@ import {initFX} from './zfx.js';
 import {initWeather} from './zwx.js';
 import {initRocket} from './zrocket.js';
 import {initNet} from './znet.js';
+import {initChain} from './zchain.js';
+import {initWarn} from './zwarn.js';
 import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
@@ -54,7 +56,7 @@ export function initZombies(api){
   const f=integ.max?integ.hp/integ.max:0;$('zib').style.width=(f*100).toFixed(1)+'%';$('zib').className=f<.3?'lo':f<.6?'mid':'';$('zit').textContent=`INTEGRITY ${Math.round(f*100)}%`;
   $('zs').textContent=G.streak>1?`STREAK ×${G.streak}`:'';$('zs').hidden=G.streak<2;
   const sh=SITES.map(s=>`<span class="${s.hp>0?(s.hp<s.max*.35?'lo':''):'dead'}">${s.n} ${Math.max(0,Math.ceil(s.hp))}/${s.max}</span>`).join('');if(sh!==lastSites)$('zsites').innerHTML=lastSites=sh;
-  const hw=hardT().sort((a,b)=>ttImpact(a)-ttImpact(b)).slice(0,3).map(t=>`${KIND[t.k].tag} → ${t.tgt.n} ${Math.ceil(ttImpact(t))} s`).join(' · ');if(hw!==G.hw)$('zwarn').textContent=G.hw=hw;
+  if(!Z.warnHud){const hw=hardT().sort((a,b)=>ttImpact(a)-ttImpact(b)).slice(0,3).map(t=>`${KIND[t.k].tag} → ${t.tgt.n} ${Math.ceil(ttImpact(t))} s`).join(' · ');if(hw!==G.hw)$('zwarn').textContent=G.hw=hw}  /* zwarn.js draws the alert panel when loaded */
   const live=TH.filter(api.live).length,queued=G.wq.length;$('zinb').textContent=G.state==='wave'?`INBOUND ${live+queued}`:''};
  const integrity=()=>{let hp=0,max=0;for(const s of SITES){hp+=Math.max(0,s.hp);max+=s.max}return{hp,max}};
 
@@ -69,7 +71,7 @@ export function initZombies(api){
  // Zombies widens the AO, adds the far-field terrain and long radar ranges (25 / 100 / 250 km) for the fast threats.
  // The loadout (doctrine + kit) is fixed for the run: this pilot's from the start menu; in co-op the doctrine is the host's (G.docO, znet.js).
  Z.start=()=>{G.on=true;G.state='base';G.wave=0;const lo=Z.meta.load();G.doc=G.docO||lo.doc;G.kit=lo.kit;
-  G.cash=Math.round(DF().start*dk('startK'));G.earned=0;G.kills={p:0,h:0};G.streak=0;G.wq.length=0;G.pops.length=0;G.perfect=true;G.exp=0;G.rebuilds=0;G.sup={};G.lastUp=0;G.spend={};Z.meta.reset();
+  G.cash=Math.round(DF().start*dk('startK'));G.earned=0;G.kills={p:0,h:0};G.streak=0;G.wq.length=0;G.pops.length=0;G.perfect=true;G.exp=0;G.rebuilds=0;G.sup={};G.lastUp=0;G.spend={};G.lastHit=null;G.cause=null;Z.meta.reset();
   bunker(false);for(const s of SITES){s.max=s.hp=Math.round((SITE_HP[s.n]||400)*DF().hp*dk('hpK'))}def.clear();def.layout(DOC());pk.reset();en.farRing().visible=true;if(api.RRS.length===3)api.RRS.push(25000,100000,250000);
   api.AW=4300;api.wave=0;api.wstate='wave';$('hud').classList.add('z');hudEl.hidden=false;$('zover').hidden=true;
   openBase();wx.start(G.next.wx)};
@@ -119,10 +121,10 @@ export function initZombies(api){
  Z.continue=()=>{base.close();startWave()};
  Z.kindNote=k=>({decoy:'cheap and harmless, but looks like a Shahed on radar and soaks up helpers. Cold on thermal.',swarm:'many tiny quads, low and erratic. One burst can take several.',
   heavy:'armored: a proximity burst only damages it. Needs a direct hit, or a marked target for helpers.',cruise:'low, fast and terrain-following. Detected far out.',
-  ballistic:'very fast and steep. Only a dome-class defence or a direct hit stops it.',hyper:'extremely fast. Only Golden Dome stops it.',icbm:'the fastest thing in the sky. Golden Dome only.',boss:'a carrier that launches swarms until destroyed. Breaks apart in stages.'})[k]||'';
+  ballistic:'very fast and steep. The kill chain stops it (Kill chain tab: boost battery, Iron Dome, point defence), or a direct hit.',hyper:'extremely fast. Boost battery, Golden Dome and point defence (Kill chain tab) each get a shot.',icbm:'the fastest thing in the sky. Boost battery, Golden Dome, point defence.',boss:'a carrier that launches swarms until destroyed. Breaks apart in stages.'})[k]||'';
  Z.waves=dt=>{if(api.demo||Z.mirror)return;if(G.state==='wave'){G.wt+=dt;  /* Z.mirror: a co-op client, the host runs the director */
    while(G.wq.length&&G.wq[0].at<=G.wt){const q=G.wq.shift();spawn(q)}
-   if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn((clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0))*dk('clearK'),null,null);
+   if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn((clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0))*dk('clearK')*(Z.incomeK?.()??1),null,null);  /* incomeK: evacuated sites earn nothing (zwarn.js) */
     banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);feed(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`);payUpkeep()}}
   else if(G.state==='clear'&&(G.clearT-=dt)<=0){if(!Z.cpWin?.())openBase()}};  /* Z.cpWin: a campaign sector's objective is met (zcampaign.js) */
  // upkeep: from UPKEEP_FROM each defence costs UPKEEP_K of what was spent on it per wave (forward positions FWD_UPKEEP times; doctrines scale it).
@@ -146,6 +148,12 @@ export function initZombies(api){
   const t={id:api.nextId(),k,p,v:new V3(wps[0].x-x,0,wps[0].z-z).setLength(spd),spd,cs:spd,alt,wps,tgt:s,aim,st:'cruise',jet:!!K.jet,mesh:null,prop:null,pd:1e9,dmin:1e9,cvm:0,bank:0,roll:0,spin:0,smoke:0,rb:null,claim:null,by:null};
   en.dress(t);TH.push(t);return t}
  Z.make=make;Z.plan=plan;Z.integrity=integrity;Z.openBase=openBase;
+ // the next wave's planned fast threats (ballistic / hypersonic / ICBM) per launch sector, for the base screen and for strikes on the launchers:
+ // Z.fastPlan() = [{id:'W',n:'West',ballistic:1,hyper:0,icbm:0,total:1}, North, East]; Z.cutFast(sector index, n, kind?) removes up to n of them
+ // (the latest-launching first) from the planned wave and returns how many it removed. Both work on G.next while the base screen is open.
+ Z.fastPlan=()=>{const out=SECTORS.map(s=>({id:s.id,n:s.n,total:0,...Object.fromEntries(FAST.map(k=>[k,0]))}));for(const q of G.next?.q||[])if(FAST.includes(q.k)){const o=out[sectorOf(q.brg)];o[q.k]++;o.total++}return out};
+ Z.cutFast=(sec,n=1,kind)=>{const P=G.next;if(!P)return 0;let c=0;for(let i=P.q.length-1;i>=0&&c<n;i--){const q=P.q[i];if(!FAST.includes(q.k)||kind&&q.k!==kind||sectorOf(q.brg)!==sec)continue;
+   P.q.splice(i,1);const j=P.list.lastIndexOf(q.k);if(j>=0)P.list.splice(j,1);c++}return c};
  // movers for the kinds Riley's flight code doesn't cover (zenemy.js); true = handled there
  // Nightmare feints (tac.feint): a track marked at spawn switches to another site (the weakest) about 2.2 km out, straight in from there
  Z.tstep=(t,dt)=>{if(t.feint===1&&t.st==='cruise'&&Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)<2200){t.feint=2;const L=api.liveSites().filter(s=>s!==t.tgt);
@@ -155,11 +163,11 @@ export function initZombies(api){
  // ---------- impacts, kills, money ----------
  // a track the jammer spoofed (t.spoof) or a lure beacon pulled (t.lure) comes down in a field: no damage. Sandbags (supply) take 25% off.
  Z.impact=t=>{t.st='dead';t.impacted=1;if(G.state==='trial')return;const K=KIND[t.k]||KIND.shahed;if(!Z.mirror)api.boom(t.aim,K.dmg>100?6:K.dmg>20?4:K.dmg?1.5:.8);if(api.demo||G.state==='over')return;const s=t.tgt;  /* a co-op client gets the host's explosion as an event */
-  if(K.dmg&&(t.spoof||t.lure>0)){feed(`<span class="cb">${K.n} came down in an empty field (${t.spoof?'jammed':'lured'})</span>`);return}
+  if(K.dmg&&(t.spoof||t.lure>0||t.dcy)){feed(`<span class="cb">${K.n} came down in an empty field (${t.spoof?'jammed':t.dcy?'went for the decoy site':'lured'})</span>`);return}  /* t.dcy: a warning-action decoy pulled it (zwarn.js) */
   if(!K.dmg){feed(`<span class="co">${K.n} hit the ${s.n.toLowerCase()}: a decoy, no damage</span>`);return}
-  const dmg=Math.round(K.dmg*(G.sup?.harden?.75:1));
-  if(s.hp>0){const was=s.hp;s.hp=Math.max(0,s.hp-dmg);G.perfect=false;
-   feed(`<span class="cr">${K.n} hit the ${s.n.toLowerCase()}</span> −${dmg}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(220,110,.6,.12,'sawtooth');
+  const dmg=Math.round(K.dmg*(G.sup?.harden?.75:1)*(Z.dmgK?.(s,t)??1));  /* dmgK: a hardened or evacuated site (zwarn.js) */
+  if(s.hp>0){const was=s.hp;s.hp=Math.max(0,s.hp-dmg);G.perfect=false;G.lastHit={k:t.k,site:s.n,dmg};
+   feed(`<span class="cr">${K.n} hit the ${s.n.toLowerCase()}</span> −${dmg}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(150,80,.45,.07,'triangle');
    if(was>0&&!s.hp)banner(s.n+' DESTROYED','cr',2)}
   pop(t.aim,'−'+dmg,'#ff4d4d');
   if(integrity().hp<=0&&!Z.mirror)gameOver()};
@@ -190,7 +198,7 @@ export function initZombies(api){
   let nr=1e9;api.grid.near(d.p,300,t=>{nr=Math.min(nr,t.p.distanceTo(d.p))});  // includes the tracks this burst just killed (they leave TH later); past 300 m the readout is just NOTHING IN RANGE
   const dmg=out.some(s=>s.includes('damaged')),txt=kills?`HIT — ${nr.toFixed(1)} m`:dmg?`DAMAGED — ${nr.toFixed(1)} m`:nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';
   banner(txt,kills?'cg':dmg?'co':'cr',1.4);G.det={txt,t:performance.now()};
-  if(kills)tone(520,1040,.22,.14,'triangle');else if(dmg)tone(440,520,.2,.1,'triangle');else tone(300,140,.35,.12,'sawtooth');
+  if(kills)tone(520,1040,.22,.14,'triangle');else if(dmg)tone(440,520,.2,.1,'triangle');else tone(260,190,.16,.045,'triangle');
   api.lose('det');feed(out.join('<br>')||'Detonated: nothing in range')};
  // manual timing is the default in Zombies; the Proximity fuse perk brings back Classic's automatic fuse (contact always fires)
  Z.autoFuse=()=>Z.perkLevel?.('fuse')>0;
@@ -211,11 +219,11 @@ export function initZombies(api){
  Z.helperKill=t=>{if(!api.live(t))return;t.by='h';if(KIND[t.k]?.armor==='boss'&&Z.bossHit)return Z.bossHit(t);api.killThreat(t,Math.random()<.4)};
 
  // ---------- game over ----------
- function gameOver(){G.state='over';api.wstate='over';if(Z.cpOver?.())return;const D=DF(),nb=G.wave>bestOf(D),cur=Z.board.record(DFI(),G.wave,Z.online);  /* a campaign sector draws its own end screen (zcampaign.js) */
+ function gameOver(){G.state='over';api.wstate='over';G.cause=G.lastHit?.k||null;if(Z.cpOver?.())return;const D=DF(),nb=G.wave>bestOf(D),cur=Z.board.record(DFI(),G.wave,Z.online);  /* a campaign sector draws its own end screen (zcampaign.js) */
   if(nb){S.zbests={...(S.zbests||{}),[D.n]:{wave:G.wave,kills:G.kills.p+G.kills.h,earned:G.earned}};save();G.best=G.wave}
   banner('');
   $('zover').innerHTML=`<div class="zpanel zgo"><h2>Defense collapsed</h2><div class="zbig">WAVE ${G.wave}</div>
-   <div class="zstats"><span>Intercepts</span><b>${G.kills.p+G.kills.h}</b><span>by ${Z.online?'pilots':'you'}</span><b>${G.kills.p}</b><span>by helpers</span><b>${G.kills.h}</b><span>Money earned</span><b>${money(G.earned)}</b><span>Best on ${D.n}</span><b>${nb?'NEW BEST · ':''}wave ${G.best}</b></div>
+   <div class="zstats"><span>Intercepts</span><b>${G.kills.p+G.kills.h}</b><span>by ${Z.online?'pilots':'you'}</span><b>${G.kills.p}</b><span>by helpers</span><b>${G.kills.h}</b><span>Money earned</span><b>${money(G.earned)}</b><span>Best on ${D.n}</span><b>${nb?'NEW BEST · ':''}wave ${G.best}</b>${G.lastHit&&KIND[G.lastHit.k]?`<span>Final blow</span><b>${KIND[G.lastHit.k].n} · ${String(G.lastHit.site).toLowerCase()}</b>`:''}</div>
    ${Z.board.overHTML(cur)}
    ${G.run?.got?.length?`<p class="zhint">Goals met this run: ${G.run.got.map(g=>Z.meta.GOALS[g].txt).join(' ')} See <b>Doctrine &amp; unlocks</b> on the menu.</p>`:''}
    <div class="btns">${Z.overBtns?.()||'<button class="go" id="zagain">Try again</button><button id="zmenu">Menu</button>'}</div>${Z.overNote?.()||''}</div>`;
@@ -255,7 +263,7 @@ export function initZombies(api){
  Z.slabel=s=>s.hp>0?`${s.n} ${Math.ceil(s.hp)}/${s.max}`:`${s.n} · DESTROYED`;
  // auto-selected track: the most urgent one nobody has claimed, preferring ones you can actually stop
  Z.urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(api.live(t)){let tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(t.claim||t.pc)tt+=1e6;if(KIND[t.k]?.armor==='hard')tt+=1e5;if(t.k==='swarm'&&lead.get(t.grp)!==t)tt+=1e4;if(tt<bt){bt=tt;b=t}}return b};
- const hardT=()=>TH.filter(t=>api.live(t)&&KIND[t.k]?.armor==='hard');
+ const hardT=()=>TH.filter(t=>api.live(t)&&KIND[t.k]?.armor==='hard'&&Z.seen(t));  // the fast tracks early warning has picked up (zwarn.js)
  Z.radar=(rc,P,sel)=>{def.radar(rc,P);
   for(const t of TH)if(t.k==='swarm'&&api.live(t)&&lead.get(t.grp)!==t&&inRange(t)){const q=P(t.p.x,t.p.z);rc.fillStyle=t.claim?'#ffe23c':'#ff4d4d';rc.fillRect(q[0]-1.5,q[1]-1.5,3,3)}
   for(const t of hardT()){const q=P(t.aim.x,t.aim.z);rc.strokeStyle='#ff4d4d';rc.lineWidth=2.5;rc.beginPath();rc.moveTo(q[0]-7,q[1]-7);rc.lineTo(q[0]+7,q[1]+7);rc.moveTo(q[0]+7,q[1]-7);rc.lineTo(q[0]-7,q[1]+7);rc.stroke()}  // predicted impact points
@@ -296,6 +304,8 @@ export function initZombies(api){
    def.D.splice(def.D.indexOf(d),1);TH.push(...keep);Object.assign(G,{cash:save.cash,earned:save.earned,kills:save.kills,state:save.st});SITES.forEach((s,i)=>s.hp=save.hp[i]);return res},
   // scripted player: put the interceptor just behind the most urgent free track, matched to its velocity, and detonate
   botKill(off=1){const me=api.player,t=Z.urgent();if(!me||me.dead>0||!t)return null;me.p.copy(t.p).addScaledVector(_a.copy(t.v).normalize(),-off);me.v.copy(t.v);Z.detonate();return t.k}};
+ initChain(api,G,Z);  // the kill chain against the fast kinds: boost phase, midcourse stock, terminal point defence (zchain.js)
+ initWarn(api,G,Z);  // early warning: launch alerts and the harden / evacuate / decoy actions (zwarn.js)
  initCampaign(api,G,Z);  // the campaign map and its sectors (zcampaign.js): wraps the hooks above, before the effects and co-op wrap them
  initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above

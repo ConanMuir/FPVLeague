@@ -96,7 +96,7 @@ export function initDefences(api,G,Z){
  const tti=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
  const _g=new V3();
  function pickTarget(dd,x,z,range,o={}){let best=null,bs=-1e9;const me=api.player,sel=api.selT();
-  api.grid.near(_g.set(x,0,z),range,t=>{if(!api.live(t)||t.claim||!Z.seen(t)&&t.k!=='swarm')return;let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)return;
+  api.grid.near(_g.set(x,0,z),range,t=>{if(!api.live(t)||t.claim||t.dcy||!Z.seen(t)&&t.k!=='swarm')return;  /* t.dcy: pulled to a decoy site (zwarn.js), not worth a shot */let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)return;
    if(o.smart&&t.k==='decoy')return;if(o.only&&!o.only(t))return;
    const d=Math.hypot(t.p.x-x,t.p.z-z);if(d>range)return;
    if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)return;  // t.pc: a co-op pilot is on it
