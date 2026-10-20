@@ -176,7 +176,7 @@ export function initSites(api,G,Z,fog){
   q.p.addScaledVector(q.v,dt);if(q.p.y<gh(q.p.x,q.p.z)+3)q.p.y=gh(q.p.x,q.p.z)+3;
   if(tg.d.p.distanceTo(q.p)<P.blast){patDie(t,q,true);W.onHit?.(tg.key,P.dmg,'pat')}}
  // one step of the enemy side while someone is out on a sortie (solo / host). pilots: [{key, d}] alive interceptors
- W.step=(dt,pilots)=>{bombs(dt);for(let i=W.later.length-1;i>=0;i--){const l=W.later[i];if((l.t-=dt)<=0){W.later.splice(i,1);l.f()}}if(!W.auth)return;
+ W.step=(dt,pilots,live)=>{bombs(dt);for(let i=W.later.length-1;i>=0;i--){const l=W.later[i];if((l.t-=dt)<=0){W.later.splice(i,1);l.f()}}if(!W.auth||!live)return;
   for(const t of W.list){if(t.t==='convoy'&&!t.done){if(t.halt>0)t.halt-=dt;else{for(const p of t.parts)if(p.alive){p.s+=SO.truck.spd*dt;place(t,p)}}
     const L=t.parts.filter(p=>p.alive),r=W.routes[t.route];if(L.length){t.x=L[0].x;t.z=L[0].z}if(L.some(p=>p.main)&&L.some(p=>p.s>=r.L)){t.done=true;for(const p of L){p.alive=false;p.mesh.visible=false;if(p.tur)p.tur.visible=false}W.onDeliver?.(t);W.ver++}}
    for(const q of t.parts)if(q.aa&&q.alive)aaStep(t,q,dt,pilots);for(const q of t.pats)patStep(t,q,dt,pilots)}};
