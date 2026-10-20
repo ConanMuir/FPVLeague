@@ -4,7 +4,7 @@ export let AC=null,nbuf;let MOT={rot:[70,470],wind:[40,1.3],phys:()=>[15,1.6,240
 // 4 motors, each a tri-blade prop buzz (blade-pass sawtooth + harmonic) over the shaft tone; a slight per-motor offset gives the real beating
 // extra(AC) adds a game's own sounds; motor: {rot:[idle Hz, span], wind:[speed scale, cap], phys:()=>[gravity, thrust curve exponent, prop pitch speed]}
 // for the game's flight model (the default phys is the old League quad's: 15, 1.6, 240)
-export function audioInit({extra,motor}={}){if(AC)return;if(motor)MOT={...MOT,...motor};try{AC=new(window.AudioContext||window.webkitAudioContext)();mf=AC.createBiquadFilter();mf.type='lowpass';mf.Q.value=.9;mg=AC.createGain();mg.gain.value=0;mf.connect(mg).connect(AC.destination);
+export function audioInit({extra,motor}={}){if(AC)return;if(motor)MOT={...MOT,...motor};try{AC=new(window.AudioContext||window.webkitAudioContext)();masterBus(AC);mf=AC.createBiquadFilter();mf.type='lowpass';mf.Q.value=.9;mg=AC.createGain();mg.gain.value=0;mf.connect(mg).connect(AC.destination);
  for(let i=0;i<4;i++){const v=[];[['sawtooth',.3,3],['square',.05,6],['sine',.16,1]].forEach(([t,g0,h])=>{const o=AC.createOscillator(),g=AC.createGain();o.type=t;g.gain.value=g0;o.connect(g).connect(mf);o.start();v.push([o,h])});mo.push({v,off:1+(i-1.5)*.009})}
  mw=AC.createOscillator();mw.type='triangle';const wg0=AC.createGain();wg0.gain.value=.02;mw.connect(wg0).connect(mg);mw.start();mw.g=wg0;  // ESC/motor whine: shaft rpm x 7 pole pairs
  nbuf=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate);const ch=nbuf.getChannelData(0);for(let i=0;i<ch.length;i++)ch[i]=Math.random()*2-1;
@@ -13,6 +13,12 @@ export function audioInit({extra,motor}={}){if(AC)return;if(motor)MOT={...MOT,..
  extra?.(AC);
 }catch(e){AC=null}}
 export const audioOn=()=>!!(AC&&mo.length);
+// master bus: every sound in the game (engine, Classic, Zombies) reaches the speakers through one gain and a limiter. AC.destination is
+// re-pointed at the bus so code that connects to AC.destination needs no change; setMaster(0..1) scales everything
+let MST=null;const MASTER=.45;
+function masterBus(A){const out=A.destination,g=A.createGain(),lim=A.createDynamicsCompressor();lim.threshold.value=-6;lim.knee.value=6;lim.ratio.value=12;lim.attack.value=.002;lim.release.value=.15;
+ g.gain.value=MASTER;g.connect(lim).connect(out);MST=g;try{Object.defineProperty(A,'destination',{value:g,configurable:true})}catch(e){}}
+export const setMaster=v=>{if(MST)MST.gain.value=MASTER*cl(+v||0,0,1.5)};
 // shaft speed (Hz): thrust ~ rpm² so rpm follows ms^(TE/2); props unload and spin up a little as air flows through the disc
 const rotHz=d=>{const[,te,vp]=MOT.phys();return(MOT.rot[0]+MOT.rot[1]*Math.max(d.ms,0)**(te/2))*(1+.12*cl(d.v.dot(_au.set(0,1,0).applyQuaternion(d.q))/vp,-.5,1))};
 // your own quad; on = flying (not in the menu, not crashed); air = wind velocity (wind noise follows airspeed). Returns false when silent
