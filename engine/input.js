@@ -26,8 +26,6 @@ export const swName=b=>{if(b===-1||b==null)return'None';if(typeof b!=='string')r
 const swAx=b=>typeof b==='string'?+(SWRE.exec(b)||[0,0,-1])[2]:-1;
 // fire / detonate: F, left mouse, or the fire button or switch (S.fireInv: fire with the switch in the other position)
 export function fireBtnIn(){if(keys.KeyF||inp.mouseFire)return true;const g=pad(),b=padX?S.xfire:S.fireBtn;return !!(g&&(typeof b==='string'&&g.axes[swAx(b)]===undefined?false:!!swOn(g,b)!==!!S.fireInv))}
-// flip over: E, or the flip button (Xbox B by default; none on a radio until you map one)
-export const flipIn=()=>{if(keys.KeyE)return true;const g=pad(),b=padX?S.xflip:S.flipBtn;if(!g||b===-1||b==null)return false;return !!swOn(g,b)};
 // keyboard + mouse: o.menu() = menu open, o.pause() toggles it, o.key(e) gets every other key press while flying
 export function initInput(o){
  addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(learn?.seq&&!e.repeat){e.preventDefault();if(e.code==='Escape'){learn=null;syncSw()}else asnStep(learn.k);return}if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!o.menu())e.preventDefault();if(e.repeat)return;

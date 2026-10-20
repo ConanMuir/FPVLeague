@@ -3,13 +3,40 @@
 The repo holds two codebases that grew up side by side:
 
 - **Jared's game, `src/`.** A Vite build: League, Dogfight, Freeplay, Training, the Calibration Lab. Rapier physics, drone parts.
-- **Riley's games, `engine/` + `games/`.** Raw ES modules served as they are (no build). `games/league` is Riley's League and
-  Dogfight. `games/interceptor` is the Interceptor: Classic, plus Zombies.
+- **Riley's games, `engine/` + `games/`.** Raw ES modules served as they are (no build). `games/interceptor` is the Interceptor:
+  Classic, plus Zombies. `games/league` was Riley's League and Dogfight; it was retired on 2026-10-19 (section 0).
 
 `engine/flight.js` began as a port of an older League flight model. The rule was "when League's flight model changes, port the
 changed lines" (`interceptor/interceptor-notes.md`), so every fix had to be made twice. The plan the user approved is one shared
 engine and many games. This document records the audit, the first steps already taken (a shared flight core and shared stick
 code), how they were proven not to change any game's feel, and the steps that remain.
+
+## 0. Update 2026-10-19: one League
+
+The user's decision: Jared's game is **the** Drone League (League, Dogfight, Freeplay, Training). Riley's duplicate League and
+Dogfight, `games/league`, was deleted; it is in git history (the last commit with it is the merge of PR #58, `b58ac85`).
+
+- **Paths.** The build output moved from `games/jared-league/` to `games/drone-league/` (`tools/postbuild.mjs`, `serve.ps1`, both
+  `Play Drone League.bat`, `tools/check-build.mjs`, `tools/ci-scope.mjs`). `games/jared-league/index.html` is now a tiny redirect,
+  so old links and bookmarks still work (an online join code in the `#hash` is kept). The root `index.html` launcher has two cards:
+  Drone League and the Interceptor (Classic / Zombies). The Interceptor's "Back to Drone League" opens `../drone-league/`.
+- **`engine/` code only Riley's League used was removed** (nothing else imported it; the Interceptor, Zombies and every tool and
+  test were checked):
+  - `engine/flight.js`: the League `Quad` (SDF ground contact, turtle pivots, self-righting, flip-over), its `humanControl`,
+    `tuneFlight`, `setWorld`, `sdN`, the unused `setGroundFeel`, and the tune `let`s. What is left is what the Interceptor
+    imports: `attitude` (from the core), `gn`, `ou`, `weathervane`.
+  - `engine/audio.js`: `quadVoice` and `audioInit`'s `voice` option (the nearest-other-quad voice). The default `motor.phys` is
+    now the constants `[15, 1.6, 240]` instead of `flight.js`'s tune; the Interceptor passes its own `phys`, as before.
+  - `engine/input.js` `flipIn`; `engine/rates.js` `initSens` (the Easy sensitivity walkthrough) and its CSS in `engine.css`;
+    `engine/menu.js` `PILOT_FIELDS`; `engine/modpanel.js` `setHostTune`; `engine/hud.js` `edgeArrow`, `fmt`;
+    `engine/render.js` `scaleUV`, `skyTex`, `fpvCam`.
+  - The goldens for those went too: "Riley's League quad" in `test/flight-golden.test.mjs` and "Riley's humanControl" in
+    `test/input-golden.test.mjs` (and their keys in the fixtures). The rates, throttle-curve and attitude goldens for
+    `engine/` stay, because the Interceptor uses them; every other golden is unchanged, bit for bit.
+- **The pilot-profile button strings** (section 6) are fixed: `engine/settings.js` writes Drone League's format into the shared
+  profile and reads both formats (`test/pilot-profile.test.mjs`).
+- The tables and plan below are kept as the record of the audit. Where they name `games/league` or Riley's `Quad`, that code is
+  gone; plan step 9 is resolved.
 
 ## 1. Who uses what
 
@@ -22,11 +49,11 @@ code), how they were proven not to change any game's feel, and the steps that re
 | `src/input/input.js`, `calibration.js`, `binding.js` | axes, deadband, assist, bindings, `humanControl`, guided binding | `src/` |
 | `src/config/settings.js` (+ `schema.js`) | `S` from localStorage `droneleague`, schema and migrations | `src/` |
 | `src/audio/audio.js`, `sfx.js` | motor synth, volume buses, event sounds | `src/` |
-| `engine/flight.js` | Riley's `Quad` (SDF ground contact, turtle, self-righting), `humanControl`, rough air (`gn`, `ou`, `weathervane`) | `games/league` (Quad, humanControl, attitude, tune), `games/interceptor` (attitude, `ou`, `weathervane`), `engine/audio.js` (G, TE, VP) |
-| `engine/rates.js` | rate profile in use, Rates tab, sensitivity walkthrough | `games/league`, `games/interceptor`, `engine/flight.js`, `engine/loop.js` |
-| `engine/input.js` | axes, switches (Learn / Assign), calibration, controller panel | `games/league`, `games/interceptor`, `engine/flight.js`, `rates.js`, `loop.js`, `menu.js` |
-| `engine/settings.js` | per-game key plus a **pilot profile shared through Jared's `droneleague` key** | every engine module, both games |
-| `engine/audio.js` | the motor synth, parametrised per airframe (`motor: {rot, wind, phys}`) | `games/league`, `games/interceptor`, `zaudio.js` |
+| `engine/flight.js` | the attitude controller (re-exported from the core) and rough air (`gn`, `ou`, `weathervane`); Riley's `Quad` and `humanControl` were removed with `games/league` | `games/interceptor` (attitude, `ou`, `weathervane`) |
+| `engine/rates.js` | rate profile in use, Rates tab | `games/interceptor`, `engine/loop.js` |
+| `engine/input.js` | axes, switches (Learn / Assign), calibration, controller panel | `games/interceptor`, `rates.js`, `loop.js`, `menu.js` |
+| `engine/settings.js` | per-game key plus a **pilot profile shared through Jared's `droneleague` key** | every engine module, the Interceptor |
+| `engine/audio.js` | the motor synth, parametrised per airframe (`motor: {rot, wind, phys}`) | `games/interceptor`, `zaudio.js` |
 | `games/interceptor/interceptor.js` `Drone` | the tail-sitter dart: its own step, ground, `humanControl` | Classic, Zombies (`newDrone`) |
 
 Three is a bare import (`'three'`) everywhere. Vite resolves it from `node_modules` for `src/`. The games' import map resolves it
@@ -39,7 +66,7 @@ the core; it is a frozen copy.
 
 ### Flight model: three copies before this work
 
-| | Jared's League (`src/flight/drone.js`) | Riley's League / Dogfight (`engine/flight.js` `Quad`) | Interceptor dart (`interceptor.js` `Drone`) |
+| | Jared's League (`src/flight/drone.js`) | Riley's League / Dogfight (`engine/flight.js` `Quad`, removed 2026-10-19) | Interceptor dart (`interceptor.js` `Drone`) |
 | --- | --- | --- | --- |
 | rates maths, throttle curve, rates types | same code | same code | same code (engine/rates.js) |
 | attitude controller | same maths (on the shared `scratch.js` vectors) | same | uses engine's |
@@ -183,11 +210,11 @@ Each game keeps its own axis calibration, deadband, bindings, keyboard state and
 
 | Test | Runs in | Covers |
 | --- | --- | --- |
-| `test/flight-golden.test.mjs` | `npm test` (CI fast job) | rates and throttle curve (6 profiles, all types, both sides); attitude (60 cases, both sides); Riley's `Quad.step` on a flat floor; Jared's real `Drone.step` |
-| `test/input-golden.test.mjs` | `npm test` | both `humanControl`s (radio, Xbox, keyboard; Acro, Angle; sprung and full throttle; deadband; boost; assist; Lab Acro) |
+| `test/flight-golden.test.mjs` | `npm test` (CI fast job) | rates and throttle curve (6 profiles, all types, both sides); attitude (60 cases, both sides); Jared's real `Drone.step` (Riley's `Quad.step` until 2026-10-19) |
+| `test/input-golden.test.mjs` | `npm test` | Drone League's `humanControl`, and Riley's until 2026-10-19: radio, Xbox, keyboard; Acro, Angle; sprung and full throttle; deadband; boost; assist; Lab Acro |
 | `tools/flight-golden.mjs` | CI browser job (`flight-golden`) | the Interceptor dart in its page |
 
-**Riley's quad (12 sequences):** hover, punch-out, rolls, flip, super boost, prop-wash dive, freestyle, turtle, self-righting,
+**Riley's quad (12 sequences, removed with `games/league`):** hover, punch-out, rolls, flip, super boost, prop-wash dive, freestyle, turtle, self-righting,
 flip-over, slide, take-off.
 
 **Jared's drone (22 sequences):** the same 12, plus two pops, and rolls, freestyle, turtle and slide on the heaviest parts
@@ -229,8 +256,8 @@ for bit): node flight, node input, and the dart in the browser.
    sensitivity walkthrough.
 8. **Ground behaviour.** Move the turtle, pendulum and flip-over triggers into the core as options, with each game's current
    settings, behind goldens. The contact solvers stay per game: Rapier in `src/`, SDF impulses in `engine/`.
-9. **Converge the two Leagues.** Run Riley's League on the parts model, or make `STOCK` neutral, and pick one ground grip. **This
-   changes feel**, so it needs Jared and Riley to agree, and then a deliberate re-record.
+9. ~~**Converge the two Leagues.**~~ Resolved on 2026-10-19 by retiring Riley's League (`games/league`): Jared's is the one
+   League, Dogfight and Freeplay (section 0). Nothing was re-recorded and no feel changed.
 10. **Audio.** Share the motor synth core (`rotHz`, mixer split, wash flutter), with a `sound-check` golden.
 11. **Small helpers.** One `sdN`, one `cl`/`V3` helper module, one fixed-step loop.
 

@@ -2,8 +2,6 @@
 import {$} from './util.js';
 import {S,save} from './settings.js';
 import {syncPad} from './input.js';
-export const PILOT_FIELDS=[['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
- ['tilt','Camera uptilt','rng',0,60,1,'°'],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
 let FIELDS=[];
 // onField(key) runs after a field changes (and is saved)
 export function initMenu(fields,onField){FIELDS=fields;const setEl=$('set');
