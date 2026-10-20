@@ -145,3 +145,30 @@ export const REFIT={
   {id:'bal',n:'Ballistic priority',cost:1600,mag:4,never:1,txt:'+4 interceptors a wave; never fires at drones.'}]};
 // Kit helper variants (zmeta.js KIT): only in the shop when a pilot brought them. Light rack: rack rules with these limits.
 export const LRACK={rng:2200,cap:2,maxTier:2};
+
+// ---------- the late-game kill chain (zchain.js) and early warning (zwarn.js) against the fast kinds ----------
+// Every ballistic, hypersonic and ICBM track passes up to three layers, each with its own chance: boost phase (a forward battery at the launch
+// edge), midcourse (Iron Dome against ballistic, Golden Dome's magazine plus a stock of space interceptors) and terminal (point defence at the
+// site it dives on). Kill chances are arcade balance numbers, like everything above.
+export const FAST=['ballistic','hyper','icbm'];
+// launch sectors: the raids come from bearings -1.3..1.3 rad (0 = north); the fast kinds launch from far beyond the west, north or east edge
+export const SECTORS=[{id:'W',n:'West'},{id:'N',n:'North'},{id:'E',n:'East'}];
+export const sectorOf=brg=>brg<-.43?0:brg>.43?2:1;
+// the wave the chain items unlock: two waves before the ballistic missiles arrive on this difficulty (kf = that difficulty's kindFrom)
+export const chainFrom=kf=>Math.max(2,kf('ballistic')-2);
+// Boost phase: one battery per sector (a forward pad at that edge). mag = shots a wave; each is the one shot a track launched from that sector
+// gets as it climbs out (about 5 s after launch). Its sensors see every launch from its sector: full early warning for those tracks.
+export const BOOST={price:5000,move:1200,lv:[{mag:2,p:{ballistic:.5,hyper:.25,icbm:.3}},{cost:4000,mag:3,p:{ballistic:.6,hyper:.32,icbm:.38},txt:'+1 shot a wave, better seekers'}]};
+// Midcourse: space interceptors in stock for the Golden Dome, used once its magazine for the wave is empty; they keep until fired. cap = per Golden Dome.
+export const STOCK={per:800,cap:4};
+// Terminal: point defence (a laser turret) at one site: a last-chance roll at each heavy hitter diving onto that site (inside rng for the fast kinds,
+// 1.5 km for cruise missiles and heavies). ch = charges a wave (heat); it keeps its last charge for a fast track when one is inbound to its site.
+export const PDEF={price:4000,rng:4000,near:1500,lv:[{ch:2,p:{ballistic:.45,hyper:.3,icbm:.2,cruise:.7,heavy:.6}},{cost:3500,ch:3,p:{ballistic:.55,hyper:.4,icbm:.3,cruise:.8,heavy:.7},txt:'+1 charge, sharper tracking'}]};
+// Early warning: a fast track shows up (radar, domes, alert) this many seconds before impact: base, + per Long-range radar level, + per
+// early-warning radar level (kill chain tab). A boost battery in its sector sees it launch.
+export const EWARN={base:25,perk:8,lv:[{cost:2200,s:15},{cost:3600,s:15}]};
+// Warning actions while a fast track is inbound (keys 1-3; gamepad RB picks one, R3 does it; or click the alert panel):
+// harden its target site (k = share of the damage the site still takes from every hit until that track is gone; cost by wave; cd = seconds to the next),
+// evacuate it (k = share it takes for the rest of the wave; the site's share of the wave-clear bonus is lost this wave and the next),
+// decoys (a stock bought between waves; p = chance the warhead goes for the dummy site; it needs minT s left to turn).
+export const WACT={harden:{k:.3,cost:w=>Math.round((150+15*w)/10)*10,cd:40},evac:{k:.5},decoy:{per:450,cap:6,p:{ballistic:.5,hyper:.4,icbm:.3},minT:5}};

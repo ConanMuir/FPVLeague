@@ -118,3 +118,17 @@ body.zcoop #menu{z-index:4}  /* in co-op the menu (Leave co-op game) opens over 
 .zarm .zfit{font-size:11.5px;padding:4px 8px}.zarm .zfit.on{border-color:var(--green);color:#9ff0c0;background:rgba(61,220,132,.12)}
 .zleg .lx{border-radius:1px;border:1px solid rgba(220,230,255,.4);font:700 9px var(--mono);font-style:normal;text-align:center;line-height:9px;width:9px;height:9px;color:var(--dim)}
 .zexp{display:flex;flex-wrap:wrap;gap:6px}.zitem.got{border-color:rgba(61,220,132,.5)}
+
+/* launch alerts (zwarn.js): right side above the radar, each fast track's kill chain status (zchain.js), and the warning actions, clickable mid-flight */
+#zalert{position:absolute;right:16px;top:calc(96px + env(safe-area-inset-top,0px));width:min(400px,44vw);display:grid;gap:6px;font:700 12px var(--mono)}#zalert:empty{display:none}
+#zalert .za{background:rgba(40,8,8,.78);border:1px solid rgba(255,77,77,.45);border-left:3px solid var(--red);border-radius:5px;padding:5px 9px;display:grid;gap:3px}
+#zalert .za.on{border-color:var(--red);box-shadow:0 0 12px rgba(255,77,77,.35)}
+#zalert .za b{color:#ff8a8a;letter-spacing:.02em}#zalert .za.on b{color:#fff;animation:zbl 1s steps(2) infinite}
+#zalert .za em{font-style:normal;font-size:11px;justify-self:start}
+#zalert .zch{font-size:11px;color:var(--dim)}#zalert .zch i{font-style:normal;opacity:.6}.zgap{color:#c9777d}
+#zalert .zmore{font-size:11px;color:#ffb0b0;padding-left:4px}
+#zalert .zact{display:flex;gap:6px;pointer-events:auto}
+#zalert .zact button{flex:1;padding:5px 6px;font:700 11px var(--mono);background:rgba(8,12,22,.86)}#zalert .zact button.pick{border-color:var(--amber)}
+#zalert .zact button small{display:block;font-size:10px;color:var(--dim)}#zalert kbd{font:700 10px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:0 3px;margin-right:5px;color:var(--amber)}
+body.zb-open #zalert,#hud:not(.z) #zalert{display:none}
+@media (max-width:760px){#zalert{top:auto;bottom:calc(290px + env(safe-area-inset-bottom,0px));width:min(360px,92vw)}}
