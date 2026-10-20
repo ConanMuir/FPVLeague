@@ -552,7 +552,7 @@ function updateCam(dt,now){const me=player;camPrev.copy(camera.position);
    camPos.lerp(_cp,1-Math.exp(-dt*10));camera.position.copy(camPos);camera.lookAt(camMode===2&&nt?foc:_t.copy(me.p).addScaledVector(camFwd,3*MSZ).setY(me.p.y+.3*MSZ));setFov(100)}}
  if(dt>0)camVel.subVectors(camera.position,camPrev).divideScalar(dt).clampLength(0,200);
  const cp=camera.position;sun.target.position.set(Math.round(cp.x/8)*8,gh(cp.x,cp.z),Math.round(cp.z/8)*8);sun.position.copy(sun.target.position).addScaledVector(SUND,700);sunDisc.position.copy(cp).addScaledVector(SUND,20000);
- sky.position.copy(cp);cloudSort(cp);forestLod(cp);if(deck.visible){deck.position.x=Math.round(cp.x/400)*400;deck.position.z=Math.round(cp.z/400)*400}
+ sky.position.copy(cp);if(deck.visible){deck.position.x=Math.round(cp.x/400)*400;deck.position.z=Math.round(cp.z/400)*400}
  if(shake>.01){camera.position.add(_t.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(shake*.5*SHK));shake*=Math.exp(-dt*4)}}
 
 // ---------- HUD ----------
@@ -576,7 +576,7 @@ function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:nul
   if(crossed||!t.rb){const r=t.rb||(t.rb={});r.x=t.p.x;r.z=t.p.z;r.vx=t.v.x;r.vz=t.v.z;r.y=t.p.y;r.age=0}else t.rb.age+=dt;if(!live(t)&&t.rb.age>1.5)continue;
   const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':Z.on?Z.rcol(t,sel):t===sel?'255,198,64':t.jet?'255,150,60':'255,77,77',rgb=RGB[col]||(RGB[col]=`rgb(${col})`);
   rc.globalAlpha=a;rc.strokeStyle=rc.fillStyle=rgb;rc.lineWidth=2.5;rc.beginPath();rc.moveTo(bq[0],bq[1]-7);rc.lineTo(bq[0]+7,bq[1]);rc.lineTo(bq[0],bq[1]+7);rc.lineTo(bq[0]-7,bq[1]);rc.closePath();live(t)?rc.fill():rc.stroke();
-  if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();const al=Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100);if(t._rk!==al){t._rk=al;t._rl=`T${String(t.id).padStart(2,'0')} ${al}`}rc.fillText(t._rl,bq[0]+10,bq[1]-8)}}
+  if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();const al=Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100);if(t._rak!==al){t._rak=al;t._ras=`T${String(t.id).padStart(2,'0')} ${al}`}rc.fillText(t._ras,bq[0]+10,bq[1]-8)}}
  rc.globalAlpha=1;if(Z.on)Z.radar(rc,P,sel,K);rc.restore();
  if(gdNow&&gdNow.ph==='MIDCOURSE'){const q=P(GD.pip.x,GD.pip.z);rc.save();rc.setLineDash([10,8]);rc.strokeStyle='#5fe3ff';rc.lineWidth=2;rc.beginPath();rc.moveTo(c,c);rc.lineTo(q[0],q[1]);rc.stroke();rc.setLineDash([]);rc.beginPath();rc.moveTo(q[0],q[1]-8);rc.lineTo(q[0]+8,q[1]);rc.lineTo(q[0],q[1]+8);rc.lineTo(q[0]-8,q[1]);rc.closePath();rc.stroke();rc.restore()}  // guidance line to the PIP
  // own ship, ring labels, north marker
@@ -628,7 +628,7 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
  for(const t of TH){if(t.st==='dead')continue;const q=scr(t.p);if(!q)continue;const[x,y]=q,d=t.p.distanceTo(camera.position),s=Math.max(9,Math.min(70,2.8/d/ft*H2*.5+5)),L=live(t),k=s*.45;
   oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':Z.on?Z.ocol(t,sel):t===sel?'#ffc640':t.jet?'#ff9640':'#ff4d4d';if(Z.on&&Z.quiet(t)){oc.fillRect(x-2,y-2,4,4);continue}
   oc.beginPath();for(const[sx,sy]of[[-1,-1],[1,-1],[1,1],[-1,1]]){oc.moveTo(x+sx*s,y+sy*s-sy*k);oc.lineTo(x+sx*s,y+sy*s);oc.lineTo(x+sx*s-sx*k,y+sy*s)}oc.stroke();
-  if(L&&!(Z.on&&Z.quiet(t))){const k=(d<1000?Math.round(d):1e6+Math.round(d/100))*(t.st==='dive'?-1:1);if(t._ok!==k){t._ok=k;t._ol=`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`}oc.fillText(t._ol,x,y+s+13)}
+  if(L&&!(Z.on&&Z.quiet(t))){const k=(d<1000?Math.round(d):1e6+Math.round(d/100))*(t.st==='dive'?-1:1);if(t._lbk!==k){t._lbk=k;t._lbs=`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`}oc.fillText(t._lbs,x,y+s+13)}
   // pursuit cue: a point 40 m behind the target along its track, led by your time to get there; fly through it to end up in its six
   if(L&&t===sel&&me&&!Z.on){const vh=_tv.copy(t.v).normalize(),r=_a.subVectors(t.p,me.p).length(),tg=cl(r/Math.max(me.v.length(),40),0,8),cue=_ip.copy(t.p).addScaledVector(t.v,tg*.5).addScaledVector(vh,-40),lp=scr(cue);
    if(lp){oc.beginPath();oc.arc(lp[0],lp[1],7,0,7);oc.moveTo(lp[0]-11,lp[1]);oc.lineTo(lp[0]-4,lp[1]);oc.moveTo(lp[0]+4,lp[1]);oc.lineTo(lp[0]+11,lp[1]);oc.stroke()}}}
@@ -698,4 +698,4 @@ startLoop({pre:()=>padEdges(padKeys),step,speed:()=>GSPD*(Z.on?Z.tsc:1),slow:()=
  if(!menuOpen&&!demo)switches();
  const fpvOn=!demo&&camMode===0&&player&&player.dead<=0&&!Z.cine,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
  sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.04-.18*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
- weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);hud(vd);overlay();if(Z.on)Z.overlay(oc)}});
+ weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);cloudSort(camera.position);forestLod(camera.position);  /* after every camera (cinematic cams too) */hud(vd);overlay();if(Z.on)Z.overlay(oc)}});
