@@ -67,13 +67,13 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'wave' && __z.G.
 // ---------- waves sync: the same tracks, close to where the host has them ----------
 await ev(H, () => __z.sim(30));
 await until(A, ids => { const c = __z.api.TH.filter(__z.api.live).map(t => t.id).sort((a, b) => a - b).join(); return c === ids; }, (await ev(H, () => __z.api.TH.filter(__z.api.live).map(t => t.id).sort((a, b) => a - b).join())));
-{ const sync0 = async () => { const h = await ev(H, () => __z.api.TH.filter(__z.api.live).map(t => [t.id, t.p.x, t.p.y, t.p.z])); const c = await ev(A, () => __z.api.TH.filter(__z.api.live).map(t => [t.id, t.p.x, t.p.y, t.p.z, t.k]));
-    const m = new Map(c.map(a => [a[0], a])); let worst = 0; for (const a of h) { const b = m.get(a[0]); worst = Math.max(worst, b ? Math.hypot(a[1] - b[1], a[2] - b[2], a[3] - b[3]) : 1e9); } return {h: h.map(a => a[0]), c: c.map(a => a[0]), kinds: c.map(a => a[4]), worst}; };
+{ const sync0 = async () => { const t0 = Date.now(), h = await ev(H, () => __z.api.TH.filter(__z.api.live).map(t => [t.id, t.p.x, t.p.y, t.p.z, t.v.length()])); const c = await ev(A, () => __z.api.TH.filter(__z.api.live).map(t => [t.id, t.p.x, t.p.y, t.p.z, t.k])), lag = (Date.now() - t0) / 1000;  /* lag: wall time between the two reads; the tracks really move that far in it */
+    const m = new Map(c.map(a => [a[0], a])); let worst = 0; for (const a of h) { const b = m.get(a[0]); worst = Math.max(worst, b ? Math.max(0, Math.hypot(a[1] - b[1], a[2] - b[2], a[3] - b[3]) - a[4] * lag) : 1e9); } return {h: h.map(a => a[0]), c: c.map(a => a[0]), kinds: c.map(a => a[4]), worst}; };
   // the two reads are a moment apart while both pages run: take the best of a few samples
   const sync = async () => { let b = null; for (let i = 0; i < 6; i++) { const s = await sync0(); if (!b || s.worst < b.worst) b = s; if (b.worst < 30 && b.h.join() === b.c.join()) break; await sleep(150); } return b; };
   const s = await sync();
   ok(s.h.length >= 2 && s.h.join() === s.c.join(), `Waves sync: host tracks [${s.h}] = client tracks [${s.c}] (${s.kinds})`);
-  ok(s.worst < 30, `Waves sync: worst track position gap host vs client ${s.worst.toFixed(1)} m (snapshots 10 Hz, ${DELAY} ms delay, dead reckoning)`); }
+  ok(s.worst < 30, `Waves sync: worst track position gap host vs client ${s.worst.toFixed(1)} m, net of the time between the two reads (snapshots 10 Hz, ${DELAY} ms delay, dead reckoning)`); }
 
 // a screenshot of another pilot's drone with its name tag: Ash parks 18 m in front of the host's camera (held idle so it stays put)
 if (SHOTS) {

@@ -52,7 +52,9 @@ const SCHEMA=[
  field('dzy',v=>Number.isFinite(+v)?cl(+v,0,.2):DROP,{if:S=>S.dzy!=null}),
  ...['xboost','boostBtn','xfire','fireBtn','xflip','flipBtn'].map(button),
  field('cal',chanExtras),field('xcal',chanExtras),
- field('train',v=>cleanTrain(v))];  // skill training packs: best result per pack {id: {n, of, t}}; older saves start empty, malformed entries are dropped
+ field('train',v=>cleanTrain(v)),  // skill training packs: best result per pack {id: {n, of, t}}; older saves start empty, malformed entries are dropped
+ field('fps',v=>v===false?false:DROP,{if:S=>'fps' in S}),  // FPS meter (src/ui/fpsmeter.js): only an Off is kept (absent = on), so older saves load as before
+ field('fcap',v=>[120,80,60].includes(v)?v:DROP,{if:S=>'fcap' in S})];  // frame cap in FPS (ui/fpsmeter.js): only a cap is kept (absent = unlimited)
 /** the settings from a saved JSON: read() returns it (null for none; it may throw), write(S) saves (called by migrations) */
 export const loadSettings=(read,write)=>loadSchema(read,DEF,SCHEMA,write);
 const write=o=>{try{localStorage.setItem('droneleague',JSON.stringify(o))}catch(e){}};
