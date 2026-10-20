@@ -5,7 +5,7 @@
 // that); stages 1-4 are built, and their shaders compiled, the first frame Zombies runs. step() follows each site's HP while Zombies is on.
 import * as THREE from 'three';
 import {tex,detail,snowy} from '../../engine/render.js';
-import {freeze} from '../../engine/hot.js';
+import {freeze,compileFor} from '../../engine/hot.js';
 import {hash2,vnoise} from '../../engine/util.js';
 const V3=THREE.Vector3,PI=Math.PI,_m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new V3(),_s=new V3(),_v=new V3(),_n=new THREE.Matrix3();
 const D=[0,.12,.32,.58,1];  // damage amount per stage: thresholds for the seeded per-part rolls
@@ -291,7 +291,7 @@ export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const re
   s.st=[stage(s,0)];s.sol.length=0;s.sol.push(...s.st[0].sol);reg.push(s);return s.root}
  // all damage stages for every site, then compile their shaders once with everything briefly visible (Zombies' first frame, behind the base screen)
  function prepare(){ready=true;for(const s of reg)for(let d=1;d<5;d++)s.st[d]=stage(s,d);
-  const vis=[];for(const s of reg){vis.push([s.mesh,s.mesh.visible]);s.mesh.visible=true;for(const x of s.st)x.G.visible=true}try{renderer.compile(scene,camera)}catch(e){}
+  const vis=[];for(const s of reg){vis.push([s.mesh,s.mesh.visible]);s.mesh.visible=true;for(const x of s.st)x.G.visible=true}try{compileFor(renderer,scene,camera)}catch(e){}  /* into a render target, like the composer draws (engine/hot.js) */
   for(const[o,v]of vis)o.visible=v;for(const s of reg)s.st.forEach((x,d)=>x.G.visible=d===s.stg)}
  function setStage(s,d){if(d===s.stg)return;s.st[s.stg].G.visible=false;s.st[d].G.visible=true;s.stg=d;if(!s.noSol){s.sol.length=0;s.sol.push(...s.st[d].sol)}}
  function step(dt,on,plume){t+=dt;if(on&&!ready)prepare();
