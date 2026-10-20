@@ -10,7 +10,7 @@ export const WPN={
  net:{n:'Net drone',glyph:'#',price:600,from:2,hud:'NET',str:'A 7 m net, no timing: it catches a slow drone (Shahed, decoy, swarm drone) intact and tows it into a field. A capture pays +60%.',wk:'Useless against anything fast or big: jets, heavies, missiles, the Mothership. One catch per drone.'},
  flech:{n:'Flechette warhead',glyph:'⋙',price:900,from:4,hud:'FLECHETTE',str:'A cone of darts 15 m deep ahead of you: forgiving timing, works head-on, shreds a swarm in one pass.',wk:'Darts bounce off armor (heavies only damaged, no Mothership stages) and do nothing behind you.'},
  flare:{n:'Flare / chaff pod',glyph:'✧',price:800,from:3,hud:'POD',str:'A pod beside a lighter warhead: 4 chaff bursts a wave decoy jets and cruise missiles that pass within 450 m of you into a field; flares beat AA and patrol drones on sorties.',wk:'The warhead loses 1 m of kill radius to make room, and the pod draws +10 A from your pack.'},
- cluster:{n:'Cluster warhead',glyph:'⁂',price:1200,from:7,hud:'CLUSTER',str:'Bursts into 6 bomblets that seek the small tracks within 350 m: one detonation can take a whole cloud.',wk:'A weak main charge; bomblets can\'t tell decoys and do nothing to heavies, missiles or the Mothership.'},
+ cluster:{n:'Cluster warhead',glyph:'⁂',price:1200,from:7,hud:'CLUSTER',str:'Bursts into 8 bomblets that seek the small tracks within 350 m: one detonation can take a whole cloud.',wk:'A weak main charge; bomblets can\'t tell decoys and do nothing to heavies, missiles or the Mothership.'},
  emp:{n:'EMP warhead',glyph:'ϟ',price:1400,from:6,hud:'EMP',str:'Disables everything within 55 m for 4.5 s: they slow, sink and stop jinking, and your helpers and swarm get +60% kill chance on them (lasers burn them faster).',wk:'Only kills what it touches, so it pays little unless helpers are close. Missiles shrug it off.'},
  dart:{n:'Kinetic dart',glyph:'➶',price:1600,from:9,hud:'DART',str:'No explosive: ram the target and it dies, armor, Mothership stage or missile alike, with a wider window on fast missiles. A miss costs nothing: fly on.',wk:'You must physically hit it: no proximity kill at all, one target per drone, tiny FPV quads are hard to hit.'}};
 export const WORDER=['std','net','flech','flare','cluster','emp','dart'];
@@ -31,9 +31,9 @@ export const EMP={r:55,rK:8,stun:4.5,boss:8,kill:.25,helperK:1.6,laserK:.6,slow:
 // flechette: reach (m, +rK per Bigger warhead level), cone half-angle (deg), kill chance inside near (m) and at full reach
 export const FLECH={r:15,rK:2,cone:32,near:4,pNear:.95,pFar:.3};
 // kinetic dart: contact window beyond the body radius (m); against fast tracks (150 m/s+) the window is wider
-export const DART={pad:.35,fastPad:1.2};
+export const DART={pad:.35,fastPad:1};
 // cluster: bomblets, seek radius (m), speed (m/s), life (s), resolve distance (m), main charge as a share of the lethal radius, kill chance per kind
-export const CLUSTER={n:6,seek:350,spd:95,life:6,res:5,kill:.6,pk:{swarm:.6,shahed:.5,decoy:.5,jet:.3}};
+export const CLUSTER={n:8,seek:350,spd:95,life:6,res:5,kill:.6,pk:{swarm:.7,shahed:.6,decoy:.6,jet:.35}};
 // flare / chaff pod: chaff bursts a wave, reach (m), decoy chance per burst, the kinds chaff works on, pack draw (A), warhead kill radius change (m), flares per sortie, the chance a flare
 // beats an AA burst / a patrol drone's blast (sorties, zsortie.js, when that feature is in the build)
 export const FLARE={n:4,r:450,p:.55,kinds:['jet','cruise'],amp:10,leth:-1,sortie:6,aa:.75,pat:.7};

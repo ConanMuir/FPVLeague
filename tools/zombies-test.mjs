@@ -641,10 +641,10 @@ if (want('arsenal')) {
 
   // ---- cluster: bomblets home on a spread-out pack; nothing against armor ----
   const cu = await p.evaluate(() => { const {api, G, Z} = __z, out = {};
-    __ar.clear(); __ar.load('cluster'); __ar.pilot(); const L = []; for (let i = 0; i < 6; i++) L.push(__ar.put('shahed', (i - 2.5) * 60, (i % 2) * 30, -140 - i * 25, 20));
+    __ar.clear(); __ar.load('cluster'); __ar.pilot(); const L = []; for (let i = 0; i < 8; i++) L.push(__ar.put('shahed', (i - 3.5) * 50, (i % 2) * 30, -140 - i * 18, 20));
     const k0 = G.kills.p; Z.detonate(); out.txt = G.det.txt; __ar.rig(() => __z.sim(8)); out.down = L.filter(t => !api.live(t)).length; out.kp = G.kills.p - k0;
     __ar.clear(); __ar.pilot(); const H = []; for (let i = 0; i < 4; i++) H.push(__ar.put('heavy', (i - 1.5) * 50, 0, -150, 20)); Z.detonate(); __z.sim(8); out.heavy = H.filter(t => !api.live(t)).length; out.htxt = G.det.txt; return out; });
-  ok(cu.down >= 4 && cu.kp >= 4, `Cluster: one detonation 140-265 m from a spread pack, the bomblets reach and bring down ${cu.down} of 6 ("${cu.txt}", dice loaded)`);
+  ok(cu.down >= 6 && cu.kp >= 6, `Cluster: one detonation 140-265 m from a spread pack, the bomblets reach and bring down ${cu.down} of 8 ("${cu.txt}", dice loaded)`);
   ok(cu.heavy === 0, `Cluster weakness: 4 armored heavies, ${cu.heavy} down ("${cu.htxt}")`);
 
   // ---- flare / chaff pod: chaff decoys a passing cruise missile, not a Shahed; the pod drains the pack; flares beat a sortie's AA ----
