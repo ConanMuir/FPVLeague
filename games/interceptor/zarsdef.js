@@ -53,7 +53,7 @@ export function initArsDef(api,G,Z,A){
    if(z&&(!live(z.t)||Math.hypot(z.t.p.x-s.x,z.t.p.z-s.z)>rg*1.05||wx<=0)){X.release(d);setLz(d,null);z=null}
    if(wx<=0)return;if(!z){if((d.cd-=dt)>0)return;const t=X.pickTarget(d,s.x,s.z,rg,{prio:u=>-(DWELL[u.k]||9)*6+(u.emp>0?25:0)});if(!t)return;X.claim(t,d);setLz(d,t);z=d.lz}
    const t=z.t;X.aimAt(d,t);z.prog+=dt*burn(d,t,wx)/(DWELL[t.k]*l.dw);
-   if(z.prog>=1){if(t.k==='boss'){Z.bossHit(t);z.prog=0;if(!live(t)){X.release(d);setLz(d,null)}}else{d.kills++;Z.helperKill(t);X.release(d);setLz(d,null);d.cd=.35}}},
+   if(z.prog>=1){if(t.k==='boss'){Z.bossHit(t);z.prog=0;if(!live(t)){X.release(d);setLz(d,null)}}else{d.kills++;Z.helperKill(t);X.release(d);setLz(d,null);d.cd=1}}},
   mwave(d,dt){if((d.cd-=dt)>0)return;const s=sl(d),rg=R(d),P=_a.set(s.x,s.y,s.z),L=[];let n=0,close=false;
    for(const t of TH){if(!live(t))continue;const pk=MWAVE.pk[t.k];if(!pk)continue;const r=t.p.distanceTo(P);if(r>rg)continue;L.push([t,pk]);if(t.k==='swarm')n++;if(r<MWAVE.close)close=true}
    if(!(n>=MWAVE.trig||close&&L.length))return;for(const[t,pk]of L)if(Math.random()<pk*(t.emp>0?EMP.helperK:1)){d.kills++;Z.helperKill(t)}

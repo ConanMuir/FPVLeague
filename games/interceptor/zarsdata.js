@@ -40,7 +40,7 @@ export const FLARE={n:4,r:450,p:.55,kinds:['jet','cruise'],amp:10,leth:-1,sortie
 
 // ---------- base defences ----------
 // laser: seconds of beam on a track to burn through it in clear air (lv dw scales it); the weather factor (0 = can't fire) stretches it
-export const DWELL={swarm:1.4,shahed:4.4,decoy:3.2,jet:9,heavy:12,cruise:8,boss:10};
+export const DWELL={swarm:2,shahed:6,decoy:4.5,jet:12,heavy:16,cruise:11,boss:14};
 export const laserWx=W=>{if(!W)return 1;if((W.rain||0)>=1.5||W.bolts)return 0;const f=W.fog?.[1]??14000;return Math.max(0,Math.min(1,f/6000))*(1-.35*Math.min(1,W.rain||0))};
 // microwave dome: kill chance per pulse; it pulses when trig drones it can fry are inside, or any of them within close (m)
 export const MWAVE={pk:{swarm:1,decoy:.6,shahed:.3},trig:3,close:300};
@@ -66,7 +66,7 @@ Object.assign(RESIST,{
  smoke:{shahed:.6,jet:.6,decoy:0,swarm:1,heavy:.6,cruise:.8,ballistic:0,hyper:0,icbm:0,boss:0},
  carrier:RESIST.rack});
 Object.assign(ITEMS,{
- laser:{type:'helper',n:'Laser battery',price:2200,from:8,glyph:'⌁',blurb:'<b class="zs">Strong:</b> holds a beam on one track until it burns through, no dice: 1.4 s on a swarm drone, 4.4 s on a Shahed, 12 s on an armored heavy; 2 km. <b class="zw">Weak:</b> fog, rain, snow and dust stretch the burn, a heavy storm shuts it down, smoke blocks it; slow on jets, never touches missiles.'},
+ laser:{type:'helper',n:'Laser battery',price:2200,from:8,glyph:'⌁',blurb:'<b class="zs">Strong:</b> holds a beam on one track until it burns through, no dice: 2 s on a swarm drone, 6 s on a Shahed, 16 s on an armored heavy, a second to refocus; 2 km. <b class="zw">Weak:</b> fog, rain, snow and dust stretch the burn, a heavy storm shuts it down, smoke blocks it; slow on jets, never touches missiles.'},
  mwave:{type:'helper',n:'Microwave dome',price:2400,from:10,glyph:'⊚',blurb:'<b class="zs">Strong:</b> a pulse fries every FPV swarm drone within 650 m (decoys 60%, Shaheds 30%), then recharges for 14 s. <b class="zw">Weak:</b> does nothing to jets, heavies, missiles or the Mothership itself.'},
  barrage:{type:'helper',n:'Balloon barrage',price:800,from:4,glyph:'⍥',blurb:'<b class="zs">Strong:</b> passive cables over a position snag tracks flying under 170 m within 380 m: swarms, cruise missiles, Shaheds diving on a site. 4 snags a wave. <b class="zw">Weak:</b> anything higher passes over, so placement is everything; your own interceptor can fly into the cables.'},
  smoke:{type:'helper',n:'Smoke generators',price:700,from:3,glyph:'≈',blurb:'<b class="zs">Strong:</b> tracks diving on targets within 600 m lose their aim 40% of the time and hit a field (camera-guided FPV swarms most of all). <b class="zw">Weak:</b> kills nothing, so it earns nothing; strong wind thins it; it blinds lasers near the site.'},

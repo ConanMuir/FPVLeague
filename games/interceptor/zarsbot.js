@@ -38,7 +38,7 @@ export const ARSBOT={name:'arsenal',
   const shop=DORDER[P.shop]?P.shop:'basic',caps=CAP[shop],nOf=k=>def.D.filter(d=>d.type===k).length,smart=shop==='smart';
   const nxw=G.next.wx&&Z.wx?.T[G.next.wx.id],lwx=nxw?laserWx(nxw):1,from=k=>Z.itemFrom?Z.itemFrom(k):IT[k].from;
   const siteSlot=k=>def.SLOTS.findIndex((s,j)=>def.slotFree(j)&&s.site&&!def.D.some(d=>d.type===k&&def.SLOTS[d.slot].site===s.site));
-  for(const k of DORDER[shop]){if(part==='early'&&(k==='barrage'||k==='smoke'||shop==='naive'))continue;if(A.ban.has(k)||!IT[k]||nw<from(k)||nOf(k)>=caps[k])continue;if(k==='mwave'&&nw<kf('swarm')-1)continue;if(k==='laser'&&smart&&lwx<=.3&&!nOf(k))continue;
+  for(const k of DORDER[shop]){if(part==='early'&&(shop==='naive'||k==='barrage'&&(nw<6||nOf(k))||k==='smoke'&&(!smart||nw<8||nOf(k))))continue;if(A.ban.has(k)||!IT[k]||nw<from(k)||nOf(k)>=caps[k])continue;if(k==='mwave'&&nw<kf('swarm')-1)continue;if(k==='laser'&&smart&&lwx<=.3&&!nOf(k))continue;
    const price=Z.itemPrice?Z.itemPrice(k):IT[k].price;if(!afford(price)||G.cash-price<keep)continue;
    if(k==='carrier'){const j=def.SLOTS.findIndex((_,j)=>def.slotFree(j,'carrier'));if(j>=0)yield step(`Buying a ${IT[k].n.toLowerCase()} (${money(price)}): ${WHY[k]}`,'place',()=>Z.base.act.place(k,j),{k,slot:j,cost:price});continue}
    let j=smart&&(k==='barrage'||k==='smoke')?siteSlot(k):-1;if(j<0)j=def.SLOTS.findIndex((_,j)=>def.slotFree(j));
