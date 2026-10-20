@@ -127,7 +127,7 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !docum
 // ---------- kill chain purchases (zchain.js) go through the host: the host's wave is moved up to unlock the tab, then put back ----------
 { await ev(H, () => { __z.G.wave = 29; __z.G.cash = 30000; }); await until(A, () => __z.G.wave === 29 && __z.G.cash === 30000); await until(B, () => __z.G.wave === 29);
   await tap(A, '[data-tab="chain"]'); await tap(A, '[data-kc="bb:1"]');
-  ok(await until(H, () => !!__z.G.kc.boost[1] && __z.G.cash === 25000) && await until(B, () => !!__z.G.kc.boost[1]), 'Kill chain: Ash builds the north boost battery ($5,000) on the host; Bea sees it');
+  ok(await until(H, () => !!__z.G.kc.boost[1] && __z.G.cash === 24000) && await until(B, () => !!__z.G.kc.boost[1]), 'Kill chain: Ash builds the north boost battery ($6,000) on the host; Bea sees it');
   await tap(B, '[data-tab="chain"]'); await tap(B, '[data-kc="dc:1"]');
   ok(await until(H, () => __z.G.kc.decoys === 1) && await until(A, () => __z.G.kc.decoys === 1), 'Kill chain: Bea buys a decoy site; the host and Ash have it in stock');
   if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-chain.png'});

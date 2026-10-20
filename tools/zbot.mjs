@@ -23,7 +23,7 @@
 export const DODGE = {none: 0, some: .3, all: .45};
 export const LEVELS = [
   {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], chain: 0},
-  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar'], chain: 1, warn: {rate: .03, mode: 'random'}},
+  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar'], chain: 1, warn: {rate: .015, mode: 'random'}},
   {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, chain: 2, warn: {rate: .06, mode: 'harden'}},
   {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, chain: 3, warn: {rate: .12, mode: 'smart'}},
   {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, chain: 3, warn: {rate: .2, mode: 'smart'}},
@@ -47,17 +47,17 @@ export const SHOP = `(function(P){
   const C = Z.chain, chain = () => { if (!C || !P.chain || nw < C.from) return; const K = G.kc, c = P.chain, fp = Z.fastPlan ? Z.fastPlan() : [], fast = nw >= kf('ballistic');
     const try_ = (a, x, cost) => afford(cost) && C.act(a, x);
     const weakSite = () => api.SITES.map((s, i) => ({s, i})).filter(o => o.s.hp > 0 && !K.pd[o.s.n]).sort((a, b) => a.s.hp / a.s.max - b.s.hp / b.s.max)[0];
-    if (c === 1) { if (fast && !Object.keys(K.pd).length) { const w = weakSite(); if (w) try_('pb', w.i, 4000); } return; }
+    if (c === 1) { if (fast && !Object.keys(K.pd).length) { const w = weakSite(); if (w) try_('pb', w.i, 4500); } return; }
     const want = fp.map((s, i) => ({i, n: s.total})).sort((a, b) => b.n - a.n);
-    if (c === 2) { if (fast && !K.boost.some(Boolean) && want[0].n) try_('bb', want[0].i, 5000); if (fast && Object.keys(K.pd).length < 2) { const w = weakSite(); if (w) try_('pb', w.i, 4000); }
+    if (c === 2) { if (fast && !K.boost.some(Boolean) && want[0].n) try_('bb', want[0].i, 6000); if (fast && Object.keys(K.pd).length < 2) { const w = weakSite(); if (w) try_('pb', w.i, 4500); }
       if (def.D.some(d => d.type === 'gdome') && K.stock < 2) try_('st', 2 - K.stock, 1600); return; }
     // 3+: a battery wherever launches are planned (move one sitting at a quiet edge first), point defence at every site, the radar, decoys, the stock
-    for (const w of want) { if (!w.n || K.boost[w.i]) continue; const idle = K.boost.findIndex((b, j) => b && !fp[j].total); if (idle >= 0) try_('bm', idle + '>' + w.i, 1200); else if (c >= 4 || K.boost.filter(Boolean).length < 2) try_('bb', w.i, 5000); }
-    if (fast) for (const o of api.SITES.map((s, i) => ({s, i})).filter(o => o.s.hp > 0 && !K.pd[o.s.n]).sort((a, b) => a.s.hp - b.s.hp)) try_('pb', o.i, 4000);
+    for (const w of want) { if (!w.n || K.boost[w.i]) continue; const idle = K.boost.findIndex((b, j) => b && !fp[j].total); if (idle >= 0) try_('bm', idle + '>' + w.i, 1200); else if (c >= 4 || K.boost.filter(Boolean).length < 2) try_('bb', w.i, 6000); }
+    if (fast) for (const o of api.SITES.map((s, i) => ({s, i})).filter(o => o.s.hp > 0 && !K.pd[o.s.n]).sort((a, b) => a.s.hp - b.s.hp)) try_('pb', o.i, 4500);
     if (fast && K.ewr < (c >= 4 ? 2 : 1)) try_('ew', 0, 3600);
-    if (fast && K.decoys < (c >= 4 ? 4 : 2)) try_('dc', 1, 450);
+    if (fast && K.decoys < (c >= 4 ? 4 : 2)) try_('dc', 1, 500);
     if (def.D.some(d => d.type === 'gdome')) while (K.stock < C.stockCap() && try_('st', 1, 800)) {}
-    if (c >= 4) { K.boost.forEach((b, i) => { if (b && !b.lvl) try_('bu', i, 4000); }); api.SITES.forEach((s, i) => { if (K.pd[s.n] && !K.pd[s.n].lvl) try_('pu', i, 3500); }); } };
+    if (c >= 4) { K.boost.forEach((b, i) => { if (b && !b.lvl) try_('bu', i, 4500); }); api.SITES.forEach((s, i) => { if (K.pd[s.n] && !K.pd[s.n].lvl) try_('pu', i, 4000); }); } };
   if (P.chain >= 3) chain();
   for (let pass = 0; pass < 3; pass++) {
     const cards = G.cards.map((c, i) => ({...c, i})).filter(c => PRIO.includes(c.k) && nw >= from(c.k) && IT[c.k].type !== 'supply' && !(IT[c.k].type === 'perk' && Z.perkMaxed(c.k))).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));

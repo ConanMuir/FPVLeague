@@ -3,7 +3,7 @@
 // launch (zchain.js). Until it is picked up it is off the radar and no dome can engage it. Then a launch alert goes up:
 //   LAUNCH DETECTED — HYPERSONIC — FUEL DEPOT — 45 s, with its kill chain status underneath (zchain.js),
 // and any pilot can act on it mid-flight (keys 1-3, gamepad RB to pick and R3 to do it, or a click on the panel), zdata WACT:
-//   1 Harden the target site: it takes 70% less damage from every hit until that track is gone. Costs money; then a cooldown.
+//   1 Harden the target site: it takes 60% less damage from every hit until that track is gone. Costs money; then a cooldown.
 //   2 Evacuate it: half damage for the rest of the wave, but its share of the wave-clear bonus is lost this wave and the next.
 //   3 Decoy: one from the stock; a chance the warhead turns for a dummy site and comes down in a field.
 // The actions apply to the selected track if it is a fast one with an alert, else to the most urgent alert. Co-op: a client's action is a
