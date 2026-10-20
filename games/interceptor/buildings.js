@@ -5,6 +5,7 @@
 // that); stages 1-4 are built, and their shaders compiled, the first frame Zombies runs. step() follows each site's HP while Zombies is on.
 import * as THREE from 'three';
 import {tex,detail,snowy} from '../../engine/render.js';
+import {freeze} from '../../engine/hot.js';
 import {hash2,vnoise} from '../../engine/util.js';
 const V3=THREE.Vector3,PI=Math.PI,_m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new V3(),_s=new V3(),_v=new V3(),_n=new THREE.Matrix3();
 const D=[0,.12,.32,.58,1];  // damage amount per stage: thresholds for the seeded per-part rolls
@@ -283,8 +284,8 @@ export function houseRoofGeo(){const P=[],q=(a,b,c,d)=>P.push(...a,...b,...c,...
 const AIMS={substation:s=>{for(const x of TX)s.aims.push(new V3(s.x+x,s.y+7,s.z-12))},depot:s=>{for(const[x,z]of TK)s.aims.push(new V3(s.x+x,s.y+16,s.z+z))},
  apartments:s=>{for(const[x,z,,,nf]of BL)s.aims.push(new V3(s.x+x,s.y+nf*3,s.z+z))}};
 export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const reg=[],B={substation,depot,apartments,bunker:bunkerKit},FIRE=psys(1400,3.2,THREE.AdditiveBlending,-5,1.6),SMOKE=psys(1600,17,THREE.NormalBlending,-2.2,.35);
- let ready=false,t=0;const _p2=new V3(),_b=new V3();
- function stage(s,d){const k=Kit();B[s.type](k,d,s.sd);const G=bake(k,s);G.visible=d===0;s.root.add(G);
+ let ready=false,t=0,FLK=null;const _p2=new V3(),_b=new V3();
+ function stage(s,d){const k=Kit();B[s.type](k,d,s.sd);const G=bake(k,s);G.visible=d===0;s.root.add(G);freeze(G);  /* static: matrices once (engine/hot.js) */
   return{G,sol:k.sol.map(o=>o.c?{...o,x:o.x+s.x,z:o.z+s.z,y0:o.y0+s.y,y1:o.y1+s.y}:{...o,x:o.x+s.x,y:o.y+s.y,z:o.z+s.z}),fx:k.fx.map(f=>({...f,x:f.x+s.x,y:f.y+s.y,z:f.z+s.z,tt:Math.random()}))}}
  function build(s,type){s.type=type;s.sd=reg.length+1.7;s.stg=0;s.root=new THREE.Group();scene.add(s.root);s.mesh=s.mesh||s.root;AIMS[type]?.(s);
   s.st=[stage(s,0)];s.sol.length=0;s.sol.push(...s.st[0].sol);reg.push(s);return s.root}
@@ -299,6 +300,6 @@ export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const re
     if(f.f){f.tt=.05;const n=Math.ceil(f.r*.8);for(let i=0;i<n;i++){_p2.set(f.x+(Math.random()-.5)*f.r*1.6,f.y+Math.random()*f.r*.4,f.z+(Math.random()-.5)*f.r*1.6);FIRE.emit(_p2,Math.random()<.5?0xff8a2a:0xffb347,1,f.r*.35,.9,_b.set(0,3+f.r,0),2.2)}}
     else if(plume){f.tt=.5/Math.max(.6,f.r)*(.8+.4*Math.random());_p2.set(f.x+(Math.random()-.5)*f.r*2,f.y,f.z+(Math.random()-.5)*f.r*2);plume(_p2,f.r,f.c===0x1c1a18)}
     else{f.tt=.2/Math.max(.5,f.r);_p2.set(f.x+(Math.random()-.5)*f.r*2,f.y,f.z+(Math.random()-.5)*f.r*2);SMOKE.emit(_p2,f.c,1,1+f.r*.4,8+f.r*2,_b.set(0,3+f.r*2.5,0),1,f.c===0x1c1a18?.42:.3)}}}
-  const k=1+.25*Math.sin(t*13)+.15*Math.sin(t*31);for(const m of[...M.fac,...M.facT,M.fac4,M.facT4,M.fireWin,M.fireSurf])if(m.emissiveMap||m===M.fireWin||m===M.fireSurf)m.emissiveIntensity=(m===M.fireSurf?3:2.3)*k;
+  const k=1+.25*Math.sin(t*13)+.15*Math.sin(t*31);for(const m of FLK||(FLK=[...M.fac,...M.facT,M.fac4,M.facT4,M.fireWin,M.fireSurf]))if(m.emissiveMap||m===M.fireWin||m===M.fireSurf)m.emissiveIntensity=(m===M.fireSurf?3:2.3)*k;
   FIRE.upd(dt);SMOKE.upd(dt)}
  return{build,step,stageOf,prepare,setStage,get ready(){return ready}}}

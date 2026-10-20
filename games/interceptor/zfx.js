@@ -9,7 +9,7 @@ import {KIND,CLUTCH_R} from './zdata.js';
 import {initAudio} from './zaudio.js';
 import {initAnnounce} from './zannounce.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},pick=a=>a[Math.random()*a.length|0];
-const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+import {money} from '../../engine/hot.js';
 export function initFX(api,G,Z){
  const {THREE,scene,TH,gh,S}=api,V3=THREE.Vector3,UP=new V3(0,1,0);
  const _a=new V3(),_b=new V3(),_m=new THREE.Matrix4();

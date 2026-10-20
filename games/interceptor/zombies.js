@@ -10,7 +10,7 @@ import {initEnemies} from './zenemy.js';
 import {initPerks} from './zperk.js';
 import {initFX} from './zfx.js';
 import {initWeather} from './zwx.js';
-import {txt,html,css,cls,hide,hyp} from '../../engine/hot.js';
+import {txt,html,css,cls,hide,hyp,money} from '../../engine/hot.js';
 import {initRocket} from './zrocket.js';
 import {initNet} from './znet.js';
 import {initChain} from './zchain.js';
@@ -24,7 +24,7 @@ import {initReentry} from './zreentry.js';
 import {initStratRadar} from './zstratradar.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
-const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+
 export function initZombies(api){
  const {THREE,TH,SITES,S,save,feed,banner,tone,gh}=api,V3=THREE.Vector3;
  const _a=new V3(),_b=new V3();

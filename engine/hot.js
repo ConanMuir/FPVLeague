@@ -2,6 +2,8 @@
 //  txt(el,s) / html(el,s) / css(el,k,v) / cls(el,s) / hide(el,b): DOM writes only when the value changed (an unchanged write still dirties style and layout)
 //  depthFix(scene): instanced shadow casters get their own depth material, so three.js's one shared depth material stops flipping between
 //   instanced and plain meshes (each flip re-fetches the shadow program: getParameters + the cache key, every frame)
+//  money(n): '$1,234' like toLocaleString('en-US') (ICU number formatting was ~1.5% of a wave-28 frame), the same text
+//  freeze(o): a static object's matrices are computed once and its subtree is no longer walked by updateMatrixWorld
 //  hyp(x,z): Math.hypot for two numbers without the varargs allocation (Math.hypot boxes its arguments; it showed up as KB per frame)
 import * as THREE from 'three';
 export const hyp=(x,z)=>Math.sqrt(x*x+z*z),hyp3=(x,y,z)=>Math.sqrt(x*x+y*y+z*z);
@@ -13,3 +15,5 @@ export const hide=(el,b)=>{if(el&&el.hidden!==b)el.hidden=b};
 const DM={};
 export function depthFix(scene){scene.traverse(o=>{const M=o.material;if(!o.isInstancedMesh||!o.castShadow||Array.isArray(M)||M.alphaTest>0||M.displacementMap||M.clippingPlanes?.length||o.customDepthMaterial&&!o.customDepthMaterial.userData.hot)return;const k=o.instanceColor?'c':'p';
  let m=DM[k];if(!m){m=DM[k]=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});m.userData.hot=1}if(o.customDepthMaterial!==m)o.customDepthMaterial=m})}
+export const money=n=>{const r=Math.round(n);if(!(Math.abs(r)<1e21))return'$'+r.toLocaleString('en-US');if(Object.is(r,-0))return'$-0';return'$'+String(r).replace(/\B(?=(\d{3})+(?!\d))/g,',')};
+export function freeze(o){o.updateMatrixWorld(true);o.traverse(q=>{q.matrixAutoUpdate=false});o.matrixWorldAutoUpdate=false;return o}

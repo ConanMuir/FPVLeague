@@ -27,12 +27,12 @@
 // $9,000) need the whole team's money; with one purse nobody has to gift. Every purchase is announced with the buyer's name, defences show who
 // bought them, and the HUD and base screen show each pilot's kills.
 import {getRoom} from '../../engine/net.js';
-import {txt} from '../../engine/hot.js';
+import {txt,money} from '../../engine/hot.js';
 import {KIND,ITEMS,PERK,ORDER} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,okArr=(a,n)=>Array.isArray(a)&&a.length>=n&&a.slice(0,n).every(Number.isFinite);
 const KI=[...ORDER,'boss'],TEAM=['radar','aid'],MAXP=4;
 const clean=n=>String(n??'').replace(/[<>&"'`]/g,'').trim().slice(0,16)||'Pilot';
-const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+
 // the host's feed lines are HTML; a client keeps only <b>, <br> and <span class="c?"> from them
 const safe=h=>String(h).slice(0,400).replace(/<(?!\/?b>|br>|\/span>|span class="c[a-z]">)[^>]*>?/g,'');
 export function initNet(api,G,Z){

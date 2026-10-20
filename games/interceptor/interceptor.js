@@ -16,7 +16,7 @@ import {keys,pad,axv,thrFull,calib,fireBtnIn,initInput,padEdges,mountPad,mountSw
 import {initMenu,syncUI} from '../../engine/menu.js';
 import {mountMod,initModPanel,toggleMod,tab,modMsg} from '../../engine/modpanel.js';
 import {startLoop} from '../../engine/loop.js';
-import {txt,html,css,cls,hide,depthFix,hyp,hyp3} from '../../engine/hot.js';
+import {txt,html,css,cls,hide,depthFix,hyp,hyp3,freeze} from '../../engine/hot.js';
 import {particlePool} from '../../engine/particles.js';
 import {initZombies} from './zombies.js';
 import {strelaBody} from './strela.js';
@@ -561,8 +561,7 @@ const rc=$('radar').getContext('2d');let sweep=0;const RQ=[[0,0],[0,0],[0,0],[0,
 function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:null,o=me?me.p:_ip.set(PADP.x,0,PADP.z),RR=RRS[S.rr],K=R/RR;
  const f=me?fwdH(me.q,_f):_f.set(0,0,-1);if(f.lengthSq()<1e-4)f.copy(me.v).setY(0);const hd=Math.atan2(f.x,-f.z);  // heading, 0 = north
  const ca=Math.cos(-hd),sa=Math.sin(-hd),ox=o.x,oz=o.z,P=(x,z)=>{const dx=x-ox,dz=z-oz,q=RQ[rqi=(rqi+1)&3];q[0]=c+(dx*ca-dz*sa)*K;q[1]=c+(dx*sa+dz*ca)*K;return q};  // points come from a ring of four: callers hold at most two at once
- rc.clearRect(0,0,W,W);rc.save();rc.beginPath();rc.arc(c,c,R+2,0,7);rc.fillStyle='rgba(4,14,8,.55)';rc.fill();rc.clip();
- rc.strokeStyle='rgba(90,255,150,.28)';rc.lineWidth=1.5;for(const k of[1/3,2/3,1]){rc.beginPath();rc.arc(c,c,R*k,0,7);rc.stroke()}rc.beginPath();rc.moveTo(c-R,c);rc.lineTo(c+R,c);rc.moveTo(c,c-R);rc.lineTo(c,c+R);rc.stroke();
+ rc.clearRect(0,0,W,W);rc.drawImage(RL.bg,0,0);rc.save();rc.beginPath();rc.arc(c,c,R+2,0,7);rc.clip();
  // AO boundary, river, sites, pad
  rc.strokeStyle='rgba(120,200,255,.35)';rc.beginPath();for(const[x,z]of[[-AW,-AW],[AW,-AW],[AW,AW],[-AW,AW],[-AW,-AW]]){const q=P(x,z);rc.lineTo(q[0],q[1])}rc.stroke();
  rc.strokeStyle='rgba(90,170,220,.45)';rc.lineWidth=3;rc.beginPath();for(let x=-AW-2000;x<=AW+2000;x+=100){const q=P(x,rivZ(x));rc.lineTo(q[0],q[1])}rc.stroke();
@@ -581,9 +580,15 @@ function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:nul
  if(gdNow&&gdNow.ph==='MIDCOURSE'){const q=P(GD.pip.x,GD.pip.z);rc.save();rc.setLineDash([10,8]);rc.strokeStyle='#5fe3ff';rc.lineWidth=2;rc.beginPath();rc.moveTo(c,c);rc.lineTo(q[0],q[1]);rc.stroke();rc.setLineDash([]);rc.beginPath();rc.moveTo(q[0],q[1]-8);rc.lineTo(q[0]+8,q[1]);rc.lineTo(q[0],q[1]+8);rc.lineTo(q[0]-8,q[1]);rc.closePath();rc.stroke();rc.restore()}  // guidance line to the PIP
  // own ship, ring labels, north marker
  rc.fillStyle='#3ddc84';rc.beginPath();rc.moveTo(c,c-10);rc.lineTo(c+7,c+8);rc.lineTo(c-7,c+8);rc.closePath();rc.fill();
- rc.fillStyle='rgba(150,255,190,.75)';rc.font='700 15px "JetBrains Mono",monospace';rc.textAlign='center';for(const k of[1/3,2/3,1])rc.fillText((RR*k/1000).toFixed(RR>3000?0:1),c+R*k*.707+10,c-R*k*.707+4);
+ if(RL.rr!==RR){RL.rr=RR;const g=RL.lab.getContext('2d');g.clearRect(0,0,W,W);g.fillStyle='rgba(150,255,190,.75)';g.font='700 15px "JetBrains Mono",monospace';g.textAlign='center';for(const k of[1/3,2/3,1])g.fillText((RR*k/1000).toFixed(RR>3000?0:1),c+R*k*.707+10,c-R*k*.707+4)}rc.drawImage(RL.lab,0,0);rc.textAlign='center';
  const nq=[c+Math.sin(-hd)*(R-2),c-Math.cos(-hd)*(R-2)];rc.fillStyle='#fff';rc.font='700 18px "JetBrains Mono",monospace';rc.fillText('N',nq[0],nq[1]+6);
- rc.strokeStyle='rgba(150,255,190,.5)';rc.lineWidth=2;rc.beginPath();rc.arc(c,c,R+2,0,7);rc.stroke()}
+ rc.drawImage(RL.ring,0,0)}
+// the radar's fixed parts, drawn once: the scope disc with its range rings and cross, the ring labels (per range setting) and the rim
+const RL=(()=>{const W=500,c=W/2,R=c-14,mk=f=>{const e=document.createElement('canvas');e.width=e.height=W;const g=e.getContext('2d');f&&f(g);return e};
+ return{rr:null,lab:mk(),bg:mk(g=>{g.beginPath();g.arc(c,c,R+2,0,7);g.fillStyle='rgba(4,14,8,.55)';g.fill();g.clip();g.strokeStyle='rgba(90,255,150,.28)';g.lineWidth=1.5;for(const k of[1/3,2/3,1]){g.beginPath();g.arc(c,c,R*k,0,7);g.stroke()}g.beginPath();g.moveTo(c-R,c);g.lineTo(c+R,c);g.moveTo(c,c-R);g.lineTo(c,c+R);g.stroke()}),
+  ring:mk(g=>{g.strokeStyle='rgba(150,255,190,.5)';g.lineWidth=2;g.beginPath();g.arc(c,c,R+2,0,7);g.stroke()})}})();
+// redrawn at up to 30 Hz (a sweep display; on a 240 Hz screen it was drawn 240 times a second), with the time since the last draw
+let radT=0,radDt=0;
 // video link quality from the position's ground-station antenna: falls off past ~1.8 km and drops hard when terrain blocks line of sight (fly higher to get it back)
 let lqS=1,lqT=0;
 function linkQ(me,dt){if((lqT-=dt)>0)return lqS;lqT=.1;const h=me.home,ax=h.x-3,ay=h.y+5.5,az=h.z+1,d=Math.hypot(me.p.x-ax,me.p.z-az);let q=1-.8*sm((d-1800)/3400);
@@ -615,7 +620,7 @@ let nl=0;for(const t of TH)if(live(t))nl++;
   {const g=gdNow=S.guide&&alive&&!Z.on?guidance(me):null;let h='';if(g){const id='T'+String(g.t.id).padStart(2,'0');
    h=g.ph==='MIDCOURSE'?`<b>MIDCOURSE</b> ${id} · PIP ${rng(GD.pip.distanceTo(me.p))} · TTG ${Math.round(g.ttg)} s · ${Math.abs(g.herr)<4?'ON COURSE':(g.herr>0?'► R ':'◄ L ')+Math.round(Math.abs(g.herr))+'°'} · ${Math.abs(g.dalt)<25?'LEVEL':(g.dalt>0?'CLIMB ':'DESCEND ')+Math.round(Math.abs(g.dalt))+' m'}`:`<b>TERMINAL</b> ${id} ${rng(g.rng)} · eyes on, get in its six`}
    html($('gd'),h)}
- radar(dt)}
+ radDt+=dt;const rn=performance.now();if(rn-radT>=32||rn<radT){radT=rn;radar(radDt);radDt=0}}
 // FPV overlay: Betaflight-style artificial horizon, target brackets (red per track with range, amber on the most urgent with a pursuit cue behind it), site labels
 function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if(demo)return;
  const me=player&&player.dead<=0?player:null,ft=Math.tan(camera.fov*Math.PI/360),sel=selT(),scr=p=>{_t.copy(p).project(camera);if(!(_t.z<1&&Math.abs(_t.x)<1.1&&Math.abs(_t.y)<1.1))return null;const q=RQ[rqi=(rqi+1)&3];q[0]=(_t.x*.5+.5)*W2;q[1]=(-_t.y*.5+.5)*H2;return q};
@@ -687,6 +692,9 @@ function step(dt){const me=player;
  if(me&&!demo&&!(Z.on&&Z.idle())){if(me.dead>0){  /* Z.idle: a co-op pilot who joined mid-wave waits on the mat for the next base screen */if((me.dead-=dt)<=0&&wstate!=='over')launch()}else{humanControl(me,dt);if(me.mah>=BCAP)me.thr=0;const h=me.step(dt);if(h>CRASH)lose('crash');else if(me.mah>=BCAP&&me.gt>0)lose('bat');else fuse()}}
  for(const t of TH)threatStep(t,dt);waves(dt);fires(dt);if(Z.on)Z.step(dt)}
 // Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
+// static scenery (terrain, river, houses, pylons and wires, the forest, the sites' props): matrices once, never walked again by updateMatrixWorld.
+// Moving things stay live: sky, sun, sun disc, cloud deck, rain, the radar's spinning antenna, the light, the sites' building roots (buildings.js freezes their stages)
+{const live=new Set([sky,deck,sunDisc,RADM,rainL,cloudG,sun,sun.target,boomL,hemi,...SITES.map(s=>s.root)]);for(const o of scene.children)if(!live.has(o)&&!o.isLight&&!o.isPoints&&(o.isMesh||o.isGroup||o.isLine))freeze(o)}
 const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,

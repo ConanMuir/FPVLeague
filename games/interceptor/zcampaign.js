@@ -15,6 +15,7 @@
 // met at a wave clear) and Z.cpOver (the end screen); zbase.js shows Z.cpHTML and asks Z.cpBan; znet.js carries Z.cpNet / Z.cpIn so a co-op
 // game plays the host's sector (the host's save is the one that moves). Other features can read the sector through Z.cp: Z.cp.has('raid'),
 // Z.cp.n('launchSites'). Modifiers that drive another branch's feature (need) only show up when that feature is there (Z.feat[need] or Z[need]).
+import {money} from '../../engine/hot.js';
 import {ZDIFF} from './zdata.js';
 import {DOCS,DOC_IDS,KIT,KIT_IDS,KIT_MAX} from './zmeta.js';
 
@@ -140,7 +141,7 @@ export function numbersOf(mods){const K={wave:1,cash:1,start:1,shift:0,tac:{},ra
 // ---------- the in-game side ----------
 export function initCampaign(api,G,Z){
  const {S,save,SITES,feed,banner}=api,$=id=>document.getElementById(id);
- const money=n=>'$'+Math.round(n).toLocaleString('en-US'),esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
+ const esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
  const feat=f=>!!(Z.feat?.[f]||Z[f]);
  const C=()=>cleanCamp(S.zcamp,S.zdiff|0),put=c=>{S.zcamp=c;save()};
  const client=()=>!!Z.isClient?.();
