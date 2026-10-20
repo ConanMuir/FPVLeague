@@ -513,7 +513,7 @@ if (want('swarm')) {
     const hold = (fog, optics) => { __sw.clear(); Z.lk.clear(); G.perks.optics = optics; const t = __sw.ahead('shahed', 1000, 0, 0); t.spd = 0; t.v.set(0, 0, -80); api.scene.fog.far = fog; let s = 0;
       while (!Z.lk.t && s < 10) { __sw.fly(.05, 80, () => t.p); t.p.set(api.player.p.x, api.player.p.y, api.player.p.z - 1000); s += .05; } return +s.toFixed(2); };
     out.clear = hold(14000, 0); out.sel = api.selT() === Z.lk.t; out.fog = hold(1100, 0); out.optics = hold(14000, 3);
-    const t = Z.lk.t; __sw.fly(1.2, 80, () => api.player.p.clone().add(new api.THREE.Vector3(1000, 0, 0))); out.lost = !Z.lk.t && !!t;
+    const t = Z.lk.t; __sw.pin(t, 1000, 0, 0); __sw.fly(2, 80, () => api.player.p.clone().add(new api.THREE.Vector3(-1000, 0, 0))); out.lost = !Z.lk.t && !!t;  /* off the sights and off the flight path (a lock also holds while you fly straight at it) */
     api.scene.fog.far = 14000; G.perks.optics = 0; return out; });
   ok(lk.clear > 1.1 && lk.clear < 2.2 && lk.sel, `Lock-on: ${lk.clear} s to lock a track 1 km out in clear air; it becomes the selected track`);
   ok(lk.fog > lk.clear * 1.5 && lk.optics < lk.clear * .65, `Lock-on: fog slows it (${lk.fog} s), Optics 3 speeds it up (${lk.optics} s)`);
@@ -584,13 +584,13 @@ if (want('spectator')) {
   // flying: from the mat, through its own sticks; positions move step by step (no teleport), and a detonation kills something
   const fl = await p.evaluate(() => { const {api, G, spec} = __z; spec.setSpeed(1); const me = api.player, prev = me.p.clone(); let jump = 0, agl = 0, t = 0, lock = 0, lastT = me.t, steps = 0;
     const st = spec.sp.stats, tk = () => st.kills.pilot?.n | 0;
-    while (G.state === 'wave' && t < 240 && !tk()) { api.step(1 / 120); t += 1 / 120; if (++steps % 12 === 0) api.visuals(.1, performance.now());
+    while (G.state !== 'over' && t < 400 && !tk()) { if (G.state === 'base') { spec.bench.shop(); __z.cont(); } api.step(1 / 120);  /* the helpers can take wave 1's two tracks first: then on into wave 2 */ t += 1 / 120; if (++steps % 12 === 0) api.visuals(.1, performance.now());
       if (me.dead <= 0) { if (me.t > lastT) jump = Math.max(jump, me.p.distanceTo(prev)); agl = Math.max(agl, me.p.y - api.gh(me.p.x, me.p.z)); if (__z.Z.lk.t) lock = 1; }
       prev.copy(me.p); lastT = me.t; }
     return {t: Math.round(t), jump: +jump.toFixed(2), agl: Math.round(agl), kills: tk(), bursts: st.bursts, fired: spec.sp.pilot.st.fired, lock, by: Object.keys(st.kills)}; });
   console.log('  flight:', JSON.stringify(fl));
   ok(fl.agl > 30 && fl.jump < 4, `Spectator: the bot took off and flew (up to ${fl.agl} m AGL; largest move in one physics step ${fl.jump} m: no teleporting)`);
-  ok(fl.kills >= 1 && fl.bursts >= 1, `Spectator: the bot killed ${fl.kills} by flying into its warhead's reach (${fl.bursts} detonation${fl.bursts > 1 ? 's' : ''}, ${fl.fired} pressed by the bot, the rest on contact; ${fl.t} s into wave 1)`);
+  ok(fl.kills >= 1 && fl.bursts >= 1, `Spectator: the bot killed ${fl.kills} by flying into its warhead's reach (${fl.bursts} detonation${fl.bursts > 1 ? 's' : ''}, ${fl.fired} pressed by the bot, the rest on contact; ${fl.t} s of flying)`);
   // speed, pause and step
   const spd = await p.evaluate(() => { const {spec, Z, G} = __z; spec.setSpeed(1); const b = Z.tsc; spec.setSpeed(4); const x4 = Z.tsc / b; spec.setSpeed(8); const x8 = Z.tsc / b, cap = Z.stepCap;
     spec.setPause(true); const held = Z.hold(), w0 = spec.sp.stats.simT; spec.stepOnce(); const stepped = +(spec.sp.stats.simT - w0).toFixed(3); spec.setSpeed(1); return {x4, x8, cap, held, stepped, after: Z.hold()}; });
@@ -620,6 +620,24 @@ if (want('spectator')) {
   await p.click('#zmenu');
   const off = await p.evaluate(() => ({on: __z.spec.on, menu: !document.getElementById('menu').hidden, bar: !!document.getElementById('zspbar'), bot: typeof __z.Z.botIn, cam: __z.api.camMode === (__z.api.S.cam | 0)}));
   ok(!off.on && off.menu && !off.bar && off.bot === 'undefined' && off.cam, 'Spectator: Menu ends it (hooks off, your camera back)');
+  // lock-on from the chase view: a player flying behind and below a track with the interceptor pointed at it locks it (the sights are the
+  // airframe's boresight in the chase and threat views; the chase camera itself only follows the heading, so a track above could never be locked)
+  await p.click('#play'); await p.waitForFunction(() => __z.G.state === 'base', {timeout: 30000});
+  const hum = await p.evaluate(() => { const {api, G, Z} = __z; __z.cont(); const V = api.THREE.Vector3, me = api.player; api.camMode = 1;
+    for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); Z.lk.clear();
+    const t = __z.make('shahed', 0, -1500), v = new V(0, 0, -50); t.spd = 0; let s = 0, held = 0;
+    for (let i = 0; i < 120 * 8; i++) { t.p.set(0, api.gh(0, -1500) + 600, -1500 - 50 * i / 120); t.v.copy(v);
+      me.p.copy(t.p).add(new V(0, -90, 800)); me.v.copy(v); me.q.setFromUnitVectors(new V(0, 1, 0), t.p.clone().sub(me.p).normalize()); me.w.set(0, 0, 0);
+      api.step(1 / 120); if (Z.lk.t === t) { if (!s) s = i / 120; held++; } }
+    api.camMode = api.S.cam | 0; return {s: +s.toFixed(2), held: +(held / 120).toFixed(1)}; });
+  ok(hum.s > 0 && hum.s < 3 && hum.held > 4, `Lock-on in the chase view: pointing the interceptor at a track 90 m above locks it in ${hum.s} s and holds it (${hum.held} s)`);
+  // a bot coming up behind a track locks it and keeps the lock to the kill
+  const tail = await p.evaluate(() => { const {api, G, Z, spec} = __z; api.startDemo(); spec.bench.start('Legend', 1); __z.cont(); const me = api.player;
+    for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); Z.lk.clear();
+    const f = me.home, t = __z.make('shahed', f.x, f.z + 500); t.p.y = api.gh(t.p.x, t.p.z) + 300; t.alt = 300; t.wps.length = 0; t.aim = new api.THREE.Vector3(f.x, 0, f.z + 7000);  /* a long straight leg south, no dive */ const n0 = {...Z.lk.L.n}; let s = 0, lockAtKill = false, i = 0;
+    for (; i < 120 * 90 && api.live(t); i++) { lockAtKill = Z.lk.t === t; api.step(1 / 120); if (Z.lk.t === t && !s) s = i / 120; }  /* the burst that kills it also ends the interceptor (and its lock) in the same step */
+    const out = {s: +s.toFixed(1), kill: !api.live(t) && t.by === 'p', lockAtKill, t: +(i / 120).toFixed(1), lost: Z.lk.L.n.lost - n0.lost}; spec.stop(); return out; });
+  ok(tail.s > 0 && tail.kill && tail.lockAtKill, `Lock-on, bot: coming up behind a Shahed, Legend locks it ${tail.s} s in and still holds the lock when it kills it ${tail.t} s in (lost ${tail.lost}×)`);
   ok(!errs.length, 'Spectator: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }

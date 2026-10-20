@@ -70,7 +70,7 @@ export function createPilot(api,G,Z,P,E){
   if(alive&&me.v.lengthSq()<1&&agl(me.p)<2&&_v.set(0,1,0).applyQuaternion(me.q).y<.5){if((st.stuck+=F.react)>3){st.stuck=0;st.why='tipped over';api.relaunch?.();st.launchT=st.t}}else st.stuck=0}
 
  // ---------- turning a wanted acceleration into sticks ----------
- function sticks(me,A,head,dt){const M=S.mod,g=M.grav||9.81,THR=M.thr||48,TE=M.te||1.4,VP=M.vp||260,DQ=M.dq,DL=M.dl,FS=M.fs||4;
+ function sticks(me,A,head,dt,look){const M=S.mod,g=M.grav||9.81,THR=M.thr||48,TE=M.te||1.4,VP=M.vp||260,DQ=M.dq,DL=M.dl,FS=M.fs||4;
   const R=_A.copy(A);R.y+=g;const s=me.v.length();
   // hover: point the nose along the thrust it needs (at most 80 degrees off vertical)
   const Nh=_n.copy(R);if(Nh.lengthSq()<1e-6)Nh.set(0,1,0);Nh.normalize();
@@ -90,6 +90,7 @@ export function createPilot(api,G,Z,P,E){
   const hz=Math.hypot(N.x,N.z);if(hz>.05)_h.set(N.x/hz,0,N.z/hz);else _h.copy(head);
   _f.copy(_h).multiplyScalar(N.y).addScaledVector(UP,-hz);const wc=sm((s-15)/20);  /* cruise: the picture upright; hover: keep facing the heading whichever way it tilts, so a correction is a tilt, not a yaw swing */
   if(wc<1){_v.copy(head).addScaledVector(N,-head.dot(N));if(_v.lengthSq()>1e-4)_f.multiplyScalar(wc).addScaledVector(_v.normalize(),1-wc)}
+  if(look&&N.angleTo(look)<.35)N=_n.copy(look);  // holding the sights on a track: the nose goes where it is looking
   fake.q=me.q;attitude(fake,N,_f,18,14,1);
   // body rates -> stick positions through the player's rate curves (acro, with Betaflight's FPV angle mix when it is on)
   const a=S.fpvMix?(api.camUp?S.tilt:0)*Math.PI/180:0,c=Math.cos(a),sn=Math.sin(a);
@@ -106,10 +107,10 @@ export function createPilot(api,G,Z,P,E){
   const A=_W.subVectors(Vd,me.v).multiplyScalar(kv),Am=Math.max(55,Math.min(250,.006*s*s));if(A.length()>Am)A.setLength(Am);return A}  // at speed the fins pull far harder than the motors push
 
  // ---------- one physics step: guidance, the detonate press, the camera switch ----------
- const Vd=new V3(),head=new V3(0,0,-1),ip=new V3();
+ const Vd=new V3(),head=new V3(0,0,-1),ip=new V3(),LOOK=new V3();
  // flying to a point and stopping on it: a speed that it can still brake from (drag, then thrust-vectoring), stiff for the last few metres. Sets Vd, returns the gain
  function approach(e,d,vmax){const sp=Math.min(vmax,d<8?2.2*d:Math.sqrt(12*d)+7);Vd.copy(e).multiplyScalar(sp/Math.max(d,1e-3));return d<8?4:d<60?2.5:2}
- function input(me,dt){st.t+=dt;const ag=agl(me.p),s=me.v.length(),onMat=ag<3&&s<3&&me.t<6;let kv=1.6,floor=30;
+ function input(me,dt){st.t+=dt;let look=null;const ag=agl(me.p),s=me.v.length(),onMat=ag<3&&s<3&&me.t<6;let kv=1.6,floor=30;
   if(st.lastMe!==me.t&&me.t<.02)st.launchT=st.t;
   const k=dt/1.5,an=F.aim*Math.sqrt(2*k);st.aimN.multiplyScalar(1-k).add(_a.set(gauss()*an,gauss()*an*.6,gauss()*an));
   const t=st.tgt&&live(st.tgt)?st.tgt:null,L=st.line&&api.live(st.line)?st.line:null;
@@ -126,9 +127,15 @@ export function createPilot(api,G,Z,P,E){
     if(Math.abs(a2)>1e-6){const q=b2*b2-4*a2*c2;if(q>=0){const r1=(-b2-Math.sqrt(q))/(2*a2),r2=(-b2+Math.sqrt(q))/(2*a2),m=Math.min(r1>0?r1:1e9,r2>0?r2:1e9);if(m<1e9)tau=m}}
     tau=Math.min(tau,60);ip.copy(t.p).addScaledVector(t.v,tau);if(!fastT&&t.v.lengthSq()>1){const f=_c.copy(t.v).normalize(),ahead=rel.dot(f)<0;ip.addScaledVector(f,-Math.min(ahead?420:220,d*(ahead?.35:.12)))}  /* slow tracks: come in toward their six, wider when meeting one head-on */
     if(d<dTerm)ip.add(st.aimN);Vd.subVectors(ip,me.p).setLength(sp);kv=d<dTerm?3.2:1.6;
-    st.intent=`${d<dTerm?'closing on':'chasing'} ${name(t)} · ${rng(d)}`}
+    st.intent=`${d<dTerm?'closing on':'chasing'} ${name(t)} · ${rng(d)}`;
+    // lock-on: a pilot who uses it holds its sights on a track it is coming up behind or abeam (one meeting it head-on it turns into the six of first)
+    // until the lock builds: pure pursuit, its aim wander as sight error; then it keeps its course within 10 degrees of the line of sight
+    const LK=Z.lk,asp=rel.dot(t.v)/Math.max(1e-6,d*t.v.length());if(LK&&F.lockAim>0&&d<3400&&d>120&&!t.dmg&&asp>-.2){if(t._la==null)t._la=Math.random()<F.lockAim?1:0;
+     if(t._la){const los=_c.copy(rel).divideScalar(d);if(LK.t!==t){Vd.copy(los).multiplyScalar(Math.max(sp,s*.9));look=LOOK.copy(st.aimN).multiplyScalar(1/60).add(los).normalize();st.intent=`locking on ${name(t)} · ${rng(d)}${LK.cand===t&&LK.prog>0?' · '+Math.round(LK.prog*100)+'%':''}`}
+      else if(Vd.angleTo(los)>.17){const v=Vd.length(),u=_v.copy(Vd).addScaledVector(los,-Vd.dot(los)).normalize();Vd.copy(los).multiplyScalar(Math.cos(.17)).addScaledVector(u,Math.sin(.17)).multiplyScalar(v)}}}}
    else{const aim=_c.copy(t.p).add(st.aimN),los=aim.sub(me.p),dl=los.length();los.divideScalar(Math.max(dl,1));  /* its velocity plus a closing speed straight at it: it runs the track down from wherever it is */
-    const Vc=cl(.5*d+6,8,58);Vd.copy(t.v).addScaledVector(los,Vc);if(Vd.length()>top)Vd.setLength(top);kv=d<40?2.2:2.8;st.intent=`closing on ${name(t)} · ${rng(d)}`}
+    const Vc=cl(.5*d+6,8,58);Vd.copy(t.v).addScaledVector(los,Vc);if(Vd.length()>top)Vd.setLength(top);kv=d<40?2.2:2.8;st.intent=`closing on ${name(t)} · ${rng(d)}`;
+    if(Z.lk&&t._la&&d>60){look=LOOK.copy(los);if(Z.lk.t!==t&&Z.lk.cand===t&&Z.lk.prog>0)st.intent+=` · locking ${Math.round(Z.lk.prog*100)}%`}}  // the run-in: sights on it (it is in front now), so a lock builds or holds
    floor=Math.max(d<500?cl(tAgl-10,t.k==='swarm'?8:15,30):30,s*(d<120?.08:.25));  // the faster it goes, the more ground it keeps under it (a pull-out at rocket speed takes hundreds of metres)
    if(d<90)detonate(me,t,dt);
    if(st.plan)st.intent=`detonating on ${name(t)}`}
@@ -140,7 +147,7 @@ export function createPilot(api,G,Z,P,E){
   // camera tilt switch: level for take-off, 90 degrees once it is away from the mat (its sights look down the nose)
   if(!onMat&&ag>10&&!api.camUp)api.camUp=true;
   st.lastMe=me.t;st.lastIntent=st.intent;st.lastV=s;
-  return sticks(me,want(me,Vd,kv,floor),head,dt)}
+  const A=want(me,Vd,kv,floor);return sticks(me,A,head,dt,look)}
 
  // manual detonation: when the closest approach is a moment away and close enough, press detonate at that moment (with this pilot's timing
  // error); when it is already as close as it will get (sitting in the track's six, or passing), press now if that is close enough

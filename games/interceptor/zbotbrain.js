@@ -26,22 +26,23 @@
 // waits for before pressing detonate (m; worse and it goes round again); pick 'near' (the closest track) / 'urgent' (the soonest impact) /
 // 'smart' (the soonest impact it can still reach, skipping identified decoys and tracks a helper drone has claimed); decoy = chance it chases
 // a decoy anyway; line = chance it tries to sit on a ballistic / hypersonic / ICBM line for a direct hit; relaunch = it presses R for a
-// fresh interceptor at the pad nearest its next target when that is quicker than flying there; cruise = share of top speed it cruises at.
+// fresh interceptor at the pad nearest its next target when that is quicker than flying there; cruise = share of top speed it cruises at; lockAim = chance it
+// deliberately holds its sights on a track to lock it (zlock.js) before closing in, and keeps the lock through the run-in.
 // All numbers are game-balance values for bot skill, not measurements of anyone.
 export const DODGE = {none: 0, some: .3, all: .45};
 export const LEVELS = [
   {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], swarm: 0, lock: 0, chain: 0, tryNew: .1,
-    fly: {react: 1.1, aim: 7, det: .09, fire: 7, pick: 'near', decoy: 1, line: 0, relaunch: 0, cruise: .75}},
+    fly: {lockAim: 0, react: 1.1, aim: 7, det: .09, fire: 7, pick: 'near', decoy: 1, line: 0, relaunch: 0, cruise: .75}},
   {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar', 'swarm'], swarm: 1, lock: .04, chain: 1, warn: {rate: .015, mode: 'random'}, tryNew: .25,
-    fly: {react: .7, aim: 4, det: .05, fire: 5, pick: 'urgent', decoy: .5, line: 0, relaunch: 0, cruise: .85}},
+    fly: {lockAim: 0.35, react: .7, aim: 4, det: .05, fire: 5, pick: 'urgent', decoy: .5, line: 0, relaunch: 0, cruise: .85}},
   {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, swarm: 1, lock: .08, chain: 2, warn: {rate: .06, mode: 'harden'}, tryNew: .4,
-    fly: {react: .45, aim: 2.5, det: .03, fire: 3.5, pick: 'smart', decoy: .2, line: .25, relaunch: 1, cruise: .95}},
+    fly: {lockAim: 0.6, react: .45, aim: 2.5, det: .03, fire: 3.5, pick: 'smart', decoy: .2, line: .25, relaunch: 1, cruise: .95}},
   {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, swarm: 2, lock: .14, chain: 3, warn: {rate: .12, mode: 'smart'}, tryNew: .6,
-    fly: {react: .3, aim: 1.5, det: .02, fire: 2.6, pick: 'smart', decoy: 0, line: .5, relaunch: 1, cruise: 1}},
+    fly: {lockAim: 0.8, react: .3, aim: 1.5, det: .02, fire: 2.6, pick: 'smart', decoy: 0, line: .5, relaunch: 1, cruise: 1}},
   {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .2, chain: 3, warn: {rate: .2, mode: 'smart'}, tryNew: .8,
-    fly: {react: .22, aim: 1, det: .012, fire: 2, pick: 'smart', decoy: 0, line: .75, relaunch: 1, cruise: 1}},
+    fly: {lockAim: 0.9, react: .22, aim: 1, det: .012, fire: 2, pick: 'smart', decoy: 0, line: .75, relaunch: 1, cruise: 1}},
   {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .3, chain: 4, warn: {rate: .25, mode: 'best'}, tryNew: 1,
-    fly: {react: .15, aim: .5, det: .006, fire: 1.6, pick: 'smart', decoy: 0, line: 1, relaunch: 1, cruise: 1}}];
+    fly: {lockAim: 1, react: .15, aim: .5, det: .006, fire: 1.6, pick: 'smart', decoy: 0, line: 1, relaunch: 1, cruise: 1}}];
 const key = s => String(s).toLowerCase().replace(/[\s-]+/g, '');
 export const level = n => LEVELS.find(l => key(l.n) === key(n));
 
