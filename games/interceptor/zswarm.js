@@ -98,15 +98,15 @@ export function initSwarm(api,G,Z){
   if(c==='next'||c==='form#'){s.form=c==='next'?(s.form+1)%FORMS.length:cl(arg|0,0,FORMS.length-1);api.banner('FORMATION: '+FORMS[s.form].n,'cb',.9);api.tone(700,900,.12,.06,'triangle');return true}
   if(c==='form'){recall(s,'escort');api.banner('SWARM: FORM UP','cb',.8);api.tone(600,800,.12,.06,'triangle');return true}
   if(c==='screen'){const m=s.mode==='screen'?'escort':'screen';recall(s,m);api.banner('SWARM: '+m.toUpperCase(),'cb',.8);api.tone(m==='screen'?800:600,m==='screen'?1000:500,.14,.06,'triangle');return true}
-  if(c==='attack'){const t=arg||Z.lk?.t;if(!t){api.banner('NO LOCK','co',.8);api.tone(300,200,.15,.06,'square');return false}if(!attack(s,t)){api.banner('CAN\'T ENGAGE','co',.8);return false}
-   api.banner(`SWARM: ATTACK T${String(t.id).padStart(2,'0')}`,'cg',.9);api.tone(500,1000,.18,.08,'square');return true}
-  if(c==='strike'){if(s.ch<=0){api.banner('NO STRIKE CHARGES','co',.8);api.tone(300,200,.15,.06,'square');return false}
+  if(c==='attack'){const t=arg||Z.lk?.t;if(!t){api.banner('NO LOCK','co',.8);api.tone(300,240,.12,.035,'triangle');return false}if(!attack(s,t)){api.banner('CAN\'T ENGAGE','co',.8);return false}
+   api.banner(`SWARM: ATTACK T${String(t.id).padStart(2,'0')}`,'cg',.9);api.tone(500,900,.16,.04,'triangle');return true}
+  if(c==='strike'){if(s.ch<=0){api.banner('NO STRIKE CHARGES','co',.8);api.tone(300,240,.12,.035,'triangle');return false}
    const A=anchor(s,0),cam=api.camera,fw=_b.set(0,0,-1).applyQuaternion(cam.quaternion).clone();let g=arg&&arg.ground?arg.ground:null,P=arg&&!g&&arg.p?_c.set(arg.p.x,arg.p.y,arg.p.z).clone():null;
    if(!g&&!P){const GT=ground().filter(q=>_a.set(q.p.x,q.p.y,q.p.z).distanceTo(A.p)<SW.strikeR);const aim=GT.map(q=>[q,_a.set(q.p.x,q.p.y,q.p.z).sub(cam.position).normalize().dot(fw)]).sort((a,b)=>b[1]-a[1])[0];
     P=cluster(s,A,fw);if(aim&&(aim[1]>.94||!P))g=aim[0]}
    if(!g&&!P){api.banner('NO STRIKE TARGET','co',.8);return false}
    const k=strikeAt(s,P,g);if(!k){api.banner('NO STRIKE TARGET','co',.8);return false}s.ch--;s.sseq++;s.sp=g?_a.set(g.p.x,g.p.y,g.p.z).clone():P;
-   api.banner(`STRIKE ×${k}`,'cg',1.1);api.tone(220,1400,.5,.1,'sawtooth');api.feed(`<span class="cg">Swarm strike: ${k} drone${k>1?'s':''} on rocket boosters${g?' at a ground target':''}</span>`);return true}
+   api.banner(`STRIKE ×${k}`,'cg',1.1);api.tone(220,1100,.45,.05,'triangle');api.feed(`<span class="cg">Swarm strike: ${k} drone${k>1?'s':''} on rocket boosters${g?' at a ground target':''}</span>`);return true}
   return false}
 
  // ---------- flight: formation keeping (a damped spring onto each slot, separation), attack runs, boosted strikes ----------
