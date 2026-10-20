@@ -86,6 +86,24 @@ await ev(H, () => { for (let i = 0; i < 400 && __z.G.state === 'wave'; i++) { __
 ok(await until(H, () => __z.G.state === 'base'), 'Host: wave 1 cleared, base screen');
 for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden && __z.G.wave === 1), `${C.name}: back on the base screen after wave 1`);
 
+// ---------- sorties (zsortie.js): Ash flies out while the others stay; the host owns the convoys, the cuts and the purse ----------
+{ const cv = await ev(H, () => { const t = __z.so.W.list.find(u => u.t === 'convoy'); if (!t) return null; t.halt = 1e9; for (const u of __z.so.W.list) { for (const q of u.pats) q.st = 'dead'; for (const q of u.parts) if (q.aa) q.lock = -1e9; } __z.so.W.ver++;
+    const k = t.cargo.k; return {id: t.id, k, n: __z.G.next.list.filter(s => s.split(':')[0] === k).length, fog: __z.so.fog.count()}; });
+  ok(cv && await until(A, id => __z.so.W.list.some(t => t.id === id), cv.id), `Sorties: the host's convoy (${cv?.k}) is in Ash's world too`);
+  ok(await ev(A, () => __z.so.launch()) && await ev(H, () => !__z.so.S.on && __z.G.state === 'base'), 'Sorties: Ash launches a sortie; the host stays on the base screen');
+  await ev(A, id => { const so = __z.so, t = so.W.list.find(u => u.id === id); so.fly(t.x, t.z + 250, 90, 100); }, cv.id); await sleep(400);
+  await ev(A, id => { const so = __z.so, t = so.W.list.find(u => u.id === id); for (const q of t.parts.filter(x => x.main)) so.drop(q.x, q.y + 40, q.z); so.hold(3.5); }, cv.id);
+  ok(await until(H, id => __z.so.W.list.find(u => u.id === id)?.dead, cv.id), 'Sorties: Ash\'s bombs reach the host, which destroys the convoy');
+  ok(await until(A, () => __z.so.S.carry > 0), `Sorties: Ash carries the salvage the host paid out ($${await ev(A, () => __z.so.S.carry)})`);
+  const n1 = await ev(H, k => __z.G.next.list.filter(s => s.split(':')[0] === k).length, cv.k);
+  ok(n1 < cv.n && await until(B, n => __z.G.next.list.length >= 0 && document.querySelector('.zfc')?.textContent.includes('Sorties'), 0), `Sorties: next wave's ${cv.k} ${cv.n} → ${n1}, and Bea's forecast shows the strike`);
+  const c0 = (await st(H)).cash, carry = await ev(A, () => __z.so.S.carry);
+  await ev(A, () => { const f = __z.api.FOBS[1], so = __z.so; so.fly(f.x, f.z + 150, 60, 100); so.hold(.5); so.finish(); });
+  ok(await until(H, c => __z.G.cash >= c, c0 + carry), `Sorties: back inside the line, Ash banks $${carry} into the shared purse`);
+  ok(await until(A, () => !__z.so.S.on && !document.getElementById('zbase').hidden), 'Sorties: Ash is back on the base screen');
+  await ev(A, () => __z.Z.base.setTab('shop'));
+  ok(await until(B, f => __z.so.fog.count() > f && __z.so.W.list.find(t => t.t === 'convoy')?.dead, cv.fog), 'Fog and the enemy side: what Ash saw and destroyed shows for Bea too'); }
+
 // ---------- shop on the shared purse: a helper (Ash), a personal perk and a team perk (Bea), a repair (Ash) ----------
 { await ev(H, () => { __z.G.cash = 6000; }); await until(A, () => __z.G.cash === 6000); await until(B, () => __z.G.cash === 6000);
   await ev(A, () => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); document.querySelector(`[data-buy="${i}"]`).click(); });

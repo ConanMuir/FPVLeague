@@ -232,7 +232,7 @@ export function initSites(api,G,Z,fog){
   for(const a of Array.isArray(o.c)?o.c:[]){if(!Array.isArray(a)||a.length<9)continue;const[id,ri,ki,n,all,sn,ls,done,ps]=a;seen.add(id);let t=W.list.find(u=>u.id===id);
    if(!t){t=convoy(ri|0,G.wave,{k:KN(ki),n:n|0,all:!!all},{id,parts:(Array.isArray(ps)?ps:[]).map(q=>({t:q[0]?'aat':'truck',s:+q[1]||0,hp:q[2]?1:0}))});if(!t)continue}
    t.seen=t.seen||!!sn;if(Array.isArray(ls))t.ls={x:+ls[0],z:+ls[1]};if(done&&!t.done){t.done=true;for(const p of t.parts){p.mesh.visible=false;if(p.tur)p.tur.visible=false}}
-   if(Array.isArray(ps))ps.forEach((q,i)=>{const p=t.parts[i];if(!p)return;if(p.alive&&!q[2])lateWreck(t,p)})}
+   if(Array.isArray(ps))ps.forEach((q,i)=>{const p=t.parts[i];if(!p)return;if(p.alive&&!q[2])lateWreck(t,p)});if(!t.done)t.dead=!t.parts.some(p=>p.main&&p.alive)}
   for(let i=W.list.length-1;i>=0;i--)if(!seen.has(W.list[i].id)){drop(W.list[i]);W.list.splice(i,1)}};
  // moving things, at snapshot rate while a sortie is on: truck positions, patrols
  W.dyn=()=>({c:W.list.filter(t=>t.t==='convoy'&&!t.done).map(t=>[t.id,t.parts.map(p=>Math.round(p.s))]),p:W.list.flatMap(t=>t.pats.map(q=>[q.uid,q.st==='dead'?0:1,Math.round(q.p.x),Math.round(q.p.y),Math.round(q.p.z)]))});

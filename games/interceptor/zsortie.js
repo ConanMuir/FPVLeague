@@ -21,7 +21,7 @@ import {initSites,SO,TGT,TIERK,TIER,PER_TRUCK} from './zsites.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},money=n=>'$'+Math.round(n).toLocaleString('en-US');
 const SING={shahed:'Shahed',jet:'Geran-3 jet',decoy:'decoy',swarm:'swarm drone',heavy:'armored heavy',cruise:'cruise missile',ballistic:'ballistic missile',hyper:'hypersonic',icbm:'ICBM',boss:'Mothership'};
 const PL={shahed:'Shaheds',jet:'Geran-3 jets',decoy:'decoys',swarm:'swarm drones',heavy:'armored heavies',cruise:'cruise missiles',ballistic:'ballistic missiles',hyper:'hypersonics',icbm:'ICBMs',boss:'Motherships'};
-const nk=(k,n)=>`${n} ${n===1?SING[k]:PL[k]}`,fmt=s=>`${Math.max(0,s)/60|0}:${String(Math.max(0,Math.ceil(s))%60).padStart(2,'0')}`;
+const nk=(k,n)=>`${n} ${n===1?SING[k]:PL[k]}`,fmt=s=>{const c=Math.max(0,Math.ceil(s));return`${c/60|0}:${String(c%60).padStart(2,'0')}`};
 const SEC=i=>SECTORS[i]?.n||'?';
 export function initSortie(api,G,Z){
  const {THREE,FOBS,PADP,SITES,feed,banner,tone,gh}=api,V3=THREE.Vector3,$=id=>document.getElementById(id),_a=new V3(),_b=new V3(),_c=new V3();
@@ -148,7 +148,10 @@ export function initSortie(api,G,Z){
   const live=G.state==='base'&&(S.on||pilots().some(p=>!W.isHome(p.d.p.x,p.d.p.z)));W.step(dt,live?pilots():[],live);if(live&&!auth())W.look(pilots());
   if((S.revT-=dt)<=0){S.revT=.25;reveal(false)}
   let lk=0;for(const t of W.list)for(const q of t.parts)if(q.aa&&q.alive&&q.tk===myKey()&&q.lock>0)lk=1;S.lock=lk||S.tw};
- const vi0=Z.visuals;Z.visuals=dt=>{vi0(dt);W.root.visible=G.on;if(G.on)W.visuals(dt)};
+ // co-op host on the base screen (its sim holds there): the enemy side still runs, in real time, while another pilot is out on a sortie
+ const vi0=Z.visuals;Z.visuals=dt=>{vi0(dt);W.root.visible=G.on;if(!G.on)return;const now=performance.now(),rdt=Math.min(.05,(now-(S.vt||now))/1000);S.vt=now;
+  if(Z.netRole?.()==='host'&&G.state==='base'&&Z.hold()&&rdt>0){W.auth=true;const P=pilots();if(P.some(p=>!W.isHome(p.d.p.x,p.d.p.z)))W.step(rdt,P,true);if((S.revH=(S.revH||0)-rdt)<=0){S.revH=.25;reveal(false)}}
+  W.visuals(dt||rdt*(Z.hold()?1:0))};
  // the break starts when the base screen opens for a new wave number (also on a co-op client); a return from a sortie reopens it too
  const op0=Z.base.open;Z.base.open=()=>{if(G.on&&S.brk!==G.wave)onBreak();op0()};
  const zs0=Z.start;Z.start=()=>{S.on=false;S.used=-1;S.brk=-1;S.carry=0;S.obj=0;G.cuts=[];for(const k in CK)delete CK[k];fog.reset();W.reset(1+Math.floor(Math.random()*2e9));zs0()};
@@ -202,7 +205,8 @@ export function initSortie(api,G,Z){
  const effect=t=>{const P=G.next;if(!P)return'';const L=P.list,cn=k=>L.reduce((a,q)=>{const[x,c]=q.split(':');return a+(x===k?+c||1:0)},0);
   if(t.t==='convoy'){const k=t.cargo.k;return t.cargo.all?`carries the first ${PL[k]}: destroy it and they come a wave later`:`carries ${nk(k,t.cargo.left??t.cargo.n)} for wave ${G.wave+1}: each truck you destroy takes its share out`}
   if(t.t==='launch'){const f=Z.fastPlan?.()?.[t.sec],fn=f?.total|0,q=P.q?.filter(e=>sectorOf(e.brg)===t.sec)||[],cj=q.filter(e=>e.k==='cruise'||e.k==='jet').length;
-   return`next wave from the ${SEC(t.sec)}: ${fn?`${fn} fast missile${fn>1?'s':''}`:'no fast missiles'}${P.q?.length?`, ${cj} jets / cruise`:''}. Destroyed: ${fn?'none of those fast missiles':'no fast missiles'} and half the jets and cruise next wave, half the fast missiles the wave after`}
+   if(!fn&&!cj)return`nothing launches from the ${SEC(t.sec)} next wave. Destroyed, it is down for 2 breaks: half the ${SEC(t.sec)} fast missiles the wave after`;
+   return`next wave from the ${SEC(t.sec)}: ${fn?`${fn} fast missile${fn>1?'s':''}, `:''}${cj} jets / cruise. Destroyed: ${fn?`all ${fn} fast missiles and `:''}half the jets / cruise stay home, then half the fast missiles the wave after`}
   return`builds ${PL[t.kind]} (${cn(t.kind)} next wave). Destroyed: a third of them stay away for 3 waves`};
  const defTxt=t=>{const aa=t.parts.filter(q=>q.aa&&q.alive),sa=aa.filter(q=>q.seen).length,pa=t.pats.filter(q=>q.st!=='dead').length;return`${aa.length?`AA ×${sa}${sa<aa.length?'+?':''}`:'no AA seen'}${pa?` · ${pa} patrol${pa>1?'s':''}`:''}`};
  const status=t=>{const M=t.parts.filter(p=>p.main),a=M.filter(p=>p.alive).length;return t.dead?'destroyed':t.done?'delivered':t.t==='factory'?`${M[0].max-M[0].hp}/${M[0].max} hits`:t.t==='convoy'?`${a} truck${a===1?'':'s'}`:`${a}/${M.length} launchers`};
