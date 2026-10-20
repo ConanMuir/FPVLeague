@@ -21,4 +21,4 @@ export function depthFix(scene){scene.traverse(o=>{const M=o.material;if(!o.isIn
 export const money=n=>{const r=Math.round(n);if(!(Math.abs(r)<1e21))return'$'+r.toLocaleString('en-US');if(Object.is(r,-0))return'$-0';return'$'+String(r).replace(/\B(?=(\d{3})+(?!\d))/g,',')};
 export function freeze(o){o.updateMatrixWorld(true);o.traverse(q=>{q.matrixAutoUpdate=false});o.matrixWorldAutoUpdate=false;return o}
 let _crt=null;
-export function compileFor(renderer,scene,camera){const rt=renderer.getRenderTarget();_crt=_crt||new THREE.WebGLRenderTarget(1,1);renderer.setRenderTarget(_crt);try{renderer.compile(scene,camera)}finally{renderer.setRenderTarget(rt)}}
+export function compileFor(renderer,scene,camera,target=null){const rt=renderer.getRenderTarget();_crt=_crt||new THREE.WebGLRenderTarget(1,1);renderer.setRenderTarget(_crt);try{renderer.compile(scene,camera,target)}finally{renderer.setRenderTarget(rt)}}  // target: the scene whose lights / fog / environment to compile against (three's compile)

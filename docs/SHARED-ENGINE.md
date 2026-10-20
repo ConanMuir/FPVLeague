@@ -49,6 +49,9 @@ Dogfight, `games/league`, was deleted; it is in git history (the last commit wit
 | --- | --- | --- |
 | `src/flight/core.js` **(new, shared)** | rates maths, rates types, throttle curve, attitude controller, flip-over levelling, air-model blocks, `quadAir` | `src/flight/drone.js`, `rates.js`, `attitude.js`, `src/config/ratetypes.js`, `src/input/sticks.js`, `engine/flight.js`, `engine/rates.js`, `games/interceptor/interceptor.js` |
 | `src/input/sticks.js` **(new, shared)** | controller detection, stick-to-command maths | `src/input/input.js`, `engine/input.js`, `engine/flight.js` |
+| `src/ui/fpsmeter.js` **(shared)** | FPS meter (top right, 4 updates a second) and the one rAF frame sampler (`onFrame`) | `src/render/renderer.js`, `engine/gfx.js`, `games/interceptor/igfx.js` |
+| `src/render/dynres.js` **(shared)** | dynamic resolution controller (pure logic: frame times in, render scale out) | `src/render/renderer.js` (League Auto), `engine/gfx.js` (Interceptor Auto) |
+| `engine/gfx.js`, `engine/warm.js` | Interceptor Graphics quality (levels, factors, `gfx.on`, Auto governor) and the shader warm-up (`warm(x)`) | `games/interceptor/*` |
 | `src/flight/drone.js` | Jared's `Drone`: parts, pops, turtle, self-righting, flip-over; Rapier integrates it | `src/` (step, world, modes, input, bots via `GS.drones`) |
 | `src/flight/rates.js`, `attitude.js` | the profile in use (`RO` Lab override) over the core; re-export | `src/input`, `src/ui`, `src/modes`, `src/tuner`, `src/bots` |
 | `src/input/input.js`, `calibration.js`, `binding.js` | axes, deadband, assist, bindings, `humanControl`, guided binding | `src/` |

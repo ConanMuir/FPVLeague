@@ -1,6 +1,7 @@
 // Same-seed, same-view screenshots of Zombies for before/after comparisons of renderer and effects changes (forest, clouds, particles, weather).
 // Math.random is seeded before the page loads and every view is a fixed camera, so two builds can be compared picture for picture.
 //   node tools/zombies-perf-shots.mjs OUTDIR [view,...]      views: forest sites smoke storm snow overcast high night thermal burn
+//   DL_GFX=high/med/low/auto: the Graphics level (default high)
 //   node tools/zombies-perf-shots.mjs --diff DIR_A DIR_B     mean / max channel difference per view (and the share of pixels off by > 24)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,7 +28,7 @@ const {server, origin} = await serve(); const b = await launch(); const errs = [
 for (const [name, [wx, W, pos, at, extra]] of Object.entries(V)) {
   if (ONLY.length && !ONLY.includes(name)) continue;
   const p = await b.newPage(); await p.evaluateOnNewDocument(seed); await open(b, origin + '/games/interceptor/', errs, {page: p});
-  await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'wave', cam: 0})));
+  await p.evaluate(g => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'wave', cam: 0, gfx: g, fps: false})), process.env.DL_GFX || 'high');
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z); await sleep(400); await p.click('#play'); await sleep(400);
   await p.evaluate(([wx, W, pos, at, extra]) => { const {api, G, Z} = __z, V3 = api.THREE.Vector3; api.S.zwx = 'wave';
     __z.jump(W, 20000); G.next = __z.plan(W); G.next.wx = {id: wx}; delete G.next.wx.to; __z.cont(); __z.sim(W > 1 ? 20 : 2);

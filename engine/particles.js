@@ -2,11 +2,11 @@
 // a Points object, a draw call and a full buffer upload each. The look is three's PointsMaterial unchanged (same map, vertex colours, fog, tone
 // mapping, size attenuation); only gl_PointSize takes a per-particle size, so emitters of different sizes share a draw.
 //   const pool=particlePool(scene,{max,blend,map,toneMapped,wind})   wind: a Vector3 the particles drift with (read each update)
-//   const e=pool.emitter(N,size,grav,drag)                           a ring of N particles in the pool, the old psys() interface:
+//   const e=pool.emitter(N,size,grav,drag,scaled=true)               a ring of N particles in the pool, the old psys() interface (scaled: thinned by PFX.scale):
 //   e.emit(p,hex,n,spd,life=1,bv=null,k=1,a=1)  n particles at p, random directions at spd*(.3..1) plus bv, colour hex*k, alpha a, life*(.5..1) s
 //   e.upd(dt)                                   ages and moves them (only the live window of the ring is touched)
 // Each emitter only walks and uploads its live window (oldest live to newest), so an idle emitter costs nothing and a busy one uploads what moved.
-// PFX.scale (0..1, default 1) thins every emitter's counts: the Graphics setting can turn particle density down here.
+// PFX.scale (0..1, default 1) thins every scaled emitter's counts: games/interceptor sets it to the Graphics level's gfx.k.fx (engine/gfx.js).
 import * as THREE from 'three';
 export const PFX={scale:1};
 const _c=new THREE.Color();
@@ -25,11 +25,11 @@ export function particlePool(scene,{max,blend=THREE.NormalBlending,map=null,tone
    if(a+n<=N)span(a,n);else{span(a,N-a);span(0,n-(N-a))}e.dlo=e.dhi=e.tail}
   if(any)aP.needsUpdate=aC.needsUpdate=aS.needsUpdate=true}
  const ob=scene.onBeforeRender;scene.onBeforeRender=function(...a){ob.apply(this,a);flush()};
- function emitter(N,size,grav=0,drag=0){const base=used;used+=N;if(used>max)throw new Error('particle pool full');g.setDrawRange(0,used);S.fill(size,base,base+N);
+ function emitter(N,size,grav=0,drag=0,scaled=true){const base=used;used+=N;if(used>max)throw new Error('particle pool full');g.setDrawRange(0,used);S.fill(size,base,base+N);
   const VV=new Float32Array(N*3),B=new Float32Array(N*4),LF=new Float32Array(N),L0=new Float32Array(N);
   // ring counters: head = next slot to write, tail = oldest that may still live; slot = counter % N
   const e={N,base,head:0,tail:0,dlo:0,dhi:0,frac:0,
-   emit(p,hex,n,spd,life=1,bv=null,k=1,a=1){if(PFX.scale<1){e.frac+=n*PFX.scale;n=e.frac|0;e.frac-=n}_c.set(hex).multiplyScalar(k);
+   emit(p,hex,n,spd,life=1,bv=null,k=1,a=1){if(scaled&&PFX.scale<1){e.frac+=n*PFX.scale;n=e.frac|0;e.frac-=n}_c.set(hex).multiplyScalar(k);
     for(let j=0;j<n;j++){const i=e.head++%N,q=base+i,i3=i*3,q3=q*3,i4=i*4;if(e.head-e.tail>N)e.tail=e.head-N;
      let x=Math.random()*2-1,y=Math.random()*2-1,z=Math.random()*2-1;const h=Math.sqrt(x*x+y*y+z*z),m=spd*(.3+Math.random()*.7)/(h||1);
      P[q3]=p.x;P[q3+1]=p.y;P[q3+2]=p.z;VV[i3]=x*m+(bv?bv.x:0);VV[i3+1]=y*m+(bv?bv.y:0);VV[i3+2]=z*m+(bv?bv.z:0);B[i4]=_c.r;B[i4+1]=_c.g;B[i4+2]=_c.b;B[i4+3]=a;LF[i]=L0[i]=life*(.5+Math.random()*.5)}

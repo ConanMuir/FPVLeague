@@ -10,6 +10,7 @@
 // and the 3D impact marker. The base screen's Kill chain tab (zbase.js) sells it all. State: G.kc, and t.kc on each fast track.
 // Co-op: the host runs the chain; its snapshot carries G.kc and the per-track status (znet.js 'kc'); purchases are requests (znet.js 'K').
 import {KIND,FAST,SECTORS,sectorOf,chainFrom,BOOST,STOCK,PDEF,EWARN,WACT} from './zdata.js';
+import {warm} from '../../engine/warm.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 import {money} from '../../engine/hot.js';
 export function initChain(api,G,Z){
@@ -87,6 +88,7 @@ export function initChain(api,G,Z){
 
  // ---------- point defence turrets at the sites, and their beams ----------
  const MT={base:new THREE.MeshStandardMaterial({color:0x3b4048,roughness:.5,metalness:.5}),lens:new THREE.MeshBasicMaterial({color:0x9ff4ff})};
+ warm([MT.base,MT.lens]);  /* point-defence mounts are built when bought: compile their materials during the menu (engine/warm.js) */
  function pdMesh(s){const g=new THREE.Group(),o=(geo,m,y)=>{const x=new THREE.Mesh(geo,m);x.position.y=y;x.castShadow=true;g.add(x);return x};
   o(new THREE.CylinderGeometry(1.6,1.9,1.6,14),MT.base,.8);o(new THREE.SphereGeometry(1.25,16,10,0,Math.PI*2,0,Math.PI/2),MT.base,1.6);const b=o(new THREE.CylinderGeometry(.22,.22,2.4,8).rotateZ(Math.PI/2),MT.base,2.2);b.position.x=1.2;o(new THREE.SphereGeometry(.3,8,6),MT.lens,2.25).position.x=2.4;
   const a=-.75,d=s.r+16,x=s.x+Math.sin(a)*d,z=s.z+Math.cos(a)*d;g.position.set(x,gh(x,z),z);g.userData.free=1;scene.add(g);return g}
