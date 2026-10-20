@@ -33,8 +33,13 @@ Dogfight, `games/league`, was deleted; it is in git history (the last commit wit
   - The goldens for those went too: "Riley's League quad" in `test/flight-golden.test.mjs` and "Riley's humanControl" in
     `test/input-golden.test.mjs` (and their keys in the fixtures). The rates, throttle-curve and attitude goldens for
     `engine/` stay, because the Interceptor uses them; every other golden is unchanged, bit for bit.
-- **The pilot-profile button strings** (section 6) are fixed: `engine/settings.js` writes Drone League's format into the shared
-  profile and reads both formats (`test/pilot-profile.test.mjs`).
+- **The pilot-profile button strings** (section 6) are fixed. Drone League's form is the main one: a button index, `-1`, `'aN'`
+  (axis N above +0.5) or `'aN-'` (below −0.5). `engine/settings.js` `save()` writes that form into `droneleague` (`'-aN'` and a
+  learned `'aN<m'` become `'aN-'`, a learned `'aN>m'` becomes `'aN'`) and keeps the exact binding in the game's own key;
+  `loadSettings` uses the exact one while the shared value is still its reduction, so a learned threshold survives, and otherwise
+  takes the shared value (rebound in Drone League). `engine/input.js` `swOn` / `swName` also read `'aN-'`. Drone League is
+  unchanged. `test/pilot-profile.test.mjs` covers it, including that every Drone League value means the same to `swOn` as to
+  Drone League's `btnOn`.
 - The tables and plan below are kept as the record of the audit. Where they name `games/league` or Riley's `Quad`, that code is
   gone; plan step 9 is resolved.
 
@@ -246,7 +251,8 @@ for bit): node flight, node input, and the dart in the browser.
 2. ~~Stick code~~ (done here, both Leagues).
 3. **Interceptor input.** Its keyboard easing, throttle mapping and pick are the same expressions. Add an `__z` hook to drive its
    `humanControl` in `tools/flight-golden.mjs`, record, then switch it to `sticks.js`.
-4. **One binding format.** Make one parser in `sticks.js` accept both formats (`'aN'`, `'aN-'`, `'-aN'`, `'aN>m'`, `'aN<m'`).
+4. **One binding format.** (The shared profile is fixed at the settings boundary, section 0; one parser for both games is
+   still to do.) Make one parser in `sticks.js` accept both formats (`'aN'`, `'aN-'`, `'-aN'`, `'aN>m'`, `'aN<m'`).
    It must keep today's meaning of every value each game writes. This only changes values that are broken today (section 6).
 5. **Axis maths.** Move Jared's `axr`/`axv` into `sticks.js`; Riley's settings never carry `r` or `nb`, so they act as before. One
    edge differs: a digital button that reports value 0 while pressed. Decide it with Riley (Jared's reading is the fix).
@@ -263,13 +269,14 @@ for bit): node flight, node input, and the dart in the browser.
 
 ## 6. For Riley to look at
 
-- **Binding format clash in the shared pilot profile (a live bug, not touched here).**
+- **Binding format clash in the shared pilot profile (fixed 2026-10-19, section 0; what it was:)**
   - Jared's game writes axis buttons as `'aN'` / `'aN-'`, and its settings schema only accepts `/^a\d-?$/`.
   - Riley's games write `'-aN'`, and learned thresholds such as `'a5>0.12'`.
   - Both go into the same keys of `droneleague`: `fireBtn`, `flipBtn`, `xfire`, `xflip`.
   - A switch learned in the Interceptor is reset to the default when Jared's game next loads.
   - An `'a3-'` bound in Jared's game never fires in Riley's games: `swOn` returns `null` for it.
-  - Step 4 above fixes this.
+  - Left over: Drone League's schema accepts one-digit axes only (`/^a\d-?$/`), so a switch on axis 10 or higher is still reset
+    there. Drone League's reading of a learned threshold is the plain ±0.5 one.
 - **Your files changed:** `engine/flight.js`, `engine/rates.js`, `engine/input.js`, and seven lines plus one import in
   `games/interceptor/interceptor.js`. Section 3 has every change. The games now load `../../src/flight/core.js` and
   `../../src/input/sticks.js`; if a game is ever served without `src/`, it will not start.
