@@ -29,7 +29,7 @@ export function initLock(api,G,Z){
   tau=Math.min(tau,90);L.ip.copy(t.p).addScaledVector(vt,tau);if(t.spd<150&&vt.lengthSq()>1)L.ip.addScaledVector(_b.copy(vt).normalize(),-15);L.tti=tau}
  function step(dt){const me=api.player,on=G.on&&G.state==='wave'&&me&&me.dead<=0&&!api.demo&&!Z.cine&&!Z.idle?.();
   if(!on){if(L.full||L.prog||L.cand){L.full=false;L.tgt=null;L.cand=null;L.prog=0}L.st=0;return}
-  const cam=api.camera,f=_f.set(0,0,-1).applyQuaternion(cam.quaternion),ang=t=>f.angleTo(_p.subVectors(t.p,cam.position));
+  const cam=Z.sightCam?.()||api.camera,f=_f.set(0,0,-1).applyQuaternion(cam.quaternion),ang=t=>f.angleTo(_p.subVectors(t.p,cam.position));
   if(L.full){const t=L.tgt;if(!api.live(t)){drop(t&&t.st!=='dead'&&t.st!=='fall'?'LOCK LOST':'');return step0()}
    const d=t.p.distanceTo(me.p);L.lost=ang(t)>LOCK.keep*D2R||d>LOCK.range*1.25?L.lost+dt:0;if(L.lost>LOCK.keepT){drop('LOCK LOST');return step0()}
    if(evasion(t,dt)){drop('LOCK BROKEN');return step0()}L.held+=dt;intercept(t,me);if(api.pickT!==t)api.pickT=t;L.st=2;return}

@@ -16,6 +16,7 @@ import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
 import {initBatt} from './zbatt.js';
+import {initSpectate} from './zspectate.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -297,4 +298,5 @@ export function initZombies(api){
  initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
+ initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
  return Z}
