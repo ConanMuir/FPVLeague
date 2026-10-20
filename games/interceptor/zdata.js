@@ -90,7 +90,7 @@ export const HELP={
 // Player perks: prices per level; active ones (freeze, mark, air) have charges per wave. Mark: helper hits on a marked track count double.
 export const PERK={
  freeze:{key:'Q',pad:'D-pad left',cost:[900,800,1200]},mark:{key:'E',pad:'D-pad right',cost:[1000,900,1400]},air:{key:'X',pad:'D-pad up',cost:[1800,1600]},
- radar:{cost:[500,800,1200]},optics:{cost:[600,700,900]},relaunch:{cost:[500,900]},warhead:{cost:[700,1100,1600]},battery:{cost:[500,900]},aid:{cost:[1200]},rocket:{cost:[1500]},fuse:{cost:[800]},
+ radar:{cost:[500,800,1200]},optics:{cost:[600,700,900]},relaunch:{cost:[500,900]},warhead:{cost:[700,1100,1600]},battery:{cost:[900]},aid:{cost:[1200]},rocket:{cost:[1500]},fuse:{cost:[800]},
  lure:{key:'Z',pad:'D-pad down',cost:[1200]},salvage:{cost:[600]}};  // kit perks (zmeta.js): only in the shop of a pilot who brought them
 
 // shop items: helpers are placed on a slot; perks belong to the player
@@ -167,7 +167,7 @@ export const PDEF={price:4500,rng:4000,near:1500,lv:[{ch:1,p:{ballistic:.35,hype
 // Early warning: a fast track shows up (radar, domes, alert) this many seconds before impact: base, + per Long-range radar level, + per
 // early-warning radar level (kill chain tab). A boost battery in its sector sees it launch.
 export const EWARN={base:20,perk:8,lv:[{cost:2200,s:15},{cost:3600,s:15}]};
-// Warning actions while a fast track is inbound (keys 1-3; gamepad RB picks one, R3 does it; or click the alert panel):
+// Warning actions while a fast track is inbound (keys J / K / U; gamepad Back picks one, L3 does it; or click the alert panel):
 // harden its target site (k = share of the damage the site still takes from every hit until that track is gone; cost by wave; cd = seconds to the next),
 // evacuate it (k = share it takes for the rest of the wave; the site's share of the wave-clear bonus is lost this wave and the next),
 // decoys (a stock bought between waves; p = chance the warhead goes for the dummy site; it needs minT s left to turn).

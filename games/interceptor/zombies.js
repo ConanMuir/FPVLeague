@@ -15,6 +15,9 @@ import {initNet} from './znet.js';
 import {initChain} from './zchain.js';
 import {initWarn} from './zwarn.js';
 import {initCampaign} from './zcampaign.js';
+import {initLock} from './zlock.js';
+import {initSwarm} from './zswarm.js';
+import {initBatt} from './zbatt.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -301,6 +304,7 @@ export function initZombies(api){
  initChain(api,G,Z);  // the kill chain against the fast kinds: boost phase, midcourse stock, terminal point defence (zchain.js)
  initWarn(api,G,Z);  // early warning: launch alerts and the harden / evacuate / decoy actions (zwarn.js)
  initCampaign(api,G,Z);  // the campaign map and its sectors (zcampaign.js): wraps the hooks above, before the effects and co-op wrap them
+ initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
  return Z}

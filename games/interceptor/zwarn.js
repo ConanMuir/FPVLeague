@@ -2,10 +2,10 @@
 // plus the Long-range radar perk, plus the early-warning radar bought in the Kill chain tab); a boost battery in its launch sector sees it at
 // launch (zchain.js). Until it is picked up it is off the radar and no dome can engage it. Then a launch alert goes up:
 //   LAUNCH DETECTED — HYPERSONIC — FUEL DEPOT — 45 s, with its kill chain status underneath (zchain.js),
-// and any pilot can act on it mid-flight (keys 1-3, gamepad RB to pick and R3 to do it, or a click on the panel), zdata WACT:
-//   1 Harden the target site: it takes 50% less damage from every hit until that track is gone. Costs money; then a cooldown.
-//   2 Evacuate it: 30% less damage for the rest of the wave, but its share of the wave-clear bonus is lost this wave and the next.
-//   3 Decoy: one from the stock; a chance the warhead turns for a dummy site and comes down in a field.
+// and any pilot can act on it mid-flight (keys J / K / U, gamepad Back to pick and L3 to do it, or a click on the panel), zdata WACT:
+//   J Harden the target site: it takes 50% less damage from every hit until that track is gone. Costs money; then a cooldown.
+//   K Evacuate it: 30% less damage for the rest of the wave, but its share of the wave-clear bonus is lost this wave and the next.
+//   U Decoy: one from the stock; a chance the warhead turns for a dummy site and comes down in a field.
 // The actions apply to the selected track if it is a fast one with an alert, else to the most urgent alert. Co-op: a client's action is a
 // request ('W') that the host checks against its own state and applies (znet.js); the result reaches everyone through the team feed.
 import {KIND,FAST,EWARN,WACT} from './zdata.js';
@@ -62,7 +62,7 @@ export function initWarn(api,G,Z){
 
  // ---------- the alert panel (right of the screen, above the radar) ----------
  const el=document.createElement('div');el.id='zalert';el.className='osd';$('hud').append(el);let last='',sel=0;
- const ACTS=[['harden','1','HARDEN'],['evac','2','EVACUATE'],['decoy','3','DECOY']];
+ const ACTS=[['harden','J','HARDEN'],['evac','K','EVACUATE'],['decoy','U','DECOY']];
  el.addEventListener('click',e=>{const b=e.target.closest?.('[data-w]');if(b){use(b.dataset.w);b.blur()}});
  Z.warnHud=()=>{if(!G.on||G.state!=='wave'&&G.state!=='clear'){if(last){el.innerHTML=last='';}return}const L=alerts(),f=focusT();
   if(!L.length){if(last)el.innerHTML=last='';return}
@@ -72,8 +72,8 @@ export function initWarn(api,G,Z){
    return`<button class="sm${i===sel?' pick':''}" data-w="${a}" ${w?'disabled':''}><kbd>${k}</kbd>${txt}${w?` <small>${w}</small>`:''}</button>`}).join('')}</div>`;
   if(h!==last)el.innerHTML=last=h};
  const h0=Z.hud;Z.hud=dt=>{h0(dt);Z.warnHud()};
- // keys 1-3 in flight (the base screen keeps them for its tabs); gamepad RB picks an action, R3 does it
- const KEYS={Digit1:'harden',Digit2:'evac',Digit3:'decoy',Numpad1:'harden',Numpad2:'evac',Numpad3:'decoy'};
+ // keys J (harden), K (evacuate), U (decoy) in flight (1-5 belong to the personal swarm); gamepad Back picks an action, L3 does it (unless one is the fire button)
+ const KEYS={KeyJ:'harden',KeyK:'evac',KeyU:'decoy'};
  const k0=Z.key;Z.key=e=>{if(Z.base.el.hidden&&G.state==='wave'&&KEYS[e.code]){use(KEYS[e.code]);return true}return k0(e)};
- const p0=Z.pad;Z.pad=e=>{if(Z.base.el.hidden&&G.state==='wave'&&alerts().length){if(e(5)){sel=(sel+1)%ACTS.length;last='';return true}if(e(11)){use(ACTS[sel][0]);return true}}return p0(e)};
+ const p0=Z.pad;Z.pad=e=>{if(Z.base.el.hidden&&G.state==='wave'&&alerts().length){const fb=[api.S.fireBtn,api.S.xfire];if(!fb.includes(8)&&e(8)){sel=(sel+1)%ACTS.length;last='';return true}if(!fb.includes(10)&&e(10)){use(ACTS[sel][0]);return true}}return p0(e)};
  return Z.warn}

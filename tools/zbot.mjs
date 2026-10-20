@@ -18,16 +18,19 @@
 //   warn      launch-alert actions (zwarn.js): rate = chance per half second of acting on the alerts; mode 'random' (any action, any time),
 //             'harden' (hardens a site just before a hypersonic or ICBM lands), 'smart' (decoys the big ones early, hardens a site that can't
 //             take what is coming), 'best' (also evacuates a site that would be lost anyway, and times the harden for several hits at once)
+//   swarm     personal swarm (zswarm.js): 0 never buys it, 1 buys it and fires commands now and then, 2 flies it well (screen formation and
+//             command, strikes on crowds, attacks what it locks)
+//   lock      chance per half second of locking the most urgent track within 3.5 km of its interceptor (zlock.js), which its swarm then attacks
 // The bots teleport behind their track, so they can't feel evasion; an attempt on a track that evades on this difficulty is shaken off with
 // DODGE[evade mode] x dodgeK instead (a model, not a measurement).
 export const DODGE = {none: 0, some: .3, all: .45};
 export const LEVELS = [
-  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], chain: 0},
-  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar'], chain: 1, warn: {rate: .015, mode: 'random'}},
-  {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, chain: 2, warn: {rate: .06, mode: 'harden'}},
-  {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, chain: 3, warn: {rate: .12, mode: 'smart'}},
-  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, chain: 3, warn: {rate: .2, mode: 'smart'}},
-  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, chain: 4, warn: {rate: .25, mode: 'best'}}];
+  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], swarm: 0, lock: 0, chain: 0},
+  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar', 'swarm'], swarm: 1, lock: .04, chain: 1, warn: {rate: .015, mode: 'random'}},
+  {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, swarm: 1, lock: .08, chain: 2, warn: {rate: .06, mode: 'harden'}},
+  {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, swarm: 2, lock: .14, chain: 3, warn: {rate: .12, mode: 'smart'}},
+  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .2, chain: 3, warn: {rate: .2, mode: 'smart'}},
+  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .3, chain: 4, warn: {rate: .25, mode: 'best'}}];
 const key = s => String(s).toLowerCase().replace(/[\s-]+/g, '');
 export const level = n => LEVELS.find(l => key(l.n) === key(n));
 
@@ -35,9 +38,9 @@ export const level = n => LEVELS.find(l => key(l.n) === key(n));
 export const SHOP = `(function(P){
   const {api, G, Z, KIND} = __z, def = Z.def, B = Z.base, IT = __z.ITEMS, kf = k => Z.kindFrom ? Z.kindFrom(k) : KIND[k].from, nw = G.wave + 1;
   const ORDERS = {naive: ['flak', 'rack', 'lrack', 'ew', 'gepard', 'sam', 'mpads', 'hflak', 'idome', 'gdome'],
-    basic: ['gdome', 'idome', 'sam', 'gepard', 'rack', 'mpads', 'flak', 'ew', 'hflak', 'lrack', 'mark', 'air', 'lure', 'salvage'],
-    smart: ['gdome', 'idome', 'sam', 'gepard', 'mpads', 'hflak', 'rack', 'lrack', 'flak', 'ew', 'mark', 'air', 'warhead', 'freeze', 'lure', 'salvage', 'radar', 'aid', 'relaunch', 'battery', 'optics', 'rocket']};
-  const PRIO = [...ORDERS[P.shop], ...(P.perkBuy || [])], top = PRIO.indexOf(P.shop === 'naive' ? 'gepard' : 'gepard');
+    basic: ['gdome', 'idome', 'sam', 'gepard', 'rack', 'mpads', 'flak', 'ew', 'hflak', 'lrack', 'mark', 'air', 'lure', 'salvage', 'swarm'],
+    smart: ['gdome', 'idome', 'sam', 'gepard', 'mpads', 'hflak', 'rack', 'lrack', 'flak', 'ew', 'mark', 'air', 'warhead', 'freeze', 'lure', 'salvage', 'radar', 'aid', 'relaunch', 'battery', 'optics', 'rocket', 'swarm', 'swarmk']};
+  const PRIO = [...ORDERS[P.shop], ...(P.perkBuy || [])].filter(k => P.swarm || k !== 'swarm' && k !== 'swarmk'), top = PRIO.indexOf(P.shop === 'naive' ? 'gepard' : 'gepard');
   const from = k => Z.itemFrom ? Z.itemFrom(k) : IT[k].from, cost = k => IT[k].type === 'perk' ? Z.perkPrice(k) : (Z.itemPrice ? Z.itemPrice(k) : IT[k].price);
   const domeOK = k => k === 'idome' ? nw >= kf('ballistic') - P.domes : k === 'gdome' ? nw >= kf('hyper') - P.domes : true;
   for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp > 0 && s.hp < s.max * P.repairAt) B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)); }
@@ -103,7 +106,15 @@ export const WAVE = `(function(P, dodge){
           const d = A.filter(t => t.k !== 'ballistic' || M === 'best').find(t => tt(t) > 6 && ok('decoy', t) && (t.k !== 'ballistic' || G.kc.decoys > 2)); if (d) Wn.act('decoy', d.id);
           for (const [s, x] of [...by].sort((a, b) => b[1] - a[1])) { const t = A.find(u => u.tgt === s && tt(u) < 15); if (!t) continue;
             if ((x >= s.hp * .8 || M === 'best' && x >= 300) && ok('harden', t)) { Wn.act('harden', t.id); break; }
-            if (M === 'best' && x >= s.hp && ok('evac', t)) { Wn.act('evac', t.id); break; } } } } } }
+            if (M === 'best' && x >= s.hp && ok('evac', t)) { Wn.act('evac', t.id); break; } } } } }
+    // lock-on and the personal swarm (zlock.js, zswarm.js): a lock on the most urgent track in reach, which the swarm then attacks
+    const sw = Z.sw?.mine;
+    if (P.lock && alive && Z.lk && !Z.lk.t && Math.random() < P.lock) { const t = Z.urgent(); if (t && KIND[t.k].armor !== 'hard' && t.p.distanceTo(me.p) < 3500) Z.lk.force(t); }
+    if (P.swarm && sw && sw.d.length && alive) { const L = live().filter(t => t.p.distanceTo(me.p) < 4500 && KIND[t.k].armor !== 'hard');
+      if (P.swarm >= 2) { if (sw.form !== 3) Z.sw.command('form#', 3); if (sw.mode === 'escort') Z.sw.command('screen');
+        if (Z.lk?.t && sw.mode !== 'attack' && (KIND[Z.lk.t.k].armor === 1 || Z.lk.t.k === 'boss' || L.length < 6)) Z.sw.command('attack');
+        if (sw.ch > 0 && L.length >= 6) Z.sw.command('strike'); }
+      else if (Math.random() < .02) { if (Z.lk?.t) Z.sw.command('attack'); else Z.sw.command(['screen', 'strike', 'next'][Math.random() * 3 | 0]); } } }
   if (G.state === 'clear') __z.sim(4);
   return G.state;
 })`;

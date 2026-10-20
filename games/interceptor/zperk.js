@@ -12,10 +12,10 @@ export function initPerks(api,G,Z){
   mark:['E / D-pad right: marks your selected track for 15 s. Helper hits on it count double: two kill rolls, near misses kill, armor is ignored, and helpers go for it first. 1 charge per wave.','2 charges per wave, 18 s each.','3 charges per wave, 20 s each.'],
   air:['X / D-pad up: strike jets hit the densest cluster of tracks; everything within 260 m goes down (a boss loses a stage). 1 charge per wave.','2 charges per wave.'],
   radar:['Radar detection range ×1.3: tracks show up earlier.','Detection ×1.6.','Detection ×2.'],
-  optics:['Thermal sees through cloud and fog.','IFF: decoys are flagged at any range.','Track boxes show each track\'s target site and time to impact.'],
+  optics:['Thermal sees through cloud and fog; lock-on 20% faster.','IFF: decoys are flagged at any range; lock-on 35% faster.','Track boxes show each track\'s target site and time to impact; lock-on twice as fast.'],
   relaunch:['Next interceptor on the mat in 1.5 s.','Next interceptor in 0.9 s.'],
   warhead:['Warhead kill radius +1 m (the fuse window grows with it).','+2 m.','+3 m.'],
-  battery:['Pack +25% capacity and 25% less voltage sag.','+50% capacity, half the sag.'],
+  battery:['Twice the pack: double the flight time and range (the top bar shows what is left), and 25% less voltage sag.'],
   aid:['Foreign Aid: site repairs cost 30% less.'],
   fuse:['Your warhead fires by itself at the closest approach inside 6 m, like Classic. Without it you time the burst yourself (F, click or the detonate button).'],
   rocket:['Every interceptor gets a 15 s rocket burst when it lifts off the mat: about 3× normal top speed, same stick rates. HUD bar shows the burn left.'],
@@ -26,7 +26,7 @@ export function initPerks(api,G,Z){
  Z.buyPerk=k=>{G.perks[k]=lv(k)+1;if(ACT.includes(k))G.ch[k]=(G.ch[k]|0)+1;apply()};
  Z.radarK=()=>[1,1.3,1.6,2][lv('radar')];Z.repairK=()=>(lv('aid')?.7:1)*Z.meta.k('repairK');Z.ident=()=>lv('optics')>=2;Z.eta=()=>lv('optics')>=3;
  // passive effects on Riley's interceptor (restored by applyTune when Zombies stops)
- function apply(){const T=S.mod;api.LETH=T.leth+lv('warhead');api.RELT=T.relt*[1,.6,.36][lv('relaunch')];api.BCAP=T.bcap*(1+.25*lv('battery'));api.SAGK=1-.25*lv('battery')}
+ function apply(){const T=S.mod;api.LETH=T.leth+lv('warhead');api.RELT=T.relt*[1,.6,.36][lv('relaunch')];api.BCAP=T.bcap*(Z.batK?Z.batK():1+.25*lv('battery'));api.SAGK=1-.25*Math.min(1,lv('battery'))}  /* the Zombies pack and Better battery (2x): zbatt.js */
  function reset(){G.perks={};G.ch={};apply()}
  function refill(){G.ch={freeze:FREEZE[lv('freeze')]?.n|0,mark:MARK[lv('mark')]?.n|0,air:AIR[lv('air')]?.n|0,lure:lv('lure')?1:0};G.strike=null}
  Z.perkRows=money=>Object.keys(PERK).filter(k=>lv(k)).map(k=>{const m=Z.perkMaxed(k),c=Z.perkPrice(k);
