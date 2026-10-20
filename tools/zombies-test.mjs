@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
 // game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR]
-//   --sections=classic,saves,zombies,roster,helpers,weather,meta,campaign,swarm   run only those sections (CI shards them across jobs); default all
+//   --sections=classic,saves,zombies,roster,helpers,weather,meta,campaign,swarm,bosses   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
 import {front as campFront} from '../games/interceptor/zcampaign.js';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
@@ -561,6 +561,157 @@ if (want('swarm')) {
   const cls = await p.evaluate(() => { __z.api.startDemo(); return {cap: __z.api.BCAP, mod: __z.api.S.mod.bcap, panel: document.getElementById('zsw').hidden}; });
   ok(cls.cap === cls.mod && cls.panel, `Classic: battery back to ${cls.cap} mAh, swarm panel hidden`);
   ok(!errs.length, 'Swarm / lock / battery: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+}
+
+// ---------- boss roster (zbosses.js + zboss-*.js): the registry and spawn rules, then every boss through the debug trigger: its intro, its
+// code-built model with canvas decals, its sounds, its phases, beaten by the bot pilots' real burst path, its reward granted and recorded;
+// the special mechanics one by one (the Ace's learning, lock and record, the Ghost of the Ace chain, the Jammer King's reveal and hunt, the
+// Twins' link, the Juggernaut's weak points, the Hive's split, the Mirror's habits, the Undertaker's drain and growth, the Siren's false IFF,
+// the Puppeteer's wires and trails) ----------
+if (want('bosses')) {
+  const {p, errs} = await page('z');
+  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); delete s.zboss; localStorage.setItem('dl-interceptor', JSON.stringify({...s, zwx: 'menu'})); });
+  await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3);
+  await play(p);
+  await p.evaluate(() => { const {G} = __z; G.cash = 1e5; __z.jump(24); G.next = __z.plan(24); __z.cont();
+    window.__b = {
+      // an empty wave that stays open (a queue entry far in the future), sites full, nothing in the air
+      clear() { const {api, G} = __z; for (const t of api.TH) t.st = 'dead'; __z.sim(.1); G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); G.benc = []; for (const s of api.SITES) s.hp = s.max; if (api.player.dead > 0) api.launch(); },
+      // the bot pilots' boss runs (zbot.mjs) until the fight is over; returns the phases seen and the outcome
+      beat(t, n = 260) { const {api, Z} = __z, ph = new Set([t.bs.ph]); let k = 0; for (let i = 0; i < n; i++) { if (api.player.dead > 0) api.launch(); if (Z.bosses.bot(1)) k++; __z.sim(.3);
+          const D = Z.bosses.BOSSES[t.k]; if (D.phaseName) ph.add(D.phaseName(Z.bosses.ctx, t.bs.enc)); else for (const u of api.TH) if (u.bs && u.bs.enc === t.bs.enc && !Z.bosses.BOSSES[u.k].minor && !u.bs.dead) ph.add(u.bs.ph); if (t.bs.enc.over) break; }
+        return {ph: [...ph], won: !!t.bs.enc.won, runs: k}; },
+      decals(t) { let n = 0; t.mesh.traverse(o => { for (const m of [o.material, o.userData?.m0]) if (m && m.map && m.map.image instanceof HTMLCanvasElement) n++; }); return n; },
+      V: (x, y, z) => new __z.api.THREE.Vector3(x, y, z)};
+    __z.sim(.5); });
+  // registry and spawn rules
+  const reg = await p.evaluate(() => { const {Z, KIND, G} = __z, B = Z.bosses, r0 = Math.random, out = {ids: B.ROSTER.slice(), kinds: B.ROSTER.every(k => KIND[k]?.bossy && KIND[k].armor), rewards: Object.keys(B.REWARDS).length};
+    G.bseen = {}; out.w10 = __z.plan(10).list.filter(k => k === 'boss' || B.BOSSES[k]);
+    const pool = new Set(); for (let i = 0; i < 80; i++) { G.bseen = {}; pool.add(__z.plan(30).list.find(k => k === 'boss' || B.BOSSES[k])); } out.pool = [...pool];
+    G.bevW = -99; Math.random = () => .001; try { out.ev = __z.plan(27).list.filter(k => B.BOSSES[k]); out.ev28 = __z.plan(28).list.filter(k => B.BOSSES[k]).length; G.bevW = -99; out.ev30 = __z.plan(30).list.filter(k => k === 'boss' || B.BOSSES[k]).length; } finally { Math.random = r0; }
+    out.force = B.force('hive') && __z.plan(13).list.includes('hive'); G.bevW = -99; G.bseen = {}; return out; });
+  console.log('  roster:', reg.ids.join(', '), '· wave 30 pool:', reg.pool.join(', '));
+  ok(['ace', 'gace', 'jammer', 'twins', 'jugg', 'ghost', 'hive', 'mirror', 'undertaker', 'siren', 'puppet'].every(k => reg.ids.includes(k)) && reg.kinds && reg.rewards >= 11, `Registry: ${reg.ids.length} bosses registered with registerBoss, each a KIND with ${reg.rewards} rewards`);
+  ok(reg.w10.join() === 'boss' && reg.pool.length >= 4 && reg.pool.includes('boss'), `Boss waves: wave 10 is the Mothership; wave 30 draws from ${reg.pool.length} bosses`);
+  ok(reg.ev.length === 1 && reg.ev30 === 1 && reg.ev28 === 0 && reg.force, `Events: one rare boss on wave 27 (${reg.ev}), none on a boss wave, none the next wave (3 apart); force() puts one in the next plan`);
+  // every boss: debug trigger, intro, model with canvas decals, sounds, phases, beaten through the real burst path, reward, record
+  const ids = ['twins', 'jugg', 'ghost', 'hive', 'mirror', 'siren', 'jammer'];
+  const runs = await p.evaluate(ids => { const {api, Z, G} = __z, out = {};
+    G.hab = {n: 400, alt: 300 * 400, spd: 90 * 400, L: 300, R: 100, asp: {'LEVEL SIX': 9, 'HIGH BEAM': 2}, side: {LEFT: 6, RIGHT: 5}, dets: 0, yaw: null, t: 0};  /* habits for the Mirror to copy */
+    for (const id of ids) { __b.clear(); api.player.v.set(0, 0, -40); const t = Z.bosses.spawn(id), D = Z.bosses.BOSSES[id]; __z.sim(3);
+      const o = {intro: !!t.bs.intro, decals: __b.decals(t), sound: typeof D.sting === 'function' && typeof D.loop === 'function', max: t.bs.max, phases: D.phases?.length || 1, net: Z.bossOut(t).every(Number.isFinite)};
+      Object.assign(o, __b.beat(t)); o.reward = !!G.brw[D.reward.id]; o.won0 = api.S.zboss?.b?.[id]?.won | 0; out[id] = o; } return out; }, ids);
+  for (const id of ids) { const o = runs[id]; console.log(`  ${id}:`, JSON.stringify(o));
+    ok(o.intro && o.decals >= 2 && o.sound && o.net, `${id}: spawned by the debug trigger, intro played, model with ${o.decals} canvas-decal materials, signature and presence sounds`);
+    ok(o.won && o.ph.length >= Math.min(2, o.phases) && o.reward && o.won0 === 1, `${id}: beaten in ${o.runs} bot runs, phases ${o.ph.join('→')}, reward granted and the win recorded`); }
+  // the Ghost (stealth): no radar track far out, seen up close; the lock slips
+  const gh = await p.evaluate(() => { __b.clear(); const {api, Z} = __z, t = Z.bosses.spawn('ghost'); __z.sim(2); Z.fxTest?.endCine(); const me = api.player, cam = api.camera, far = Z.seen(t), hid = Z.hid(t); me.p.copy(t.p).add(__b.V(0, 0, 600)); const near = Z.seen(t);
+    Z.lk.force(t); let s = 0; while (Z.lk.t === t && s < 5) { me.p.copy(t.p).add(__b.V(0, 0, 600)); cam.position.copy(me.p); cam.lookAt(t.p); cam.updateMatrixWorld(); __z.sim(.1); s += .1; } const slip = +s.toFixed(1), lj = Z.lockJam(t); t.st = 'dead'; return {far, hid, near, slip, lj}; });
+  ok(!gh.far && gh.hid && gh.near && gh.slip > 1.5 && gh.slip < 3 && gh.lj > 100, `Ghost: off radar and unbracketed far out, seen within 1.2 km; a lock slips after ${gh.slip} s and will not take again for 3 s`);
+  // the Twins: the link soaks proximity bursts until it snaps; kill one and the other enrages
+  const tw = await p.evaluate(() => { __b.clear(); const {api, Z} = __z; Z.bosses.spawn('twins'); __z.sim(1.5); const [a, b] = api.TH.filter(t => t.k === 'twins' && api.live(t)); b.p.copy(a.p).add(__b.V(40, 0, 0));
+    const h0 = a.bs.hp; Z.bosses.hitAt(a, 'damage', a.p); const s1 = a.bs.strain, h1 = a.bs.hp; Z.bosses.hitAt(a, 'damage', a.p); const snap = a.bs.snap > 0; Z.bosses.hitAt(a, 'damage', a.p); const h2 = a.bs.hp;
+    for (let i = 0; i < 4 && api.live(b); i++) { b.bs.snap = 8; Z.bosses.hitAt(b, 'kill', b.p); } __z.sim(.1); const r = {h0, s1, h1, snap, h2, rage: a.bs.rage, bdead: b.st === 'dead'}; a.st = 'dead'; return r; });
+  ok(tw.h1 === tw.h0 && tw.s1 === 1 && tw.snap && tw.h2 === tw.h0 - 1, `Twins: linked, a proximity burst only strains the link (${tw.s1}/2); the second snaps it; then it counts (${tw.h0} → ${tw.h2})`);
+  ok(tw.bdead && tw.rage === 1, 'Twins: kill POLLUX and CASTOR enrages');
+  // the Juggernaut: armour shrugs off bursts away from the glowing weak points; stages blow the plates off the next ones
+  const jg = await p.evaluate(() => { __b.clear(); const {api, Z} = __z, t = Z.bosses.spawn('jugg'); __z.sim(2); const W = [[2.2, 3, -12], [-2.2, 3, -12], [3.3, 0, 0], [-3.3, 0, 0], [0, -3.3, 5], [0, 0, 24.4]];
+    const wp = i => { t.mesh.updateMatrixWorld(); return __b.V(...W[i]).applyMatrix4(t.mesh.matrixWorld); }, on = () => t.mesh.userData.plates.filter(q => q.on).length, out = {h0: t.bs.hp, p0: on()};
+    Z.bosses.hitAt(t, 'damage', t.p.clone()); out.center = t.bs.hp; Z.bosses.hitAt(t, 'damage', wp(2)); out.covered = t.bs.hp;
+    Z.bosses.hitAt(t, 'damage', wp(0)); out.wp0 = t.bs.hp; Z.bosses.hitAt(t, 'damage', wp(1)); out.wp1 = t.bs.hp; __z.sim(.5); out.p1 = on(); out.ph = t.bs.ph; Z.bosses.hitAt(t, 'damage', wp(2)); out.vent = t.bs.hp; __z.sim(.3); out.fires = t.mesh.userData.applied.filter(Boolean).length;
+    out.slow = t.spd; out.won = __b.beat(t).won; return out; });
+  ok(jg.center === jg.h0 && jg.covered === jg.h0 && jg.wp0 === jg.h0 - 1 && jg.wp1 === jg.h0 - 2, `Juggernaut: a burst at the hull or on a covered vent does nothing; each glowing weak point hit counts (${jg.h0} → ${jg.wp1})`);
+  ok(jg.p1 < jg.p0 && jg.ph === 1 && jg.vent === jg.wp1 - 1 && jg.fires >= 3 && jg.won, `Juggernaut: stage 1 cleared blew ${jg.p0 - jg.p1} plates off (BREACHED), the vents opened; fires at ${jg.fires} weak points; beaten`);
+  // the Hive splits into three brood carriers at half strength
+  const hv = await p.evaluate(() => { __b.clear(); const {api, Z} = __z, t = Z.bosses.spawn('hive'); __z.sim(1); for (let i = 0; i < 4; i++) Z.bosses.hitAt(t, 'damage', t.p.clone()); __z.sim(.2);
+    const b = api.TH.filter(u => u.k === 'brood' && api.live(u)); const r = {split: t.bs.split, gone: t.st, broods: b.length, sites: new Set(b.map(u => u.bs.site?.n)).size}; for (const u of b) u.st = 'dead'; return r; });
+  ok(hv.split && hv.broods === 3 && hv.sites >= 2, `Hive: at half strength it splits into ${hv.broods} brood carriers bound for ${hv.sites} sites`);
+  // the Mirror: bursts from your favourite aspect glance off; from another aspect they count
+  const mr = await p.evaluate(() => { __b.clear(); const {api, Z} = __z, t = Z.bosses.spawn('mirror'); __z.sim(1); const r0 = Math.random, v = t.v.clone().normalize(); Math.random = () => .5;
+    try { const h0 = t.bs.hp; Z.bosses.hitAt(t, 'damage', t.p.clone().addScaledVector(v, -4)); const fav = t.bs.hp; Z.bosses.hitAt(t, 'damage', t.p.clone().add(__b.V(0, 4, 0))); const off = t.bs.hp; t.st = 'dead'; return {h0, fav, off, h: t.bs.h.fav}; } finally { Math.random = r0; } });
+  ok(mr.fav === mr.h0 && mr.off === mr.h0 - 1, `Mirror: it copies your habit (${mr.h}); a burst from there glances off, one from above counts (${mr.h0} → ${mr.off})`);
+  // the Ace of Aces: he files your approaches and breaks early against your favourite; his lock and missile; the record between runs
+  const ace = await p.evaluate(() => { __b.clear(); const {api, Z, G} = __z, t = Z.bosses.spawn('ace'), me = api.player; __z.sim(1); t.bs.mcd = 99;
+    const run = (up, back, side = 0) => { const f = t.v.clone().setY(0).normalize(), r = __b.V(-f.z, 0, f.x); me.p.copy(t.p).addScaledVector(f, -back).addScaledVector(r, side).add(__b.V(0, up, 0)); me.v.copy(t.v).multiplyScalar(2); t.bs.brkCd = 0; t.bs.brkT = 0; __z.sim(1 / 60); const b = t.bs.brkT > 0;
+      me.p.add(__b.V(0, 3000, 0)); __z.sim(1 / 60); return b; };
+    const out = {}; for (let i = 0; i < 3; i++) run(260, 430); out.fav = t.bs.fav; out.brkFav = run(260, 470); out.brkOther = run(-200, 0, 470);
+    t.bs.mcd = 0; t.bs.brkCd = 99; t.bs.ext = 0; const f = t.v.clone().normalize(); let s = 0; while (!(t.bs.mcd > 0) && s < 8) { me.p.copy(t.p).addScaledVector(f, 500); me.v.copy(t.v); __z.sim(.1); s += .1; } out.lockT = +s.toFixed(1);
+    const k0 = api.S.zboss.ace.kills | 0; s = 0; while (me.dead <= 0 && s < 10) { __z.sim(.1); s += .1; } out.shot = me.dead > 0; out.kills = (api.S.zboss.ace.kills | 0) - k0;
+    out.beat = __b.beat(t); out.rec = JSON.parse(localStorage.getItem('dl-interceptor')).zboss.ace; out.reward = !!G.brw.instinct; return out; });
+  console.log('  ace:', JSON.stringify(ace));
+  ok(ace.fav === 'HIGH SIX' && ace.brkFav && !ace.brkOther, `Ace: three runs from the high six make it his favourite read (${ace.fav}); he breaks early against it at 470 m, not against a low beam pass`);
+  ok(ace.lockT > 1.5 && ace.lockT < 4 && ace.shot && ace.kills === 1, `Ace: sitting in his nose cone he locks in ${ace.lockT} s and his missile gets you; the kill goes on his record`);
+  ok(ace.beat.won && ace.reward && ace.rec.beaten === 1 && ace.rec.met >= 1, `Ace: beaten (phases ${ace.beat.ph.join('→')}); Ace Instinct granted; record saved between runs (met ${ace.rec.met}, beaten ${ace.rec.beaten}, kills ${ace.rec.kills})`);
+  // the Ghost of the Ace: the wreck only exists once the Ace has been beaten; find it and he returns next wave with spectres of what you killed
+  const g0 = await p.evaluate(() => ({wreck: !!__z.G.wreck}));
+  await p.evaluate(() => { document.getElementById('zover').hidden = true; __z.api.startDemo(); }); await play(p);
+  const ga = await p.evaluate(() => { const {api, Z, G} = __z, w = G.wreck, out = {wreck: !!w}; if (!w) return out; out.far = Math.round(Math.hypot(w.x - 0, w.z - 1950)); out.inAO = Math.abs(w.x) < 4000 && Math.abs(w.z) < 4000;
+    G.cash = 1e5; __z.jump(20); G.next = __z.plan(20); __z.cont(); __b.clear(); out.before = G.gnext | 0; api.player.p.set(w.x, w.y + 12, w.z); api.player.v.set(0, 0, 0); __z.sim(.2); out.found = w.found; out.gnext = G.gnext; out.note = /stirs/.test(Z.tacNote());
+    G.fallen = {jet: 4, heavy: 2, shahed: 6}; G.wq.length = 0; for (const t of api.TH) t.st = 'dead'; __z.sim(5); out.base = G.state; __z.cont(); __z.sim(1); const g = api.TH.find(t => t.k === 'gace');
+    out.ghost = !!g; out.spec = [...new Set(api.TH.filter(t => t.k === 'spectre' && api.live(t)).map(t => t.src))]; out.nspec = api.TH.filter(t => t.k === 'spectre' && api.live(t)).length; if (!g) return out;
+    G.wq.push({k: 'shahed', at: 1e9, brg: 0}); out.decals = __b.decals(g); out.beat = __b.beat(g, 400); out.reward = !!G.brw.deathless;
+    if (api.player.dead > 0) api.launch(); __z.sim(.1); out.save1 = Z.bosses.ctx.shoot('test'); out.alive = api.player.dead <= 0; out.save2 = Z.bosses.ctx.shoot('test'); out.rec = api.S.zboss.ghost; return out; });
+  console.log('  ghost of the ace:', JSON.stringify(ga));
+  ok(!g0.wreck && ga.wreck && ga.far > 1800 && ga.inAO, `Ghost of the Ace: no wreck before the Ace is beaten; after, a wreck lies ${ga.far} m out in the area (no sorties on this build)`);
+  ok(ga.before === 0 && ga.found && ga.gnext === 1 && ga.note, 'Ghost of the Ace: flying over the wreck finds it; the base screen warns that something stirs');
+  ok(ga.ghost && ga.nspec >= 4 && ga.spec.every(k => ['jet', 'heavy', 'shahed'].includes(k)), `Ghost of the Ace: next wave he rises with ${ga.nspec} spectres of what you killed (${ga.spec})`);
+  ok(ga.beat?.won && ga.beat.ph.length >= 2 && ga.reward && ga.rec?.beaten === 1, `Ghost of the Ace: beaten (phases ${ga.beat?.ph.join('→')}), Deathless granted, recorded`);
+  ok(ga.save1 === false && ga.alive && ga.save2 === true, 'Deathless: the first interceptor loss of a wave is undone, the second is not');
+  // the Jammer King: the silhouette, then gone; the jamming; its windows, relay pods and bearing lines, the overload, the exposed network
+  const jk = await p.evaluate(() => { __b.clear(); const {api, Z, G} = __z, other = Z.make('shahed', 0, -2000), rk0 = Z.radarK(), lj0 = Z.lockJam(other), t = Z.bosses.spawn('jammer'); __z.sim(.3);
+    const out = {sil: t.bs.sil > 0, silVis: t.mesh.visible, seen0: Z.seen(t), hid0: Z.hid(t)}; t.bs.pt = 0; out.lj = +(Z.lockJam(other) / lj0).toFixed(2); out.rk = +(Z.radarK() / rk0).toFixed(2);
+    __z.sim(5); out.gone = !t.mesh.visible && Z.hid(t) && !Z.seen(t); out.pods = api.TH.filter(u => u.k === 'jpod' && api.live(u)).length; api.player.p.set(0, api.gh(0, 1950) + 6000, 1950); out.podRadar = api.TH.filter(u => u.k === 'jpod').every(u => !Z.seen(u));
+    api.player.p.copy(t.p).add(__b.V(0, 0, 3000)); t.bs.pt = 8.5; out.winSeen = Z.seen(t); out.winLj = +(Z.lockJam(other) / lj0).toFixed(2); t.bs.pt = 0;
+    const pods = api.TH.filter(u => u.k === 'jpod' && api.live(u)); for (const q of pods.slice(0, 2)) { q.by = 'p'; api.killThreat(q, true); } out.lines = t.bs.lines.length;
+    const q = pods[2]; for (let i = 0; i < 8; i++) { const u = Z.make('shahed', q.p.x, q.p.z); u.p.copy(q.p).add(__b.V(i * 20, -50, 0)); u.by = 'p'; api.killThreat(u, true); } out.surf = t.bs.surf; out.surfSeen = Z.seen(t);
+    for (const u of pods.slice(2)) { u.by = 'p'; api.killThreat(u, true); } __z.sim(.2); out.exposed = t.bs.exposed; out.status = document.getElementById('zbb') ? 1 : 0; other.st = 'dead'; return out; });
+  console.log('  jammer:', JSON.stringify(jk));
+  ok(jk.sil && jk.silVis && !jk.seen0 && jk.hid0 && jk.gone, 'Jammer King: shows once as a silhouette in the haze, then vanishes into the fog (no radar track, no bracket)');
+  ok(jk.lj >= 2 && jk.rk <= .6 && jk.pods >= 3 && jk.podRadar, `Jammer King: while it jams, lock-on x${jk.lj} slower and radar range x${jk.rk}; ${jk.pods} relay pods off radar`);
+  ok(jk.winSeen && jk.winLj === 1, 'Jammer King: in a jamming window it shows on radar within 6 km and your lock is normal');
+  ok(jk.lines === 2 && jk.surf > 0 && jk.surfSeen && jk.exposed === 1, `Jammer King: two relay pods down draw ${jk.lines} bearing lines; 8 kills inside a bubble overload it (surfaced ${Math.round(jk.surf)} s); every pod down exposes it`);
+  // the Undertaker: comes for a lost site, strips it and drains the others, grows armour; waits over the base screen; repairs starve it
+  const ut = await p.evaluate(() => { __b.clear(); const {api, Z, G} = __z, S = api.SITES, out = {}; G.utW = -99; G.uthp = null; __z.sim(.1); S[0].hp = 0; __z.sim(9); const t = api.TH.find(u => u.k === 'undertaker'); out.came = !!t; if (!t) return out;
+    __z.sim(45); out.on = t.bs.on; const hp0 = S.slice(1).map(s => s.hp); __z.sim(10); out.drained = S.slice(1).map((s, i) => +(hp0[i] - s.hp).toFixed(1)); out.armor = t.bs.hp - 2; out.decals = __b.decals(t);
+    G.wq.length = 0; __z.sim(4); out.lurk = t.st; __z.sim(5); out.state = G.state; out.note = /UNDERTAKER[\s\S]*armour/.test(Z.tacNote()); const a0 = t.bs.hp;
+    __z.cont(); __z.sim(.2); out.wake = t.st; out.grew = t.bs.hp - a0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); S[0].hp = Math.round(S[0].max * .5); __z.sim(.2); out.starved = t.bs.hp < a0 + out.grew; out.leave = t.bs.leave | 0;
+    const u = Z.bosses.spawn('undertaker', {x: S[1].x, z: S[1].z - 100}); S[1].hp = 20; u.bs.anchor = S[1]; __z.sim(1); out.beat = __b.beat(u); out.reward = !!G.brw.ledger; for (const s of S) s.hp = s.max; return out; });
+  console.log('  undertaker:', JSON.stringify(ut));
+  ok(ut.came && ut.on === 1 && ut.drained.every(d => d > 3) && ut.armor >= 1, `Undertaker: comes for the lost substation, strips it and drains the other sites (${ut.drained.join(' / ')} hp in 10 s), armour +${ut.armor} while it worked`);
+  ok(ut.lurk === 'lurk' && ut.state === 'base' && ut.note && ut.wake === 'cruise' && ut.grew === 2, 'Undertaker: the wave still ends; it waits over the base screen (the forecast shows its armour) and comes back 2 plates bigger');
+  ok(ut.starved && ut.leave === 1 && ut.beat.won && ut.reward, 'Undertaker: repairing the wreck above 35% starves it (plates fall, it leaves); a fresh one beaten for the Ledger');
+  // the Siren: drones within its song read friendly (green) and your helpers hold fire; within 600 m you see it for what it is
+  const sr = await p.evaluate(() => { __b.clear(); const {api, Z} = __z, t = Z.bosses.spawn('siren'); __z.sim(3); const cov = api.TH.filter(u => api.live(u) && !Z.bosses.BOSSES[u.k] && u.p.distanceTo(t.p) < 900);
+    const out = {n: cov.length, iff: cov.filter(u => u.iff > 0).length, green: cov.every(u => Z.rcol(u) === '61,220,132'), self: Z.label(t), selfIff: t.iff > 0};
+    api.player.p.copy(t.p).add(__b.V(0, 120, 300)); api.player.v.set(0, 0, 0); __z.sim(.1); out.ident = t.bs.ident; out.label = Z.label(t); for (const u of api.TH) u.st = 'dead'; return out; });
+  ok(sr.n >= 3 && sr.iff === sr.n && sr.green && /FRIENDLY/.test(sr.self) && sr.selfIff, `Siren: its ${sr.n} escorts read FRIENDLY (green, helpers hold fire); the Siren itself shows as a friendly`);
+  ok(sr.ident === 1 && /SIREN/.test(sr.label), 'Siren: within 600 m it is unmasked');
+  // the Puppeteer: off radar in a disguise; wires boost enemies and hijack your drones; a fallen wire leaves a trail; only a direct strike counts
+  const pp = await p.evaluate(() => { __b.clear(); const {api, Z, G} = __z, t = Z.bosses.spawn('puppet'), D = Z.bosses.BOSSES.puppet; __z.sim(1); const vis = k => t.mesh.userData.sub[k].visible;
+    const out = {seen: Z.seen(t), hid: Z.hid(t), dis: t.bs.dis, disVis: vis(t.bs.dis), decals: __b.decals(t)};
+    const L = []; for (let i = 0; i < 3; i++) { const u = Z.make('shahed', t.p.x + 600 + i * 50, t.p.z - 900); L.push(u); } const s0 = L.map(u => u.spd); t.bs.wt = 0; const r0 = Math.random; Math.random = () => .9; try { __z.sim(.1); } finally { Math.random = r0; }
+    const w = L.find(u => u.pup === t.id); out.wired = !!w; out.boost = w ? +(w.spd / s0[L.indexOf(w)]).toFixed(2) : 0; if (w) { w.by = 'p'; api.killThreat(w, true); } __z.sim(.3); out.trail = D.dbg().paths;
+    api.player.p.copy(t.p).add(__b.V(0, 120, 0)); Z.sw.deploy(Z.sw.mine, 4, 0); const n0 = Z.sw.drones.length; t.bs.wt = 0; Math.random = () => .1; try { __z.sim(.1); } finally { Math.random = r0; } out.hijack = t.bs.hij | 0; out.lost = n0 - Z.sw.drones.length; out.pp = api.TH.filter(u => u.k === 'ppdrone' && api.live(u)).length;
+    t.bs.next = 0; __z.sim(.2); out.moving = !!t.bs.mv && vis('truck');
+    const h0 = t.bs.hp; Z.bosses.hitAt(t, 'damage', t.p.clone()); out.prox = t.bs.hp === h0; Z.bosses.hitAt(t, 'kill', t.p.clone()); out.exposed = t.bs.exposed && vis('spider'); Z.bosses.hitAt(t, 'kill', t.p.clone()); __z.sim(.3);
+    out.dead = t.st === 'dead'; out.reward = !!G.brw.strings; for (const u of api.TH) u.st = 'dead'; Z.sw.mine.d.length = 0; return out; });
+  console.log('  puppeteer:', JSON.stringify(pp));
+  ok(!pp.seen && pp.hid && pp.disVis && pp.decals >= 3, `Puppeteer: no radar track, no bracket, disguised as a ${pp.dis}`);
+  ok(pp.wired && pp.boost > 1.2 && pp.trail >= 1, `Puppeteer: wires an enemy drone (x${pp.boost} speed); when it falls its wire leaves a trail on the ground`);
+  ok(pp.hijack === 1 && pp.lost >= 1 && pp.moving, 'Puppeteer: hijacks one of your swarm drones (it turns on your base; your own escort may shoot it down); relocates as a truck');
+  ok(pp.prox && pp.exposed && pp.dead && pp.reward, 'Puppeteer: a proximity burst does nothing; the first direct strike exposes it, the second kills it (Puppet Strings)');
+  // bots know the roster; HUD boss bar; Classic untouched
+  const {LEVELS} = await import('./zbot.mjs');
+  ok(LEVELS.every(l => Array.isArray(l.boss) && l.boss[1] > 0) && LEVELS[0].boss[1] < LEVELS[5].boss[1], `Bots: every level has a boss skill (${LEVELS.map(l => l.boss[1]).join(' / ')})`);
+  await p.evaluate(() => { __b.clear(); __z.Z.bosses.spawn('hive'); __z.sim(2); }); await drawFrames(p, 4);
+  const bar = await p.evaluate(() => { const b = document.getElementById('zbb'); return {on: !b.hidden, txt: b.textContent.slice(0, 120)}; });
+  if (SHOTS) await p.screenshot({path: SHOTS + '/z-boss-bar.png'});
+  ok(bar.on && /HIVE/.test(bar.txt), `HUD: boss bar "${bar.txt}"`);
+  const cls = await p.evaluate(() => { __z.api.startDemo(); return {on: __z.Z.on, boss: __z.api.TH.some(t => __z.Z.bosses.BOSSES[t.k]), bar: document.getElementById('zbb').hidden || getComputedStyle(document.getElementById('zbb')).display === 'none'}; });
+  ok(!cls.on && !cls.boss && cls.bar, 'Classic: no bosses, no boss bar');
+  ok(!errs.length, 'Bosses: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); delete s.zboss; localStorage.setItem('dl-interceptor', JSON.stringify(s)); });
   await p.close();
 }
 

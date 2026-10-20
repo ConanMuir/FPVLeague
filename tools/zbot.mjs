@@ -15,16 +15,20 @@
 //   swarm     personal swarm (zswarm.js): 0 never buys it, 1 buys it and fires commands now and then, 2 flies it well (screen formation and
 //             command, strikes on crowds, attacks what it locks)
 //   lock      chance per half second of locking the most urgent track within 3.5 km of its interceptor (zlock.js), which its swarm then attacks
+//   boss      boss roster (zbosses.js): [chance per half second of a run at a live boss, skill 0..1]. Each boss module says where a pilot of that
+//             skill would burst (its aim hook: behind the Ace, on a Juggernaut weak point, a relay pod before the hidden Jammer King, nothing
+//             on a Ghost or Puppeteer it has not found); skill is how often that position is a good one. bossCare: repair the site the
+//             Undertaker strips above its starve line at the base screen.
 // The bots teleport behind their track, so they can't feel evasion; an attempt on a track that evades on this difficulty is shaken off with
 // DODGE[evade mode] x dodgeK instead (a model, not a measurement).
 export const DODGE = {none: 0, some: .3, all: .45};
 export const LEVELS = [
-  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], swarm: 0, lock: 0},
-  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar', 'swarm'], swarm: 1, lock: .04},
-  {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, swarm: 1, lock: .08},
-  {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, swarm: 2, lock: .14},
-  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .2},
-  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .3}];
+  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], swarm: 0, lock: 0, boss: [0.01, 0.25]},
+  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar', 'swarm'], swarm: 1, lock: .04, boss: [0.02, 0.4]},
+  {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, swarm: 1, lock: .08, boss: [0.03, 0.55]},
+  {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, swarm: 2, lock: .14, boss: [0.045, 0.7], bossCare: 1},
+  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .2, boss: [0.06, 0.8], bossCare: 1},
+  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .3, boss: [0.08, 0.9], bossCare: 1}];
 const key = s => String(s).toLowerCase().replace(/[\s-]+/g, '');
 export const level = n => LEVELS.find(l => key(l.n) === key(n));
 
@@ -38,6 +42,7 @@ export const SHOP = `(function(P){
   const from = k => Z.itemFrom ? Z.itemFrom(k) : IT[k].from, cost = k => IT[k].type === 'perk' ? Z.perkPrice(k) : (Z.itemPrice ? Z.itemPrice(k) : IT[k].price);
   const domeOK = k => k === 'idome' ? nw >= kf('ballistic') - P.domes : k === 'gdome' ? nw >= kf('hyper') - P.domes : true;
   for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp > 0 && s.hp < s.max * P.repairAt) B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)); }
+  if (P.bossCare) for (const t of api.TH) if (t.k === 'undertaker' && t.st === 'lurk' && t.bs?.anchor) { const i = api.SITES.indexOf(t.bs.anchor), s = t.bs.anchor; if (s.hp <= 0 && B.act.rebuild) B.act.rebuild(i); else if (s.hp > 0) B.act.repair(i, Math.ceil(s.max * .4 - s.hp)); }  /* starve the Undertaker */
   if (P.rebuild && B.act.rebuild) api.SITES.forEach((s, i) => { if (s.hp <= 0 && G.cash > 9000) B.act.rebuild(i); });
   const open = () => def.SLOTS.some((_, j) => def.slotFree(j)), keep = G.cash * (1 - (P.spend ?? 1)), afford = c => G.cash - c >= keep;
   for (let pass = 0; pass < 3; pass++) {
@@ -65,6 +70,7 @@ export const WAVE = `(function(P, dodge){
     if (P.fast && alive && Math.random() < P.fast) { const h = api.TH.filter(t => api.live(t) && KIND[t.k].armor === 'hard' && t.p.distanceTo(t.aim) < 15000).sort((a, b) => a.p.distanceTo(a.aim) - b.p.distanceTo(b.aim))[0];
       if (h) { me.p.copy(h.p).addScaledVector(h.v.clone().normalize(), -.5); me.v.set(0, 0, 0); Z.detonate(); continue; } }
     if (Math.random() < P.rate) { const t = Z.urgent(); if (t && KIND[t.k].armor !== 'hard' && alive) { const off = Math.random() < P.miss || evades(t) && Math.random() < Math.min(.9, dodge * P.dodgeK) ? 7 : .8; __z.botKill(off); } }
+    if (P.boss && alive && Z.bosses && Math.random() < P.boss[0]) Z.bosses.bot(P.boss[1]);  /* boss roster: a run at a live boss (zbosses.js) */
     if (me && me.dead > 0 && Math.random() < P.relaunch) api.launch();
     if (P.perks === 'random' && Math.random() < .02) ['freeze', 'mark', 'air', 'lure'].forEach(k => Z.pk.use(k));
     if (P.perks === 'smart') { const L = live();
