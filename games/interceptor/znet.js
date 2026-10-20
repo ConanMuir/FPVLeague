@@ -272,12 +272,12 @@ export function initNet(api,G,Z){
  const dt0=Z.detonate;Z.detonate=()=>Z.mirror?clientDet():dt0();
  function clientDet(){const d=api.player,h=[];let nr=1e9;
   for(const t of TH)if(api.live(t)){const r=t.p.distanceTo(d.p);nr=Math.min(nr,r);if(r>30)continue;const cv=Math.max(0,-_a.subVectors(t.v,d.v).dot(_t.subVectors(t.p,d.p))/(r||1));h.push([t.id,+r.toFixed(2),+cv.toFixed(1)])}
-  G.detFlag=true;if(h.length){req(['d',h,+nr.toFixed(1)]);banner('BURST','co',.8)}else{G.streak=0;const txt=nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';banner(txt,'cr',1.4);G.det={txt,t:performance.now()};tone(300,140,.35,.12,'sawtooth')}
+  G.detFlag=true;if(h.length){req(['d',h,+nr.toFixed(1)]);banner('BURST','co',.8)}else{G.streak=0;const txt=nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';banner(txt,'cr',1.4);G.det={txt,t:performance.now()};tone(260,190,.16,.045,'triangle')}
   api.lose('det')}
  function result(R){if(R.dh)return;const o=Array.isArray(R.o)?R.o.filter(a=>Array.isArray(a)):[],k=o.filter(a=>a[1]==='k'||a[1]==='b').length,d=o.filter(a=>a[1]==='d').length,best=o.reduce((m,a)=>a[1]!=='m'?Math.min(m,+a[2]||0):m,1e9),nr=+R.nr||1e9;
   const txt=k?`HIT — ${best.toFixed(1)} m`:d?`DAMAGED — ${best.toFixed(1)} m`:nr<300?`MISSED BY ${nr.toFixed(1)} m`:'NOTHING IN RANGE';
   banner(txt,k?'cg':d?'co':'cr',1.4);G.det={txt,t:performance.now()};G.streak=k?G.streak+1:0;
-  if(k)tone(520,1040,.22,.14,'triangle');else if(d)tone(440,520,.2,.1,'triangle');else tone(300,140,.35,.12,'sawtooth');
+  if(k)tone(520,1040,.22,.14,'triangle');else if(d)tone(440,520,.2,.1,'triangle');else tone(260,190,.16,.045,'triangle');
   feed(o.map(([id,c,r])=>{const t=byId(id),nm=t?Z.tname(t):'T'+String(id|0).padStart(2,'0');r=(+r||0).toFixed(1);return c==='k'?`<span class="cg">${nm} down</span> (${r} m)`:c==='b'?`<span class="cg">${nm} hit</span> (${r} m)`:c==='d'?`<span class="co">${nm} damaged</span> (${r} m)`:`<span class="co">Missed ${nm} (${r} m)</span>`}).join('<br>')||'Detonated: nothing in range')}
  function req(e){if(!net)return 0;if(net.host){apply(net.me||'host',e,0);return 0}const s=++net.oseq;net.out.push([s,...e]);if(net.out.length>64)net.out.splice(0,net.out.length-64);send(performance.now(),true);return s}
 
