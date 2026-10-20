@@ -255,7 +255,7 @@ export function initSortie(api,G,Z){
  // ---------- co-op: the host's world, fog and carried salvage; clients' bombs and requests ----------
  let wv=-1,wT=0,fv=-1,fT=0;
  Z.so.netOut=now=>{const o={};if(W.ver!==wv||now-wT>3000){wv=W.ver;wT=now;o.w=W.ser()}if(fog.ver!==fv||now-fT>3000){fv=fog.ver;fT=now;o.f=fog.pack()}
-  if(G.state==='base'){o.d=W.dyn();const tw={};for(const t of W.list)for(const q of t.parts)if(q.aa&&q.alive&&q.tk&&q.lock>0)tw[q.tk]=1;o.d.tw=tw}
+  if(G.state==='base'&&pilots().some(p=>!W.isHome(p.d.p.x,p.d.p.z))){o.d=W.dyn();const tw={};for(const t of W.list)for(const q of t.parts)if(q.aa&&q.alive&&q.tk&&q.lock>0)tw[q.tk]=1;o.d.tw=tw}
   o.cu=(G.cuts||[]).map(c=>[c.label,c.w0,c.w1]);return o};
  Z.so.netIn=o=>{if(!o||typeof o!=='object')return;W.auth=false;if(o.w)W.des(o.w);if(o.f)fog.unpack(o.f);if(o.d){W.dynIn(o.d);S.tw=o.d.tw&&o.d.tw[myKey()]?1:0}
   if(Array.isArray(o.cu))G.cuts=o.cu.filter(Array.isArray).map(a=>({label:String(a[0]).replace(/[<>&]/g,'').slice(0,40),w0:a[1]|0,w1:a[2]|0}))};

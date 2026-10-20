@@ -4,6 +4,8 @@
 // shared purse and shop requests (helper, personal perk, team perk, repair, kill chain), personal swarms (formation and strike over the wire),
 // site hit points in sync, launch alerts and warning actions from clients (harden, decoy), late join, a client leaving,
 // the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS]
+// The three windows skip their WebGL draw calls (tools/browser.mjs render stub) unless --shots asks for pictures: drawing three full game
+// windows can drop a busy machine to ~1 frame a second, and the game loop caps the sim per frame, so every wait here would starve.
 import {serve, launch, open, sleep, newWindow} from './zlib.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
 const DELAY = argv.includes('--delay') ? +argv[argv.indexOf('--delay') + 1] : 40;
@@ -15,7 +17,7 @@ const URL = `${origin}/games/interceptor/?mode=zombies&netloop=${DELAY}`;
 // each pilot's own unlocks and loadout (zmeta.js): the host picks the Partisan doctrine, Ash brings the light rack, Bea the lure beacon
 const LOADS = {Hosty: {zmeta: {v: 1, g: {night15: 8}}, zload: {doc: 'partisan', kit: []}}, Ash: {zmeta: {v: 1, g: {helpers: 2}}, zload: {doc: 'std', kit: ['lrack']}}, Bea: {zmeta: {v: 1, g: {boss: 2, w10: 2}}, zload: {doc: 'fortress', kit: ['lure']}}};
 async function page(name) {
-  const errs = [], p = await open(browser, URL, errs, {page: await newWindow(browser)});
+  const errs = [], p = await open(browser, URL, errs, {page: await newWindow(browser, {noRender: !SHOTS})});
   await p.evaluate(lo => localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: 'z', wx: 'clear', zwx: 'menu', zdiff: 1, ...lo})), LOADS[name]);
   await p.reload({waitUntil: 'load'});
   await p.waitForFunction(() => window.__z && window.__z.net, {timeout: 60000});
@@ -43,7 +45,8 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.on && __z.G.state === 'bas
   ok(s[1].rows.map(r => r[1]).join() === 'Hosty,Ash,Bea', `Roster on a client: ${s[1].rows.map(r => r[1]).join(', ')}`); }
 if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-base.png'});
 // loadouts: the host's doctrine is everyone's; each pilot's kit is their own, and a kit helper is in the whole team's shop
-{ const lo = await Promise.all(all.map(P => ev(P, () => ({doc: __z.Z.meta.doc().n, own: __z.Z.meta.load().doc, team: __z.Z.meta.teamKit().sort().join(), cards: __z.G.cards.filter(c => __z.ITEMS[c.k].kit).map(c => c.k).join(), strip: document.querySelector('#zbase .zcoop span')?.textContent || ''}))));
+{ for (const P of all) await until(P, () => __z.Z.meta.teamKit().sort().join() === 'lrack,lure');  // each screen has the whole roster's kit once the host's snapshot carrying it arrives
+  const lo = await Promise.all(all.map(P => ev(P, () => ({doc: __z.Z.meta.doc().n, own: __z.Z.meta.load().doc, team: __z.Z.meta.teamKit().sort().join(), cards: __z.G.cards.filter(c => __z.ITEMS[c.k].kit).map(c => c.k).join(), strip: document.querySelector('#zbase .zcoop span')?.textContent || ''}))));
   ok(lo.every(x => x.doc === 'Partisan') && lo[2].own === 'fortress', `Doctrine: the host's Partisan on every screen (Bea's own pick, ${lo[2].own}, waits for her solo games); strip "${lo[1].strip}"`);
   ok(lo.every(x => x.team === 'lrack,lure'), `Team kit on every screen: ${lo.map(x => x.team).join(' / ')}`);
   ok(lo[0].cards === 'lrack' && lo[1].cards === 'lrack' && lo[2].cards === 'lrack,lure', `Kit in the shops: host [${lo[0].cards}], Ash [${lo[1].cards}], Bea [${lo[2].cards}] (the lure beacon is Bea's own perk)`); }
