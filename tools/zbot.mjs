@@ -50,7 +50,7 @@ export const SHOP = `(function(P){
   if (P.rebuild && B.act.rebuild) api.SITES.forEach((s, i) => { if (s.hp <= 0 && G.cash > 9000) B.act.rebuild(i); });
   const open = () => def.SLOTS.some((_, j) => def.slotFree(j)), keep = G.cash * (1 - (P.spend ?? 1)), afford = c => G.cash - c >= keep;
   const AB = Z.ars && Z.ars.bot, ars = part => { if (AB) for (const s of AB.shop(P, __z, {afford, keep, part})) s.run(); };
-  ars('weapon');  /* the arsenal's pilot weapon first: a one-off buy (zarsbot.js) */
+  ars('weapon'); ars('early');  /* the arsenal's pilot weapon (a one-off buy) and its big defences first (zarsbot.js) */
   // the kill chain (zchain.js), by level: what it buys and whether it places the boost batteries where next wave's launches come from
   const C = Z.chain, chain = () => { if (!C || !P.chain || nw < C.from) return; const K = G.kc, c = P.chain, fp = Z.fastPlan ? Z.fastPlan() : [], fast = nw >= kf('ballistic');
     const try_ = (a, x, cost) => afford(cost) && C.act(a, x);
@@ -83,7 +83,7 @@ export const SHOP = `(function(P){
     if (r && G.cash > r.cost * 2.5) B.act.refit(d.id, want); }
   if (P.supply && nw >= 12) for (const k of ['reload', 'harden', 'drones', 'overtime']) if (B.act.supply && !G.sup?.[k] && nw >= from(k) && G.cash > cost(k) * 4) B.act.supply(k);
   if (P.chain === 1) chain();
-  ars('def');  /* the arsenal's defences and carrier parking (zarsbot.js) */
+  ars('def');  /* the rest of the arsenal's defences and carrier parking (zarsbot.js) */
 })`;
 
 // in-page source: one wave of play. (P, dodge) = a level and the difficulty's base dodge chance. Returns the state at the end.

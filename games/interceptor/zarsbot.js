@@ -19,10 +19,10 @@ const WHY={laser:'a dwell-time kill, no dice: best against swarms and Shaheds in
  barrage:'cables over a site: catches what dives on it and low swarms',smoke:'diving tracks near a site lose their aim'};
 export const ARSBOT={name:'arsenal',
  // a base screen: the weapon for the next wave, then the defences (ctx.afford(cost): within what this level dares spend; ctx.keep: the reserve)
- *shop(P,E,ctx={}){const {G,Z,KIND,ITEMS:IT}=E,A=Z.ars,def=Z.def;if(!A||!G.next)return;const lv=lvOf(P),nw=G.wave+1,afford=ctx.afford||(c=>G.cash>=c),keep=ctx.keep??0,part=ctx.part;  // part: 'weapon' / 'def' / both
+ *shop(P,E,ctx={}){const {G,Z,KIND,ITEMS:IT}=E,A=Z.ars,def=Z.def;if(!A||!G.next)return;const lv=lvOf(P),nw=G.wave+1,afford=ctx.afford||(c=>G.cash>=c),keep=ctx.keep??0,part=ctx.part;  // part: 'weapon' / 'early' (microwave, laser, carrier: worth a place ahead of the helpers) / 'def' / all
   const kf=k=>Z.kindFrom?Z.kindFrom(k):KIND[k].from,cnt={};for(const q of G.next.list){const[k,c]=q.split(':');cnt[k]=(cnt[k]|0)+(+c||1)}
   // ---- the pilot weapon: value each on the next wave's threat mix ----
-  if((lv||P.force)&&part!=='def'){const me=A.P(A.me()),pts=k=>(cnt[k]|0)*(KIND[k]?KIND[k].pts:0),hard=['ballistic','hyper','icbm'].reduce((a,k)=>a+(cnt[k]|0),0),noise={};
+  if((lv||P.force)&&(!part||part==='weapon')){const me=A.P(A.me()),pts=k=>(cnt[k]|0)*(KIND[k]?KIND[k].pts:0),hard=['ballistic','hyper','icbm'].reduce((a,k)=>a+(cnt[k]|0),0),noise={};
    const val=id=>{let v=0;for(const k in cnt)v+=pts(k)*(WEFF[id][k]??0);
     if(lv>=3){if(id==='emp')v*=Math.min(1.25,.35+def.D.length/12);if(id==='flare')v+=(pts('jet')+pts('cruise'))*.25;if(id==='dart')v+=hard*40*(P.fast||0)*8;if(id==='net'&&nw<15)v*=1.15;if(id==='cluster')v*=(cnt.swarm|0)>=10?1.3:1.1}
     else if(lv===2)v*=noise[id]??=.8+Math.random()*.4;return v};
@@ -38,7 +38,7 @@ export const ARSBOT={name:'arsenal',
   const shop=DORDER[P.shop]?P.shop:'basic',caps=CAP[shop],nOf=k=>def.D.filter(d=>d.type===k).length,smart=shop==='smart';
   const nxw=G.next.wx&&Z.wx?.T[G.next.wx.id],lwx=nxw?laserWx(nxw):1,from=k=>Z.itemFrom?Z.itemFrom(k):IT[k].from;
   const siteSlot=k=>def.SLOTS.findIndex((s,j)=>def.slotFree(j)&&s.site&&!def.D.some(d=>d.type===k&&def.SLOTS[d.slot].site===s.site));
-  for(const k of DORDER[shop]){if(A.ban.has(k)||!IT[k]||nw<from(k)||nOf(k)>=caps[k])continue;if(k==='mwave'&&nw<kf('swarm')-1)continue;if(k==='laser'&&smart&&lwx<=.3&&!nOf(k))continue;
+  for(const k of DORDER[shop]){if(part==='early'&&(k==='barrage'||k==='smoke'||shop==='naive'))continue;if(A.ban.has(k)||!IT[k]||nw<from(k)||nOf(k)>=caps[k])continue;if(k==='mwave'&&nw<kf('swarm')-1)continue;if(k==='laser'&&smart&&lwx<=.3&&!nOf(k))continue;
    const price=Z.itemPrice?Z.itemPrice(k):IT[k].price;if(!afford(price)||G.cash-price<keep)continue;
    if(k==='carrier'){const j=def.SLOTS.findIndex((_,j)=>def.slotFree(j,'carrier'));if(j>=0)yield step(`Buying a ${IT[k].n.toLowerCase()} (${money(price)}): ${WHY[k]}`,'place',()=>Z.base.act.place(k,j),{k,slot:j,cost:price});continue}
    let j=smart&&(k==='barrage'||k==='smoke')?siteSlot(k):-1;if(j<0)j=def.SLOTS.findIndex((_,j)=>def.slotFree(j));
@@ -46,7 +46,7 @@ export const ARSBOT={name:'arsenal',
     if(w){yield step(`Selling the ${IT[w.type].n.toLowerCase()} at ${def.SLOTS[w.slot].n} to make room for a ${IT[k].n.toLowerCase()}`,'sell',()=>Z.base.act.sell(w.id),{id:w.id});j=def.SLOTS.findIndex((_,j)=>def.slotFree(j))}}
    if(j>=0){const jj=j;yield step(`Buying a ${IT[k].n.toLowerCase()} (${money(price)}) at ${def.SLOTS[jj].n}: ${WHY[k]}`,'place',()=>Z.base.act.place(k,jj),{k,slot:jj,cost:price})}}
   // carriers: re-parked every break on the approach that brings the most threat points
-  if(shop!=='naive')for(const d of def.D)if(d.type==='carrier'){const b=A.bestPark(),s=def.SLOTS[d.slot];if(Math.hypot(s.x-b.x,s.z-b.z)>5)yield step('Parking the drone carrier on the main approach','park',()=>A.autoPark(d.id),{id:d.id})}},
+  if(shop!=='naive'&&part!=='early')for(const d of def.D)if(d.type==='carrier'){const b=A.bestPark(),s=def.SLOTS[d.slot];if(Math.hypot(s.x-b.x,s.z-b.z)>5)yield step('Parking the drone carrier on the main approach','park',()=>A.autoPark(d.id),{id:d.id})}},
  // the brain's per-tick tactics: nothing extra (the weapon's use is in how the pilot fires it, run() below for the teleporting pilot)
  wave(){},
  // the teleporting pilot (tools/zbot.mjs WAVE): which track to run down with the loaded weapon, and where to put the interceptor before firing.
