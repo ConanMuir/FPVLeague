@@ -1,7 +1,7 @@
 // Interceptor: Zombies mode. Endless, growing waves from the map edges against the defended sites; money per intercept, a base screen between
 // waves, helpers and perks. interceptor.js stays Riley's Classic game: it calls the hooks below only while Z.on is true.
 // api = live access to interceptor.js internals (see the initZombies call there).
-import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,kindFrom,speedK,HELPER_SHARE,ZDIFF,EVADE_SOME,earlyK,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP,UPKEEP_FROM,UPKEEP_K,FWD_UPKEEP,REFIT,expCost} from './zdata.js';
+import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,kindFrom,speedK,HELPER_SHARE,ZDIFF,EVADE_SOME,earlyK,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP,UPKEEP_FROM,UPKEEP_K,FWD_UPKEEP,REFIT,expCost,FAST,sectorOf} from './zdata.js';
 import {initMeta} from './zmeta.js';
 import {initBoard} from './zboard.js';
 import {initBase} from './zbase.js';
@@ -12,6 +12,7 @@ import {initFX} from './zfx.js';
 import {initWeather} from './zwx.js';
 import {initRocket} from './zrocket.js';
 import {initNet} from './znet.js';
+import {initSortie} from './zsortie.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -93,7 +94,9 @@ export function initZombies(api){
   const brgs=[];for(let i=0;i<raids;i++)brgs.push(w===1?(Math.random()-.5)*.6:(Math.random()-.5)*2.6);  // edge bearing per raid: 0 = north, ±1.3 rad = west/east
   const q=list.map((k,i)=>{const ri=w===1?0:i%raids,K=KIND[k.split(':')[0]];let at=w===1?(i?25:0):(K===KIND.boss?5:ri*win/raids*(1-tot)+rnd(0,10));
    if(tot&&w>1&&K!==KIND.boss)at+=tot*Math.max(0,TOT_T-(K.far||5200)/K.spd);return{k,at,brg:brgs[ri]+rnd(-.12,.12)}}).sort((a,b)=>a.at-b.at);
-  return{list,brgs,q,wx:wx.plan(w)}}
+  const P={list,brgs,q,wx:wx.plan(w)};Z.cutPlan?.(P,w);return P}  // Z.cutPlan (sorties, zsortie.js): what earlier strikes took out of wave w; it rebuilds P.list from P.q
+ // the planned fast threats (zdata FAST) per sector [west, north, east] of a plan (default the next wave); a co-op client gets the host's count (nx.fs)
+ Z.fastBySector=(P=G.next)=>{const n=[0,0,0];if(P&&!P.q?.length&&P.fs)return P.fs.slice();for(const e of P?.q||[])if(FAST.includes(e.k.split(':')[0]))n[sectorOf(e.brg)]++;return n};
  // what the next wave's raids will do (base-screen forecast), on the difficulties that use tactics
  Z.tacNote=()=>{const t=DF().tac||{},a=[];if(t.tot)a.push('raids timed to arrive together');if(t.escort)a.push('decoys escort the Shaheds');if(t.focus)a.push('they go for your weakest site');if(t.feint)a.push('some switch targets on the way in');if(t.jink)a.push('evading kinds dodge your helpers too');
   return a.length?`<p class="zhint"><b>${DF().n} tactics</b>: ${a.join(' · ')}.</p>`:''};
@@ -289,5 +292,6 @@ export function initZombies(api){
   // scripted player: put the interceptor just behind the most urgent free track, matched to its velocity, and detonate
   botKill(off=1){const me=api.player,t=Z.urgent();if(!me||me.dead>0||!t)return null;me.p.copy(t.p).addScaledVector(_a.copy(t.v).normalize(),-off);me.v.copy(t.v);Z.detonate();return t.k}};
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
- initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
+ initNet(api,G,Z);  // co-op (znet.js): wraps them again
+ initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate outermost (a client's burst too)
  return Z}

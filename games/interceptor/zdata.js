@@ -38,6 +38,11 @@ export const ZDIFF=[
  {n:'Hard',wave:1.1,cash:.85,start:1200,hp:1,shift:3,evade:'some',tac:{tot:.7,escort:.35,focus:.35,jink:.15},txt:'Raids come together from several edges with decoy escorts and go for your weakest site; jets, heavies, cruise missiles and swarms jink away from you and your helpers; new types come 3 waves early.'},
  {n:'Nightmare',wave:1.2,cash:.7,start:1000,hp:.9,shift:6,evade:'all',tac:{tot:1,escort:.6,focus:.6,feint:.3,jink:.25},txt:'Every raid times its arrival, hunts the weakest site and some switch targets on the way in; everything jinks; new types come 6 waves early. Bring friends.'}];
 export const EVADE_SOME=['jet','heavy','cruise','swarm','boss'];
+// Sectors, shared by the kill chain and sorties (zsortie.js). A raid comes in on a bearing from the defended area (0 = north, -1.3 = west,
+// +1.3 = east; zombies.js plan() puts it on each queued item as q.brg). Three sectors split that arc: 0 WEST (bearing < -0.45), 1 NORTH, 2 EAST
+// (> 0.45). FAST = the kinds only a dome or a direct hit stops. Z.fastBySector(plan) counts them per sector in a planned wave; Z.cutPlan(plan, w)
+// (set by sorties) takes queued items out of a plan before it flies, so a launcher strike lowers that count.
+export const SECTORS=['WEST','NORTH','EAST'],sectorOf=b=>b<-.45?0:b>.45?2:1,FAST=['ballistic','hyper','icbm'];
 export const isBoss=w=>w>0&&w%10===0;
 // the wave a kind first shows up on a difficulty (never before wave 2 except the Classic pair)
 export const kindFrom=(k,shift=0)=>{const f=KIND[k].from;return f<=1?f:Math.max(2,f-shift)};
