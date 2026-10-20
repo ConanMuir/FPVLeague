@@ -7,8 +7,8 @@
 import {LOCK} from './zswdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,D2R=Math.PI/180;
 export function initLock(api,G,Z){
- const {THREE,TH,S}=api,V3=THREE.Vector3,_a=new V3(),_b=new V3(),_f=new V3(),_p=new V3();
- const L={cand:null,prog:0,tgt:null,full:false,lost:0,held:0,ip:new V3(),tti:0,ph:0,snd:null,st:0,brk:null};
+ const {THREE,TH,S}=api,V3=THREE.Vector3,_a=new V3(),_b=new V3(),_f=new V3(),_p=new V3(),_v2=new V3();
+ const L={cand:null,prog:0,tgt:null,full:false,lost:0,held:0,ip:new V3(),tti:0,ph:0,snd:null,st:0,brk:null,n:{start:0,try:0,lock:0,lost:0,broken:0,faded:0,gone:0,held:0}};  // n: counts for tuning (tracks entering the reticle, attempts past 25%, locks, lost by aim, broken by a jink, part-built locks that faded, targets killed or gone)
  const lv=k=>Z.perkLevel?.(k)|0;
  // seconds to lock this track from here: range, Optics, weather (visibility through the current fog, rain; thermal sees further), jamming
  function lockTime(t,me){const d=t.p.distanceTo(me.p);let k=LOCK.t*(1+Math.max(0,d-800)/1000*LOCK.far)*LOCK.optics[cl(lv('optics'),0,3)];
@@ -16,7 +16,16 @@ export function initLock(api,G,Z){
   return k*jamK(t,me)}
  function jamK(t,me){let k=1;for(const u of TH)if(u.k==='boss'&&api.live(u)&&(u.p.distanceTo(t.p)<LOCK.jamR||u.p.distanceTo(me.p)<LOCK.jamR)){k=LOCK.jam;break}return k*(Z.lockJam?.(t)??1)}
  const lockable=t=>api.live(t)&&t.st!=='fall'&&(Z.seen?.(t)??true);
- function acquire(t,quiet){L.full=true;L.tgt=t;L.cand=null;L.prog=1;L.lost=0;L.held=0;api.pickT=t;if(!quiet){api.banner('LOCK','cg',.6)}Z.onLock?.(t)}
+ // your sights: the interceptor's camera in FPV (what you see is what you lock); in the chase and threat views, the airframe's own boresight
+ // (down the nose), not the view camera. The chase camera only follows the heading, so with it a track above or below could never be
+ // brought into the reticle, and the threat camera always looks at the selected track, which locked it without aiming. Z.sightCam (the bot
+ // pilot's FPV camera, zspectate.js) overrides it.
+ const _sq=new THREE.Quaternion(),_sx=new V3(1,0,0),SO={position:new V3(),quaternion:new THREE.Quaternion()};
+ function sights(){const s=Z.sightCam?.();if(s)return s;const me=api.player;if(api.camMode===0||!me)return api.camera;SO.position.copy(me.p);SO.quaternion.copy(me.q).multiply(_sq.setFromAxisAngle(_sx,Math.PI/2));return SO}
+ // how far off the sights a full lock may drift before it starts to slip: LOCK.keep degrees, wider up close (LOCK.keepR metres either side), so the
+ // last seconds of a run-in, where the track sweeps across the view, don't drop it
+ const keepA=d=>Math.max(LOCK.keep*D2R,Math.atan2(LOCK.keepR||0,Math.max(d,1)));
+ function acquire(t,quiet){L.n.lock++;L.full=true;L.tgt=t;L.cand=null;L.prog=1;L.lost=0;L.held=0;api.pickT=t;if(!quiet){api.banner('LOCK','cg',.6)}Z.onLock?.(t)}
  function drop(why){const had=L.full;L.full=false;L.tgt=null;L.cand=null;L.prog=0;L.lost=0;if(had&&why){api.banner(why,'co',.8);blip(700,300)}}
  // an evading track (Hard / Nightmare) that knows it is locked jinks now and then; a jink can break the lock
  function evasion(t,dt){const m=Z.evadeMode?.(),B=LOCK.brk[m];if(!B||!Z.evades?.(t))return false;
@@ -27,16 +36,19 @@ export function initLock(api,G,Z){
  function intercept(t,me){const r=_a.subVectors(t.p,me.p),vt=t.v,s=Math.max(me.v.length(),95),a=vt.lengthSq()-s*s,b=2*r.dot(vt),c=r.lengthSq();let tau=Math.sqrt(c)/s;
   if(Math.abs(a)<1e-6){if(b<0)tau=-c/b}else{const q=b*b-4*a*c;if(q>=0){const r1=(-b-Math.sqrt(q))/(2*a),r2=(-b+Math.sqrt(q))/(2*a),m=Math.min(r1>0?r1:1e9,r2>0?r2:1e9);if(m<1e9)tau=m}}
   tau=Math.min(tau,90);L.ip.copy(t.p).addScaledVector(vt,tau);if(t.spd<150&&vt.lengthSq()>1)L.ip.addScaledVector(_b.copy(vt).normalize(),-15);L.tti=tau}
- function step(dt){const me=api.player,on=G.on&&G.state==='wave'&&me&&me.dead<=0&&!api.demo&&!Z.cine&&!Z.idle?.();
-  if(!on){if(L.full||L.prog||L.cand){L.full=false;L.tgt=null;L.cand=null;L.prog=0}L.st=0;return}
-  const cam=api.camera,f=_f.set(0,0,-1).applyQuaternion(cam.quaternion),ang=t=>f.angleTo(_p.subVectors(t.p,cam.position));
-  if(L.full){const t=L.tgt;if(!api.live(t)){drop(t&&t.st!=='dead'&&t.st!=='fall'?'LOCK LOST':'');return step0()}
-   const d=t.p.distanceTo(me.p);L.lost=ang(t)>LOCK.keep*D2R||d>LOCK.range*1.25?L.lost+dt:0;if(L.lost>LOCK.keepT){drop('LOCK LOST');return step0()}
-   if(evasion(t,dt)){drop('LOCK BROKEN');return step0()}L.held+=dt;intercept(t,me);if(api.pickT!==t)api.pickT=t;L.st=2;return}
+ function step(dt){L.clock=(L.clock||0)+(dt||0);const me=api.player,on=G.on&&G.state==='wave'&&me&&me.dead<=0&&!api.demo&&!Z.cine&&!Z.idle?.();
+  if(!on){if(L.full&&L.tgt&&!api.live(L.tgt))L.n.gone++;if(L.full||L.prog||L.cand){L.full=false;L.tgt=null;L.cand=null;L.prog=0}L.st=0;return}
+  // a track is in your sights when the reticle is on it, or when you are flying straight at it (the flight path): at 40-70 m/s the dart flies
+  // 10-20 degrees nose-high to hold its height, so with the camera tilted up a track you are running straight down sits below the reticle
+  const cam=sights(),f=_f.set(0,0,-1).applyQuaternion(cam.quaternion),fp=me.v.lengthSq()>400?_v2.copy(me.v).normalize():null,
+   ang=t=>{const a=f.angleTo(_p.subVectors(t.p,cam.position));return fp?Math.min(a,fp.angleTo(_p.subVectors(t.p,me.p))):a};
+  if(L.full){const t=L.tgt;if(!api.live(t)){L.n.gone++;drop(t&&t.st!=='dead'&&t.st!=='fall'?'LOCK LOST':'');return step0()}
+   const d=t.p.distanceTo(me.p);L.lost=ang(t)>keepA(d)||d>LOCK.range*1.25?L.lost+dt:0;if(L.lost>LOCK.keepT){L.n.lost++;L.mem={t,until:L.clock+(LOCK.mem||0)};drop('LOCK LOST');return step0()}
+   if(evasion(t,dt)){L.n.broken++;drop('LOCK BROKEN');return step0()}L.held+=dt;L.n.held+=dt;intercept(t,me);if(api.pickT!==t)api.pickT=t;L.st=2;return}
   step0(dt);
   function step0(){let best=null,ba=LOCK.cone*D2R;for(const t of TH){if(!lockable(t)||t.p.distanceTo(me.p)>LOCK.range)continue;const a=ang(t);if(a<ba){ba=a;best=t}}
-   if(best){if(best!==L.cand){L.cand=best;L.prog=0}if(!(best.brk>0&&Z.evades?.(best)))L.prog+=(dt||0)/lockTime(best,me);if(L.prog>=1)acquire(best)}
-   else if(L.cand){L.prog=Math.max(0,L.prog-(dt||0)*LOCK.decay/LOCK.t);if(!L.prog||!api.live(L.cand))L.cand=null}
+   if(best){if(best!==L.cand){if(L.cand&&L.prog>.05)L.n.faded++;L.cand=best;L.prog=0;L.n.start++;L.tried=0}if(!(best.brk>0&&Z.evades?.(best)))L.prog+=(dt||0)/lockTime(best,me)*(L.mem&&L.mem.t===best&&L.clock<L.mem.until?LOCK.memK||1:1);  /* re-locking a track you just lost is quicker */if(!L.tried&&L.prog>=.25){L.tried=1;L.n.try++}if(L.prog>=1)acquire(best)}
+   else if(L.cand){L.prog=Math.max(0,L.prog-(dt||0)*LOCK.decay/LOCK.t);if(!L.prog||!api.live(L.cand)){if(L.cand)L.n.faded++;L.cand=null}}
    L.st=L.full?2:L.cand?1:0}}
 
  // ---------- sound: beeps that speed up and rise while it builds, a steady warbling tone at lock ----------
@@ -51,7 +63,8 @@ export function initLock(api,G,Z){
  // ---------- overlay: reticle zone, the closing ring, the lock diamond and the intercept path ----------
  function scr(p,W,H){_p.copy(p).project(api.camera);return _p.z<1&&Math.abs(_p.x)<1.2&&Math.abs(_p.y)<1.2?[(_p.x*.5+.5)*W,(-_p.y*.5+.5)*H]:null}
  function overlay(oc,W,H){const me=api.player;if(!G.on||G.state!=='wave'||!me||me.dead>0||Z.cine||api.demo)return;const cam=api.camera,tf=Math.tan(cam.fov*D2R/2);
-  const rz=Math.tan(LOCK.cone*D2R)/tf*H/2;oc.save();oc.lineWidth=1.5;oc.strokeStyle='rgba(255,255,255,.45)';oc.setLineDash([3,5]);oc.beginPath();oc.arc(W/2,H/2,rz,0,7);oc.stroke();oc.setLineDash([]);
+  const rz=Math.tan(LOCK.cone*D2R)/tf*H/2,sc=sights(),rc=sc===cam?[W/2,H/2]:scr(_a.set(0,0,-1).applyQuaternion(sc.quaternion).multiplyScalar(1000).add(sc.position),W,H);  /* the reticle sits where your sights point */
+  oc.save();oc.lineWidth=1.5;oc.strokeStyle='rgba(255,255,255,.45)';oc.setLineDash([3,5]);if(rc){oc.beginPath();oc.arc(rc[0],rc[1],rz,0,7);oc.stroke()}oc.setLineDash([]);
   oc.textAlign='center';oc.font='700 12px "JetBrains Mono",monospace';oc.shadowColor='#000';oc.shadowBlur=4;
   if(L.st===1&&L.cand&&L.prog>0){const q=scr(L.cand.p,W,H);if(q){const R=16+54*(1-L.prog),a0=performance.now()/300;oc.strokeStyle=oc.fillStyle='#ffc640';oc.lineWidth=2;oc.beginPath();oc.arc(q[0],q[1],R,0,7);oc.stroke();
     for(let i=0;i<4;i++){const a=a0+i*Math.PI/2;oc.beginPath();oc.moveTo(q[0]+Math.cos(a)*(R-6),q[1]+Math.sin(a)*(R-6));oc.lineTo(q[0]+Math.cos(a)*(R+6),q[1]+Math.sin(a)*(R+6));oc.stroke()}
@@ -75,5 +88,5 @@ export function initLock(api,G,Z){
  const st0=Z.stop;Z.stop=()=>{st0();drop('');L.st=0;if(L.snd){try{L.snd.g.gain.value=0}catch(e){}}};
  // Z.lk: the swarm's "attack my lock" and the bots (force: a lock without the hold, for the bot pilots and the tests)
  Z.lk={get t(){return L.full&&api.live(L.tgt)?L.tgt:null},get prog(){return L.full?1:L.prog},get cand(){return L.cand},get tti(){return L.tti},ip:L.ip,L,lockTime,
-  force(t){if(t&&api.live(t))acquire(t,true)},clear(){drop('')}};
+  force(t){if(t&&api.live(t))acquire(t,true)},clear(){drop('')},sights};
  return Z.lk}

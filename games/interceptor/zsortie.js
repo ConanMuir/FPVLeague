@@ -18,6 +18,7 @@
 import {KIND,SECTORS,FAST,sectorOf} from './zdata.js';
 import {initFog} from './zfog.js';
 import {initSites,SO,TGT,TIERK,TIER,PER_TRUCK} from './zsites.js';
+import './zsortiebot.js';  // the bots' sorties: a zbotbrain.js hook
 const cl=(v,a,b)=>v<a?a:v>b?b:v,sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},money=n=>'$'+Math.round(n).toLocaleString('en-US');
 const SING={shahed:'Shahed',jet:'Geran-3 jet',decoy:'decoy',swarm:'swarm drone',heavy:'armored heavy',cruise:'cruise missile',ballistic:'ballistic missile',hyper:'hypersonic',icbm:'ICBM',boss:'Mothership'};
 const PL={shahed:'Shaheds',jet:'Geran-3 jets',decoy:'decoys',swarm:'swarm drones',heavy:'armored heavies',cruise:'cruise missiles',ballistic:'ballistic missiles',hyper:'hypersonics',icbm:'ICBMs',boss:'Motherships'};

@@ -8,8 +8,11 @@
 //   every run logs the cause of its game over (the kind whose hit did the last damage); the summary tables them and zbench.json keeps them per cell (cause)
 //   --merge RAW keeps the other levels' runs from an earlier --raw file and re-runs only --levels
 //   also for balance checks: [--load '{"doc":"fortress","kit":["lrack","lure"]}'] [--meta full]  (a loadout; full = every goal met, so everything is unlocked)
+//   --real: the bots fly for real (games/interceptor/zbotfly.js, the Bot Spectator's pilot, headless at sim speed) instead of teleporting behind
+//           their tracks; never writes zbench.json. Each run also logs the pilot's detonations, pilot kills and interceptors lost.
+//           e.g. DL_NORENDER=1 node tools/zombies-bench.mjs --real --diff 1 --runs 3 --par 6
 import {serve, launch, open, root} from './zlib.mjs';
-import {LEVELS, DODGE, SHOP, WAVE, SORTIE, level} from './zbot.mjs';
+import {LEVELS, DODGE, SHOP, WAVE, level} from './zbot.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -17,8 +20,8 @@ const argv = process.argv.slice(2), arg = (k, d) => argv.includes(k) ? argv[argv
 const LV = arg('--levels', null) ? arg('--levels').split(',').map(n => level(n) || (() => { throw new Error('unknown level ' + n); })()) : LEVELS;
 const DIFFS = String(arg('--diff', '0,1,2,3')).split(',').map(Number), RUNS = +arg('--runs', 5), CAP = +arg('--cap', 60), PAR = +arg('--par', 12);
 const LOAD = arg('--load', null), META = arg('--meta', ''), RAW = arg('--raw', null), DIAG = argv.includes('--diag');
-const MERGE = arg('--merge', null);  /* --merge RAW: earlier runs (a --raw file) of the levels not being run now, to re-run one level and keep the rest */
-const WRITE = !argv.includes('--no-write') && !LOAD && !META && (LV === LEVELS || MERGE) && DIFFS.length === 4, OUT = arg('--out', path.join(root, 'games/interceptor/zbench.json'));
+const MERGE = arg('--merge', null), REAL = argv.includes('--real');  /* --merge RAW: earlier runs (a --raw file) of the levels not being run now, to re-run one level and keep the rest */
+const WRITE = !argv.includes('--no-write') && !REAL && !LOAD && !META && (LV === LEVELS || MERGE) && DIFFS.length === 4, OUT = arg('--out', path.join(root, 'games/interceptor/zbench.json'));
 const DN = ['Easy', 'Normal', 'Hard', 'Nightmare'], GOALS = ['w10', 'helpers', 'streak', 'boss', 'clutch', 'norep', 'lean', 'perfect3', 'hard20', 'night15'];
 const {server, origin} = await serve();
 const browser = await launch({w: 640, h: 360});
@@ -34,24 +37,25 @@ async function run(L, zd, idx) {
     if (LOAD) { const lo = await p.evaluate(() => JSON.stringify(__z.Z.meta.load())); if (lo !== JSON.stringify({doc: 'std', kit: [], ...JSON.parse(LOAD)})) throw new Error('loadout not accepted: ' + lo); }
     // site damage by wave and kind, and the kind of the last hit that did damage (the cause of a game over)
     await p.evaluate(() => { const Z = __z.Z, i0 = Z.impact; window.__dmg = {}; window.__last = null; Z.impact = t => { const s = t.tgt, h = s ? s.hp : 0; i0(t); const l = h - (s ? s.hp : 0); if (l > 0) { const w = __z.G.wave, D = __dmg[w] || (__dmg[w] = {}); D[t.k] = (D[t.k] | 0) + l; window.__last = t.k; } }; });
-    await p.evaluate(() => { document.getElementById('play').click(); });
+    if (REAL) await p.evaluate((n, zd, load) => __z.spec.bench.start(n, zd, load ? JSON.parse(load) : {}), L.n, zd, LOAD);
+    else await p.evaluate(() => { document.getElementById('play').click(); });
     await p.waitForFunction(() => __z.G.state === 'base', {timeout: 60000});
     const P = JSON.stringify(L), dodge = DODGE[['none', 'none', 'some', 'all'][zd]], log = [];
     let full = 0;
     while (true) {
-      await p.evaluate(SHOP + `(${P})`);
+      if (REAL) await p.evaluate(() => __z.spec.bench.shop()); else await p.evaluate(SHOP + `(${P})`);
       const b = await p.evaluate(() => ({w: __z.G.wave, cash: Math.round(__z.G.cash), defs: __z.Z.def.D.length, free: __z.Z.def.SLOTS.filter((_, j) => __z.Z.def.slotFree(j)).length}));
       if (!full && !b.free) full = b.w + 1;
-      await p.evaluate(SORTIE + `(${P})`);  // the break's sortie (zsortie.js), then shop again with the salvage; a late one has already started the wave
-      if (await p.evaluate(() => __z.G.state === 'base')) { await p.evaluate(SHOP + `(${P})`); await p.evaluate(() => __z.cont()); }
-      const st = await p.evaluate(WAVE + `(${P}, ${dodge})`);
+      if (await p.evaluate(() => __z.G.state === 'base')) await p.evaluate(() => __z.cont());  // a sortie that came back late (zsortie.js, a brain hook in the shop) has started the wave already
+      const st = REAL ? await p.evaluate(() => __z.spec.bench.wave()) : await p.evaluate(WAVE + `(${P}, ${dodge})`);
       const a = await p.evaluate(() => ({w: __z.G.wave, integ: Math.round(100 * __z.integrity().hp / __z.integrity().max)}));
       log.push([a.w, a.integ, b.cash, b.defs]);
       if (st === 'over' || a.w >= CAP || st === 'wave') break;
     }
     const end = await p.evaluate(() => ({wave: __z.G.wave, earned: Math.round(__z.G.earned), kills: __z.G.kills, spend: __z.G.spend || null, exp: __z.G.exp | 0, dmg: window.__dmg, diff: __z.Z.diff().n, bal: __z.Z.kindFrom ? __z.Z.kindFrom('ballistic') : __z.KIND.ballistic.from,
-      so: window.__so || null, over: __z.G.state === 'over', cause: __z.G.state === 'over' ? window.__last : null, chain: __z.Z.chain?.stats?.() || null,
-      defs: __z.Z.def.D.reduce((a, d) => (a[d.type] = (a[d.type] | 0) + 1, a), {}), domes: __z.Z.def.D.filter(d => /dome/.test(d.type)).map(d => d.type + ' L' + (d.lvl + 1) + ' ' + JSON.stringify(d.res || {}))}));
+      so: __z.so?.bot || null, over: __z.G.state === 'over', cause: __z.G.state === 'over' ? window.__last : null, chain: __z.Z.chain?.stats?.() || null,
+      defs: __z.Z.def.D.reduce((a, d) => (a[d.type] = (a[d.type] | 0) + 1, a), {}), domes: __z.Z.def.D.filter(d => /dome/.test(d.type)).map(d => d.type + ' L' + (d.lvl + 1) + ' ' + JSON.stringify(d.res || {})),
+      pilot: __z.spec?.on ? (s => ({bursts: s.bursts, kills: s.kills.pilot?.n | 0, lost: s.deaths, simT: Math.round(s.simT), crashes: s.crashes}))(__z.spec.sp.stats) : null}));
     return {lv: L.n, zd, idx, ...end, full, log, errs: errs.slice(0, 3)};
   } finally { await ctx.close().catch(() => {}); }
 }
@@ -63,14 +67,14 @@ const results = [], T0 = Date.now();
 let failed = 0;
 let next = 0;
 async function worker() { while (next < jobs.length) { const j = jobs[next++]; try { const r = await run(...j); results.push(r);
-  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}${r.cause ? ', final hit ' + r.cause : ''}${r.chain ? ', chain ' + JSON.stringify(r.chain) : ''}${r.so ? ', sorties ' + JSON.stringify(r.so) : ''}, positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    defences ' + JSON.stringify(r.defs) + ' domes ' + (r.domes || []).join('; ') + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
+  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}${r.cause ? ', final hit ' + r.cause : ''}${r.chain ? ', chain ' + JSON.stringify(r.chain) : ''}${r.so ? ', sorties ' + JSON.stringify(r.so) : ''}, positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    defences ' + JSON.stringify(r.defs) + ' domes ' + (r.domes || []).join('; ') + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.pilot ? `, pilot ${r.pilot.kills} kills from ${r.pilot.bursts} detonations, lost ${JSON.stringify(r.pilot.lost)}, ${Math.round(r.pilot.simT / 60)} min in the air${DIAG && r.pilot.crashes.length ? '\n    crashes ' + r.pilot.crashes.map(c => `w${c.w} (${c.x},${c.y},${c.z}) agl ${c.agl} ${c.mode} ${c.v} m/s t${c.t} "${c.intent}"`).join(' | ') : ''}` : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
   catch (e) { failed++; console.log('  run failed', j[0].n, DN[j[1]], String(e.message || e).split('\n')[0]); } } }
 await Promise.all(Array.from({length: Math.min(PAR, jobs.length)}, worker));
 const TL = MERGE ? (results.push(...JSON.parse(fs.readFileSync(MERGE, 'utf8')).filter(r => !LV.some(L => L.n === r.lv))), LEVELS) : LV;
 
 const med = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n ? n % 2 ? s[n >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2 : 0; };
 const table = TL.map(L => ({n: L.n, d: DIFFS.map(zd => { const w = results.filter(r => r.lv === L.n && r.zd === zd).map(r => r.wave); return w.length ? {med: med(w), min: Math.min(...w), max: Math.max(...w), n: w.length} : null; })}));
-console.log(`\n${LOAD ? 'loadout ' + LOAD : 'fresh profile, Standard doctrine, no kit'}${META ? ', meta ' + META : ''}: wave reached, median [range] of ${RUNS} runs (cap ${CAP})`);
+console.log(`\n${REAL ? 'REAL FLYING · ' : ''}${LOAD ? 'loadout ' + LOAD : 'fresh profile, Standard doctrine, no kit'}${META ? ', meta ' + META : ''}: wave reached, median [range] of ${RUNS} runs (cap ${CAP})`);
 console.log('level'.padEnd(16) + DIFFS.map(zd => DN[zd].padEnd(16)).join(''));
 for (const r of table) console.log(r.n.padEnd(16) + r.d.map(c => (c ? `${c.med} [${c.min}-${c.max}]` : '-').padEnd(16)).join(''));
 // the ladder: higher levels beat lower ones on every difficulty; harder difficulties lower every level (medians; a capped run counts as the cap)
