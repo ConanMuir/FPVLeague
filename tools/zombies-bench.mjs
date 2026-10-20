@@ -5,6 +5,7 @@
 // Run: node tools/zombies-bench.mjs [--levels Rookie,Pro,...] [--diff 0,1,2,3] [--runs 5] [--cap 60] [--par 12] [--no-write] [--out FILE] [--raw FILE]
 //   the version stamped in zbench.json is package.json's plus the git commit (or ZBENCH_REV when run from a copy of the repo)
 //   --diag prints, per run, the site damage by enemy kind over the last waves (what ended the run)
+//   every run logs the cause of its game over (the kind whose hit did the last damage); the summary tables them and zbench.json keeps them per cell (cause)
 //   --merge RAW keeps the other levels' runs from an earlier --raw file and re-runs only --levels
 //   also for balance checks: [--load '{"doc":"fortress","kit":["lrack","lure"]}'] [--meta full]  (a loadout; full = every goal met, so everything is unlocked)
 import {serve, launch, open, root} from './zlib.mjs';
@@ -31,7 +32,8 @@ async function run(L, zd, idx) {
       localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, zd, LOAD, META, GOALS);
     await p.reload({waitUntil: 'load', timeout: 180000}); await p.waitForFunction(() => window.__z, {timeout: 180000});
     if (LOAD) { const lo = await p.evaluate(() => JSON.stringify(__z.Z.meta.load())); if (lo !== JSON.stringify({doc: 'std', kit: [], ...JSON.parse(LOAD)})) throw new Error('loadout not accepted: ' + lo); }
-    await p.evaluate(() => { const Z = __z.Z, i0 = Z.impact; window.__dmg = {}; Z.impact = t => { const s = t.tgt, h = s ? s.hp : 0; i0(t); const l = h - (s ? s.hp : 0); if (l > 0) { const w = __z.G.wave, D = __dmg[w] || (__dmg[w] = {}); D[t.k] = (D[t.k] | 0) + l; } }; });
+    // site damage by wave and kind, and the kind of the last hit that did damage (the cause of a game over)
+    await p.evaluate(() => { const Z = __z.Z, i0 = Z.impact; window.__dmg = {}; window.__last = null; Z.impact = t => { const s = t.tgt, h = s ? s.hp : 0; i0(t); const l = h - (s ? s.hp : 0); if (l > 0) { const w = __z.G.wave, D = __dmg[w] || (__dmg[w] = {}); D[t.k] = (D[t.k] | 0) + l; window.__last = t.k; } }; });
     await p.evaluate(() => { document.getElementById('play').click(); });
     await p.waitForFunction(() => __z.G.state === 'base', {timeout: 60000});
     const P = JSON.stringify(L), dodge = DODGE[['none', 'none', 'some', 'all'][zd]], log = [];
@@ -46,7 +48,8 @@ async function run(L, zd, idx) {
       log.push([a.w, a.integ, b.cash, b.defs]);
       if (st === 'over' || a.w >= CAP || st === 'wave') break;
     }
-    const end = await p.evaluate(() => ({wave: __z.G.wave, earned: Math.round(__z.G.earned), kills: __z.G.kills, spend: __z.G.spend || null, exp: __z.G.exp | 0, dmg: window.__dmg, diff: __z.Z.diff().n, bal: __z.Z.kindFrom ? __z.Z.kindFrom('ballistic') : __z.KIND.ballistic.from}));
+    const end = await p.evaluate(() => ({wave: __z.G.wave, earned: Math.round(__z.G.earned), kills: __z.G.kills, spend: __z.G.spend || null, exp: __z.G.exp | 0, dmg: window.__dmg, diff: __z.Z.diff().n, bal: __z.Z.kindFrom ? __z.Z.kindFrom('ballistic') : __z.KIND.ballistic.from,
+      over: __z.G.state === 'over', cause: __z.G.state === 'over' ? window.__last : null, chain: __z.Z.chain?.stats?.() || null}));
     return {lv: L.n, zd, idx, ...end, full, log, errs: errs.slice(0, 3)};
   } finally { await ctx.close().catch(() => {}); }
 }
@@ -58,7 +61,7 @@ const results = [], T0 = Date.now();
 let failed = 0;
 let next = 0;
 async function worker() { while (next < jobs.length) { const j = jobs[next++]; try { const r = await run(...j); results.push(r);
-  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}, positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
+  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}${r.cause ? ', final hit ' + r.cause : ''}${r.chain ? ', chain ' + JSON.stringify(r.chain) : ''},positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
   catch (e) { failed++; console.log('  run failed', j[0].n, DN[j[1]], String(e.message || e).split('\n')[0]); } } }
 await Promise.all(Array.from({length: Math.min(PAR, jobs.length)}, worker));
 const TL = MERGE ? (results.push(...JSON.parse(fs.readFileSync(MERGE, 'utf8')).filter(r => !LV.some(L => L.n === r.lv))), LEVELS) : LV;
@@ -74,12 +77,18 @@ if (failed) bad.push(`${failed} of ${jobs.length} runs failed`);
 if (!results.length) bad.push('no runs finished');
 for (let i = 1; i < table.length; i++) DIFFS.forEach((zd, j) => { const a = table[i - 1].d[j], b = table[i].d[j]; if (a && b && !(b.med > a.med) && !(a.med >= CAP && b.med >= CAP)) bad.push(`${table[i].n} ${b.med} vs ${table[i - 1].n} ${a.med} on ${DN[zd]}`); });
 for (const r of table) for (let j = 1; j < DIFFS.length; j++) { const a = r.d[j - 1], b = r.d[j]; if (a && b && !(b.med < a.med) && !(a.med >= CAP && b.med >= CAP)) bad.push(`${r.n}: ${DN[DIFFS[j]]} ${b.med} not below ${DN[DIFFS[j - 1]]} ${a.med}`); }
+// causes of game over: the kind whose hit did the last damage, per level and difficulty, plus where the site damage of the last 3 waves came from
+const causeOf = (lv, zd) => { const c = {}; for (const r of results) if (r.lv === lv && r.zd === zd && r.cause) c[r.cause] = (c[r.cause] | 0) + 1; return c; };
+const lateDmg = (lv, zd) => { const c = {}; let tot = 0; for (const r of results) if (r.lv === lv && r.zd === zd && r.over) { const ws = Object.keys(r.dmg || {}).map(Number).sort((a, b) => a - b).slice(-3); for (const w of ws) for (const [k, v] of Object.entries(r.dmg[w])) { c[k] = (c[k] | 0) + v; tot += v; } }
+  return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => k + ' ' + Math.round(100 * v / Math.max(1, tot)) + '%').join(', '); };
+console.log('\ncause of game over (kind of the final hit) | share of site damage in the last 3 waves before it');
+for (const L of TL) for (const zd of DIFFS) { const c = causeOf(L.n, zd); if (Object.keys(c).length) console.log(`  ${L.n.padEnd(15)} ${DN[zd].padEnd(10)} ${Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' x' + v).join(', ').padEnd(34)} | ${lateDmg(L.n, zd)}`); }
 console.log(bad.length ? 'LADDER NOT MONOTONIC:\n  ' + bad.join('\n  ') : 'ladder ok: every level beats the one below on every difficulty, and every level does worse on each harder difficulty');
 if (RAW) fs.writeFileSync(RAW, JSON.stringify(results, null, 1));
 if (WRITE) {
   let ver = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version; if (process.env.ZBENCH_REV) ver += '+' + process.env.ZBENCH_REV; else try { ver += '+' + execFileSync('git', ['rev-parse', '--short', 'HEAD'], {cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']}).trim(); } catch (e) {}
   const out = {date: new Date().toISOString().slice(0, 10), version: ver, runs: RUNS, cap: CAP, note: 'Median wave reached by each bot pilot level (tools/zbot.mjs) on each difficulty, fresh profile, Standard doctrine, no kit. Written by tools/zombies-bench.mjs.',
-    levels: table.map(r => ({n: r.n, d: Object.fromEntries(DIFFS.map((zd, j) => [DN[zd], r.d[j] && {med: r.d[j].med, min: r.d[j].min, max: r.d[j].max}]))}))};
+    levels: table.map(r => ({n: r.n, d: Object.fromEntries(DIFFS.map((zd, j) => [DN[zd], r.d[j] && {med: r.d[j].med, min: r.d[j].min, max: r.d[j].max, cause: causeOf(r.n, zd)}]))}))};
   fs.writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n'); console.log('wrote ' + path.relative(root, OUT));
 }
 await browser.close(); server.close();
