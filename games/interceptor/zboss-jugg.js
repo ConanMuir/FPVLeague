@@ -5,11 +5,11 @@
 // were, a smoke trail that thickens, sparks, the hull scorching darker, and it slows. If it arrives it does 350 damage. SAMs and Iron Dome
 // can knock out a weak point now and then; nothing else bothers it. Beaten: the Salvaged Plating trophy (sites take 15% less damage).
 import {registerBoss} from './zbosses.js';
-const WP=[[2.2,3,-12,0],[-2.2,3,-12,0],[3.3,0,0,1],[-3.3,0,0,1],[0,-3.3,5,2],[0,0,24.4,2]];
+const WP=[[2.2,2.9,-11.6,0],[-2.2,2.9,-11.6,0],[3.3,0,0,1],[-3.3,0,0,1],[0,-3.3,5,2],[0,0,24.4,2]];
 function hullTex(C){const n=C.rec().b.jugg?.lost|0;return C.decal('jg-hull'+Math.min(12,n),1024,512,(g,w,h)=>{const{D2}=C;g.fillStyle='#4a4f3c';g.fillRect(0,0,w,h);D2.panels(g,w,h,'#1c1e16',16,.45);
  g.fillStyle='rgba(20,20,14,.6)';for(let i=0;i<900;i++)g.fillRect(C.rnd(0,w),C.rnd(0,h),2,2);D2.stripes(g,0,0,w,46,'#f2c21b','#151515',22);
- for(const u of[.25,.75]){D2.text(g,'JUGGERNAUT',u*w,140,54,'#e8e2d0','900');D2.text(g,'MK IX · HIGH EXPLOSIVE · DO NOT APPROACH',u*w,190,20,'#e8e2d0','700');
-  g.fillStyle='#e8e2d0';for(let i=0;i<Math.min(12,n);i++){const x=u*w-150+i*26,y=228;g.fillRect(x,y+10,18,14);g.fillRect(x+3,y+2,5,8);g.fillRect(x+11,y+5,5,5)}}  // sites it has hit
+ for(const u of[.25,.75]){g.save();g.translate(u*w,h*.45);g.rotate(-Math.PI/2);D2.text(g,'JUGGERNAUT',0,-20,54,'#e8e2d0','900');D2.text(g,'MK IX · HIGH EXPLOSIVE · DO NOT APPROACH',0,26,18,'#e8e2d0','700');g.restore();
+  g.fillStyle='#e8e2d0';for(let i=0;i<Math.min(12,n);i++){const x=u*w+50+(i%4)*24,y=330+(i/4|0)*24;g.fillRect(x,y+10,18,14);g.fillRect(x+3,y+2,5,8);g.fillRect(x+11,y+5,5,5)}}  // sites it has hit
  D2.stripes(g,0,h-40,w,40,'#f2c21b','#151515',22);D2.grime(g,w,h,.14)})}
 function embTex(C){return C.decal('jg-emb',256,256,(g,w)=>{const c=w/2,{D2}=C;g.fillStyle='#151515';g.beginPath();g.arc(c,c,118,0,7);g.fill();g.strokeStyle='#f2c21b';g.lineWidth=10;g.stroke();
  g.fillStyle='#e8e2d0';g.beginPath();g.moveTo(c-90,c+14);g.lineTo(c+40,c+14);g.lineTo(c+90,c);g.lineTo(c+40,c-14);g.lineTo(c-90,c-14);g.closePath();g.fill();D2.skull(g,c-10,c-46,30,'#f2c21b','#151515');D2.text(g,'IRON WILL',c,c+60,26,'#f2c21b','900')})}
@@ -22,10 +22,10 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group(),hull=new T.MeshStandardM
  C.mesh(g,new T.CylinderGeometry(3,3,34,32,1,true).rotateX(Math.PI/2),hull);C.mesh(g,new T.LatheGeometry([[3,0],[2.8,2.5],[2.2,4.8],[1.2,6.6],[0,7.4]].map(([r,y])=>new T.Vector2(r,y)),28).rotateX(Math.PI/2).translate(0,0,17),hull);
  C.mesh(g,new T.CylinderGeometry(3,1.8,3,28).rotateX(Math.PI/2),M.dark,0,0,-18.5);C.mesh(g,new T.CircleGeometry(1.6,20),M.hot,0,0,-20.05,false).rotation.y=Math.PI;
  for(let k=0;k<4;k++){const f=C.mesh(g,new T.BoxGeometry(.35,6,6),M.dark,0,0,-14);const a=k*Math.PI/2+Math.PI/4;f.position.set(Math.cos(a)*5,Math.sin(a)*5,-14);f.rotation.z=a+Math.PI/2}
- for(const s of[-1,1]){C.mesh(g,new T.BoxGeometry(1.6,1.4,6),M.dark,s*2.2,2.6,-10);const e=C.mesh(g,new T.PlaneGeometry(4.2,4.2),M.emb,s*3.02,0,9,false);e.rotation.y=s*Math.PI/2}
+ for(const s of[-1,1]){C.mesh(g,new T.BoxGeometry(1.6,1.2,5),M.dark,s*2.2,2.5,-8.4);const e=C.mesh(g,new T.PlaneGeometry(4.2,4.2),M.emb,s*3.02,0,9,false);e.rotation.y=s*Math.PI/2}
  const wps=WP.map(([x,y,z])=>{const m=C.mesh(g,new T.SphereGeometry(.95,14,10),M.wp,x,y,z,false);const r=C.mesh(g,new T.TorusGeometry(1.25,.18,6,18),M.dark,x,y,z,false);r.lookAt(x*2,y*2,z+(z>20?5:0));return m});
  // armour plates: the ones over the stage 2 and 3 weak points, and hull plates that come off as it degrades
- const plates=[],pl=(ang,z,cover,len=6)=>{const m=C.mesh(g,new T.BoxGeometry(3.4,.45,len),M.plate,Math.cos(ang)*3.15,Math.sin(ang)*3.15,z);m.rotation.z=ang-Math.PI/2;plates.push({m,cover,on:1});return m};
+ const plates=[],pl=(ang,z,cover,len=6)=>{const m=C.mesh(g,new T.BoxGeometry(3,.28,len),M.plate,Math.cos(ang)*3.15,Math.sin(ang)*3.15,z);m.rotation.z=ang-Math.PI/2;plates.push({m,cover,on:1});return m};
  pl(0,0,2);pl(Math.PI,0,3);pl(-Math.PI/2,5,4);const cap=C.mesh(g,new T.ConeGeometry(1.4,2.2,16).rotateX(Math.PI/2),M.plate,0,0,24.2);plates.push({m:cap,cover:5,on:1});
  for(const a of[.8,2.35,3.9,5.5])for(const z of[-6,8])pl(a,z,-1,5);
  g.userData={hull,wps,plates,applied:WP.map(()=>0),deb:[]};return g}

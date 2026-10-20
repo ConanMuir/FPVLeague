@@ -3,7 +3,7 @@
 // smaller swarms; LAST BROOD when one is left. A brood that reaches its site rams it (120). Bursts anywhere on a body count (proximity 1,
 // direct 2) and SAMs bite; airstrikes take a point. Beaten (the hive split and every brood down): the Captured Hive trophy.
 import {registerBoss} from './zbosses.js';
-function combTex(C){return C.decal('hv-comb',512,256,(g,w,h)=>{const{D2}=C;g.fillStyle='#2a2414';g.fillRect(0,0,w,h);for(let y=0,r=0;y<h+20;y+=21,r++)for(let x=(r%2)*12;x<w+24;x+=24){D2.hex(g,x,y,11);g.fillStyle=Math.random()<.18?'#ffb21e':Math.random()<.5?'#3a321c':'#1f1b10';g.fill();g.strokeStyle='#120f08';g.lineWidth=2;g.stroke()}
+function combTex(C){return C.decal('hv-comb',512,256,(g,w,h)=>{const{D2}=C;g.fillStyle='#2a2414';g.fillRect(0,0,w,h);for(let y=0,r=0;y<h+20;y+=21,r++)for(let x=(r%2)*12;x<w+24;x+=24){D2.hex(g,x,y,11);g.fillStyle=Math.random()<.25?'#ffb21e':Math.random()<.5?'#7a6532':'#4a3e22';g.fill();g.strokeStyle='#120f08';g.lineWidth=2;g.stroke()}
  D2.stripes(g,0,0,w,22,'#f2b21b','#141414',14);D2.stripes(g,0,h-22,w,22,'#f2b21b','#141414',14)})}
 function embTex(C,k){return C.decal('hv-emb'+k,256,256,(g,w)=>{const c=w/2,{D2}=C;g.fillStyle='#141414';D2.hex(g,c,c,118);g.fill();g.strokeStyle='#f2b21b';g.lineWidth=9;D2.hex(g,c,c,108);g.stroke();
  g.fillStyle='#f2b21b';g.beginPath();g.ellipse(c,c+6,30,46,0,0,7);g.fill();g.fillStyle='#141414';for(const y of[-8,12,32])g.fillRect(c-30,c+y,60,9);g.fillStyle='rgba(242,178,27,.6)';for(const s of[-1,1]){g.beginPath();g.ellipse(c+s*44,c-24,34,18,s*.5,0,7);g.fill()}
