@@ -24,7 +24,7 @@ export function initDefences(api,G,Z){
  for(const s of SLOTS){s.y=gh(s.x,s.z);s.n=s.n.replace(/^./,c=>c.toUpperCase())}
  // which positions are open this run (G.open, set from the doctrine at the start; opened one by one on the base screen)
  const layout=doc=>{G.open=SLOTS.map((s,j)=>doc&&doc.open?doc.open.includes(j):!s.ex)};
- const slotOpen=j=>!!SLOTS[j]&&(SLOTS[j].park||(G.open?!!G.open[j]:!SLOTS[j].ex));
+ const slotOpen=j=>!!SLOTS[j]&&!SLOTS[j].park&&(G.open?!!G.open[j]:!SLOTS[j].ex);
  const canOpen=(j,doc)=>!!SLOTS[j]&&!SLOTS[j].park&&!slotOpen(j)&&!(doc?.never||[]).includes(j);
 
  // ---------- ground meshes ----------
@@ -79,7 +79,7 @@ export function initDefences(api,G,Z){
  const otK=()=>G.sup?.overtime?.7:1;  // Overtime crews supply: everything reloads 30% faster this wave
  const jink=t=>Z.jink?Z.jink(t):1;  // Hard / Nightmare: evading kinds dodge helper drones and gun bursts more often (zombies.js)
  function add(type,slot){const d={id:++did,type,slot,tier:0,lvl:0,cap:0,ready:0,cd:0,rearm:0,mesh:null,kills:0,shots:0,ammo:0,jam:new Set(),refit:'',short:0};if(isRack(d)){d.cap=type==='lrack'?LRACK.cap:RACK_CAP[0];d.ready=d.cap}D.push(d);return d}
- const slotFree=(i,k)=>slotOpen(i)&&!SLOTS[i].park===(k!=='carrier')&&!D.some(d=>d.slot===i);  // k: the helper being placed (a park spot takes only a carrier)
+ const slotFree=(i,k)=>(SLOTS[i]?.park?k==='carrier':k!=='carrier'&&slotOpen(i))&&!D.some(d=>d.slot===i);  // k: the helper being placed (a park spot takes only a carrier and is not a position)
  const free=d=>{for(const o of[d.mesh,d.bubble])if(o){scene.remove(o);o.traverse(q=>q.geometry?.dispose())}d.mesh=d.bubble=null};  // each defence builds its own geometries (shared materials): free them with it
  function remove(d){const i=D.indexOf(d);if(i<0)return;D.splice(i,1);free(d);for(const h of shots)if(h.d===d)h.fuel=0;if(d.tgt)release(d)}
  // moving a defence: its mesh is rebuilt on the new position when the next wave starts

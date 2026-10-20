@@ -64,7 +64,7 @@ export function initArsenal(api,G,Z){
   '#zhud #zwpn{font:700 13px var(--mono);color:#9fe8ff;letter-spacing:.06em}#zbase .zpk{display:flex;flex-wrap:wrap;gap:5px;width:100%}#zbase .zpk button{font-size:11.5px;padding:4px 8px}#zbase .zpk button.on{border-color:#ffc640;color:#ffe08a}';document.head.append(st)}
  const chips=id=>ORDER.concat('boss').filter(e=>Z.kindFrom(e)<=G.wave+1).map(e=>{const v=WEFF[id][e]??0;return`<span class="v${v>=.8?'g':v>0?'m':'n'}" title="${KIND[e].n}">${KIND[e].tag}</span>`}).join('');
  Z.shopTop=()=>{if(!G.on)return'';const P=A.P(A.me()),L=WORDER.filter(id=>!A.ban.has(id));if(L.length<2)return'';
-  return`<h3>Pilot weapon <small>one loaded at a time · yours${Z.online?' (each pilot buys their own)':''} · swap freely here</small></h3><div class="zitems">${L.map(id=>{const w=WPN[id],own=P.own.has(id),eq=P.cur===id,lk=locked(id);
+  return`<h3 class="zwph">Pilot weapon <small>one loaded at a time · yours${Z.online?' (each pilot buys their own)':''} · swap freely here</small></h3><div class="zitems">${L.map(id=>{const w=WPN[id],own=P.own.has(id),eq=P.cur===id,lk=locked(id);
    const btn=lk?`Wave ${w.from}`:eq?'Loaded ✓':own?'Load':`Buy ${money(w.price)}`;
    return`<div class="zitem zwp ${eq?'got':''} ${lk?'lock':''}"><span class="zg">${w.glyph}</span><div class="zid"><b>${w.n}</b>${eq?'<em>LOADED</em>':own?'<em>OWNED</em>':''}
     <p>${lk?`Arrives with wave ${w.from}. `:''}<b class="zs">Strong:</b> ${w.str} <b class="zw">Weak:</b> ${w.wk}</p><div class="zvs">${chips(id)}</div></div>
