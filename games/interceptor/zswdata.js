@@ -36,10 +36,12 @@ export const SW_BLURB={
  swarmk:['Mk II drones: kill chance 45% → 58% a pass, lost on 30% of passes instead of 40%, faster.','Mk III drones: 70% a pass, lost on 20%, and 2 strike charges a wave.']};
 
 // ---------- lock-on (zlock.js) ----------
-// cone = half-angle of the reticle zone, keep = how far off the reticle a full lock survives (and for how long), t = seconds to lock a
+// cone = half-angle of the reticle zone, keep = how far off the reticle a full lock survives (and for how long; up close keepR metres either
+// side instead, when that is wider: the seeker's field, not the reticle; a full turn-about still breaks it), mem / memK = a track whose
+// lock you lost re-locks memK times faster for mem seconds, t = seconds to lock a
 // close target in clear air, far = extra lock time per km past 800 m, decay = how fast a part-built lock fades when the target leaves the zone.
 // optics = lock-time factor per Optics level; brk = chance per second that a locked evader (Hard / Nightmare) jinks, and that a jink breaks the lock.
-export const LOCK={cone:5,keep:14,keepT:.8,range:3500,t:1.4,far:.45,decay:1.6,optics:[1,.8,.65,.5],brk:{some:[.3,.45],all:[.45,.7]},jam:1.7,jamR:2500};
+export const LOCK={cone:5,keep:30,keepR:40,keepT:1.5,mem:4,memK:3,range:3500,t:1.4,far:.45,decay:1.6,optics:[1,.8,.65,.5],brk:{some:[.3,.45],all:[.45,.7]},jam:1.7,jamR:2500};
 
 // ---------- battery (zbatt.js; Classic keeps Riley's 16,000 mAh) ----------
 // Zombies flies a bigger pack than Classic: k x the tuned capacity (the mod panel's Battery value). Better battery doubles it.
