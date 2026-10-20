@@ -101,4 +101,4 @@ export function setMap(id){if(!LOOKS[id])id='arena';if(id===mapId)return;mapId=i
  fitShadow(...K.sc);
  renderer.toneMappingExposure=K.exp;lookBK=K.bk;bloom.threshold=K.th;bloom.radius=K.br;bloom.strength=(GS.hostTune||S.mod).bloom*K.bk;
  floorM.material=A.floor;rampM.material=A.ramp;wallM.material=A.wall;mouthM.forEach((m,i)=>m.material=A.mouth[i]);GOALF.forEach((m,t)=>m.material=A.gf[t]);
- NETM.forEach(m=>{m.blending=O?THREE.NormalBlending:THREE.AdditiveBlending;m.opacity=O?.75:.5;m.needsUpdate=true})}
+ NETM.forEach(m=>{m.blending=O?THREE.NormalBlending:THREE.AdditiveBlending;m.forceSinglePass=!O;m.opacity=O?.75:.5;m.needsUpdate=true})}

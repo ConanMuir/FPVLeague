@@ -147,7 +147,7 @@ export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC)
   else if(o.t==='bld'){DFOBS.push(...bldColliders(o));(BG.get(o.g)||BG.set(o.g,[]).get(o.g)).push(o)}
   else{I.rock.push(m4.compose(pv.set(o.x,o.y,o.z),q.setFromEuler(new THREE.Euler(o.x,o.z,o.r)),sv.set(o.r,o.r*.8,o.r)).clone());
    const R4=new THREE.Matrix4().compose(new V3(),q,sv),P=ROCK.attributes.position,pts=[];for(let i=0;i<P.count;i++)pts.push(...new V3().fromBufferAttribute(P,i).applyMatrix4(R4).toArray());DFOBS.push({s:'hull',pts,p:[o.x,o.y,o.z]})}}
- {const im=new THREE.InstancedMesh(ROCK,mRock,I.rock.length);I.rock.forEach((m,j)=>im.setMatrixAt(j,m));im.castShadow=im.receiveShadow=true;im.frustumCulled=false;dfG.add(im)}
+ {const im=new THREE.InstancedMesh(ROCK,mRock.clone(),I.rock.length);I.rock.forEach((m,j)=>im.setMatrixAt(j,m));im.castShadow=im.receiveShadow=true;im.frustumCulled=false;dfG.add(im)}  // its own copy of the rock material: one material on plain and instanced meshes made three re-check its shader program twice a frame
  // the static obstacles (mesas, spires, towers, hangars, bridges, arches) merged into one mesh per material and half of the map: they were ~130 draw calls, all drawn again in the shadow pass
  {dfG.updateMatrixWorld(true);const B=new Map(),dead=[];dfG.traverse(o=>{if(!o.isMesh||!o.userData.st)return;const k=o.material.uuid+(o.getWorldPosition(pv).z>0);(B.get(k)||B.set(k,[]).get(k)).push(o);dead.push(o)});
   for(const L of B.values()){const m=new THREE.Mesh(mergeGeometries(L.map(o=>o.geometry.clone().applyMatrix4(o.matrixWorld))),L[0].material);m.castShadow=m.receiveShadow=true;dfG.add(m)}
