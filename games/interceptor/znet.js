@@ -14,7 +14,8 @@
 //  host, g = snapshot every 100 ms (up to 250 ms in big waves): state, wave, purse, sites, wind, tracks T [id, kind, x y z in dm, vx vy vz in m/s,
 //   flags, phase(, boss stages)], their static part TS [id, site, aim x y z, swarm group, shade] when new and once a second, helper shots S and
 //   defences D (zdef.js netOut), events ev [id, type, ...] (b explosion, k kill + who, i impact, g gun burst, f team feed, m note to one pilot),
-//   per-pilot perks, detonation results dr, acks ak, roster pl, the next wave's plan nx, rejected pilots rj
+//   per-pilot perks, detonation results dr, acks ak, roster pl, the next wave's plan nx, rejected pilots rj, the kill chain and warning state kc
+//   (zchain.js netOut). Client requests include W (a warning action: harden / evacuate / decoy, any time in a wave) and K (a kill chain purchase).
 // Clients dead-reckon tracks and shots from position + velocity and pull toward each snapshot; other pilots' drones are interpolated the same way.
 //
 // Loadouts (zmeta.js): the host's doctrine is the team's (it shapes the shared base: positions, purse, sites); each pilot brings their own kit
@@ -138,6 +139,7 @@ export function initNet(api,G,Z){
  function gone(k){const n=net,nm=n.names[k];if(!nm)return;for(const o of[n.names,n.esv,n.rdv,n.ltv,n.skv,n.ktv,n.hk,n.ak,n.dr])delete o[k];n.order=n.order.filter(x=>x!==k);team(`<b>${nm}</b> left the game`)}
  const ev=e=>{const n=net;n.evs.push([++n.eid,...e]);if(n.evs.length>240)n.evs.splice(0,n.evs.length-240)};
  const team=h=>{feed(h);if(net?.host)ev(['f',h])};
+ Z.team=team;  // the kill chain and warning actions announce through it (zchain.js, zwarn.js)
  const tell=(k,t)=>{if(k===net.me)feed(`<span class="co">${t}</span>`);else ev(['m',k,t])};
  const who=(t,k)=>{t.by=k===net.me?'p':'o';t.byN=k;t.sk=net.skv[k]|0};
  // a request from pilot k (the host's own come through here too, so every purchase is announced the same way)
@@ -145,8 +147,10 @@ export function initNet(api,G,Z){
   if(T==='d')return hostDet(k,seq,e[1],e[2]);
   if(T==='h'){const t=TH.find(u=>u.id===e[1]);if(t&&api.live(t)){who(t,k);G.burst={n:0};api.killThreat(t,true);G.burst=null}net.dr[k]={s:seq,o:t?[[e[1],'k',0]]:[],nr:0,dh:1};return}
   if(T==='u'){const r=net.pil.get(k);Z.pk.use(String(e[1]),{lv:e[2]|0,sel:e[3]|0,by:k,n:nm,p:r&&r.seen&&!r.dead?r.d.p:null});return}
+  if(T==='W'){if(!Z.warn?.act(String(e[1]),e[2]|0,nm))tell(k,'That warning action is not available right now.');return}  /* harden / evacuate / decoy, mid-wave (zwarn.js) */
   if(G.state!=='base'){tell(k,'The shop is open between waves.');return}
   const B=Z.base.act;
+  if(T==='K'){const r=Z.chain?.act(String(e[1]),String(e[2]??''));if(r)team(`<b>${nm}</b> ${r.msg}${r.c>0?' · '+money(r.c):''}`);else tell(k,'Not possible, or the purse is short.');baseSig(true);return}  /* kill chain purchases (zchain.js) */
   if(T==='b'){const it=ITEMS[e[1]],s=Z.def.SLOTS[e[2]|0],d=it&&B.place(e[1],e[2]|0,nm);if(d)team(`<b>${nm}</b> bought a ${it.n.toLowerCase()} · ${s.n} · ${money(it.price)}`);else tell(k,'That position was taken, or the purse is short.')}
   else if(T==='p'){const kk=String(e[1]),P=PERK[kk],it=ITEMS[kk];if(!P||!it||G.wave+1<Z.itemFrom(kk))return;if(it.kit&&!kitOfPilot(k).includes(kk)){tell(k,'That perk is not in your kit.');return}
    const mine=k===net.me||TEAM.includes(kk),L=mine?G.perks[kk]|0:net.perks[k]?.[kk]|0,c=Z.perkCost(kk,L);
@@ -185,7 +189,7 @@ export function initNet(api,G,Z){
   return{v:1,gid:n.gid,st:G.state,w:G.wave,c:Math.round(G.cash),e:Math.round(G.earned),k:[G.kills.p,G.kills.h],df:cl(Z.dfi?.()??S.zdiff??1,0,3),cp:Z.cpNet?.()||null,wt:+(G.wt||0).toFixed(1),iq:G.wq.length,
    sh:SITES.map(s=>Math.ceil(s.hp)),sm:SITES.map(s=>s.max),bk:SITES.length>3?1:0,wb:[+api.WB.x.toFixed(1),+api.WB.z.toFixed(1)],T,TS,S:D.S,D:D.D,
    ev:n.evs.filter(e=>e[0]>mn).slice(-120),eid:n.eid,pk:n.perks,tp:{radar:G.perks.radar|0,aid:G.perks.aid|0},dr:n.dr,ak:n.ak,pl:rows(),nx,rj:n.rj,
-   sw:Z.swSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0}}
+   sw:Z.swSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut()}}
  // roster rows [key, name, kills, ready for the next wave, joined mid-wave]; a client shows its own ready state at once
  function rows(){const n=net;if(!n)return[];const nw=G.wave+1;
   if(n.host)return[[n.me||'host',myName(),n.kc[n.me||'host']|0,n.rd===nw?1:0,0],...n.order.filter(k=>n.names[k]).map(k=>[k,n.names[k],n.kc[k]|0,n.rdv[k]===nw?1:0,n.ltv[k]|0])];
@@ -203,7 +207,7 @@ export function initNet(api,G,Z){
  Z.overBtns=()=>!net?null:net.host?'<button class="go" id="zagain">Play again (all pilots)</button><button id="zmenu">End the co-op game</button>':'<button id="zmenu">Leave the game</button>';
  Z.overNote=()=>net&&!net.host?'<p class="zhint">Waiting for the host to start a new game…</p>':'';
  // base screen redraw when something changed elsewhere (purse, defences, perks, who is ready)
- function baseSig(force){if(!net||!G.on||G.state!=='base'||Z.base.el.hidden)return;const s=JSON.stringify([Math.round(G.cash),Z.def.D.map(d=>[d.id,d.tier,d.lvl,d.cap,d.slot,d.refit,d.short]),G.perks,rows(),SITES.map(s=>Math.ceil(s.hp)),net.nxJ,G.open,G.sup,G.doc,Z.meta.teamKit()]);
+ function baseSig(force){if(!net||!G.on||G.state!=='base'||Z.base.el.hidden)return;const s=JSON.stringify([Math.round(G.cash),Z.def.D.map(d=>[d.id,d.tier,d.lvl,d.cap,d.slot,d.refit,d.short]),G.perks,rows(),SITES.map(s=>Math.ceil(s.hp)),net.nxJ,G.open,G.sup,G.doc,Z.meta.teamKit(),G.kc&&[G.kc.boost,G.kc.pd,G.kc.stock,G.kc.ewr,G.kc.decoys]]);
   if(force||s!==net.sig){net.sig=s;Z.base.refresh()}}
 
  // ---------- client: mirror the host's snapshot ----------
@@ -221,7 +225,7 @@ export function initNet(api,G,Z){
   perksIn(g);Z.def.netIn(null,g.D,byId);Z.swHost?.(g.sw,n.me);
   n.tm=new Map(TH.map(t=>[t.id,t]));
   if(Array.isArray(g.ev)){if(n.evSeen<0)n.evSeen=g.eid|0;for(const e of g.ev)if(Array.isArray(e)&&e[0]>n.evSeen){n.evSeen=e[0];try{event(e)}catch(err){console.warn('co-op event',err)}}}
-  tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);
+  tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.chain?.netIn(g.kc);
   stateIn(g);if(net!==n)return;
   G.wq=Array.from({length:cl(g.iq|0,0,400)},()=>({k:'',at:1e9}));
   if(g.ak&&+g.ak[n.me])n.out=n.out.filter(e=>e[0]>+g.ak[n.me]);
@@ -273,12 +277,12 @@ export function initNet(api,G,Z){
  const dt0=Z.detonate;Z.detonate=()=>Z.mirror?clientDet():dt0();
  function clientDet(){const d=api.player,h=[];let nr=1e9;
   for(const t of TH)if(api.live(t)){const r=t.p.distanceTo(d.p);nr=Math.min(nr,r);if(r>30)continue;const cv=Math.max(0,-_a.subVectors(t.v,d.v).dot(_t.subVectors(t.p,d.p))/(r||1));h.push([t.id,+r.toFixed(2),+cv.toFixed(1)])}
-  G.detFlag=true;if(h.length){req(['d',h,+nr.toFixed(1)]);banner('BURST','co',.8)}else{G.streak=0;const txt=nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';banner(txt,'cr',1.4);G.det={txt,t:performance.now()};tone(300,140,.35,.12,'sawtooth')}
+  G.detFlag=true;if(h.length){req(['d',h,+nr.toFixed(1)]);banner('BURST','co',.8)}else{G.streak=0;const txt=nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';banner(txt,'cr',1.4);G.det={txt,t:performance.now()};tone(260,190,.16,.045,'triangle')}
   api.lose('det')}
  function result(R){if(R.dh)return;const o=Array.isArray(R.o)?R.o.filter(a=>Array.isArray(a)):[],k=o.filter(a=>a[1]==='k'||a[1]==='b').length,d=o.filter(a=>a[1]==='d').length,best=o.reduce((m,a)=>a[1]!=='m'?Math.min(m,+a[2]||0):m,1e9),nr=+R.nr||1e9;
   const txt=k?`HIT — ${best.toFixed(1)} m`:d?`DAMAGED — ${best.toFixed(1)} m`:nr<300?`MISSED BY ${nr.toFixed(1)} m`:'NOTHING IN RANGE';
   banner(txt,k?'cg':d?'co':'cr',1.4);G.det={txt,t:performance.now()};G.streak=k?G.streak+1:0;
-  if(k)tone(520,1040,.22,.14,'triangle');else if(d)tone(440,520,.2,.1,'triangle');else tone(300,140,.35,.12,'sawtooth');
+  if(k)tone(520,1040,.22,.14,'triangle');else if(d)tone(440,520,.2,.1,'triangle');else tone(260,190,.16,.045,'triangle');
   feed(o.map(([id,c,r])=>{const t=byId(id),nm=t?Z.tname(t):'T'+String(id|0).padStart(2,'0');r=(+r||0).toFixed(1);return c==='k'?`<span class="cg">${nm} down</span> (${r} m)`:c==='b'?`<span class="cg">${nm} hit</span> (${r} m)`:c==='d'?`<span class="co">${nm} damaged</span> (${r} m)`:`<span class="co">Missed ${nm} (${r} m)</span>`}).join('<br>')||'Detonated: nothing in range')}
  function req(e){if(!net)return 0;if(net.host){apply(net.me||'host',e,0);return 0}const s=++net.oseq;net.out.push([s,...e]);if(net.out.length>64)net.out.splice(0,net.out.length-64);send(performance.now(),true);return s}
 
