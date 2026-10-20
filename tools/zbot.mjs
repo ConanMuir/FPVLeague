@@ -27,7 +27,7 @@ export const LEVELS = [
   {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, chain: 2, warn: {rate: .06, mode: 'harden'}},
   {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, chain: 3, warn: {rate: .12, mode: 'smart'}},
   {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, chain: 3, warn: {rate: .2, mode: 'smart'}},
-  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, chain: 4, warn: {rate: .4, mode: 'best'}}];
+  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, chain: 4, warn: {rate: .25, mode: 'best'}}];
 const key = s => String(s).toLowerCase().replace(/[\s-]+/g, '');
 export const level = n => LEVELS.find(l => key(l.n) === key(n));
 
@@ -58,7 +58,7 @@ export const SHOP = `(function(P){
     if (fast && K.decoys < (c >= 4 ? 4 : 2)) try_('dc', 1, 500);
     if (def.D.some(d => d.type === 'gdome')) while (K.stock < C.stockCap() && try_('st', 1, 800)) {}
     if (c >= 4) { K.boost.forEach((b, i) => { if (b && !b.lvl) try_('bu', i, 4500); }); api.SITES.forEach((s, i) => { if (K.pd[s.n] && !K.pd[s.n].lvl) try_('pu', i, 4000); }); } };
-  if (P.chain >= 3) chain();
+  if (P.chain >= 2) chain();  /* from All-Star up the chain comes before more helpers: it needs no free position */
   for (let pass = 0; pass < 3; pass++) {
     const cards = G.cards.map((c, i) => ({...c, i})).filter(c => PRIO.includes(c.k) && nw >= from(c.k) && IT[c.k].type !== 'supply' && !(IT[c.k].type === 'perk' && Z.perkMaxed(c.k))).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));
     for (const c of cards) { const it = IT[c.k], price = cost(c.k); if (!afford(price) || !domeOK(c.k)) continue;
@@ -74,7 +74,7 @@ export const SHOP = `(function(P){
     const want = {rack: nw >= kf('swarm') ? 'swarm' : 'range', flak: 'prox', gepard: nw >= kf('heavy') ? 'ap' : 'radar', sam: 'reload', ew: 'wide', idome: 'bal'}[d.type], r = R.find(x => x.id === want);
     if (r && G.cash > r.cost * 2.5) B.act.refit(d.id, want); }
   if (P.supply && nw >= 12) for (const k of ['reload', 'harden', 'drones', 'overtime']) if (B.act.supply && !G.sup?.[k] && nw >= from(k) && G.cash > cost(k) * 4) B.act.supply(k);
-  if (P.chain && P.chain < 3) chain();
+  if (P.chain === 1) chain();
 })`;
 
 // in-page source: one wave of play. (P, dodge) = a level and the difficulty's base dodge chance. Returns the state at the end.

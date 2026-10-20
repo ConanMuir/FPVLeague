@@ -171,4 +171,4 @@ export const EWARN={base:20,perk:8,lv:[{cost:2200,s:15},{cost:3600,s:15}]};
 // harden its target site (k = share of the damage the site still takes from every hit until that track is gone; cost by wave; cd = seconds to the next),
 // evacuate it (k = share it takes for the rest of the wave; the site's share of the wave-clear bonus is lost this wave and the next),
 // decoys (a stock bought between waves; p = chance the warhead goes for the dummy site; it needs minT s left to turn).
-export const WACT={harden:{k:.5,cost:w=>Math.round((200+20*w)/10)*10,cd:60},evac:{k:.6},decoy:{per:500,cap:6,p:{ballistic:.4,hyper:.3,icbm:.2},minT:5}};
+export const WACT={harden:{k:.5,cost:w=>Math.round((200+20*w)/10)*10,cd:60},evac:{k:.7},decoy:{per:500,cap:6,p:{ballistic:.4,hyper:.3,icbm:.2},minT:5}};
