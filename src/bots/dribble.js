@@ -3,7 +3,7 @@
 // of the frame, carries it toward the enemy goal over the pop zone (ball and quad share gravity, so the ball takes the tilted top's
 // acceleration and only drifts when their speeds differ), and spends the pop it earns toward the goal. Its teammates keep clear.
 // Same flight model and thrust limits as everyone (the controller only chooses an acceleration, like botControl).
-import {GW,H,HL,HW,V3,cl} from '../config/constants.js';
+import {GW,H,HL,HW,QT,V3,cl} from '../config/constants.js';
 import {BG,BOTV,BR,BTHR,DL,DQ,G,TE,THR} from '../config/tune.js';
 import {attitude} from '../flight/attitude.js';
 import {GS} from '../state.js';
@@ -11,7 +11,7 @@ import {ball} from '../physics/ball.js';
 import {sdN,sdf} from '../physics/sdf.js';
 import {PDT,PRED,PV,reachT} from './league.js';
 import {fsCarry} from './freestyle.js';
-const _r=new V3(),_a=new V3(),_T=new V3(),_u=new V3(),_g=new V3(),_q=new V3(),_v=new V3(),_lk=new V3(),_px=new V3();
+const _rb=new V3(),_qi=new QT(),_r=new V3(),_a=new V3(),_T=new V3(),_u=new V3(),_g=new V3(),_q=new V3(),_v=new V3(),_lk=new V3(),_px=new V3();
 // height of the top of this quad's parts above its centre (the ball rests at top + BR)
 export function topOf(d){if(d._topLo!==d.lo){d._topLo=d.lo;d._top=Math.max(...d.lo.colliders.map(c=>c.pos[1]+(c.shape==='box'?c.size[1]:c.size[0])))}return d._top}
 // the four pop directions as stick inputs [roll, pitch, yaw] and the body direction the ball leaves in
@@ -19,12 +19,16 @@ const PS=[[0,.9,0,0,0,-1],[0,-.9,0,0,0,1],[.9,0,0,1,0,0],[-.9,0,0,-1,0,0]];
 export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+BR,vm=D.vmax*BOTV;d.pops=true;
  const r=_r.subVectors(ball.p,d.p),hd=Math.hypot(r.x,r.z),g=_g.set(0,0,s*(HL+4)).sub(ball.p);g.y=0;const gl=g.length()||1;g.divideScalar(gl);
  const a=_a.set(0,0,0);let look=g;
- const onTop=r.y>H0-.7&&r.y<H0+.9&&hd<(D.topR??1.4),grounded=ball.p.y<BR+.5&&Math.abs(ball.v.y)<3;
+ // on the top: measured along the frame's own axes, so a ball centred on a tilted quad counts (it sits off to the side of straight above)
+ const rb=_rb.copy(r).applyQuaternion(_qi.copy(d.q).invert()),onTop=_u.set(0,1,0).applyQuaternion(d.q).y>.5&&rb.y>H0-.7&&rb.y<H0+.9&&Math.hypot(rb.x,rb.z)<(D.topR??1.4),grounded=ball.p.y<BR+.5&&Math.abs(ball.v.y)<3;
  if(onTop){  // carry: match the ball's velocity, pull back under it, speed both up toward the goal, then pop
   ai.dm='carry';ai.ct=(ai.ct||0)+dt;const vc=cl(gl/12,5,D.dv||10),o=_v.set(g.x*vc-ball.v.x,0,g.z*vc-ball.v.z).multiplyScalar(D.kg??1.2).clampLength(0,8);
   // the ball rides on the top: steer the quad's velocity toward the ball's (plus a pull back under it when it drifts off centre)
   if(D.fs){fsCarry(d,D,dt,a,g,gl);steer(d,D,a,look);if(ai.yw)d.wt.y=ai.yw;return}
-  const ke=D.ke??2.5,kv=D.kv??4,amx=D.am??25;a.x=kv*(ball.v.x+ke*(ball.p.x-d.p.x)-d.v.x)+o.x;a.z=kv*(ball.v.z+ke*(ball.p.z-d.p.z)-d.v.z)+o.z;  // ball and quad share gravity, so on the tilted top the ball takes the quad's acceleration: o speeds both up toward the goal
+  // centred means along the frame's up axis, not straight above it: a pop is only earned with the ball covering all four motors (flight/drone.js popZone).
+  // Until it has one it holds the ball there and eases off the push toward the goal (og), so the ball settles on the centre.
+  const U=_u.set(0,1,0).applyQuaternion(d.q),og=d.popC>0?1:D.og??.3,ux=U.x*H0*(D.cu??1),uz=U.z*H0*(D.cu??1);
+  const ke=D.ke??2.5,kv=D.kv??4,amx=D.am??25;a.x=kv*(ball.v.x+ke*(ball.p.x-d.p.x-ux)-d.v.x)+o.x*og;a.z=kv*(ball.v.z+ke*(ball.p.z-d.p.z-uz)-d.v.z)+o.z*og;  // ball and quad share gravity, so on the tilted top the ball takes the quad's acceleration: o speeds both up toward the goal
   const ah=Math.hypot(a.x,a.z);if(ah>amx){a.x*=amx/ah;a.z*=amx/ah}a.y=6*(cl(((D.cy||3)-d.p.y)*1.5,-3,4)-d.v.y);
   if(d.popC>0&&!(d.popT>0)&&ai.ct>(D.hold??.6)){  // spend the pop toward the goal: the pop direction (pitch fwd/back, roll right/left) that points at it
    let best=null,bd=.55;for(const p of PS){_px.set(p[3],p[4],p[5]).applyQuaternion(d.q);_px.y=0;const l=_px.length();if(l<.5)continue;const k=_px.dot(g)/l;if(k>bd){bd=k;best=p}}

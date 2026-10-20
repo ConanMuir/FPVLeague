@@ -18,7 +18,7 @@
 //  bullet   a bullet hit a drone (modes/guns.js)           {type:'bullet', d, tag, other: shooter (Drone | turret | null)}
 //  ground   a stepped drone touched the map (physics/world.js), every tick in contact  {type:'ground', d, tag:'chassis', speed: impact speed, slide: sliding speed, p, n: surface normal}
 //  bounce   the ball hit the map hard (> 3 m/s) (modes/step.js)   {speed}
-//  popEarn  a drone earned (or refreshed after none) a pop: the ball on top, inside the motors (modes/step.js)  {d, p: ring centre, n: ring facing, r: ring radius}
+//  popEarn  a drone earned (or refreshed after none) a pop: the ball on top, centred over all the motors (modes/step.js)  {d, p: ring centre, n: ring facing, r: ring radius}
 //  popFire  a drone fired its pop (flight/drone.js)         {d, dur: the locked turn (s)}
 //  save     a defender turned an on-target ball away (modes/step.js, before the touch event)  {d, speed}
 //  shot     a touch sent the ball on target at the other goal, over 12 m/s (modes/step.js, before the touch event)  {d, speed}
