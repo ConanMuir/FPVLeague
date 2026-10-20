@@ -49,7 +49,8 @@ async function run(L, zd, idx) {
       if (st === 'over' || a.w >= CAP || st === 'wave') break;
     }
     const end = await p.evaluate(() => ({wave: __z.G.wave, earned: Math.round(__z.G.earned), kills: __z.G.kills, spend: __z.G.spend || null, exp: __z.G.exp | 0, dmg: window.__dmg, diff: __z.Z.diff().n, bal: __z.Z.kindFrom ? __z.Z.kindFrom('ballistic') : __z.KIND.ballistic.from,
-      over: __z.G.state === 'over', cause: __z.G.state === 'over' ? window.__last : null, chain: __z.Z.chain?.stats?.() || null}));
+      over: __z.G.state === 'over', cause: __z.G.state === 'over' ? window.__last : null, chain: __z.Z.chain?.stats?.() || null,
+      defs: __z.Z.def.D.reduce((a, d) => (a[d.type] = (a[d.type] | 0) + 1, a), {}), domes: __z.Z.def.D.filter(d => /dome/.test(d.type)).map(d => d.type + ' L' + (d.lvl + 1) + ' ' + JSON.stringify(d.res || {}))}));
     return {lv: L.n, zd, idx, ...end, full, log, errs: errs.slice(0, 3)};
   } finally { await ctx.close().catch(() => {}); }
 }
@@ -61,7 +62,7 @@ const results = [], T0 = Date.now();
 let failed = 0;
 let next = 0;
 async function worker() { while (next < jobs.length) { const j = jobs[next++]; try { const r = await run(...j); results.push(r);
-  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}${r.cause ? ', final hit ' + r.cause : ''}${r.chain ? ', chain ' + JSON.stringify(r.chain) : ''},positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
+  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}${r.cause ? ', final hit ' + r.cause : ''}${r.chain ? ', chain ' + JSON.stringify(r.chain) : ''},positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    defences ' + JSON.stringify(r.defs) + ' domes ' + (r.domes || []).join('; ') + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
   catch (e) { failed++; console.log('  run failed', j[0].n, DN[j[1]], String(e.message || e).split('\n')[0]); } } }
 await Promise.all(Array.from({length: Math.min(PAR, jobs.length)}, worker));
 const TL = MERGE ? (results.push(...JSON.parse(fs.readFileSync(MERGE, 'utf8')).filter(r => !LV.some(L => L.n === r.lv))), LEVELS) : LV;
