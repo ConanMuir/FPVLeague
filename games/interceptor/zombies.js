@@ -16,6 +16,7 @@ import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
 import {initBatt} from './zbatt.js';
+import {initArsenal} from './zarsenal.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -155,7 +156,7 @@ export function initZombies(api){
  // ---------- impacts, kills, money ----------
  // a track the jammer spoofed (t.spoof) or a lure beacon pulled (t.lure) comes down in a field: no damage. Sandbags (supply) take 25% off.
  Z.impact=t=>{t.st='dead';t.impacted=1;if(G.state==='trial')return;const K=KIND[t.k]||KIND.shahed;if(!Z.mirror)api.boom(t.aim,K.dmg>100?6:K.dmg>20?4:K.dmg?1.5:.8);if(api.demo||G.state==='over')return;const s=t.tgt;  /* a co-op client gets the host's explosion as an event */
-  if(K.dmg&&(t.spoof||t.lure>0)){feed(`<span class="cb">${K.n} came down in an empty field (${t.spoof?'jammed':'lured'})</span>`);return}
+  if(K.dmg&&(t.spoof||t.lure>0)){feed(`<span class="cb">${K.n} came down in an empty field (${t.smk?'lost in the smoke':t.spoof?'jammed':'lured'})</span>`);return}
   if(!K.dmg){feed(`<span class="co">${K.n} hit the ${s.n.toLowerCase()}: a decoy, no damage</span>`);return}
   const dmg=Math.round(K.dmg*(G.sup?.harden?.75:1));
   if(s.hp>0){const was=s.hp;s.hp=Math.max(0,s.hp-dmg);G.perfect=false;
@@ -296,5 +297,6 @@ export function initZombies(api){
  initCampaign(api,G,Z);  // the campaign map and its sectors (zcampaign.js): wraps the hooks above, before the effects and co-op wrap them
  initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
- initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
+ initNet(api,G,Z);  // co-op (znet.js): wraps them again
+ initArsenal(api,G,Z);  // pilot weapons and the extra defences (zarsenal.js): after co-op, so a client's weapon goes to the host its own way
  return Z}
