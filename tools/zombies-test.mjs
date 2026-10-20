@@ -780,14 +780,14 @@ if (want('bosses')) {
   // the Ghost of the Ace: the wreck only exists once the Ace has been beaten; find it and he returns next wave with spectres of what you killed
   const g0 = await p.evaluate(() => ({wreck: !!__z.G.wreck}));
   await p.evaluate(() => { document.getElementById('zover').hidden = true; __z.api.startDemo(); }); await play(p);
-  const ga = await p.evaluate(() => { const {api, Z, G} = __z, w = G.wreck, out = {wreck: !!w}; if (!w) return out; out.far = Math.round(Math.hypot(w.x - 0, w.z - 1950)); out.inAO = Math.abs(w.x) < 4000 && Math.abs(w.z) < 4000;
+  const ga = await p.evaluate(() => { const {api, Z, G} = __z, w = G.wreck, out = {wreck: !!w}; if (!w) return out; out.far = Math.round(Math.hypot(w.x - 0, w.z - 1950)); out.inAO = Math.abs(w.x) < 4300 && Math.abs(w.z) < 4300;
     G.cash = 1e5; __z.jump(20); G.next = __z.plan(20); __z.cont(); __b.clear(); out.before = G.gnext | 0; api.player.p.set(w.x, w.y + 12, w.z); api.player.v.set(0, 0, 0); __z.sim(.2); out.found = w.found; out.gnext = G.gnext; out.note = /stirs/.test(Z.tacNote());
     G.fallen = {jet: 4, heavy: 2, shahed: 6}; G.wq.length = 0; for (const t of api.TH) t.st = 'dead'; __z.sim(5); out.base = G.state; __z.cont(); __z.sim(1); const g = api.TH.find(t => t.k === 'gace');
     out.ghost = !!g; out.spec = [...new Set(api.TH.filter(t => t.k === 'spectre' && api.live(t)).map(t => t.src))]; out.nspec = api.TH.filter(t => t.k === 'spectre' && api.live(t)).length; if (!g) return out;
     G.wq.push({k: 'shahed', at: 1e9, brg: 0}); out.decals = __b.decals(g); out.beat = __b.beat(g, 400); out.reward = !!G.brw.deathless;
     if (api.player.dead > 0) api.launch(); __z.sim(.1); out.save1 = Z.bosses.ctx.shoot('test'); out.alive = api.player.dead <= 0; out.save2 = Z.bosses.ctx.shoot('test'); out.rec = api.S.zboss.ghost; return out; });
   console.log('  ghost of the ace:', JSON.stringify(ga));
-  ok(!g0.wreck && ga.wreck && ga.far > 1800 && ga.inAO, `Ghost of the Ace: no wreck before the Ace is beaten; after, a wreck lies ${ga.far} m out in the area (no sorties on this build)`);
+  ok(!g0.wreck && ga.wreck && ga.far > 1800 && ga.inAO, `Ghost of the Ace: no wreck before the Ace is beaten; after, a wreck lies ${ga.far} m out inside the area of operations (beyond the river line when sorties exist)`);
   ok(ga.before === 0 && ga.found && ga.gnext === 1 && ga.note, 'Ghost of the Ace: flying over the wreck finds it; the base screen warns that something stirs');
   ok(ga.ghost && ga.nspec >= 4 && ga.spec.every(k => ['jet', 'heavy', 'shahed'].includes(k)), `Ghost of the Ace: next wave he rises with ${ga.nspec} spectres of what you killed (${ga.spec})`);
   ok(ga.beat?.won && ga.beat.ph.length >= 2 && ga.reward && ga.rec?.beaten === 1, `Ghost of the Ace: beaten (phases ${ga.beat?.ph.join('→')}), Deathless granted, recorded`);
