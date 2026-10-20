@@ -51,8 +51,8 @@ export function detail(m,s1=7,s2=53,tr=0,bk=.35,sn=1){m.customProgramCacheKey=()
   .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
  {vec3 sx=dFdx(-vViewPosition),sy=dFdy(-vViewPosition),r1=cross(sy,normal),r2=cross(normal,sx);float det=dot(sx,r1);vec2 dH=vec2(dFdx(hb),dFdy(hb))*${bk.toFixed(3)};normal=normalize(abs(det)*normal-sign(det)*(dH.x*r1+dH.y*r2));}
  ${sn?`if(uSnowD>.001)diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.74,.76,.8),clamp(uSnowD*(${sn>1?'.3+.7*':''}smoothstep(.5,.85,dot(normal,normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz))))*(.8+.4*texture2D(dTex,vWP.xz/9.+.2).g),0.,.92));`:''}`)};return m}
-// tree crown: a lumpy sphere (noise-displaced), darker underneath and inside (cheap ambient occlusion)
-export function crownGeo(){const g=new THREE.IcosahedronGeometry(1,2),p=g.attributes.position,c=new Float32Array(p.count*3),v=new V3();
+// tree crown: a lumpy sphere (noise-displaced), darker underneath and inside (cheap ambient occlusion); lod = icosahedron detail (2: 180 faces, 1: 80, 0: 20)
+export function crownGeo(lod=2){const g=new THREE.IcosahedronGeometry(1,lod),p=g.attributes.position,c=new Float32Array(p.count*3),v=new V3();
  for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const n=v.clone().normalize(),k=1+.22*(vnoise(n.x*2.6+5,n.z*2.6+n.y*1.7)-.5)+.12*(vnoise(n.x*6+1,n.y*6-n.z*3)-.5);v.copy(n).multiplyScalar(k);v.y=v.y*.92-.04;p.setXYZ(i,v.x,v.y,v.z);
   const ao=.42+.58*sm((n.y+.9)/1.6)*(.75+.5*(k-.9));c[i*3]=c[i*3+1]=c[i*3+2]=ao}
  g.setAttribute('color',new THREE.BufferAttribute(c,3));g.computeVertexNormals();return g}

@@ -194,7 +194,7 @@ export function initCampaign(api,G,Z){
  // the hospital rule: it falls, the sector is lost
  const st0=Z.step;Z.step=dt=>{st0(dt);if(run?.fragile&&!Z.mirror&&G.state==='wave'&&!api.demo){const h=hospital();if(h&&h.hp<=0){G.cpRes='lost';G.cpWhy='The field hospital fell.';Z.gameOver()}}};
  // HUD: wave N / objective
- const h0=Z.hud;Z.hud=dt=>{h0(dt);if(!run)return;const e=$('zw'),t=G.state==='base'?`WAVE ${G.wave+1}/${run.obj} NEXT`:`WAVE ${G.wave}/${run.obj}`;if(e&&e.textContent!==t)e.textContent=t};
+ Z.waveTxt=()=>run?G.state==='base'?`WAVE ${G.wave+1}/${run.obj} NEXT`:`WAVE ${G.wave}/${run.obj}`:null;  // zombies.js writes it (once per change)
  // base screen strip: the sector, the objective, the modifiers, the relic, and the reserve (the field repair crew is a button)
  Z.cpHTML=()=>{if(!run)return'';const left=Math.max(0,run.obj-G.wave),r=R(),rs=run.res&&RESERVES[run.res];
   return`<div class="zcpbar"><b>${esc(run.sec.n.toUpperCase())}</b><span class="zcpo">Hold ${run.obj} waves · <em>${left?`${left} to go`:'objective met'}</em></span>

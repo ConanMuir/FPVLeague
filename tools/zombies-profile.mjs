@@ -1,8 +1,9 @@
 // Zombies stutter profile. Per scenario: frame pacing (avg / p95 / worst frame, frame CPU, GPU time from a timer query), renderer.info (draw calls,
 // triangles, programs) and what the draws are per pass (shadow / main / post), the GPU cost of each big feature (by switching it off for a moment),
 // GC pauses and long tasks from a Chrome trace, JS self-time hot spots (CDP Profiler) and allocations per frame (sampling heap profiler, garbage
-// included). Headless Edge / Chrome on the real GPU (DL_HIGHGPU=1: the discrete one on a dual-GPU laptop); DL_NORENDER=1 for the CPU side only.
+// included). Headless Edge / Chrome on the real GPU (DL_HIGHGPU=1: the discrete one on a dual-GPU laptop), or DL_NORENDER=1 for the CPU side only.
 //   node tools/zombies-profile.mjs [scenario,...] [--sec=4] [--json=out.json] [--top=16] [--w=1280 --h=720 --dpr=1] [--no-ablate]
+//   node tools/zombies-profile.mjs --events      one 15 s timeline through boss wave start, weather changes, a barrage, a crash: the slow frames and what came before
 // scenarios: w1 w28 boss storm snow night dust rain fog scattered fx (default: all)
 import fs from 'node:fs';
 import {serve, launch, open, sleep} from './zlib.mjs';
@@ -120,6 +121,45 @@ async function collect(p) {
   return out;
 }
 
+// --events: one timeline through the moments that used to hitch (the boss wave starting, weather changes, a barrage, a crash and relaunch):
+// every frame whose CPU time passes 12 ms or whose interval passes 25 ms, with the event before it, plus GC and long tasks over the run
+const timeline = async () => { const {api, G, Z} = __z, F = window.__pf, out = [], marks = [], T0 = performance.now(), mark = s => marks.push([performance.now() - T0, s]);
+  api.S.zwx = 'wave'; __z.jump(10, 20000); G.next = __z.plan(10); G.next.wx = {id: 'clear'}; delete G.next.wx.to;
+  const ev = [[500, 'boss wave starts', () => __z.cont()], [3500, 'weather: storm', () => Z.wx.set('storm')], [5500, 'weather: snow', () => Z.wx.set('snow')],
+    [7000, 'barrage: 12 bursts', () => { const c = api.camera.position, V = api.THREE.Vector3; for (let i = 0; i < 12; i++) Z.flash(new V(c.x + (Math.random() - .5) * 800, c.y + 60 + Math.random() * 200, c.z - 300 - Math.random() * 600), 1 + Math.random() * 2.5); }],
+    [8500, 'weather: night', () => Z.wx.set('night')], [10000, 'crash and relaunch', () => api.lose('crash')], [11500, 'weather: dust', () => Z.wx.set('dust')], [13000, 'weather: golden', () => Z.wx.set('golden')]];
+  const {renderer} = await import('/engine/render.js'), gl = renderer.getContext(), compiles = [];  // which material made a slow shader compile (three checks the link on first use)
+  let cur = null; const rb = renderer.renderBufferDirect; renderer.renderBufferDirect = function (c, s, g, m, o) { cur = [m, o]; return rb.apply(this, arguments); };
+  const gi = gl.getProgramInfoLog.bind(gl); gl.getProgramInfoLog = q => { const t = performance.now(), r = gi(q), d = performance.now() - t; if (d > 20 && cur) { let o = cur[1], path = []; while (o && path.length < 4) { path.push(o.name || o.type); o = o.parent; }
+    const m = cur[0], key = m.customProgramCacheKey?.() || '', top = (() => { let t = cur[1]; while (t.parent && t.parent.parent) t = t.parent; return t; })();
+    compiles.push(`${Math.round(d)} ms ${m.type}${m.name ? ' ' + m.name : ''} #${m.color?.getHexString?.() || ''} ${key.slice(0, 24)} on ${path.join('<')} (top: ${top.type} ${Object.keys(top.userData).join('/')} ${top.children.length} kids, visible ${top.visible}) at ${((performance.now() - T0) / 1000).toFixed(2)}s`); } return r; };
+  let last = 0; F.cpu.clear(); F.on = true;
+  await new Promise(res => { const f = now => { const t = now - T0; while (ev.length && t >= ev[0][0]) { const [, n, fn] = ev.shift(); mark(n); fn(); } if (last) out.push([t, now - last, now]); last = now; if (t < 15000) requestAnimationFrame(f); else res(); }; requestAnimationFrame(f); });
+  F.on = false; setInterval(() => api.SITES.forEach(s => s.hp = s.max), 200);
+  const rows = out.map(([t, iv, now]) => [t, iv, F.cpu.get(now) || 0]), at = t => (marks.filter(m => m[0] <= t).pop() || [0, 'start'])[1];
+  const cpu = rows.map(r => r[2]).sort((a, b) => a - b), ivs = rows.map(r => r[1]).sort((a, b) => a - b);
+  renderer.renderBufferDirect = rb; gl.getProgramInfoLog = gi;
+  return {compiles, frames: rows.length, cpuP50: cpu[cpu.length >> 1], cpuP95: cpu[Math.floor(cpu.length * .95)], cpuWorst: cpu[cpu.length - 1], ivP95: ivs[Math.floor(ivs.length * .95)], ivWorst: ivs[ivs.length - 1],
+    slow: rows.filter(r => r[2] > 12 || r[1] > 25).map(r => `${(r[0] / 1000).toFixed(2)}s cpu ${r[2].toFixed(1)} ms, interval ${r[1].toFixed(0)} ms (after: ${at(r[0])})`)}; };
+if (A.includes('--events')) {
+  const {server, origin} = await serve(); const b = await launch(); const errs = [];
+  const p = await b.newPage(); await p.evaluateOnNewDocument(instrument); await open(b, origin + '/games/interceptor/', errs, {page: p});
+  await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'wave', cam: 0})));
+  await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z); await sleep(500); await p.click('#play'); await sleep(1500);
+  await p.evaluate(DEF => DEF.forEach(([t, s, l]) => { const d = __z.Z.def.add(t, s); if (!d) return; if (t === 'rack') { d.tier = l; d.cap = 4; } else d.lvl = 1; }), DEF);
+  const cs = A.includes('--cpu') ? await p.createCDPSession() : null; if (cs) { await cs.send('Profiler.enable'); await cs.send('Profiler.setSamplingInterval', {interval: 500}); await cs.send('Profiler.start'); }
+  await p.tracing.start({categories: ['devtools.timeline', 'v8', 'disabled-by-default-v8.gc']});
+  const r = await p.evaluate(timeline); const buf = await p.tracing.stop();
+  if (cs) { const {profile: P} = await cs.send('Profiler.stop'), byId = new Map(P.nodes.map(n => [n.id, n])), par = new Map(), self = new Map(), K = n => `${n.callFrame.functionName || '(anon)'} ${n.callFrame.url.split('/').pop()}:${n.callFrame.lineNumber + 1}`;
+    for (const n of P.nodes) for (const c of n.children || []) par.set(c, n.id);
+    P.samples.forEach((id, i) => self.set(id, (self.get(id) || 0) + P.timeDeltas[i]));
+    const tops = [...self].filter(([id]) => !/^\((idle|program|root)\)/.test(K(byId.get(id)))).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    for (const [id, us] of tops) { const st = []; let q = id; while (q && st.length < 14) { st.push(K(byId.get(q))); q = par.get(q); } console.log(`${r1(us / 1000)} ms in: ${st.join(' < ')}`); } }
+  const ev = JSON.parse(Buffer.from(buf).toString()).traceEvents, fc = ev.find(e => e.name === 'FunctionCall'), onMain = e => fc && e.pid === fc.pid && e.tid === fc.tid && e.ph === 'X';
+  const gc = ev.filter(e => onMain(e) && /^(MinorGC|MajorGC)$/.test(e.name)).map(e => e.dur / 1000), tasks = ev.filter(e => onMain(e) && /RunTask$/.test(e.name) && e.dur > 16000).map(e => e.dur / 1000).sort((a, b) => b - a);
+  const {slow, compiles, ...rest} = r; console.log(JSON.stringify(rest)); console.log('slow shader compiles (> 20 ms):\n  ' + (compiles.join('\n  ') || 'none')); console.log(`GC: ${gc.length} pauses, ${r1(gc.reduce((a, b) => a + b, 0))} ms, worst ${r1(Math.max(0, ...gc))} ms · long tasks > 16 ms: ${tasks.length}${tasks.length ? ' (' + tasks.slice(0, 8).map(r1).join(', ') + ' ms)' : ''}`);
+  console.log(slow.join('\n')); console.log(errs.length ? errs.join('\n') : 'no errors'); await b.close(); server.close(); process.exit(0);
+}
 const {server, origin} = await serve(); const b = await launch({w: Math.round(VW * DPR), h: Math.round(VH * DPR)}); const errs = [], RES = {};
 for (const [name, arg] of Object.entries(SC)) {
   if (ONLY.length && !ONLY.includes(name)) continue;

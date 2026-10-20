@@ -14,7 +14,7 @@ export function initFX(api,G,Z){
  const {THREE,scene,TH,gh,S}=api,V3=THREE.Vector3,UP=new V3(0,1,0);
  const _a=new V3(),_b=new V3(),_m=new THREE.Matrix4();
  const root=new THREE.Group();root.visible=false;scene.add(root);  // everything drawn here, hidden outside Zombies so Classic draws nothing extra
- const au=Z.au=initAudio(api),an=Z.an=initAnnounce(api,G,au);
+ const au=Z.au=initAudio(api),an=Z.an=initAnnounce(api,G,au);Z.cashRoll=true;  // the cash counter is an.hudTick's (zombies.js leaves it alone)
  const SITE_C={x:0,z:1950};
  const live=api.live,cam=()=>api.camera.position;
  const lean=()=>Z.perf?.off?1.7:1;  // the perf governor has had to drop tree shadows: thin the smoke too
@@ -56,8 +56,8 @@ export function initFX(api,G,Z){
  let gn=0;const pxK=()=>innerHeight/(2*Math.tan(api.camera.fov*Math.PI/360));
  function glowPt(p,size,minPx,maxPx,a,r,g,b){if(gn>=GN)return;const d=Math.max(1,p.distanceTo(cam())),i=gn++;gPos[i*3]=p.x;gPos[i*3+1]=p.y;gPos[i*3+2]=p.z;gSa[i*2]=cl(size*pxK()/d,minPx,maxPx);gSa[i*2+1]=a;gC[i*3]=r;gC[i*3+1]=g;gC[i*3+2]=b}
 
- // ---------- particle systems of our own (Riley's FX / SMK pools stay for his effects) ----------
- const sys=(...a)=>{const s=api.psys(...a);root.add(scene.children[scene.children.length-1]);return s},FLM=sys(500,3.4,THREE.AdditiveBlending,-6,1.4),TRL=sys(700,4.5,THREE.NormalBlending,-.6,.9);
+ // ---------- particle emitters of our own, in the shared pools with Riley's FX / SMK (engine/particles.js); wipe() empties them when Zombies stops ----------
+ const sys=api.psys,FLM=sys(500,3.4,THREE.AdditiveBlending,-6,1.4),TRL=sys(700,4.5,THREE.NormalBlending,-.6,.9);
 
  // ---------- smoke: soft puffs that grow as they rise and thin out, drifting with the wind and fogged like the scene.
  // Two rings: columns over fires and launch smoke (0..SC, quick to show), and black bursts left in the sky by explosions plus missile trails (SC..SN) ----------
@@ -69,18 +69,22 @@ export function initFX(api,G,Z){
   vertexShader:`attribute vec4 sa;uniform float k;varying float vA;varying float vS;varying float vR;\n#include <common>\n#include <fog_pars_vertex>\n#include <logdepthbuf_pars_vertex>\nvoid main(){vS=sa.z;vR=sa.w;vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;float s=sa.x*k/max(1.,-mvPosition.z);vA=sa.y*(s>420.?420./s:s<3.?s/3.:1.)*smoothstep(6.,30.,-mvPosition.z);gl_PointSize=vA<.008?0.:clamp(s,3.,420.);\n#include <logdepthbuf_vertex>\n#include <fog_vertex>\n}`,
   fragmentShader:`uniform sampler2D map;uniform float th;varying float vA;varying float vS;varying float vR;\n#include <fog_pars_fragment>\n#include <logdepthbuf_pars_fragment>\nvoid main(){\n#include <logdepthbuf_fragment>\nvec2 c=gl_PointCoord-.5;float s=sin(vR),o=cos(vR);c=mat2(o,-s,s,o)*c;float a=texture2D(map,c+.5).a*vA*(1.-.9*th);if(a<.004)discard;gl_FragColor=vec4(vec3(vS,vS*.96,vS*.92)*(1.-.6*th),a);\n#include <fog_fragment>\n}`}));
  sPts.frustumCulled=false;sPts.renderOrder=2;root.add(sPts);
- const sCur=[0,SC];
- function smoke(ring,p,vx,vy,vz,life,size,grow,a,h0,h1,buoy=.06){const lo=ring?SC:0,hi=ring?SN:SC;let i=sCur[ring];if(i>=hi)i=lo;sCur[ring]=i+1;const i3=i*3;
+ // each ring is walked and uploaded only over its live window (ring counters: tail = oldest that may live, head = next to write)
+ const RG=[{lo:0,N:SC,head:0,tail:0},{lo:SC,N:SN-SC,head:0,tail:0}],aSP=sGeo.attributes.position,aSA=sGeo.attributes.sa;aSP.setUsage(THREE.DynamicDrawUsage);aSA.setUsage(THREE.DynamicDrawUsage);
+ function smoke(ring,p,vx,vy,vz,life,size,grow,a,h0,h1,buoy=.06){const r=RG[ring],i=r.lo+r.head++%r.N;if(r.head-r.tail>r.N)r.tail=r.head-r.N;const i3=i*3;
   sPos[i3]=p.x;sPos[i3+1]=p.y;sPos[i3+2]=p.z;sV[i3]=vx;sV[i3+1]=vy;sV[i3+2]=vz;sAge[i]=0;sL[i]=life;sS0[i]=size;sGr[i]=grow;sA0[i]=a;sH0[i]=h0;sH1[i]=h1;sRv[i]=rnd(-.25,.25);sB[i]=buoy;sSa[i*4+3]=Math.random()*6.28}
  let sOn=0;
- function smokeTick(dt){const w=api.WIND,dm=Math.exp(-dt*.3);let n=0;
-  for(let i=0;i<SN;i++){if(sAge[i]<0)continue;const i3=i*3,i4=i*4,age=(sAge[i]+=dt),u=age/sL[i];if(u>=1){sAge[i]=-1;sSa[i4+1]=0;sPos[i3+1]=-1e5;continue}n++;
+ function smokeTick(dt){const w=api.WIND,dm=Math.exp(-dt*.3);let n=0,up=false;
+  for(const r of RG){if(r.tail>=r.head)continue;up=true;const t0=r.tail;
+  for(let k=t0;k<r.head;k++){const i=r.lo+k%r.N;if(sAge[i]<0)continue;const i3=i*3,i4=i*4,age=(sAge[i]+=dt),u=age/sL[i];if(u>=1){sAge[i]=-1;sSa[i4+1]=0;sPos[i3+1]=-1e5;continue}n++;
    sV[i3]=sV[i3]*dm+w.x*(1-dm);sV[i3+1]*=Math.exp(-dt*sB[i]);sV[i3+2]=sV[i3+2]*dm+w.z*(1-dm);sPos[i3]+=sV[i3]*dt;sPos[i3+1]+=sV[i3+1]*dt;sPos[i3+2]+=sV[i3+2]*dt;
    sSa[i4]=sS0[i]+sGr[i]*age;sSa[i4+1]=sA0[i]*Math.min(1,age*(i>=SC?.9:2.5))*(1-u)*(1-u*.4);sSa[i4+2]=sH0[i]+(sH1[i]-sH0[i])*u;sSa[i4+3]+=sRv[i]*dt}
-  sOn=n;if(n||sGeo.userData.was){sGeo.attributes.position.needsUpdate=sGeo.attributes.sa.needsUpdate=true}sGeo.userData.was=n;
+   const c=Math.min(r.N,r.head-t0),a=t0%r.N,span=(s0,m)=>{aSP.addUpdateRange((r.lo+s0)*3,m*3);aSA.addUpdateRange((r.lo+s0)*4,m*4)};if(a+c<=r.N)span(a,c);else{span(a,r.N-a);span(0,c-(r.N-a))}
+   while(r.tail<r.head&&sAge[r.lo+r.tail%r.N]<0)r.tail++}
+  sOn=n;if(up)aSP.needsUpdate=aSA.needsUpdate=true;
   sU.th.value=api.thermLook?1:0;  /* long-wave thermal sees through smoke: it only faintly shows */
   const fov=api.camera.fov*Math.PI/180;sU.k.value=api.renderer.domElement.height/(2*Math.tan(fov/2))}
- function smokeClear(){sAge.fill(-1);sPos.fill(-1e5);sSa.fill(0);sGeo.attributes.position.needsUpdate=sGeo.attributes.sa.needsUpdate=true}
+ function smokeClear(){sAge.fill(-1);sPos.fill(-1e5);sSa.fill(0);aSP.clearUpdateRanges();aSA.clearUpdateRanges();aSP.needsUpdate=aSA.needsUpdate=true;for(const r of RG)r.tail=r.head}
 
  // ---------- burning debris: fragments thrown out of a big burst, trailing smoke, embers until they land ----------
  const DN=70,DB=[];for(let i=0;i<DN;i++)DB.push({on:false,p:new V3(),v:new V3(),life:0,tr:0});let db0=0;

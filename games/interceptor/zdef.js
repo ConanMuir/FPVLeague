@@ -3,6 +3,7 @@
 // Outcomes are game rules: each helper has a kill chance per engagement (zdata HELP / RACK_TIERS) scaled by how well it works against the kind
 // (RESIST, or its Armory refit's own numbers: REFIT); Z.helperHit applies armor and Mark. Everything in flight is pooled and drawn instanced.
 import {dot,glow} from '../../engine/render.js';
+import {hyp} from '../../engine/hot.js';
 import {KIND,RESIST,RACK_TIERS,RACK_CAP,RACK_REARM,RACK_RANGE,DRONE_SPD,DRONE_FUEL,HELP,REFIT,LRACK} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initDefences(api,G,Z){
@@ -69,7 +70,7 @@ export function initDefences(api,G,Z){
  let did=0,fxBudget=0,sid=0;
  // per-defence numbers: drone racks (rack, and the kit's light rack) use RACK_* and their tier; the rest HELP levels; an Armory refit (d.refit) adjusts both
  const isRack=d=>d.type==='rack'||d.type==='lrack';
- const fit=d=>d&&(REFIT[d.type]||[]).find(r=>r.id===d.refit)||{};
+ const NOFIT=Object.freeze({}),fit=d=>{const L=d&&d.refit&&REFIT[d.type];if(L)for(const r of L)if(r.id===d.refit)return r;return NOFIT};  // per track per defence per step: no array or object made
  const effOf=(d,k)=>{const f=fit(d);return f.eff?.[k]??RESIST[d.type]?.[k]??0};
  const L=d=>isRack(d)?null:HELP[d.type].lv[d.lvl];
  const rangeOf=d=>{const f=fit(d);if(isRack(d))return d.type==='lrack'?LRACK.rng:f.rng||RACK_RANGE;const l=L(d);return f.rng||(l.rng||HELP[d.type].rng)*(f.rngK||1)};
@@ -92,11 +93,11 @@ export function initDefences(api,G,Z){
  function clear(){for(const d of D)free(d);D.length=0;for(const h of shots)release(h);shots.length=0;shells.length=0;tr.length=0;pend.length=0;for(const m of pMesh)m.count=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0)}
 
  // ---------- target choice: free, in range, engageable; most urgent first; marked tracks first; leave the player's terminal track alone ----------
- const tti=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
- function pickTarget(dd,x,z,range,o={}){let best=null,bs=-1e9;const me=api.player,sel=api.selT();
+ const tti=t=>hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd),NOOPT=Object.freeze({});
+ function pickTarget(dd,x,z,range,o=NOOPT){let best=null,bs=-1e9;const me=api.player,sel=api.selT();
   for(const t of TH){if(!api.live(t)||t.claim||!Z.seen(t)&&t.k!=='swarm')continue;let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)continue;
    if(o.smart&&t.k==='decoy')continue;if(o.only&&!o.only(t))continue;
-   const d=Math.hypot(t.p.x-x,t.p.z-z);if(d>range)continue;
+   const d=hyp(t.p.x-x,t.p.z-z);if(d>range)continue;
    if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)continue;  // t.pc: a co-op pilot is on it
    const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>bs){bs=sc;best=t}}
   return best}
@@ -153,7 +154,7 @@ export function initDefences(api,G,Z){
   sam(d,dt){launcher(d,dt,3.5,{smart:L(d).smart,prio:u=>u.k==='swarm'?-80:0})},
   // jammer: tracks entering the bubble get one roll; spoofed ones lose their aim and hit an empty field (no damage: zombies.js impact)
   ew(d){const s=sl(d),l=L(d),f=fit(d),r=rangeOf(d);for(const t of TH){if(!api.live(t)||d.jam.has(t.id))continue;const e=effOf(d,t.k);if(e<=0)continue;
-   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)continue;d.jam.add(t.id);if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
+   if(hyp(t.p.x-s.x,t.p.z-s.z)>r)continue;d.jam.add(t.id);if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
     api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}}},
   idome(d,dt){if((d.cd-=dt)>0||d.ammo<=0)return;const s=sl(d),l=L(d),f=fit(d),hard=u=>KIND[u.k].armor==='hard'||u.k==='cruise',over=(l.over||f.over)&&!f.never;
    const t=pickTarget(d,s.x,s.z,HELP.idome.rng,{over,only:u=>hard(u)?u.p.distanceTo(_c.set(s.x,s.y,s.z))<14000:(over&&u.p.distanceTo(_c.set(s.x,s.y,s.z))<5000),prio:u=>hard(u)?200:0});if(!t)return;

@@ -2,6 +2,7 @@
 // garbled voice, the end-of-wave card with stars and medals, the rolling cash counter and a red vignette when a site takes a hit.
 const cl=(v,a,b)=>v<a?a:v>b?b:v;
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+import {txt,cls} from '../../engine/hot.js';
 export function initAnnounce(api,G,au){
  const $=id=>document.getElementById(id),hud=$('hud');
  const mk=(id,cls)=>{const e=document.createElement('div');e.id=id;if(cls)e.className=cls;hud.append(e);return e};
@@ -42,8 +43,9 @@ export function initAnnounce(api,G,au){
  let shown=null,lastCash=0;
  function hudTick(dt){const el=$('zc');if(!el)return;let fl=0;if(G.state!=='base')for(const p of G.pops)fl+=p.amt||0;const cash=G.cash-fl;if(shown==null||cash<shown||G.state==='base'){shown=cash}
   if(cash>lastCash+.5){restart(el,'bump');if(G.state==='wave'||G.state==='clear')au.coin()}lastCash=cash;
-  if(shown<cash)shown=Math.min(cash,shown+Math.max(1,(cash-shown)*Math.min(1,dt*7)));el.textContent=money(shown);
-  vig.classList.toggle('lo',G.state==='wave'&&Z_integ()<.3)}
+  if(shown<cash)shown=Math.min(cash,shown+Math.max(1,(cash-shown)*Math.min(1,dt*7)));const r=Math.round(shown);if(r!==shownR){shownR=r;txt(el,money(r))}
+  const lo=G.state==='wave'&&Z_integ()<.3;if(lo!==vigLo){vigLo=lo;vig.classList.toggle('lo',lo)}}
+ let shownR=null,vigLo=null;
  let Z_integ=()=>1;
  function hit(sev){vig.style.setProperty('--v',cl(sev,.25,1));restart(vig,'hit')}
  // money pop: rises at the kill for .45 s, then curves into the cash counter (real time, so slow-mo can't strand it); true = landed

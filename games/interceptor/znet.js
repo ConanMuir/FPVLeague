@@ -26,6 +26,7 @@
 // $9,000) need the whole team's money; with one purse nobody has to gift. Every purchase is announced with the buyer's name, defences show who
 // bought them, and the HUD and base screen show each pilot's kills.
 import {getRoom} from '../../engine/net.js';
+import {txt} from '../../engine/hot.js';
 import {KIND,ITEMS,PERK,ORDER} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,okArr=(a,n)=>Array.isArray(a)&&a.length>=n&&a.slice(0,n).every(Number.isFinite);
 const KI=[...ORDER,'boss'],TEAM=['radar','aid'],MAXP=4;
@@ -295,7 +296,7 @@ export function initNet(api,G,Z){
   for(const[k,r]of net.pil){if(!r.seen||r.dead)continue;const q=P(r.d.p.x,r.d.p.z);rc.beginPath();rc.moveTo(q[0],q[1]-8);rc.lineTo(q[0]+6,q[1]+6);rc.lineTo(q[0]-6,q[1]+6);rc.closePath();rc.fill();rc.fillText(nameOf(k).slice(0,8),q[0]+9,q[1]+5)}};
  const zco=document.createElement('div');zco.id='zco';$('zhud').append(zco);
  const h0=Z.hud;Z.hud=dt=>{h0(dt);if(!net){if(zco.textContent)zco.textContent='';return}const t=`CO-OP ${net.code.toUpperCase()} · `+rows().map(p=>`${p[1]} ${p[2]}`).join(' · ');if(t!==zco.textContent)zco.textContent=t;
-  if(net.late)$('zinb').textContent='WAVE IN PROGRESS · YOU JOIN AT THE NEXT BASE SCREEN'};
+  if(net.late)txt($('zinb'),'WAVE IN PROGRESS · YOU JOIN AT THE NEXT BASE SCREEN')};
 
  // ---------- harness (tools/zombies-coop.mjs) ----------
  if(window.__z)window.__z.net={get n(){return net},enter,leave,tick,rows,send:()=>net&&send(performance.now(),true)};
