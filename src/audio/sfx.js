@@ -110,7 +110,7 @@ function nearMiss(hit){if(GS.state!=='play'||hit<8)return;const p=ball.p;if(Math
 // boom: low-passed noise burst and a sub sine dropping 90 -> 30 Hz. Horn: the stadium air horn, three detuned sawtooths on an
 // A-major chord (110 / 138.6 / 164.8 Hz) through a resonant low-pass, scooping up 6% into pitch, held ~1.8 s. Stinger: a quick
 // triangle arpeggio in the scoring team's key (blue C major, orange D major) over the horn's tail.
-// Levels: the whole goal lands about 4 dB (momentary loudness) above a hard ball hit, not 9; tools/sound-level.mjs measures it.
+// Levels: the whole goal lands about 4.5 dB (momentary loudness) above a hard ball hit, not 9; tools/sound-level.mjs measures it.
 export function goalSfx(t,p){cnt('goal');if(!AC)return;const t0=AC.currentTime,v=.4+.6*near(p||ball.p),o=dest(p||ball.p);
  nz(t0,1.4,700,.55*v,.5,o,'lowpass',120,.01);os(t0,90,30,1.1,.3*v,'sine',o);nz(t0,.5,2200,.15*v,.7,o,'bandpass',800);
  if(GS.demo)return;cnt('horn');const h0=t0+.18,hl=AC.createBiquadFilter(),hg=AC.createGain();hl.type='lowpass';hl.frequency.value=950;hl.Q.value=3;hg.gain.setValueAtTime(0,h0);

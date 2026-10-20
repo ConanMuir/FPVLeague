@@ -83,6 +83,12 @@ jobs:
           - check: sound-check
             area: league
             run: node tools/sound-check.mjs
+          - check: sound-level
+            area: league
+            run: node tools/sound-level.mjs
+          - check: spin-check
+            area: league
+            run: node tools/spin-check.mjs
           - check: training-check
             area: league
             run: node tools/training-check.mjs

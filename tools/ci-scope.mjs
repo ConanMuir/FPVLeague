@@ -9,7 +9,7 @@ import {execFileSync} from 'node:child_process';
 const [area, base] = process.argv.slice(2), E = process.env;
 const SHARED = [/^package(-lock)?\.json$/, /^\.github\//, /^tools\/browser\.mjs$/];
 const AREAS = {
-  league: [/^src\//, /^app\.html$/, /^vite\.config\.js$/, /^Drone League\//, /^tools\/(smoke|postbuild|physics-check|pop-check|sound-check|training-check)\.mjs$/],
+  league: [/^src\//, /^app\.html$/, /^vite\.config\.js$/, /^Drone League\//, /^tools\/(smoke|postbuild|physics-check|pop-check|sound-check|sound-level|spin-check|training-check)\.mjs$/],
   interceptor: [/^engine\//, /^games\/interceptor\//, /^interceptor\//, /^tools\/(zlib|zombies-[\w-]+|flight-golden)\.mjs$/, /^src\/flight\/core\.js$/, /^src\/input\/sticks\.js$/]};  // the games import the shared flight core and stick maths from src/
 if (!AREAS[area]) { console.error('area must be one of ' + Object.keys(AREAS).join(', ')); process.exit(2); }
 const out = (run, why) => { console.log(`run=${run}  (${area}: ${why})`); if (E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, `run=${run}\n`); process.exit(0); };
