@@ -1,0 +1,47 @@
+{
+ "info": {
+  "gpu": "NVIDIA, NVIDIA GeForce RTX 4070 Laptop GPU ",
+  "tracks": 50,
+  "buf": [
+   2560,
+   1440
+  ],
+  "logDepth": false
+ },
+ "res": {
+  "base": {
+   "frame": {
+    "avg": 5.93,
+    "p50": 5.4,
+    "p95": 9.2,
+    "p99": 9.9
+   },
+   "cbCPU": {
+    "avg": 4.9,
+    "p50": 4.5,
+    "p95": 7.9,
+    "p99": 8.5
+   },
+   "renderCPU": {
+    "avg": 2.79,
+    "p50": 2.4,
+    "p95": 4.9,
+    "p99": 5.4
+   },
+   "gpu": {
+    "avg": 2.85,
+    "p50": 2.77,
+    "p95": 3.55,
+    "p99": 4.32
+   },
+   "calls": 203,
+   "tris": "4671k",
+   "progs": 106
+  }
+ },
+ "sim": {
+  "stepMs": 0.166,
+  "simMsPerFrameAt60": 0.33,
+  "visualsMs": 0.13
+ }
+}

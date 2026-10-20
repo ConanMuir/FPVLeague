@@ -1,0 +1,131 @@
+{
+ "info": {
+  "gpu": "NVIDIA, NVIDIA GeForce RTX 4070 Laptop GPU ",
+  "tracks": 77,
+  "buf": [
+   2560,
+   1440
+  ],
+  "logDepth": true
+ },
+ "res": {
+  "base": {
+   "frame": {
+    "avg": 10.01,
+    "p50": 10.3,
+    "p95": 13,
+    "p99": 14
+   },
+   "cbCPU": {
+    "avg": 8.4,
+    "p50": 8.7,
+    "p95": 10.9,
+    "p99": 12.1
+   },
+   "renderCPU": {
+    "avg": 4.84,
+    "p50": 5,
+    "p95": 7.2,
+    "p99": 8.4
+   },
+   "gpu": {
+    "avg": 3.45,
+    "p50": 2.81,
+    "p95": 5.83,
+    "p99": 7.64
+   },
+   "calls": 196,
+   "tris": "4528k",
+   "progs": 106
+  },
+  "noShadowPass": null,
+  "noBloom": null,
+  "noPost": null,
+  "noForest": null,
+  "noRadar": {
+   "base": {
+    "frame": 11.03,
+    "p95": 15.7,
+    "cbCPU": 9.27,
+    "renderCPU": 5.16,
+    "gpu": 2.88,
+    "calls": 202,
+    "tris": "4670k"
+   },
+   "abl": {
+    "frame": 9.09,
+    "p95": 12,
+    "cbCPU": 7.74,
+    "renderCPU": 4.46,
+    "gpu": 2.85,
+    "calls": 203,
+    "tris": "4671k"
+   }
+  },
+  "pr1": {
+   "base": {
+    "frame": 7.55,
+    "p95": 11,
+    "cbCPU": 6.22,
+    "renderCPU": 3.36,
+    "gpu": 2.83,
+    "calls": 202,
+    "tris": "4441k"
+   },
+   "abl": {
+    "frame": 6.57,
+    "p95": 9.6,
+    "cbCPU": 5.39,
+    "renderCPU": 2.96,
+    "gpu": 2.65,
+    "calls": 203,
+    "tris": "4441k"
+   }
+  },
+  "pr075": {
+   "base": {
+    "frame": 7.1,
+    "p95": 10.3,
+    "cbCPU": 5.81,
+    "renderCPU": 3.12,
+    "gpu": 2.85,
+    "calls": 203,
+    "tris": "4374k"
+   },
+   "abl": {
+    "frame": 5.83,
+    "p95": 8.5,
+    "cbCPU": 4.76,
+    "renderCPU": 2.49,
+    "gpu": 2.5,
+    "calls": 197,
+    "tris": "1871k"
+   }
+  },
+  "matAuto": {
+   "base": {
+    "frame": 5.72,
+    "p95": 8.8,
+    "cbCPU": 4.52,
+    "renderCPU": 2.49,
+    "gpu": 2.75,
+    "calls": 196,
+    "tris": "4181k"
+   },
+   "abl": {
+    "frame": 7.33,
+    "p95": 10.3,
+    "cbCPU": 5.9,
+    "renderCPU": 3.02,
+    "gpu": 2.75,
+    "calls": 196,
+    "tris": "4221k"
+   }
+  }
+ },
+ "sim": {
+  "stepMs": 0.124,
+  "simMsPerFrameAt60": 0.25,
+  "visualsMs": 0.18
+ }
+}

@@ -1,0 +1,47 @@
+{
+ "info": {
+  "gpu": "Intel, Intel(R) UHD Graphics ",
+  "tracks": 57,
+  "buf": [
+   1280,
+   720
+  ],
+  "logDepth": false
+ },
+ "res": {
+  "base": {
+   "frame": {
+    "avg": 169.98,
+    "p50": 8.2,
+    "p95": 298.8,
+    "p99": 4216.5
+   },
+   "cbCPU": {
+    "avg": 168.5,
+    "p50": 5.5,
+    "p95": 280.5,
+    "p99": 4221.5
+   },
+   "renderCPU": {
+    "avg": 165.84,
+    "p50": 3,
+    "p95": 276,
+    "p99": 4217.9
+   },
+   "gpu": {
+    "avg": 135.98,
+    "p50": 142.01,
+    "p95": 195.63,
+    "p99": 247.21
+   },
+   "calls": 189,
+   "tris": "4073k",
+   "progs": 107
+  }
+ },
+ "sim": {
+  "stepMs": 0.14,
+  "simMsPerFrameAt60": 0.28,
+  "visualsMs": 0.18
+ }
+}

@@ -1,0 +1,93 @@
+{
+ "info": {
+  "gpu": "NVIDIA, NVIDIA GeForce RTX 4070 Laptop GPU ",
+  "tracks": 48,
+  "buf": [
+   2560,
+   1440
+  ],
+  "logDepth": true
+ },
+ "res": {
+  "base": {
+   "frame": {
+    "avg": 8.14,
+    "p50": 7.9,
+    "p95": 12.3,
+    "p99": 14.9
+   },
+   "cbCPU": {
+    "avg": 6.93,
+    "p50": 6.6,
+    "p95": 10.6,
+    "p99": 11.9
+   },
+   "renderCPU": {
+    "avg": 4.43,
+    "p50": 4.1,
+    "p95": 7,
+    "p99": 8.5
+   },
+   "gpu": {
+    "avg": 3.45,
+    "p50": 3.26,
+    "p95": 5.24,
+    "p99": 6.46
+   },
+   "calls": 348,
+   "tris": "3730k",
+   "progs": 109
+  },
+  "noShadowPass": {
+   "base": {
+    "frame": 6.72,
+    "p95": 10,
+    "cbCPU": 5.56,
+    "renderCPU": 3.6,
+    "gpu": 2.97,
+    "calls": 347,
+    "tris": "3763k"
+   },
+   "abl": {
+    "frame": 6.53,
+    "p95": 10.3,
+    "cbCPU": 5.42,
+    "renderCPU": 3.23,
+    "gpu": 2.3,
+    "calls": 281,
+    "tris": "3234k"
+   }
+  },
+  "noBloom": null,
+  "noPost": null,
+  "noForest": {
+   "base": {
+    "frame": 6.43,
+    "p95": 9.4,
+    "cbCPU": 5.4,
+    "renderCPU": 3.18,
+    "gpu": 2.42,
+    "calls": 264,
+    "tris": "3510k"
+   },
+   "abl": {
+    "frame": 6.57,
+    "p95": 9.8,
+    "cbCPU": 5.44,
+    "renderCPU": 2.92,
+    "gpu": 1.58,
+    "calls": 210,
+    "tris": "387k"
+   }
+  },
+  "noRadar": null,
+  "pr1": null,
+  "pr075": null,
+  "matAuto": null
+ },
+ "sim": {
+  "stepMs": 0.158,
+  "simMsPerFrameAt60": 0.32,
+  "visualsMs": 0.22
+ }
+}

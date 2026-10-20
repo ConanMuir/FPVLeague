@@ -1,0 +1,93 @@
+{
+ "info": {
+  "gpu": "Intel, Intel(R) UHD Graphics ",
+  "tracks": 76,
+  "buf": [
+   1280,
+   720
+  ],
+  "logDepth": true
+ },
+ "res": {
+  "base": {
+   "frame": {
+    "avg": 125.77,
+    "p50": 6.9,
+    "p95": 239.4,
+    "p99": 3160.1
+   },
+   "cbCPU": {
+    "avg": 124.15,
+    "p50": 6,
+    "p95": 202.4,
+    "p99": 3168.1
+   },
+   "renderCPU": {
+    "avg": 121.65,
+    "p50": 3.4,
+    "p95": 199,
+    "p99": 3164.4
+   },
+   "gpu": {
+    "avg": 98.52,
+    "p50": 100.45,
+    "p95": 153.42,
+    "p99": 160.04
+   },
+   "calls": 196,
+   "tris": "4213k",
+   "progs": 107
+  },
+  "noShadowPass": {
+   "base": {
+    "frame": 134.41,
+    "p95": 211.9,
+    "cbCPU": 132.71,
+    "renderCPU": 129.81,
+    "gpu": 95.24,
+    "calls": 195,
+    "tris": "4163k"
+   },
+   "abl": {
+    "frame": 119.59,
+    "p95": 245.2,
+    "cbCPU": 118.12,
+    "renderCPU": 114.76,
+    "gpu": 93.72,
+    "calls": 168,
+    "tris": "4014k"
+   }
+  },
+  "noBloom": null,
+  "noPost": null,
+  "noForest": {
+   "base": {
+    "frame": 142.34,
+    "p95": 248.4,
+    "cbCPU": 144.89,
+    "renderCPU": 141.69,
+    "gpu": 99.26,
+    "calls": 193,
+    "tris": "3935k"
+   },
+   "abl": {
+    "frame": 105.54,
+    "p95": 207,
+    "cbCPU": 101.31,
+    "renderCPU": 96.94,
+    "gpu": 62.37,
+    "calls": 136,
+    "tris": "383k"
+   }
+  },
+  "noRadar": null,
+  "pr1": null,
+  "pr075": null,
+  "matAuto": null
+ },
+ "sim": {
+  "stepMs": 0.221,
+  "simMsPerFrameAt60": 0.44,
+  "visualsMs": 0.33
+ }
+}
