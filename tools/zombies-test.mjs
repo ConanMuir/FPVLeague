@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
 // game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR]
-//   --sections=classic,saves,zombies,roster,helpers,weather,meta,campaign,swarm,arsenal   run only those sections (CI shards them across jobs); default all
+//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,reentry,arsenal   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
 import {front as campFront} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
@@ -360,15 +360,87 @@ if (want('meta')) {
   ok(lu.used && lu.lured === 3 && lu.ch === 0 && lu.lost === 0, `Lure beacon: ${lu.lured} Shaheds turned toward it, ${lu.back} back on course after 8 s, sites lost ${lu.lost}`);
   // difficulty: when kinds arrive, escorts and time on target on Hard / Nightmare
   const d = await p.evaluate(() => { const {Z, api, G} = __z, out = {}; for (const zd of [0, 1, 2, 3]) { api.S.zdiff = zd; out[Z.diff().n] = {hyper: Z.kindFrom('hyper'), decoy: Z.kindFrom('decoy'), gdome: Z.itemFrom('gdome')}; }
-    const arr = zd => { api.S.zdiff = zd; let dec = 0, sh = 0, spread = 0; for (let i = 0; i < 6; i++) { const P = __z.plan(12); dec += P.list.filter(k => k === 'decoy').length; sh += P.list.filter(k => k === 'shahed').length;
+    const arr = zd => { api.S.zdiff = zd; let dec = 0, sh = 0, spread = 0; const NS = 60; for (let i = 0; i < NS; i++) { const P = __z.plan(12); dec += P.list.filter(k => k === 'decoy').length; sh += P.list.filter(k => k === 'shahed').length;
       const eta = P.q.filter(q => !q.k.startsWith('boss')).map(q => { const K = __z.KIND[q.k.split(':')[0]]; return q.at + (K.far || 5200) / K.spd; }).sort((a, b) => a - b); spread += eta[Math.floor(eta.length * .9)] - eta[Math.floor(eta.length * .1)]; }
-      return {dec: +(dec / 6).toFixed(1), sh: +(sh / 6).toFixed(1), spread: Math.round(spread / 6)}; };
+      return {dec: +(dec / NS).toFixed(1), sh: +(sh / NS).toFixed(1), spread: Math.round(spread / NS)}; };  /* 60 plans: 6 was too few to compare difficulties reliably */
     out.plan = {Normal: arr(1), Hard: arr(2), Nightmare: arr(3)}; api.S.zdiff = 1; return out; });
   console.log('  difficulty roster and raids:', JSON.stringify(d));
   ok(d.Easy.hyper > d.Normal.hyper && d.Normal.hyper > d.Hard.hyper && d.Hard.hyper > d.Nightmare.hyper && d.Hard.gdome < d.Hard.hyper && d.Nightmare.gdome < d.Nightmare.hyper, `Difficulty: hypersonics arrive at wave ${['Easy', 'Normal', 'Hard', 'Nightmare'].map(n => d[n].hyper).join(' / ')}, Golden Dome before them`);
   ok(d.plan.Hard.dec > d.plan.Normal.dec && d.plan.Nightmare.spread < d.plan.Normal.spread * .6, `Raids: decoys per wave-12 raid ${d.plan.Normal.dec} / ${d.plan.Hard.dec} / ${d.plan.Nightmare.dec}; arrival spread (10-90%) ${d.plan.Normal.spread} / ${d.plan.Hard.spread} / ${d.plan.Nightmare.spread} s`);
   ok(!errs.length, 'Meta and sinks: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.evaluate(() => localStorage.removeItem('dl-interceptor'));
+  await p.close();
+}
+
+// ---------- kill chain and early warning (zchain.js, zwarn.js): the three layers, detection, the alert panel, harden / evacuate / decoy,
+// the sorties hook (fast launches per sector) and the cause of a game over ----------
+if (want('chain')) {
+  const {p, errs} = await page('z');
+  await play(p);
+  const r = await p.evaluate(() => {
+    const {api, G, Z, KIND} = __z, C = Z.chain, W = Z.warn, out = {}, clr = () => { for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0; api.SITES.forEach(s => s.hp = s.max); };
+    // the Kill chain tab: locked early, open two waves before the ballistic missiles
+    Z.base.setTab('chain'); out.lockTxt = document.querySelector('.ztab').textContent.slice(0, 60); out.lockBuy = C.act('bb', 0);
+    __z.jump(C.from, 100000); G.next = __z.plan(G.wave + 1); Z.base.render();
+    out.from = C.from; out.buttons = document.querySelectorAll('[data-kc]').length;
+    out.buy = ['bb:0', 'pb:1', 'ew:0', 'dc:2'].map(s => { const [a, x] = s.split(':'); return !!C.act(a, x); });
+    out.noStock = C.act('st', 1); const gd = Z.def.add('gdome', 0); gd.spent = 9000; out.stock = !!C.act('st', 2) && G.kc.stock === 2;
+    out.move = !!C.act('bm', '0>2') && !G.kc.boost[0] && !!G.kc.boost[2]; C.act('bm', '2>0');
+    // the sorties hook: next wave's fast launches per sector, and cutting them
+    G.next = __z.plan(34); const fp = Z.fastPlan(), n0 = fp.reduce((a, s) => a + s.total, 0), inList = G.next.list.filter(k => ['ballistic', 'hyper', 'icbm'].includes(k)).length;
+    const sec = fp.findIndex(s => s.total), cut = sec >= 0 ? Z.cutFast(sec, 1) : 0, n1 = Z.fastPlan().reduce((a, s) => a + s.total, 0);
+    out.sorties = {n0, inList, cut, n1, list: G.next.list.filter(k => ['ballistic', 'hyper', 'icbm'].includes(k)).length};
+    __z.jump(34, 100000); G.next = {list: [], brgs: [], q: [{k: 'shahed', at: 1e9, brg: 0}], wx: null}; Z.def.remove(gd); __z.cont(); clr();
+    const fire = (k, brg, site, R) => { R = R || KIND[k].far; const t = __z.make(k, Math.sin(brg) * R, 1950 - Math.cos(brg) * R, api.SITES[site]); return t; };
+    // detection: a hypersonic from the north (no battery there) is off the radar until 25 s (+15 s early-warning radar) before impact; one from the west is seen at launch
+    const tn = fire('hyper', 0, 0); __z.sim(.2); out.det0 = {seen: Z.seen(tn), tti: Math.round(tn.p.distanceTo(tn.aim) / tn.spd), warn: Z.warnS()};
+    while (!Z.seen(tn) && api.live(tn)) __z.sim(.25); out.det1 = Math.round(tn.p.distanceTo(tn.aim) / tn.spd);
+    clr(); const tw = fire('hyper', -1, 0); __z.sim(.2); out.detW = Z.seen(tw) && tw.kc.cue === 1 && tw.kc.b === 'wait';
+    // boost phase: 40 ballistic launches from the west edge, level 1 battery, magazine refilled for each
+    clr(); let bk = 0; for (let i = 0; i < 40; i++) { G.kc.boost[0].ammo = 2; const t = fire('ballistic', -1 + Math.random() * .4, i % 3); __z.sim(7); if (!api.live(t)) bk++; clr(); } out.boost = bk;
+    // terminal: 40 hypersonics diving on the fuel depot (point defence level 1, recharged each time), no other layer; and its charges run out
+    let pk = 0, tries = 0; for (let i = 0; i < 40; i++) { G.kc.pd['FUEL DEPOT'].ch = 2; const t = fire('hyper', 0, 1, 12000); t.kc = {sec: 1, b: 'none', det: 1, mm: 0, pd: '', dc: 0}; let s = 0; while (api.live(t) && s++ < 120 * 60) api.step(1 / 120); if (t.pdT) tries++; if (!t.impacted) pk++; clr(); }
+    out.pd = {kills: pk, tries};
+    // midcourse: Golden Dome with an empty magazine reloads from the stock for a hypersonic it alone can stop
+    const g2 = Z.def.add('gdome', 0); Z.def.deploy(); g2.ammo = 0; G.kc.stock = 2; const th = fire('hyper', 0, 2, 40000); th.kc = {sec: 1, b: 'none', det: 1, mm: 0, pd: '', dc: 0}; let s2 = 0; while (api.live(th) && s2++ < 120 * 60) api.step(1 / 120);
+    out.mid = {stock: G.kc.stock, shots: g2.shots, killed: !th.impacted}; Z.def.remove(g2); clr();
+    // warning actions: harden cuts a ballistic hit on the apartments to 30%; a second harden waits for the cooldown; evacuate halves the next hit and
+    // the wave bonus; a decoy (forced to work) sends the warhead into a field
+    const hit = (k, site, pre) => { const t = fire(k, 0, site, 15000); t.kc = {sec: 1, b: 'none', det: 1, mm: 0, pd: '', dc: 0}; G.kc.pd = {}; if (pre) pre(t); const hp0 = api.SITES[site].hp; let s = 0; while (api.live(t) && s++ < 120 * 60) api.step(1 / 120); const d = hp0 - api.SITES[site].hp; clr(); return d; };
+    G.kc.hcd = 0; const c0 = G.cash; out.hardDmg = hit('ballistic', 2, t => { out.hardOk = W.act('harden', t.id); out.hardCost = c0 - G.cash; out.cd = G.kc.hcd; });
+    out.plainDmg = hit('ballistic', 2);
+    out.evacDmg = hit('ballistic', 0, t => W.act('evac', t.id)); out.income = Z.incomeK(); out.nSites = api.SITES.length;
+    const p0 = Math.random; out.decoyDmg = hit('hyper', 1, t => { Math.random = () => 0; out.decoyOk = W.act('decoy', t.id); Math.random = p0; out.dcy = t.dcy; });
+    // key J in flight act on the most urgent alert
+    G.kc.hcd = 0; G.kc.hard = {}; const tk = fire('ballistic', 0, 1, 15000); tk.kc = {sec: 1, b: 'none', det: 1, mm: 0, pd: '', dc: 0}; __z.sim(.1); Z.fxTest?.endCine();  /* the impact cam of the last hit would take the key */
+    dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyJ'})); dispatchEvent(new KeyboardEvent('keyup', {code: 'KeyJ'})); out.key1 = !!G.kc.hard['FUEL DEPOT'];
+    Z.warnHud(); out.panel = document.getElementById('zalert').textContent; out.line = Z.chainLine(tk, false); out.label = Z.label(tk).replace(/<[^>]+>/g, '');
+    out.stats = C.stats();
+    return out; });
+  ok(/arrives with wave/.test(r.lockTxt) && !r.lockBuy, `Kill chain tab: locked before wave ${r.from} ("${r.lockTxt.trim().slice(0, 40)}…")`);
+  ok(r.buttons >= 10 && r.buy.every(Boolean), `Kill chain tab: open from wave ${r.from} with ${r.buttons} buttons; boost battery, point defence, early-warning radar, decoys bought (${r.buy})`);
+  ok(!r.noStock && r.stock, 'Kill chain: space interceptors need a Golden Dome, then go into its stock');
+  ok(r.move, 'Kill chain: a boost battery moves to another launch edge');
+  ok(r.sorties.n0 === r.sorties.inList && (!r.sorties.n0 || r.sorties.cut === 1 && r.sorties.n1 === r.sorties.n0 - 1 && r.sorties.list === r.sorties.n0 - 1), `Sorties hook: wave 34 plans ${r.sorties.n0} fast launches by sector; cutting one leaves ${r.sorties.n1} (list ${r.sorties.list})`);
+  ok(!r.det0.seen && r.det0.tti > 60 && Math.abs(r.det1 - r.det0.warn) <= 1 && r.det0.warn === 35, `Early warning: a hypersonic is off the radar ${r.det0.tti} s out and shows up ${r.det1} s before impact (warning ${r.det0.warn} s: 20 + 15 from the early-warning radar)`);
+  ok(r.detW, 'Early warning: the west boost battery sees a west launch at once and takes its shot');
+  ok(r.boost >= 6 && r.boost <= 28, `Boost phase: level 1 battery stops ${r.boost}/40 ballistic launches (40% each)`);
+  ok(r.pd.tries === 40 && r.pd.kills >= 2 && r.pd.kills <= 20, `Terminal: point defence fires at all 40 hypersonics diving on its site and stops ${r.pd.kills} (22% each)`);
+  ok(r.mid.shots >= 1 && r.mid.stock === 2 - r.mid.shots, `Midcourse: an empty Golden Dome reloads from the stock (stock 2 -> ${r.mid.stock}, ${r.mid.shots} shot${r.mid.shots > 1 ? 's' : ''}, ${r.mid.killed ? 'killed' : 'missed'})`);
+  ok(r.hardOk && r.hardDmg === 110 && r.plainDmg === 220 && r.hardCost > 0 && r.cd > 20, `Harden: a ballistic hit ${r.plainDmg} -> ${r.hardDmg} on a hardened site ($${r.hardCost}); the next harden waits (${Math.round(r.cd)} s left)`);
+  ok(r.evacDmg === 154 && Math.abs(r.income - (1 - 1 / r.nSites)) < 1e-6, `Evacuate: the hit takes ${r.evacDmg} instead of 220 (70%); the wave bonus x${r.income.toFixed(2)}`);
+  ok(r.decoyOk && r.dcy && r.decoyDmg === 0, `Decoy: the warhead turns for the dummy site, no damage (${r.decoyDmg})`);
+  ok(r.key1, 'Key J in flight hardens the target site of the most urgent alert');
+  ok(/LAUNCH DETECTED — BALLISTIC — FUEL DEPOT — \d+ s/.test(r.panel) && /BOOST .* → MID .* → TERMINAL/.test(r.line) && /HARDEN|EVACUATE|DECOY/.test(r.panel) && /BOOST/.test(r.label), `Alert panel: "${r.panel.slice(0, 120)}"; chain "${r.line}"`);
+  console.log('  chain stats:', JSON.stringify(r.stats));
+  if (SHOTS) { await frames(p, 4); await drawFrames(p, 2); await p.screenshot({path: SHOTS + '/z-alert.png'}); }
+  // the cause of a game over: the kind whose hit did the last damage, on the game-over panel
+  const go = await p.evaluate(() => { const {api, G, Z} = __z; api.SITES.forEach(s => s.hp = 1); for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0; G.kc.hard = {}; G.kc.evac = {};
+    const t = __z.make('ballistic', 0, 1950 - 15000, api.SITES[0]); api.SITES.forEach((s, i) => { if (i) s.hp = 0; }); let s = 0; while (G.state !== 'over' && s++ < 120 * 60) api.step(1 / 120);
+    return {st: G.state, cause: G.cause, txt: document.getElementById('zover').textContent}; });
+  ok(go.st === 'over' && go.cause === 'ballistic' && /Final blow\s*Ballistic missile/.test(go.txt), `Game over: cause logged (${go.cause}) and shown ("${(go.txt.match(/Final blow[^·]*·[^A-Z]*/) || [''])[0].trim()}")`);
+  if (SHOTS) await p.screenshot({path: SHOTS + '/z-over-cause.png'});
+  ok(!errs.length, 'Kill chain: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
 
@@ -533,7 +605,7 @@ if (want('swarm')) {
   // strike: a cloud of 6 Shaheds 2.5 km ahead; boosters, kills, survivors return; the second charge, then none left
   const stk = await p.evaluate(() => { const {api, G, Z} = __z; __sw.clear(); __sw.home(); const L = []; for (let i = 0; i < 6; i++) L.push(__sw.ahead('shahed', 2500 + i * 30, (i % 3) * 40, (i >> 1) * 15));
     Z.sw.deploy(Z.sw.mine, 6, 2); const ch0 = Z.sw.mine.ch, ok = Z.sw.command('strike'), n0 = Z.sw.drones.length; let top = 0; for (let i = 0; i < 12; i++) { __sw.fly(.25); for (const d of Z.sw.drones) top = Math.max(top, d.v.length()); }
-    __sw.fly(18); const down = L.filter(t => !api.live(t)).length, back = Z.sw.drones.every(d => d.st === 'form' || d.st === 'ret');
+    const isBack = () => Z.sw.drones.every(d => d.st === 'form' || d.st === 'ret'); __sw.fly(18); for (let i = 0; i < 30 && !isBack(); i++) __sw.fly(1); const down = L.filter(t => !api.live(t)).length, back = isBack();
     for (let i = 0; i < 3; i++) __sw.ahead('jet', 2000 + i * 40, 100 * i, 0);
     const ok2 = Z.sw.command('strike'), ok3 = Z.sw.command('strike'); return {ok, ch0, ch1: Z.sw.mine.ch, n0, n1: Z.sw.drones.length, top: Math.round(top), down, back, ok2, ok3}; });
   ok(stk.ok && stk.ch0 === 2 && stk.top > 250, `Strike: launched (${stk.n0} drones, top speed ${stk.top} m/s on boosters), a charge spent`);
@@ -562,6 +634,73 @@ if (want('swarm')) {
   const cls = await p.evaluate(() => { __z.api.startDemo(); return {cap: __z.api.BCAP, mod: __z.api.S.mod.bcap, panel: document.getElementById('zsw').hidden}; });
   ok(cls.cap === cls.mod && cls.panel, `Classic: battery back to ${cls.cap} mAh, swarm panel hidden`);
   ok(!errs.length, 'Swarm / lock / battery: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+}
+
+// ---------- re-entry (zreentry.js), the long-range radar layers (zstratradar.js), the threat sound and its voice budget (zthreatsfx.js) ----------
+if (want('reentry')) {
+  const {p, errs} = await page('z');
+  await play(p);
+  // a wave that stays open (a queued track far in the future), a Golden Dome
+  // (with the kill chain's early warning, both early-warning radar levels: the fast tracks are picked up 50 s out, before they re-enter)
+  const setup = w => p.evaluate(w => { const {G, Z, api} = __z; G.cash = 1e6; __z.jump(w); G.next = __z.plan(w); __z.cont(); G.wq = [{k: 'shahed', at: 1e9, brg: 0}]; if (G.kc) G.kc.ewr = 2;
+    for (const t of api.TH) t.st = 'dead'; __z.sim(.2); return {wave: G.wave, sr: Z.sr.state()}; }, w);
+  // radar layers: Normal brings the ballistic missiles at 25, the ICBMs at 40 (Hard: 3 waves earlier)
+  const u24 = await setup(24), u25 = await setup(25);
+  await p.evaluate(() => __z.sim(3));
+  const ann = await p.evaluate(() => ({feed: document.getElementById('feed').textContent, sr: __z.Z.sr.state()}));
+  const u39 = await setup(39), u40 = await setup(40);
+  const hard = await p.evaluate(() => { const {G, Z} = __z; G.dfo = 2; const r = Z.sr.state(); G.dfo = undefined; return r; });
+  ok(u24.sr.cont === 0 && u25.sr.cont === 25 && u25.sr.glob === 0, `Radar layers: continental locked on wave 24, unlocked on wave 25 (Normal)`);
+  ok(/Continental radar online/.test(ann.feed), 'Radar layers: the continental unlock is announced');
+  ok(u39.sr.glob === 0 && u40.sr.glob === 40, `Radar layers: global locked on wave 39, unlocked on wave 40`);
+  ok(hard.contFrom === 22 && hard.globFrom === 37, `Radar layers on Hard: continental from ${hard.contFrom}, global from ${hard.globFrom}`);
+  // the ICBM: midcourse, the re-entry call (banner, alarm, sky flash, rumble), the slower final approach
+  const ic = await p.evaluate(() => { const {Z, api} = __z, gd = Z.def.add('gdome', Z.def.SLOTS.findIndex((s, j) => Z.def.slotFree(j))); gd.spent = 9000; Z.def.deploy(); gd.ammo = 0; Z.tsfx.reset();
+    const t = __z.make('icbm', 0, 1950 - 160000, api.SITES[0]); __z.sim(.2); const T0 = Z.reTti(t); let T = 0, re = null, low = null, ban = '', st = null;
+    while (api.live(t) && T < 120) { __z.sim(.1); T += .1; if (!re && Z.re.log.some(e => e.e === 'reentry')) { re = T; st = Z.re.state(); api.hud?.(.1); Z.hud(.1); ban = document.getElementById('zre').textContent; }
+      if (!low && t.p.y - t.aim.y < 2000) low = Math.round(t.v.length()); }
+    return {T0: +T0.toFixed(1), total: +T.toFixed(1), re: +(re || 0).toFixed(1), ban, st, low, imp: !!t.impacted, alarm: Z.tsfx.log.some(e => e.e === 'alarm' && e.big), gd: gd.id}; });
+  console.log('  icbm:', JSON.stringify({...ic, st: {flash: ic.st?.flash, rumble: +(ic.st?.rumble || 0).toFixed(2), samples: ic.st?.samples}}));
+  ok(ic.imp && ic.total > 60 && ic.total < 90 && Math.abs(ic.total - .2 - ic.T0) < 4, `ICBM: ${ic.total} s from launch to impact (predicted ${ic.T0} s); re-entry at ${ic.re} s`);
+  ok(/^RE-ENTRY — SUBSTATION — T-\d+ s/.test(ic.ban) && ic.alarm && ic.st.flash > .2, `Re-entry call: banner "${ic.ban}", alarm stinger, sky flash ${ic.st?.flash}`);
+  ok(ic.total - ic.re > 25 && ic.total - ic.re < 40 && ic.st.samples > 0, `Re-entry: ${(ic.total - ic.re).toFixed(1)} s from the entry flash to impact, plasma trail drawn`);
+  ok(ic.low > 800 && ic.low < 1500, `Final approach: ${ic.low} m/s under 2 km (slowed from 6.5 km/s; still far beyond a pilot)`);
+  // the Golden Dome answers: the kill vehicle drops out of orbit over the defended area, in the camera's view, with a trail; flash and debris at the intercept
+  const kv = await p.evaluate(gid => { const {Z, api} = __z, gd = Z.def.D.find(d => d.id === gid); gd.ammo = 2; const L0 = Z.re.log.length; const t = __z.make('icbm', 20000, 1950 - 160000, api.SITES[1]);
+    let seen = null; for (let i = 0; i < 1200 && api.live(t); i++) { __z.sim(.1); const h = Z.def.shots.find(h => h.kind === 'space'); if (h && !seen) { __z.sim(.3); const c = api.camera; c.lookAt(h.p); c.updateMatrixWorld(); seen = {scr: Z.re.screen(h.p), st: Z.re.state(), y: Math.round(h.p.y)}; } }
+    __z.sim(.3); const L = Z.re.log.slice(L0); return {seen, kv: L.filter(e => e.e === 'kv'), ix: L.find(e => e.e === 'intercept'), up: L.some(e => e.e === 'uplink') || Z.tsfx.log.some(e => e.e === 'uplink'), st: Z.re.state(), imp: !!t.impacted}; }, ic.gd);
+  console.log('  dome:', JSON.stringify({seen: kv.seen?.scr, y: kv.seen?.y, kv: kv.kv.map(e => [e.y, e.iy, e.tau]), ix: kv.ix, debris: kv.st.debris}));
+  ok(kv.seen && kv.seen.scr.front && Math.abs(kv.seen.scr.x) < .2 && Math.abs(kv.seen.scr.y) < .2 && kv.seen.st.kvTrails >= 1 && kv.seen.st.samples > 0, `Golden Dome: kill vehicle away at ${kv.seen?.y} m, on screen with its trail and the uplink`);
+  ok(kv.ix && kv.ix.by === 'gdome' && kv.ix.h > 3000 && kv.st.debris > 0 || kv.imp && kv.kv.length >= 2, `Golden Dome: intercept at ${kv.ix ? Math.round(kv.ix.h / 1000) + ' km' : '—'} with flash and ${kv.st.debris} burning fragments`);
+  // the kill chain's early warning (when present): a re-entry nobody has picked up yet shows no site and no time
+  const blind = await p.evaluate(() => { const {G, Z, api} = __z; if (!G.kc) return null; for (const t of api.TH) if (api.live(t)) t.st = 'dead'; __z.sim(.2); G.kc.ewr = 0; const L0 = Z.re.log.length, t = __z.make('icbm', 0, 1950 - 160000, api.SITES[0]);
+    for (let i = 0; i < 900 && !Z.re.log.slice(L0).some(e => e.e === 'reentry'); i++) __z.sim(.1); Z.hud(.1); const b = document.getElementById('zre').textContent; G.kc.ewr = 2; t.st = 'dead'; __z.sim(.2); return b; });
+  if (blind != null) ok(/^RE-ENTRY — TRACKING… — T-\?/.test(blind), `Kill chain early warning: an undetected re-entry reads "${blind}"`);
+  // the ballistic missile's lesser re-entry: the call comes 30 s out, amber, the small stinger
+  const bal = await p.evaluate(() => { const {Z, api} = __z; for (const t of api.TH) if (api.live(t)) t.st = 'dead'; __z.sim(.2); const L0 = Z.re.log.length, A0 = Z.tsfx.log.length; const t = __z.make('ballistic', 0, 1950 - 65000, api.SITES[2]);
+    let T = null; for (let i = 0; i < 1000 && api.live(t) && T == null; i++) { __z.sim(.1); const e = Z.re.log.slice(L0).find(e => e.e === 'reentry'); if (e) { T = e.T; Z.hud(.1); } }
+    return {e: Z.re.log.slice(L0).find(e => e.e === 'reentry'), cls: document.querySelector('#zre .l')?.className, small: Z.tsfx.log.slice(A0).some(e => e.e === 'alarm' && !e.big)}; });
+  ok(bal.e && bal.e.T >= 29 && bal.e.T <= 31 && bal.cls === 'l b' && bal.small, `Ballistic: lesser re-entry call at T-${bal.e?.T} s (amber banner, small stinger)`);
+  // threat sound: 150 tracks around the camera; the voices stay inside the budget and go to the loudest; a supersonic pass is heard after it passes
+  const snd = await p.evaluate(() => { const {Z, api} = __z, V = api.THREE.Vector3, c = api.camera.position.clone(); for (const t of api.TH) if (api.live(t)) t.st = 'dead'; __z.sim(.2); Z.tsfx.reset();
+    const K = ['shahed', 'jet', 'cruise', 'heavy', 'decoy', 'swarm']; for (let i = 0; i < 150; i++) { const a = i * 2.39, r = 300 + (i % 25) * 120, t = __z.make(K[i % 6], c.x + Math.cos(a) * r, c.z + Math.sin(a) * r); if (t) t.grp = t.k === 'swarm' ? 1000 + (i % 3) : t.grp; }
+    for (let i = 0; i < 25; i++) __z.sim(.1); const s = Z.tsfx.stats(), live = api.TH.filter(api.live).length;
+    const near = api.TH.filter(t => api.live(t) && t.k !== 'swarm').sort((a, b) => a.p.distanceTo(c) - b.p.distanceTo(c))[0];
+    return {s, live, nearV: s.ids.includes(near?.id)}; });
+  console.log('  voices:', JSON.stringify(snd));
+  ok(snd.live >= 120 && snd.s.peakV <= 8 && snd.s.voices >= 4 && snd.s.peakO <= 8, `Threat sound: ${snd.live} tracks in the air, ${snd.s.voices} voices (peak ${snd.s.peakV} of 8), one-shots peak ${snd.s.peakO} of 8`);
+  ok(snd.nearV, 'Threat sound: the nearest track has a voice');
+  const sup = await p.evaluate(() => { const {Z, api} = __z, V = api.THREE.Vector3, c = api.camera.position.clone(); for (const t of api.TH) if (api.live(t)) t.st = 'dead'; __z.sim(.2); Z.tsfx.reset();
+    const t = __z.make('ballistic', c.x - 20000, c.z, api.SITES[0]); t.p.set(c.x - 20000, c.y + 400, c.z); t.aim = new V(c.x + 30000, c.y + 400, c.z); t.v.set(900, 0, 0);
+    for (let i = 0; i < 300 && !Z.tsfx.log.some(e => e.e === 'pass'); i++) __z.sim(.1); const ps = Z.tsfx.log.find(e => e.e === 'pass'), pre = Z.tsfx.log.filter(e => e.e === 'boom').length; return {ps, pre, x: Math.round(t.p.x - c.x)}; });
+  await sleep(1800); await frames(p, 6);
+  const boom = await p.evaluate(() => __z.Z.tsfx.log.filter(e => e.e === 'boom').length);
+  ok(sup.ps && sup.ps.sup && Math.abs(sup.ps.d - 400) < 40 && sup.ps.delay > .9 && sup.pre === 0 && boom >= 1, `Supersonic pass at ${sup.ps?.d} m: silent on the way in, the boom ${sup.ps?.delay} s after it passed (${boom} boom)`);
+  // Classic: none of it
+  const cls = await p.evaluate(() => { __z.api.startDemo(); return {sr: document.getElementById('zsr').hidden, re: document.getElementById('zre').textContent, v: __z.Z.tsfx.stats().voices}; });
+  ok(cls.sr && !cls.re, 'Classic / menu: no long-range inset, no re-entry banner');
+  ok(!errs.length, 'Re-entry / radar layers / threat sound: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
 
