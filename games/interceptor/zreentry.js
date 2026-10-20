@@ -33,7 +33,7 @@ export function initReentry(api,G,Z){
  const SITE_C={x:0,z:1950};
  const root=new THREE.Group();root.visible=false;scene.add(root);
  const lean=()=>Z.perf?.off?1:0,cam=()=>api.camera.position;
- let simT=0;const LOG=[],log=e=>{e.T=+simT.toFixed(2);e.w=G.wave;LOG.push(e);if(LOG.length>120)LOG.shift()};
+ let simT=0;const LOG=[],log=e=>{e.at=+simT.toFixed(2);e.w=G.wave;LOG.push(e);if(LOG.length>120)LOG.shift()};
 
  // ---------- flight ----------
  // E: back toward the launch (the horizontal direction it came from), a seeded distance to one side, HE up. The midcourse is a straight line at VMID,
@@ -212,7 +212,7 @@ float e=1.-vS*vS;float a=vA*e*sqrt(e);if(a<.004)discard;gl_FragColor=vec4(vC,a);
    h=`<div class="l${cls}"><b>RE-ENTRY</b> — ${siteN(t)} — T-${seen(t)?T+' s':'?'}${L.length>1?` <i>+${L.length-1}</i>`:''}</div>`;
    if(kv){const eta=Math.max(0,Math.ceil(kv.h.p.distanceTo(t.p)/(kv.h.v.length()+t.v.length())));h+=`<div class="s">GOLDEN DOME KV AWAY · intercept in ${eta} s</div>`}
    else if(t.claim&&/dome/.test(t.claim.d?.type||t.claim.type||''))h+=`<div class="s">IRON DOME ENGAGING</div>`}
-  const last=LOG.findLast?.(e=>e.e==='intercept');if(!h&&last&&simT-last.T<2.5&&G.state==='wave')h=`<div class="s ok">INTERCEPTED ✓ ${KIND[last.k]?.tag||''} at ${Math.round(last.h/1000)} km</div>`;
+  const last=LOG.findLast?.(e=>e.e==='intercept');if(!h&&last&&simT-last.at<2.5&&G.state==='wave')h=`<div class="s ok">INTERCEPTED ✓ ${KIND[last.k]?.tag||''} at ${Math.round(last.h/1000)} km</div>`;
   if(h!==banH){ban.innerHTML=banH=h}}
  // a marker on the warhead (or an arrow at the screen edge pointing at it) with the countdown
  function overlay(oc){const t=ST.urg;if(!t||!api.live(t)||Z.cine)return;const W2=innerWidth,H=innerHeight,v=scr(t.p,_a),T=Math.ceil(tti(t)),c=t._re.big?'#ff4d4d':'#ffb347';

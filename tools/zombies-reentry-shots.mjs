@@ -46,6 +46,6 @@ await look(eye, '__z.api.TH.find(t=>t.k==="icbm"&&__z.api.live(t)).p', 75); awai
 // night: the same re-entry over a dark sky
 await p.evaluate(() => { const {api} = __z; for (const t of api.TH) if (api.live(t)) t.st = 'dead'; __z.sim(.2); __z.Z.wx.start?.('night'); api.setWeather?.('night'); const s = api.SITES[0]; window.__t = __z.make('icbm', s.x + 4000, s.z - 160000, s); const t = window.__t; while (api.live(t) && t.p.y - t.aim.y > 60000) __z.sim(.05); });
 await look(eye, '__t.p', 70); await shot('10-night');
-const st = await p.evaluate(() => ({re: __z.Z.re.state(), sr: __z.Z.sr.state(), log: __z.Z.re.log.map(e => e.e + ':' + (e.k || '') + '@' + e.T).join(' ')}));
+const st = await p.evaluate(() => ({re: __z.Z.re.state(), sr: __z.Z.sr.state(), log: __z.Z.re.log.map(e => e.e + ':' + (e.k || '') + '@' + e.at).join(' ')}));
 console.log(JSON.stringify(st)); console.log('errors', errs.length ? errs : 'none');
 clearInterval(0); await b.close(); server.close();
