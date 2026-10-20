@@ -2,6 +2,7 @@
 // (engine/net.js: a BroadcastChannel stand-in for the room, with a one-way delay), driven through the real menu, base screen and the
 // window.__z hooks. Checks: lobby (host / join by code), ready-up and forced start, waves and tracks in sync, a client's kill counts,
 // shared purse and shop requests (helper, personal perk, team perk, repair), personal swarms (formation and strike over the wire),
+// the arsenal (a client's weapon purchase, loadout and EMP resolved on the host, the host's laser beam and a client-parked carrier on every screen),
 // site hit points in sync, late join, a client leaving,
 // the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS]
 import {serve, launch, open, sleep, newWindow} from './zlib.mjs';
@@ -124,6 +125,24 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !docum
   await tap(B, '[data-tab="armory"]'); await tap(B, `[data-fit="${rid}:range"]`);
   ok(await until(H, id => __z.Z.def.D.find(d => d.id === id)?.refit === 'range', rid) && await until(A, id => __z.Z.def.D.find(d => d.id === id)?.refit === 'range', rid), 'Refit: Bea fits long-range drones to the rack; the host and Ash see it'); }
 
+// ---------- arsenal (zarsenal.js): a pilot weapon bought from the shared purse is that pilot's own; the team's new defences show on every
+// screen; a client parks the carrier through the host ----------
+const aKey = await ev(H, () => Object.keys(__z.net.n.names).find(k => __z.net.n.names[k] === 'Ash'));
+{ const c0 = (await st(H)).cash;
+  await tap(A, '[data-tab="shop"]'); await tap(A, '[data-ars="w:net"]');
+  ok(await until(H, c => __z.G.cash === c - 600, c0) && await until(A, () => __z.Z.ars.cur() === 'net' && __z.Z.ars.P(__z.Z.ars.me()).own.has('net')), 'Arsenal: Ash buys the net drone from the shared purse (-$600); it is his, loaded');
+  ok(await ev(H, () => __z.Z.ars.cur() === 'std') && await ev(B, () => __z.Z.ars.cur() === 'std'), 'Arsenal: the host and Bea still carry the standard warhead');
+  // the EMP (a wave-6 weapon) handed to Ash for the test, then loaded from his base screen: the host learns which weapon he carries
+  await ev(H, k => __z.Z.ars.P(k).own.add('emp'), aKey); await ev(A, () => { __z.Z.ars.P(__z.Z.ars.me()).own.add('emp'); __z.Z.ars.equip('emp'); });
+  ok(await until(H, k => __z.Z.ars.P(k).cur === 'emp', aKey), 'Arsenal: Ash loads the EMP warhead; the host knows what he carries');
+  await ev(H, () => { __z.Z.def.add('carrier', 22).spent = 3000; });
+  ok(await until(B, () => __z.Z.def.D.some(d => d.type === 'carrier' && d.slot === 22)), 'Arsenal: the host\'s drone carrier shows in Bea\'s base');
+  const cid = await ev(H, () => __z.Z.def.D.find(d => d.type === 'carrier').id);
+  await ev(B, id => __z.Z.ars.park(id, -600, 900), cid);
+  const at = P => until(P, () => { const s = __z.Z.def.SLOTS[22]; return s.x === -600 && s.z === 900; });
+  ok(await at(H) && await at(A), 'Arsenal: Bea parks the carrier from her screen; the host and Ash see it parked there');
+  await ev(H, () => __z.Z.def.remove(__z.Z.def.D.find(d => d.type === 'carrier'))); }  /* out of the way of the swarm checks below */
+
 // ---------- personal swarms (zswarm.js): each pilot's own; given here (they're a wave-12 perk), deployed when wave 2 starts ----------
 const ashKey = await ev(H, () => Object.keys(__z.net.n.names).find(k => __z.net.n.names[k] === 'Ash'));
 await ev(H, k => { const n = __z.net.n; (n.perks[k] ||= {}).swarm = 2; __z.G.perks.swarm = 1; }, ashKey);
@@ -166,6 +185,24 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   const u = await ev(A, () => ({used: __z.Z.pk.use('freeze'), left: __z.G.ch.freeze}));
   ok(u.used && u.left === 0 && await until(H, () => __z.api.TH.some(t => __z.api.live(t) && t.frz > 0)) && await until(B, () => __z.api.TH.some(t => __z.api.live(t) && t.frz > 0)), 'Perks: Ash uses Freeze (charge spent); the host slows a track and Bea sees it frozen');
   if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-client-wave.png'}); }
+
+// ---------- arsenal in a wave: Ash's EMP goes to the host, which disables the pack; the stun shows on Bea's screen; the laser's beam shows on the clients ----------
+{ const P0 = await ev(A, () => { const {api} = __z, me = api.player; __z.net.n.late = true; me.p.set(-300, api.gh(-300, 600) + 400, 600); me.v.set(0, 0, 0); return [me.p.x, me.p.y, me.p.z]; });
+  ok(await until(H, ([k, x, y, z]) => { const r = __z.net.n.pil.get(k); return !!r && r.d.p.distanceTo(new __z.api.THREE.Vector3(x, y, z)) < 3; }, [aKey, ...P0]), 'Arsenal: the host sees Ash holding 400 m up');
+  const ids = await ev(H, ([x, y, z]) => { const {api, G} = __z, out = []; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
+    for (let i = 0; i < 3; i++) { const t = __z.make('shahed', x + 15 + i * 8, z - 20); t.p.set(x + 15 + i * 8, y + 2, z - 20 - i * 5); t.alt = t.p.y - api.gh(t.p.x, t.p.z); t.spd = t.cs = 4; t.v.set(0, 0, -4); t.wps.length = 0; out.push(t.id); } return out; }, P0);
+  ok(await until(A, ids => ids.every(id => __z.api.TH.some(t => t.id === id && __z.api.live(t))), ids), 'Arsenal: Ash sees the three Shaheds next to him');
+  await ev(A, () => __z.Z.detonate());
+  ok(await until(H, ids => ids.every(id => __z.api.TH.find(t => t.id === id)?.emp > 0), ids), 'Arsenal: the host resolves Ash\'s EMP with the solo rules: all three disabled');
+  ok(await until(B, ids => ids.filter(id => __z.api.TH.find(t => t.id === id)?.emp > 0).length === 3, ids), 'Arsenal: Bea sees them disabled');
+  ok(await until(A, () => /^EMP — 3 DISABLED/.test(__z.G.det?.txt || '')), 'Arsenal: Ash gets the readout from the host ("EMP — 3 DISABLED")');
+  await ev(A, () => { __z.net.n.late = false; __z.api.launch(); });
+  // the host builds a laser battery mid-wave (meshes go up on every screen with a redeploy) and gives it a track
+  await ev(H, () => { const def = __z.Z.def, j = def.SLOTS.findIndex((s, j) => def.slotFree(j) && /substation/i.test(s.n)); def.add('laser', j).spent = 2200; def.deploy(); });
+  for (const C of [A, B]) if (await until(C, () => __z.Z.def.D.some(d => d.type === 'laser'))) await ev(C, () => __z.Z.def.deploy());
+  await ev(H, () => { const {api} = __z, def = __z.Z.def, d = def.D.find(q => q.type === 'laser'), s = def.SLOTS[d.slot], t = __z.make('shahed', s.x + 200, s.z - 900); t.p.y = api.gh(t.p.x, t.p.z) + 350; t.alt = 350; });
+  ok(await until(A, () => __z.Z.def.D.some(d => d.type === 'laser' && d.lz && __z.api.live(d.lz.t))) && await until(B, () => __z.Z.def.D.some(d => d.type === 'laser' && d.lz)), 'Arsenal: the host\'s laser locks a track and its beam shows on both clients');
+  if (SHOTS) await B.p.screenshot({path: SHOTS + '/coop-arsenal.png'}); }
 
 // ---------- a client leaves; then rejoins mid-wave (late join), comes in at the next base screen ----------
 await ev(B, () => __z.api.showMenu(true)); await B.p.click('#leave');
