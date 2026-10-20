@@ -23,6 +23,7 @@ import {ball} from './physics/ball.js';
 import {setBall} from './render/ball.js';
 import {updateCam} from './render/camera.js';
 import {draw} from './render/renderer.js';
+import {capSkip} from './ui/fpsmeter.js';
 import {visuals} from './render/visuals.js';
 import {GS} from './state.js';
 import {hud} from './ui/hud.js';
@@ -49,7 +50,7 @@ let last=performance.now();
 const IP=makeInterp(f=>{f(ball);for(const d of GS.drones)if(!d.remote)f(d)});  // remote drones are smoothed by visuals() from network state
 function tick(dt){IP.snap();gunsSnap();step(dt);rpRec(dt)}  // rpRec: the replay recorder (render/replay.js)
 const LOOP=makeLoop(tick),tScale=()=>GS.timeScale;
-function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);
+function frame(now){requestAnimationFrame(frame);if(capSkip(now))return;const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);  /* capSkip: the frame cap (ui/fpsmeter.js) */
  const a=LOOP.advance(dt,GS.paused,tScale,GSPD);  // slow-mo steps every frame by a smaller dt, so nothing stutters
  const rp=rpFrame(dt,now);if(rp)rpIn();else{IP.begin(a);gunsLerp(a)}  // a goal replay / kill cam draws recorded state instead (render/replay.js)
  visuals(rp?rpDt():GS.paused?0:dt*GS.timeScale*GSPD,now);llDraw();updateCam(dt,now);hud();llHudFrame();if(rp)rpOut();else{IP.end();gunsBack()}modeHud(now);  // per-frame UI of the modes and overlays (ui/lab.js, ui/training.js)

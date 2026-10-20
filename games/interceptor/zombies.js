@@ -18,6 +18,7 @@ import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
 import {initBatt} from './zbatt.js';
+import {gfx} from '../../engine/gfx.js';
 import {initSpectate} from './zspectate.js';
 import {initThreatSfx} from './zthreatsfx.js';
 import {initReentry} from './zreentry.js';
@@ -281,13 +282,12 @@ export function initZombies(api){
   for(let i=G.pops.length-1;i>=0;i--){const p=G.pops[i];if(p.amt&&Z.flyPop){if(Z.flyPop(oc,p,W,H))G.pops.splice(i,1);continue}if(p.t>1.6){G.pops.splice(i,1);continue}_a.copy(p.p).project(cam);if(_a.z>1)continue;
    oc.globalAlpha=cl(2-p.t*1.25,0,1);oc.fillStyle=p.col;oc.fillText(p.txt,(_a.x*.5+.5)*W,(-_a.y*.5+.5)*H-30-p.t*40)}
   pk.overlay(oc,W,H);oc.restore()};
- // performance governor (Zombies only): the forest's shadow pass is the biggest frame cost; if frames stay slow for a few seconds, trees stop casting shadows.
- // Classic is never touched: the shadows come back when Zombies stops.
- const perf={ema:16,last:0,slow:0,off:false,trees:null};
- const trees=()=>perf.trees||(perf.trees=api.scene.children.filter(o=>o.userData.forest&&o.castShadow));
- function govern(){const now=performance.now(),ft=now-(perf.last||now);perf.last=now;if(ft<=0||ft>500||G.state!=='wave')return;perf.ema+=(ft-perf.ema)*.05;
-  perf.slow=perf.ema>26?perf.slow+ft:0;if(!perf.off&&perf.slow>3000){perf.off=true;for(const o of trees())o.castShadow=false;feed('<span class="co">Performance: tree shadows off to keep the frame rate up</span>')}}
- Z.shadowsBack=()=>{if(perf.off){for(const o of trees())o.castShadow=true;perf.off=false}perf.slow=0;perf.last=0};
+ // performance governor: Graphics quality owns it (engine/gfx.js, igfx.js). On Auto it lowers the render resolution, then (in a Zombies wave) the
+ // level; Low drops the tree shadows, as this governor used to. A fixed level is left alone. Z.perf keeps the smoothed wave frame time (zwx.js
+ // halves the weather particles while it is slow); off = the tree shadows are dropped (Low). Leaving Zombies puts Auto back to High.
+ const perf={ema:16,last:0,get off(){return gfx.k.treeSh===0}};
+ function govern(){const now=performance.now(),ft=now-(perf.last||now);perf.last=now;if(ft<=0||ft>500||G.state!=='wave')return;perf.ema+=(ft-perf.ema)*.05}
+ Z.shadowsBack=()=>{gfx.resetAuto();perf.last=0};
  Z.perf=perf;
  Z.visuals=dt=>{govern();wx.step(dt,performance.now());G.selNow=api.selT();for(const p of G.pops)p.t+=dt;lead.clear();for(const t of TH)if(t.k==='swarm'&&api.live(t)&&!lead.has(t.grp))lead.set(t.grp,t);def.visuals();en.visuals(dt);rk.visuals()};
  Z.key=e=>base.el.hidden?pk.key(e):base.key(e);
