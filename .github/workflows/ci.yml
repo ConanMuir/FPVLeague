@@ -104,6 +104,10 @@ jobs:
           - check: zombies-test (helpers, weather, chain)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=helpers,weather,chain
+          # Zombies co-op: a host and two clients over the ?netloop transport in one headless browser
+          - check: zombies-coop
+            area: interceptor
+            run: node tools/zombies-coop.mjs
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor

@@ -74,7 +74,7 @@ export function initNet(api,G,Z){
    out:[],oseq:Date.now(),evSeen:-1,drSeen:0,ts:new Map(),tm:new Map(),pl:[],gid0:0,late:false,rd:0,pil:new Map(),sig:'',nx:null,nxJ:'',pkJ:''};
   r.onPeers(ch=>{if(net!==n)return;n.peers=ch.peers;const me=ch.peers.find(p=>p.sameTab);if(me)n.me=me.peer},
    e=>{if(net===n)ended(e.code==='host_left'?'The host left the game. Co-op game over.':`Lost connection to the game (${e.code}).`)});
-  r.presence({z:1,n:myName()}).catch(()=>{});lobby();document.body.classList.add('zcoop');
+  r.presence({z:1,n:myName(),kt:Z.meta.load().kit}).catch(()=>{});lobby();document.body.classList.add('zcoop');  // the kit goes with the first presence, so the host never lists this pilot without it
   if(isHost){if(S.gmode!=='z'){S.gmode='z';save();Z.syncMode?.()}G.dfo=undefined;api.startMatch();if(room.p2p){try{history.replaceState(null,'','#z'+code)}catch(e){}}
    msg(`Hosting co-op game ${code.toUpperCase()}. Friends open this page, pick Zombies, type ${code.toUpperCase()} and press Join${room.p2p?' (or open this page\'s link, it now ends in #z'+code+')':''}.`)}
   else msg(`Joining ${code.toUpperCase()}… waiting for the host.`)}
