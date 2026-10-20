@@ -48,7 +48,7 @@ export function initSortie(api,G,Z){
  const ptsOf=e=>{const[k,c]=e.k.split(':');return(KIND[k]?.pts||0)*(+c||1)};
  const prep=P=>{if(P.pts0==null){P.pts0=P.q.reduce((a,e)=>a+ptsOf(e),0);P.cutPts=0;P.cuts=P.cuts||[]}};
  function take(P,match,n){prep(P);const out={};let left=n;
-  for(let i=P.q.length-1;i>=0&&left>0;i--){const e=P.q[i],[k,c]=e.k.split(':');if(k==='boss'||!match(k,e))continue;const m=+c||1,u=Math.min(m,left),pts=(KIND[k]?.pts||0)*u;if(P.cutPts+pts>SO.cap*P.pts0)break;
+  for(let i=P.q.length-1;i>=0&&left>0;i--){const e=P.q[i],[k,c]=e.k.split(':');if(KIND[k]?.armor==='boss'||!match(k,e))continue;const m=+c||1,u=Math.min(m,left),pts=(KIND[k]?.pts||0)*u;if(P.cutPts+pts>SO.cap*P.pts0)break;
    P.cutPts+=pts;if(u===m)P.q.splice(i,1);else e.k=k+':'+(m-u);out[k]=(out[k]|0)+u;left-=u}
   P.list=P.q.map(e=>e.k);return out}
  const count=(P,match)=>P.q.reduce((a,e)=>{const[k,c]=e.k.split(':');return a+(match(k,e)?+c||1:0)},0);

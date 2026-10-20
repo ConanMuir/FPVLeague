@@ -37,6 +37,7 @@ const safe=h=>String(h).slice(0,400).replace(/<(?!\/?b>|br>|\/span>|span class="
 export function initNet(api,G,Z){
  const {THREE,TH,SITES,S,save,feed,banner,tone}=api,V3=THREE.Vector3,$=id=>document.getElementById(id),_t=new V3(),_a=new V3();
  let room=null,net=null,lobT=0;
+ for(const k of Object.keys(KIND))if(KIND[k].bossy&&!KI.includes(k))KI.push(k);  // the boss roster's kinds (zbosses.js) ride in the snapshot too
  const myName=()=>clean(S.zname);
  Object.defineProperty(Z,'online',{get:()=>!!net&&G.on,configurable:true});
  Object.defineProperty(Z,'mirror',{get:()=>!!net&&!net.host&&G.on,configurable:true});
@@ -186,7 +187,7 @@ export function initNet(api,G,Z){
  function snap(now){const n=net,T=[],TS=[],full=++n.sn%10===0;
   for(const t of TH){if(!api.live(t)&&t.st!=='fall')continue;const ki=KI.indexOf(t.k);if(ki<0)continue;const c=t.claim,ct=c?Z.def.HT.indexOf(c.type||c.d?.type)+1:0;
    const f=(t.dmg?1:0)|(t.ident?2:0)|(t.mark>0?4:0)|(t.frz>0?8:0)|(t.spoof?16:0)|(ct>0?ct<<5:0)|(t.lure>0?512:0),a=[t.id,ki,q10(t.p.x),q10(t.p.y),q10(t.p.z),Math.round(t.v.x),Math.round(t.v.y),Math.round(t.v.z),f,t.st==='fall'?2:t.st==='dive'?1:0];
-   if(t.k==='boss')a.push(t.stages|0);T.push(a);if(!t.nb)t.nb=now;
+   if(t.k==='boss')a.push(t.stages|0);else if(KIND[t.k].bossy)a.push(...(Z.bossOut?.(t)||[]));T.push(a);if(!t.nb)t.nb=now;
    if(full||now-t.nb<1500)TS.push([t.id,Math.max(0,SITES.indexOf(t.tgt)),Math.round(t.aim.x),Math.round(t.aim.y),Math.round(t.aim.z),t.grp|0,t.shade|0])}
   n.snapIv=cl(100+(T.length-60)*1.2,100,250);
   const es=Object.keys(n.names).map(k=>n.esv[k]??-1),mn=es.length?Math.min(...es):n.eid,D=Z.def.netOut(),nx=G.state==='base'&&G.next?{list:G.next.list,brgs:G.next.brgs.map(b=>+b.toFixed(3)),wx:G.next.wx||null,ct:G.next.cuts||null}:null;
@@ -273,6 +274,7 @@ export function initNet(api,G,Z){
   if(t.p.distanceToSquared(t.np)>Math.max(3600,sp*sp*.25))t.p.copy(t.np);
   const f=a[8]|0,c=(f>>5)&15;t.dmg=f&1?1:0;if(f&2)t.ident=1;t.mark=f&4?Math.max(t.mark||0,.3):0;t.frz=f&8?Math.max(t.frz||0,.3):0;t.spoof=f&16?1:0;t.lure=f&512?.5:0;t.claim=c?{type:Z.def.HT[c-1]}:null;
   const st=a[9]|0;if(st===2&&t.st!=='fall'){t.st='fall';t.spin=t.spin||(Math.random()<.5?-1:1)*(1+Math.random()*2)}else if(st<2&&t.st!=='fall')t.st=st?'dive':'cruise';
+  if(KIND[t.k]?.bossy)Z.bossIn?.(t,a.slice(10));
   if(t.k==='boss'&&Number.isFinite(a[10])&&a[10]<t.stages){for(let i=Math.max(0,a[10]);i<t.stages;i++){const p=t.pods?.[i];if(p){p.visible=false;if(p.userData.led)p.userData.led.visible=false}}t.stages=a[10];Z.an?.say('STAGE DOWN',`${t.stages} left`,'#ff9a3c',1)}}
  // mirrored tracks: dead-reckoned from the last snapshot, pulled onto it; wrecks fall with the host's numbers and smoke here
  const ts0=Z.tstep;Z.tstep=(t,dt)=>{if(!t.net)return ts0(t,dt);if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();
