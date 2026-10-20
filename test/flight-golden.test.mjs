@@ -3,10 +3,10 @@
 // pops, parts) with Math.random seeded, and the sampled positions, attitudes, velocities, body rates and motor speed are compared
 // with test/fixtures/flight-golden.json, recorded from the code before the refactor. The tune, parts multipliers and hull come
 // from the fixture too, so retuning a game or rebalancing parts does not move these goldens.
-//   Riley's League:  engine/flight.js Quad.step (its own integration and ground contact, a flat floor at y = 0)
-//   Jared's League:  src/flight/drone.js Drone.step (the real file; test/fixtures/flight-stubs.mjs stubs its DOM imports). Rapier
+//   Drone League:    src/flight/drone.js Drone.step (the real file; test/fixtures/flight-stubs.mjs stubs its DOM imports). Rapier
 //                    integrates p, q in the game; here a plain p += v dt, q *= exp(w dt) and a flat-floor push-out stand in for it.
-//   Rates, throttle curve and the attitude controller from both sides.
+//   Rates, throttle curve and the attitude controller from both sides (src/, and engine/, which the Interceptor flies).
+//   Riley's League quad (engine/flight.js Quad) had goldens here too; it went with games/league (git history has both).
 // The Interceptor's dart needs its page (terrain, wind, battery): tools/flight-golden.mjs runs it headless.
 // Re-record (only when a feel change is intended): GOLDEN_RECORD=1 node --test test/flight-golden.test.mjs
 import test from 'node:test';
@@ -97,23 +97,6 @@ const PROF = PROFS[0];
 const sample = d => [d.p.x, d.p.y, d.p.z, d.q.x, d.q.y, d.q.z, d.q.w, d.v.x, d.v.y, d.v.z, d.w.x, d.w.y, d.w.z, d.ms, d.boost];
 function start(d, s) { d.p.set(...s.p); d.v.set(...(s.v || [0, 0, 0])); d.q.setFromAxisAngle(new V3(0, 0, 1), s.roll || 0); d.w.set(0, 0, 0); d.wt.set(0, 0, 0); }
 function sticks(d, u, rate) { d.thr = u.thr; d.wt.set(-rate(1, u.p || 0), -rate(2, u.y || 0), -rate(0, u.r || 0)); d.boosting = !!u.b; }
-
-// ---------- Riley's League: engine/flight.js Quad (Riley's League defaults, games/league/league.js MODS) ----------
-const T_RILEY = {grav: 34.5, thr: 345, te: 1.6, vp: 240, maxv: 200, tau: 4, dl: .04, dq: .0039, size: 2, dbounce: .05, gfric: .1, spool: 20, turtle: 260, wash: 1.4, bzone: 5, boost: 60, bkick: 8, drain: 33, start: 33};
-test("Riley's League quad (engine/flight.js Quad.step)", () => {
-  const T = RECORD ? T_RILEY : GOLD['riley.tune']; golden('riley.tune', T);
-  R.tuneFlight(T); R.setWorld((x, y, z) => -y); RS.rprof = [PROF]; RS.rpi = 0;
-  const out = {};
-  for (const [k, s] of Object.entries(SC)) out[k] = seeded(11, () => {
-    const d = new R.Quad(), S = []; start(d, s); d.thr = d.ms = R.HOV; d.boost = 33;
-    for (let i = 0; i < s.n; i++) {
-      const u = s.u(i * DT, i, R.HOV); sticks(d, u, RR.rate); if (u.flip) d.flipUp();
-      d.step(DT); if (i % EVERY === EVERY - 1) S.push(sample(d));
-    }
-    return S;
-  });
-  golden('riley', out);
-});
 
 // ---------- Jared's League: src/flight/drone.js Drone ----------
 const _q = new QT(), _a = new V3(), _b = new V3();
