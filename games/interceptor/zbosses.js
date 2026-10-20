@@ -170,7 +170,9 @@ export function initBosses(api,G,Z){
   if(bi>=0){if(w<20)return out;const pool=[['boss',seen.boss?1:2]];for(const id of ROSTER){const D=BOSSES[id];if(D.spawn?.boss&&w>=D.spawn.boss-sh&&(!D.can||D.can(ctx,w)))pool.push([id,seen[id]?1:3])}
    let tot=pool.reduce((a,p)=>a+p[1],0),r=Math.random()*tot;for(const[id,k]of pool){r-=k;if(r<=0){out[bi]=id;break}}return out}
   if(w-(G.bevW??-99)<3)return out;
-  for(const id of [...ROSTER].sort(()=>Math.random()-.5)){const D=BOSSES[id],E=D.spawn?.event;if(!E||w<E.from-sh||E.once&&seen[id]||D.can&&!D.can(ctx,w))continue;
+  // only the eligible roll, so early waves draw no random numbers (their raids stay exactly as they were before the roster)
+  const el=ROSTER.filter(id=>{const D=BOSSES[id],E=D.spawn?.event;return E&&w>=E.from-sh&&!(E.once&&seen[id])&&!(D.can&&!D.can(ctx,w))});
+  for(const id of el.length>1?el.sort(()=>Math.random()-.5):el){const D=BOSSES[id],E=D.spawn.event;
    if(Math.random()<E.p*EVK[cl(DFI(),0,3)]*(E.again&&seen[id]?E.again:1)){G.bevW=w;for(let i=out.length-1;i>=0;i--)if(Math.random()<.2&&!BOSSES[out[i]])out.splice(i,1);out.push(id);break}}
   return out};
 
