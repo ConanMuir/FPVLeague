@@ -16,6 +16,9 @@ import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
 import {initBatt} from './zbatt.js';
+import {initThreatSfx} from './zthreatsfx.js';
+import {initReentry} from './zreentry.js';
+import {initStratRadar} from './zstratradar.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -296,5 +299,6 @@ export function initZombies(api){
  initCampaign(api,G,Z);  // the campaign map and its sectors (zcampaign.js): wraps the hooks above, before the effects and co-op wrap them
  initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
+ initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
  initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
  return Z}
