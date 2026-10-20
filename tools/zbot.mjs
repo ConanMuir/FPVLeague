@@ -40,13 +40,13 @@ export const SHOP = `(function(P){
   const {api, G, Z, KIND} = __z, def = Z.def, B = Z.base, IT = __z.ITEMS, kf = k => Z.kindFrom ? Z.kindFrom(k) : KIND[k].from, nw = G.wave + 1;
   const ORDERS = {naive: ['flak', 'barrage', 'rack', 'lrack', 'ew', 'smoke', 'gepard', 'laser', 'sam', 'mpads', 'hflak', 'idome', 'gdome'],
     basic: ['gdome', 'idome', 'sam', 'carrier', 'gepard', 'laser', 'rack', 'mwave', 'mpads', 'flak', 'barrage', 'ew', 'hflak', 'lrack', 'mark', 'air', 'lure', 'salvage', 'swarm'],
-    smart: ['gdome', 'idome', 'sam', 'carrier', 'gepard', 'mpads', 'hflak', 'laser', 'mwave', 'rack', 'lrack', 'flak', 'barrage', 'smoke', 'ew', 'mark', 'air', 'warhead', 'freeze', 'lure', 'salvage', 'radar', 'aid', 'relaunch', 'battery', 'optics', 'rocket', 'swarm', 'swarmk']};
+    smart: ['gdome', 'idome', 'sam', 'carrier', 'laser', 'gepard', 'mpads', 'hflak', 'mwave', 'rack', 'barrage', 'lrack', 'flak', 'smoke', 'ew', 'mark', 'air', 'warhead', 'freeze', 'lure', 'salvage', 'radar', 'aid', 'relaunch', 'battery', 'optics', 'rocket', 'swarm', 'swarmk']};
   // the arsenal's defences (zarsdef.js): how many of each, and when they are worth it; a carrier takes a park spot, not a position
   const A = Z.ars, nOf = k => def.D.filter(d => d.type === k).length, smart = P.shop === 'smart', CAP = {laser: smart ? 3 : 2, mwave: 2, barrage: smart ? 3 : 2, smoke: smart ? 3 : 1, carrier: 2};
   const lwx = () => { const w = G.next && G.next.wx && Z.wx && Z.wx.T[G.next.wx.id]; if (!w) return 1; if ((w.rain || 0) >= 1.5 || w.bolts) return 0; return Math.min(1, (w.fog ? w.fog[1] : 14000) / 6000); };
   const arsOK = k => !CAP[k] || nOf(k) < CAP[k] && (k !== 'mwave' || nw >= kf('swarm') - 1) && (k !== 'laser' || !smart || lwx() > .3 || nOf('laser') > 0);
   const siteSlot = k => def.SLOTS.findIndex((s, j) => def.slotFree(j) && s.site && !def.D.some(d => d.type === k && def.SLOTS[d.slot].site === s.site));
-  const PRIO = [...ORDERS[P.shop], ...(P.perkBuy || [])].filter(k => P.swarm || k !== 'swarm' && k !== 'swarmk'), top = PRIO.indexOf(P.shop === 'naive' ? 'gepard' : 'gepard');
+  const PRIO = [...ORDERS[P.shop], ...(P.perkBuy || [])].filter(k => P.swarm || k !== 'swarm' && k !== 'swarmk'), top = PRIO.indexOf(P.shop === 'smart' && nw >= kf('swarm') - 1 ? 'mwave' : 'gepard');  /* worth selling a weak helper for (and opening a position) */
   const from = k => Z.itemFrom ? Z.itemFrom(k) : IT[k].from, cost = k => IT[k].type === 'perk' ? Z.perkPrice(k) : (Z.itemPrice ? Z.itemPrice(k) : IT[k].price);
   const domeOK = k => k === 'idome' ? nw >= kf('ballistic') - P.domes : k === 'gdome' ? nw >= kf('hyper') - P.domes : true;
   for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp > 0 && s.hp < s.max * P.repairAt) B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)); }
@@ -57,15 +57,15 @@ export const SHOP = `(function(P){
     for (const q of G.next.list) { const [k, c] = q.split(':'); cnt[k] = (cnt[k] | 0) + (+c || 1); }
     const pts = k => (cnt[k] | 0) * (KIND[k] ? KIND[k].pts : 0), hard = ['ballistic', 'hyper', 'icbm'].reduce((a, k) => a + (cnt[k] | 0), 0), noise = {};
     const val = id => { let v = 0; for (const k in cnt) v += pts(k) * (E[id][k] ?? 0);
-      if (P.ars >= 3) { if (id === 'emp') v *= Math.min(1.25, .35 + def.D.length / 12); if (id === 'flare') v += (pts('jet') + pts('cruise')) * .5; if (id === 'dart') v += hard * 40 * (P.fast || 0) * 20; if (id === 'net' && nw < 15) v *= 1.15; if (id === 'cluster' && (cnt.swarm | 0) >= 10) v *= 1.15; }
+      if (P.ars >= 3) { if (id === 'emp') v *= Math.min(1.25, .35 + def.D.length / 12); if (id === 'flare') v += (pts('jet') + pts('cruise')) * .25; if (id === 'dart') v += hard * 40 * (P.fast || 0) * 20; if (id === 'net' && nw < 15) v *= 1.15; if (id === 'cluster' && (cnt.swarm | 0) >= 10) v *= 1.15; }
       else if (P.ars === 2) v *= noise[id] ??= .8 + Math.random() * .4;
       return v; };
     const ok = id => !A.ban.has(id) && nw >= W[id].from;
     let L = A.WORDER.filter(ok);
     if (P.ars === 1) L = L.filter(id => id === 'std' || id === 'net' || id === 'flech');
     const best = L.reduce((b, id) => val(id) > val(b) ? id : b, 'std'), bestOwned = [...me.own].filter(ok).reduce((b, id) => val(id) > val(b) ? id : b, 'std');
-    const pick = P.ars === 1 ? ((cnt.swarm | 0) >= 6 && ok('flech') ? 'flech' : nw <= 9 && ok('net') ? 'net' : 'std') : best;
-    if (!me.own.has(pick) && G.cash - W[pick].price >= Math.max(keep, W[pick].price * (P.ars >= 3 ? 1 : 2)) && (P.ars === 1 || val(pick) > val(bestOwned) * 1.12)) A.buyW(pick);
+    const pick = P.force && W[P.force] ? (ok(P.force) ? P.force : 'std') : P.ars === 1 ? ((cnt.swarm | 0) >= 6 && ok('flech') ? 'flech' : nw <= 9 && ok('net') ? 'net' : 'std') : best;  /* P.force: the arsenal bench's force:X */
+    if (!me.own.has(pick) && G.cash - W[pick].price >= Math.max(keep, W[pick].price * (P.ars >= 3 ? 1 : 2)) && (P.force || P.ars === 1 || val(pick) > val(bestOwned) * 1.12)) A.buyW(pick);
     const load = me.own.has(pick) ? pick : P.ars === 1 ? 'std' : bestOwned;
     if (A.cur() !== load) A.equip(load); }
   for (let pass = 0; pass < 3; pass++) {
