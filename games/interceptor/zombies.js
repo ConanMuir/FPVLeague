@@ -117,7 +117,7 @@ export function initZombies(api){
  Z.continue=()=>{base.close();startWave()};
  Z.kindNote=k=>({decoy:'cheap and harmless, but looks like a Shahed on radar and soaks up helpers. Cold on thermal.',swarm:'many tiny quads, low and erratic. One burst can take several.',
   heavy:'armored: a proximity burst only damages it. Needs a direct hit, or a marked target for helpers.',cruise:'low, fast and terrain-following. Detected far out.',
-  ballistic:'very fast and steep. Only a dome-class defence or a direct hit stops it.',hyper:'extremely fast. Only Golden Dome stops it.',icbm:'the fastest thing in the sky. Golden Dome only.',boss:'a carrier that launches swarms until destroyed. Breaks apart in stages.'})[k]||'';
+  ballistic:'very fast and steep. The kill chain stops it (Kill chain tab: boost battery, Iron Dome, point defence), or a direct hit.',hyper:'extremely fast. Boost battery, Golden Dome and point defence (Kill chain tab) each get a shot.',icbm:'the fastest thing in the sky. Boost battery, Golden Dome, point defence.',boss:'a carrier that launches swarms until destroyed. Breaks apart in stages.'})[k]||'';
  Z.waves=dt=>{if(api.demo||Z.mirror)return;if(G.state==='wave'){G.wt+=dt;  /* Z.mirror: a co-op client, the host runs the director */
    while(G.wq.length&&G.wq[0].at<=G.wt){const q=G.wq.shift();spawn(q)}
    if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn((clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0))*dk('clearK')*(Z.incomeK?.()??1),null,null);  /* incomeK: evacuated sites earn nothing (zwarn.js) */
