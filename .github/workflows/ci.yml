@@ -92,12 +92,12 @@ jobs:
           - check: training-check
             area: league
             run: node tools/training-check.mjs
-          - check: zombies-test (classic, saves, meta, campaign)
+          - check: zombies-test (classic, saves, meta, campaign, grid)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=classic,saves,meta,campaign
-          - check: zombies-test (swarm, reentry, grid)
+            run: node tools/zombies-test.mjs --sections=classic,saves,meta,campaign,grid
+          - check: zombies-test (swarm, spectator, reentry)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=swarm,reentry,grid
+            run: node tools/zombies-test.mjs --sections=swarm,spectator,reentry
           - check: zombies-test (zombies, roster)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=zombies,roster
