@@ -69,7 +69,7 @@ export function initSwarm(api,G,Z){
 
  // ---------- what a drone may go after ----------
  const eff=t=>RESIST.rack[t.k]??0;
- const engageable=t=>api.live(t)&&t.st!=='fall'&&eff(t)>0&&KIND[t.k]?.armor!=='hard'&&!(t.k==='decoy'&&t.ident);
+ const engageable=t=>api.live(t)&&t.st!=='fall'&&!(t.iff>0)&&eff(t)>0&&KIND[t.k]?.armor!=='hard'&&!(t.k==='decoy'&&t.ident);
  // escort / screen: threats near you, ahead of a wedge, or (screen) along your formation axis; each gets one drone (armor and the boss two)
  function watch(s,A){const F=FORMS[s.form],n=s.d.length;if(!n)return;const busy=new Map();let eng=0;for(const d of s.d)if(d.t&&(d.st==='eng'||d.st==='strike')){busy.set(d.t,(busy.get(d.t)|0)+1);eng++}
   const cap=Math.ceil(n*SW.maxEng[s.mode==='screen'?1:0]),ax=s.form===3?s.ax:s.f,C=[];if(eng>=cap)return;
