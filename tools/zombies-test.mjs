@@ -14,6 +14,7 @@ const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fai
 async function page(mode) {
   const errs = [];
   const p = await open(browser, origin + '/games/interceptor/', errs);
+  await p.evaluate(() => sessionStorage.setItem('zbossRoster', '0'));  // no random boss events or boss-wave swaps in the plain sections (the bosses section turns them back on)
   await p.evaluate(m => { localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: m, wx: 'clear'})); }, mode);
   await p.reload({waitUntil: 'load'});
   await p.waitForFunction(() => window.__z, {timeout: 60000});
@@ -571,7 +572,7 @@ if (want('swarm')) {
 // the Puppeteer's wires and trails) ----------
 if (want('bosses')) {
   const {p, errs} = await page('z');
-  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); delete s.zboss; localStorage.setItem('dl-interceptor', JSON.stringify({...s, zwx: 'menu'})); });
+  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); delete s.zboss; localStorage.setItem('dl-interceptor', JSON.stringify({...s, zwx: 'menu'})); sessionStorage.setItem('zbossRoster', '1'); });
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3);
   await play(p);
   await p.evaluate(() => { const {G} = __z; G.cash = 1e5; __z.jump(24); G.next = __z.plan(24); __z.cont();

@@ -164,7 +164,7 @@ export function initBosses(api,G,Z){
  // Hard / Nightmare by the difficulty's shift), favouring ones not met this run. Events: at most one a wave, three waves apart, never on a
  // boss wave; each eligible boss rolls its chance (x0.7 Easy, x1.25 Hard, x1.5 Nightmare); the wave around an event is 20% smaller.
  const EVK=[.7,1,1.25,1.5];
- Z.bossCompose=(out,w)=>{if(Z.mirror||G.state==='trial')return out;const sh=Z.diff?.().shift|0,seen=G.bseen||(G.bseen={});
+ Z.bossCompose=(out,w)=>{if(Z.mirror||G.state==='trial'||Z.bosses?.roster===false)return out;  /* roster false: the harness's plain-Zombies sections */const sh=Z.diff?.().shift|0,seen=G.bseen||(G.bseen={});
   if(G.bforce&&BOSSES[G.bforce]){const id=G.bforce;G.bforce=null;out.push(id);return out}
   const bi=out.indexOf('boss');
   if(bi>=0){if(w<20)return out;const pool=[['boss',seen.boss?1:2]];for(const id of ROSTER){const D=BOSSES[id];if(D.spawn?.boss&&w>=D.spawn.boss-sh&&(!D.can||D.can(ctx,w)))pool.push([id,seen[id]?1:3])}
@@ -282,7 +282,8 @@ export function initBosses(api,G,Z){
   let m=null;try{m=D.build?D.build(ctx,t):null}catch(e){console.warn('boss build',t.k,e)}t.mesh=m||new THREE.Object3D();if(t.mesh.parent!==scene)scene.add(t.mesh)};
 
  // harness and the spectator: spawn any boss now, force one into the next plan, read the record, grant a trophy
- Z.bosses={BOSSES,ROSTER,REWARDS,ctx,spawn:(id,o)=>spawn(id,o),force:id=>{if(BOSSES[id])G.bforce=id;return!!BOSSES[id]},rec,grant,habit,
+ Z.bosses={BOSSES,ROSTER,REWARDS,ctx,roster:(()=>{try{return sessionStorage.getItem('zbossRoster')!=='0'}catch(e){return true}})(),  /* the harness turns it off for its plain-Zombies sections */
+ spawn:(id,o)=>spawn(id,o),force:id=>{if(BOSSES[id])G.bforce=id;return!!BOSSES[id]},rec,grant,habit,
   get encs(){return encs()},
   // what is left of the bosses' effects (tests: all zero after a wave ends)
   fx(){const o={tracks:TH.filter(t=>mine(t)&&t.st!=='dead').length,loops:LOOPS.size,fx:BFX.active,smoke:BSMK.active,bolts:BO.length,bar:!bar.hidden,iff:TH.filter(t=>t.iff>0&&t.st!=='dead').length,encs:encs().filter(e=>!e.over).length};
