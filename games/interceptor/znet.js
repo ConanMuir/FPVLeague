@@ -41,6 +41,7 @@ export function initNet(api,G,Z){
  Object.defineProperty(Z,'mirror',{get:()=>!!net&&!net.host&&G.on,configurable:true});
  Object.defineProperty(Z,'req',{get:()=>net&&G.on?req:undefined,configurable:true});
  Z.idle=()=>!!net&&net.late&&G.on;
+ Z.isClient=()=>!!net&&!net.host;  // in someone else's game (zcampaign.js: the host's sector is the one in play)
  Z.pilots=()=>net?[api.player,...[...net.pil.values()].filter(r=>r.seen).map(r=>r.d)]:null;
 
  // ---------- lobby on the Zombies start menu: name, Host co-op, code + Join (and open games, in a claude.ai room) ----------
@@ -180,7 +181,7 @@ export function initNet(api,G,Z){
    if(full||now-t.nb<1500)TS.push([t.id,Math.max(0,SITES.indexOf(t.tgt)),Math.round(t.aim.x),Math.round(t.aim.y),Math.round(t.aim.z),t.grp|0,t.shade|0])}
   n.snapIv=cl(100+(T.length-60)*1.2,100,250);
   const es=Object.keys(n.names).map(k=>n.esv[k]??-1),mn=es.length?Math.min(...es):n.eid,D=Z.def.netOut(),nx=G.state==='base'&&G.next?{list:G.next.list,brgs:G.next.brgs.map(b=>+b.toFixed(3)),wx:G.next.wx||null}:null;
-  return{v:1,gid:n.gid,st:G.state,w:G.wave,c:Math.round(G.cash),e:Math.round(G.earned),k:[G.kills.p,G.kills.h],df:cl(S.zdiff??1,0,3),wt:+(G.wt||0).toFixed(1),iq:G.wq.length,
+  return{v:1,gid:n.gid,st:G.state,w:G.wave,c:Math.round(G.cash),e:Math.round(G.earned),k:[G.kills.p,G.kills.h],df:cl(Z.dfi?.()??S.zdiff??1,0,3),cp:Z.cpNet?.()||null,wt:+(G.wt||0).toFixed(1),iq:G.wq.length,
    sh:SITES.map(s=>Math.ceil(s.hp)),sm:SITES.map(s=>s.max),bk:SITES.length>3?1:0,wb:[+api.WB.x.toFixed(1),+api.WB.z.toFixed(1)],T,TS,S:D.S,D:D.D,
    ev:n.evs.filter(e=>e[0]>mn).slice(-120),eid:n.eid,pk:n.perks,tp:{radar:G.perks.radar|0,aid:G.perks.aid|0},dr:n.dr,ak:n.ak,pl:rows(),nx,rj:n.rj,
    doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0}}
@@ -207,6 +208,7 @@ export function initNet(api,G,Z){
  // ---------- client: mirror the host's snapshot ----------
  const byId=id=>net.tm.get(id)||null;
  function onHost(g,now){const n=net;if(!g||typeof g!=='object'||g.v!==1)return;
+  Z.cpIn?.(g.cp);  /* the host's campaign sector, before a restart reads it (zcampaign.js) */
   if(Array.isArray(g.rj)&&g.rj.includes(n.me))return ended(`Game ${n.code.toUpperCase()} is full (${MAXP} pilots).`);
   n.pl=Array.isArray(g.pl)?g.pl.filter(a=>Array.isArray(a)&&typeof a[0]==='string').slice(0,MAXP).map(a=>[a[0],clean(a[1]),a[2]|0,a[3]?1:0,a[4]?1:0]):[];
   if(g.gid!==n.gid0){n.gid0=g.gid;G.dfo=cl(g.df|0,0,3);G.docO=docOf(g.doc);n.ts.clear();n.evSeen=g.eid|0;n.late=g.st!=='base'&&g.st!=='over';n.nxJ='';n.pkJ='';n.rd=0;
