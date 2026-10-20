@@ -1,5 +1,5 @@
 // After `vite build`: dist/app.html is the whole game in one file (JS + CSS inlined); renamed to dist/index.html for the tools.
-//  a) copy it to games/jared-league/index.html (the launcher's "Drone League (Jared's build)" card)
+//  a) copy it to games/drone-league/index.html (the launcher's "Drone League" card; serve.ps1 opens it)
 //  b) write dist/drone-league.artifact.html: the same page without <!doctype>/<html>/<head>/<body>, for a claude.ai artifact
 //     (the artifact host adds those). Layout of that file: <title>, <link>s, <style>, the markup, then the module script.
 import fs from 'node:fs';
@@ -13,7 +13,7 @@ const html = fs.readFileSync(dist, 'utf8');
 const fail = m => { console.error('postbuild: ' + m); process.exit(1); };
 
 // a) standalone
-const standalone = path.join(root, 'games', 'jared-league', 'index.html');
+const standalone = path.join(root, 'games', 'drone-league', 'index.html');
 fs.mkdirSync(path.dirname(standalone), {recursive: true});
 fs.writeFileSync(standalone, html);
 
@@ -37,4 +37,4 @@ const artifact = [title, ...links, ...styles, body.trim(), '<script type="module
 fs.writeFileSync(path.join(root, 'dist', 'drone-league.artifact.html'), artifact);
 
 const kb = n => (n / 1024).toFixed(0) + ' kB';
-console.log(`postbuild: dist/index.html ${kb(html.length)} -> games/jared-league/index.html; dist/drone-league.artifact.html ${kb(artifact.length)}`);
+console.log(`postbuild: dist/index.html ${kb(html.length)} -> games/drone-league/index.html; dist/drone-league.artifact.html ${kb(artifact.length)}`);

@@ -2,70 +2,71 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `bots-pass-4`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main e16770d (QA soak, PR #51), with origin/main 6cd99fd (shared engine, PR #53) merged in
-Doing: bot pass 4: the Dribbler gets the Freestyler's apex catch and quicker pops (about 5 pops/min, was about 3); Freestyler flip resets (a pop earned upside down on top of the ball in mid-air) and ceiling plays (carry the ball straight up beside a side wall onto the ceiling, pop it off the ceiling, drop and strike it); double taps also set up from any of its own touches that is heading for the backboard.
-Touches: src/bots/freestyle.js, src/bots/dribble.js (`fly`, split out of `steer` for any-attitude flight; `ai.roof` lifts the roof limit for a ceiling play; the spin-pop yaw), src/config/constants.js (Dribbler and Freestyler entries), tools/bot-match.mjs (flip resets, reset dodges, ceiling pops and shots, finishers chosen).
-Open items / help wanted: flip resets rarely land (about 1 in 12 attempts in solo): after its own pop the quad has dropped ~19 m/s, upright it cannot brake against a falling ball, so it has about a second to get above the ball and push down onto it upside down; the dodge that spends the reset pop has not landed yet. Planned double taps in normal play are still rare (0-2 per 6 min). Ceiling plays are slow (about 8 s of climbing) and so kept rare (15% of carries near a side wall).
-Overlaps: none known on src/bots.
+Branch: `one-league`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
+Based on: origin/main b58ac85 (Zombies meta, PR #58)
+Doing: Drone League (`src/`) becomes the one League: Riley's `games/league` retired, the launcher shows Drone League and the Interceptor, the build moves to `games/drone-league/` (with a redirect at `games/jared-league/`), and the shared pilot profile's button strings are fixed.
+Touches: index.html, games/drone-league/ (moved), games/jared-league/index.html (redirect), games/league/ (deleted), engine/ (code only games/league used, removed; settings.js button format), games/interceptor/index.html (back link only), serve.ps1, both bats, tools/postbuild, check-build, ci-scope, lint-comments, the flight / input goldens (Riley's League parts removed), test/pilot-profile.test.mjs, docs/SHARED-ENGINE.md, README.
+Open items / help wanted: Riley should look over the engine removals (docs/SHARED-ENGINE.md section 0).
+Overlaps: Zombies work in games/interceptor (only its back link changed here); the ball-spin / sound work in src/modes/step.js, src/audio, src/render/goalfx.js (not touched here).
 
 ## How to play
 
-The launcher (`index.html`) lists every game: **Drone League**, **Dogfight**, **Interceptor** and **Drone League (Jared's build)**. Pick whichever way is easiest:
+The launcher (`index.html`) lists the two games: **Drone League** (League, Dogfight, Freeplay and Training, in `games/drone-league/`) and the **Interceptor** (Classic or Zombies). Drone League's menu also links to the Interceptor. Pick whichever way is easiest:
 
-1. **Windows:** double-click `Play Drone League.bat`. It starts a small local web server and opens the launcher in its own Edge window. Close the black server window when you're done.
+1. **Windows:** double-click `Play Drone League.bat`. It starts a small local web server and opens Drone League in its own Edge window. Close the black server window when you're done.
 2. **Online:** turn on GitHub Pages for this repo (Settings > Pages > deploy from the main branch), then open the site link. Nothing to install.
 3. **Mac / Linux:** open a terminal in this folder, run `python3 -m http.server 8765`, then open http://localhost:8765/ in Chrome or Edge.
 
-Double-clicking `index.html` on its own won't work: the games are split into modules, and browsers only load those from a web server. You need an internet connection the first time, because Three.js (the 3D library) loads from the web. Chrome or Edge work best.
+Double-clicking `index.html` on its own won't work: the Interceptor is split into modules, and browsers only load those from a web server. You need an internet connection the first time, because Three.js (the 3D library) loads from the web. Chrome or Edge work best.
 
-Each game folder has its own README with the controls: [Drone League and Dogfight](games/league/README.md), [Interceptor](games/interceptor/README.md).
+Drone League shows its controls in its own menu; the Interceptor has a README with them: [Interceptor](games/interceptor/README.md).
 
 **Radio or Xbox controller:** plug it in, press a button or move a stick, then use **Calibrate controller** in a game's menu. Your calibration, rates, flight mode and FOV are shared between games, so you only set them up once.
 
 ## Layout
-One flight engine, several games on top of it. Plain ES modules, no build step. The only outside code is Three.js 0.160.0 and PeerJS 1.5.4, loaded from jsDelivr.
+Two games. Drone League is the Vite build in `src/` (built to one HTML file). The Interceptor runs on Riley's engine, plain ES
+modules with no build step. Both fly the same flight core and stick maths (`src/flight/core.js`, `src/input/sticks.js`; see
+`docs/SHARED-ENGINE.md`) and share the pilot profile. The Interceptor's only outside code is Three.js 0.160.0 and PeerJS 1.5.4,
+loaded from jsDelivr.
 
 ```
-index.html              launcher
-engine/                 shared by every game
-  flight.js             the quad: thrust curve, prop inflow, spool, body-axis drag, prop wash, super boost,
-                        rounded-box ground contact, turtle pivots, inverted-pendulum self-righting, flip-over,
-                        attitude controller (Angle mode + bots), stick input; tuneFlight(T), setWorld(sdf);
-                        rough-air helpers (coloured-noise turbulence, fin weathervaning) for airframes that use them
+index.html              launcher: Drone League and the Interceptor
+games/drone-league/     Drone League: League, Dogfight, Freeplay, Training (built file, made by `npm run build` from src/)
+games/jared-league/     a redirect to games/drone-league/ for old links
+app.html src/           Drone League's Vite source (see below)
+engine/                 Riley's engine, used by the Interceptor
+  flight.js             attitude controller (from the shared core), rough-air helpers (coloured-noise turbulence,
+                        fin weathervaning)
   rates.js              Betaflight rates (BETAFLIGHT / ACTUAL / QUICK / KISS / RACEFLIGHT), 3 profiles,
-                        throttle curve, Rates tab with CLI import/export, Easy sensitivity setup
+                        throttle curve, Rates tab with CLI import/export
   input.js              keyboard, mouse, Gamepad API, RC radio detection + guided calibration, Xbox profile,
                         controller panel, fire / flip buttons, switch mapping with Learn and Assign switches
   settings.js           saved settings; the pilot profile (calibration, rates, camera, flight mode, buttons)
                         is shared between games under the "droneleague" key
-  render.js             Three.js renderer, bloom, sky texture, FPV camera (uptilt, horizontal FOV),
+  render.js             Three.js renderer, bloom, canvas textures, horizontal FOV,
                         world-space surface detail shader, lumpy tree crowns
-  hud.js audio.js       banner / feed / edge arrow; motor synth (4 motors, Betaflight quad-X mixer), noise, tones
+  hud.js audio.js       banner / feed; motor synth (4 motors, Betaflight quad-X mixer), noise, tones
   menu.js modpanel.js   settings grid, mod panel (Rates + Physics tabs, presets, export/import)
   net.js loop.js        online rooms (claude.ai room or PeerJS), 120 Hz fixed-step main loop
   engine.css            shared look (OSD, menu, mod panel, controller panel)
-games/league/           Drone League + Dogfight (one game, two modes: ?mode=league / ?mode=df)
-  league.js             match rules, ball, bots, guns, turrets, online sync, HUD
-  consts.js arena.js highlands.js scene.js   arena + maps + ball styles, the Highlands, lights
-games/interceptor/      Interceptor: the tail-sitter dart keeps its own flight model (interceptor.js); everything else is the engine
+games/interceptor/      Interceptor (Classic, Zombies): the tail-sitter dart's step is built from the shared flight core
+                        (interceptor.js); everything else is the engine
 Drone League/           the original single-file Drone League (claude.ai artifact version), kept as is
-games/jared-league/     Jared's build of Drone League (built file, made by `npm run build` from src/)
-app.html src/           Jared's Vite source for it (see below)
 ```
 
-A new game imports the engine, builds its world, calls `setWorld(sdf)` with its collision shape, extends `Quad` for its drone, and hands `startLoop()` its step and draw functions. See `games/league/league.js`.
+Riley's own League and Dogfight (`games/league/`) were retired on 2026-10-19: Drone League (`src/`) is the one League. They are in
+git history; `docs/SHARED-ENGINE.md` section 0 lists what went with them.
 
-## Jared's build (Vite, `src/`)
-A second modular version of Drone League by Jared: Rapier physics, garage with drone parts, Calibration Lab auto-tuner,
-choose-your-controls binding, game-mode registry and a Rocket League-style menu and HUD. It lives beside the engine above and
-shares no code with it. The launcher's "Drone League (Jared's build)" card opens the built file, so playing it needs no Node.
+## Drone League (Vite, `src/`)
+Jared's modular Drone League: Rapier physics, garage with drone parts, Calibration Lab auto-tuner, choose-your-controls binding,
+skill training, replays and progression, a game-mode registry and a Rocket League-style menu and HUD. The launcher's "Drone
+League" card opens the built file, `games/drone-league/index.html`, so playing it needs no Node.
 
 To change it you need Node 20+:
 ```
 npm ci
 npm run dev      # live dev server, opens http://localhost:5173/app.html
-npm run build    # dist/index.html: the whole game in one HTML file; also updates games/jared-league/index.html
+npm run build    # dist/index.html: the whole game in one HTML file; also updates games/drone-league/index.html
                  # and writes dist/drone-league.artifact.html (the claude.ai artifact form)
 npm run smoke    # headless Microsoft Edge smoke test, plus a comparison run of the frozen v15 file (needs internet)
 ```
@@ -76,11 +77,11 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request,
 
 | Job | What runs |
 |---|---|
-| **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/jared-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs --strict` |
+| **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/drone-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs --strict` |
 | **browser** | nine entries side by side, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, and `zombies-test` in three shards (`--sections=...`) |
 
 - **No-render mode.** SwiftShader draws the games at about 1 fps on a runner, so in CI (`DL_NORENDER=1`) every page gets a WebGL stub that skips draw calls, clears and blits. Shaders still compile and link, buffers and textures still upload, and three.js still walks the scene, so GL errors still show; only the pixels are skipped, and the sim runs at full speed. Where a check wants real pixels it calls `drawFrames(page)`: smoke draws the menu demo, the garage view, League, Dogfight, every graphics quality, the Lab, a training pack and the artifact form; zombies-test draws each menu and each start of play.
-- **Only what changed.** Each browser entry first runs `tools/ci-scope.mjs`: the League checks are skipped when nothing under `src/`, `app.html`, `Drone League/` or their tools changed, and the zombies-test shards when nothing under `engine/`, `games/interceptor/`, `interceptor/` or their tools changed. Shared files (package-lock, the workflow, `tools/browser.mjs`) run both, and main always runs everything.
+- **Only what changed.** Each browser entry first runs `tools/ci-scope.mjs`: the League checks are skipped when nothing under `src/`, `app.html`, `index.html`, `games/drone-league/`, `Drone League/` or their tools changed, and the zombies-test shards when nothing under `engine/`, `games/interceptor/`, `interceptor/` or their tools changed. Shared files (package-lock, the workflow, `tools/browser.mjs`) run both, and main always runs everything.
 - The runner's preinstalled Chrome is used (a stable Chrome is downloaded only if it has none); npm's cache is restored by setup-node.
 
 Run the same things locally (all headless; nothing pops up): `npm test`, `node tools/parts-balance.mjs`, `npm run smoke`, `node tools/physics-check.mjs` and so on.

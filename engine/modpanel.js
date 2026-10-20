@@ -50,8 +50,6 @@ export function initModPanel({mods,presets,migrate,onApply}){MODS=mods;MDEF=Obje
 const dec=st=>st>=1?0:Math.ceil(-Math.log10(st)-1e-9);
 export function syncMod(){for(const[,k,,def,,,st,u]of MODS){$('m_'+k).value=S.mod[k];$('mo_'+k).textContent=(+S.mod[k]).toFixed(dec(st))+(u?' '+u:'');$('m_'+k).parentNode.classList.toggle('chg',S.mod[k]!==def)}
  $('modnote').textContent=hostTune?"You're in someone else's online game, so their settings are in use. Your changes apply offline or when you host.":''}
-// online: the host's tune (null = back to your own)
-export function setHostTune(t){hostTune=t?{...MDEF,...cleanMod(t)}:null;apply();syncMod()}
 function modChanged(){save();apply();syncMod()}
 export function modMsg(t){$('modmsg').textContent=t;clearTimeout(modMsg.t);modMsg.t=setTimeout(()=>$('modmsg').textContent='',2500)}
 function renderPresets(sel){const s=$('mpre');s.textContent='';for(const n of Object.keys(PRESETS))s.add(new Option(n,'b:'+n));for(const n of Object.keys(S.presets))s.add(new Option('★ '+n,'u:'+n));if(sel)s.value=sel}
