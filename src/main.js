@@ -20,6 +20,7 @@ import {ball} from './physics/ball.js';
 import {setBall} from './render/ball.js';
 import {updateCam} from './render/camera.js';
 import {draw} from './render/renderer.js';
+import {capSkip} from './ui/fpsmeter.js';
 import {visuals} from './render/visuals.js';
 import {GS} from './state.js';
 import {hud} from './ui/hud.js';
@@ -46,7 +47,7 @@ const BODIES=()=>[ball,...GS.drones.filter(d=>!d.remote)];  // remote drones are
 function tick(dt){for(const o of BODIES()){(o._pp||(o._pp=new V3())).copy(o.p);(o._pq||(o._pq=new QT())).copy(o.q)}step(dt);rpRec(dt)}  // rpRec: the replay recorder (render/replay.js)
 function lerpIn(a){_ip.length=0;for(const o of BODIES()){if(!o._pp||o._pp.distanceToSquared(o.p)>400)continue;const q=o.q.clone();_ip.push(o,o.p.clone(),q);o.p.lerpVectors(o._pp,o.p,a);o.q.slerpQuaternions(o._pq,q,a)}}  // slerpQuaternions(a,b) copies a into itself first, so b must not be o.q (that froze the rendered attitude a tick behind)
 function lerpOut(){for(let i=0;i<_ip.length;i+=3){_ip[i].p.copy(_ip[i+1]);_ip[i].q.copy(_ip[i+2])}_ip.length=0}
-function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);
+function frame(now){requestAnimationFrame(frame);if(capSkip(now))return;const dt=Math.min(.05,(now-last)/1000);last=now;padEdges();netSync(now);  /* capSkip: the frame cap (ui/fpsmeter.js) */
  if(!GS.paused){if(GS.timeScale<1){let r=Math.min(dt,.05)*GS.timeScale*GSPD;while(r>1e-6){const h=Math.min(DT,r);tick(h);r-=h}acc=0}else{acc+=dt*GS.timeScale*GSPD;let n=0;while(acc>=DT&&n++<12){tick(DT);acc-=DT}}}  // slow-mo steps every frame by a smaller dt, so nothing stutters
  const rp=rpFrame(dt,now);if(rp)rpIn();else lerpIn(GS.timeScale<1?1:Math.min(1,acc/DT));  // a goal replay / kill cam draws recorded state instead (render/replay.js)
  visuals(rp?rpDt():GS.paused?0:dt*GS.timeScale*GSPD,now);llDraw();updateCam(dt,now);hud();llHudFrame();if(rp)rpOut();else lerpOut();modeHud(now);  // per-frame UI of the modes and overlays (ui/lab.js, ui/training.js)
