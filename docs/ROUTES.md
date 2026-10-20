@@ -12,11 +12,11 @@ The numbers come from this machine: an i9-14900HX laptop with **two GPUs**, an I
 | 0 | **Run on the RTX, not the Intel iGPU.** Set Windows' per-app GPU for Edge, or have the launcher start Edge with `--force_high_performance_gpu` | smoothness | **Measured: 10–25× on GPU time.** Intel: 100–240 ms GPU per frame (4–10 fps). RTX: ~3 ms | 5 min (setting) / 1 h (launcher) | low | nothing (a separate Edge profile for the launcher would start with empty localStorage) | **Do it first, and check `edge://gpu` today** |
 | 1 | **Frame pacing.** Interpolate the 120 Hz sim, cap the frame rate to a divisor of the display (120 / 80 / 60 on 240 Hz), keep the main thread under budget | smoothness | On the RTX the game runs 6–16 ms, CPU-bound, with p99 spikes to 25–40 ms. Interpolation removes the 0/1/2-steps-per-frame judder | 1–3 days (sim-smooth is already on it) | low | nothing | **Yes (in flight).** Add a cap option to the graphics setting |
 | 2 | **Main-thread diet** (the GPU idles, the CPU is the limit): 2D-canvas `font` churn, the radar redraw, `updateMatrixWorld` over static objects, per-frame program lookups, forest draw calls | smoothness | Measured: font sets ≈11 %, radar ≈12–17 %, `updateMatrixWorld` ≈9 % of main-thread time. Skipping the radar alone: −1.5 to −2 ms per frame. Expect 25–40 % off the CPU frame | 2–4 days | low | nothing | **Yes**: hand the profile below to perf-hotpaths |
-| 3 | **Antialiasing that actually reaches the 3D scene.** The Interceptor's composer target has no MSAA, so `antialias:true` does nothing for the scene | looks | Clean tree, wire and roof edges. MSAA ×4 on the composer target or SMAA: ≈0.3–1 ms GPU on the RTX (see §6) | ½ day | low | a little GPU on iGPUs (Drone League already has a Med = SMAA tier for that) | **Yes**: a cheap, visible win |
+| 3 | **Antialiasing that actually reaches the 3D scene.** The Interceptor's composer target has no MSAA, so `antialias:true` does nothing for the scene | looks | Clean tree, wire and roof edges. Measured on the RTX at 1440p: **SMAA +0.5 ms GPU**, **MSAA ×4 +2.3 ms GPU**, ±0 CPU | ½ day | low | a little GPU on iGPUs (Drone League already has a Med = SMAA tier for that) | **Yes**: a cheap, visible win |
 | 4 | **Forest LOD + impostors** (and a lighter shadow caster) | both | Measured: the forest is 4.1 M of the 4.5 M triangles. Hiding it saves 1.3 ms GPU / ~2 ms CPU on the RTX, and ~40 % of GPU time on the iGPU. Impostors past ~400 m should keep the look and recover most of that | 3–5 days | med (impostor pop / lighting match) | nothing if done well | **Yes**, after perf-quickwins' distance LOD lands. It's the enabler for the iGPU and for CSM |
 | 5 | **Graphics upgrades in the current stack (r160 WebGL):** CSM, GTAO, height fog, terrain detail normals, clouds, water | looks | ~10 ms of GPU headroom per 60 Hz frame on the RTX (the frame uses ~3 ms). Most upgrades cost 0.2–1.5 ms GPU each. CSM's real cost is CPU (extra shadow draws) | 1–3 days each | low–med | iGPU frame rate (gate them behind the graphics setting) | **Yes, staged** (§6 order) |
 | 6 | **Upgrade three r160 → r186 but stay on WebGLRenderer** | enabler | Newer CSM, reversed-Z (`reversedDepthBuffer`), fixes, and the door to WebGPU later | 2–4 days (re-check every `onBeforeCompile` anchor, the logdepth chunks in custom shaders, golden screenshots) | med | nothing | **Later**: only once a feature needs it |
-| 7 | **WebGPU (WebGPURenderer + TSL)** | both (in theory) | GPU-side particles and compute. But the game isn't GPU-bound on the RTX, and three's WebGPU path costs *more* CPU per draw in my experience (unverified here, see §1). Likely ≈0 smoothness gain today | 4–7 weeks for both games (14 custom shader sites + 2 composers + every `gl_PointSize` effect) | high | the r160 code paths. The look must be re-matched by hand | **Not now.** Revisit after routes 0–4, when a feature needs compute |
+| 7 | **WebGPU (WebGPURenderer + TSL)** | both (in theory) | Prototype (Zombies smoke on TSL compute) measured: the same GPU time as today's r160 path, and ~0.2 ms less JS per frame at today's 3,400 particles. The big win only shows at 50k–200k particles (−0.6 / −7.5 ms JS), and it also works on WebGPURenderer's **WebGL 2 fallback**. ≈0 smoothness gain at today's content | 4–7 weeks for both games (14 custom shader sites + 2 composers + every `gl_PointSize` effect) | high | the r160 code paths. The look must be re-matched by hand | **Not now.** Revisit after routes 0–4, when a feature needs compute |
 | 8 | **Desktop wrapper (Electron)** | smoothness (GPU choice, no throttling, frame cap) | The same as route 0 plus a frame cap and no background throttling. Frame time is identical to Edge (the same Chromium) | 1–2 days for a basic wrapper | low | ~90 MB download per build, the single-file / claude.ai play (it stays as a separate build), auto-update work | **Optional**: route 0 gets 90 % of it for free. Tauri doesn't help: WebView2 is Edge |
 | 9 | **OffscreenCanvas render worker / sim in a worker** | smoothness | At most it overlaps three.js (≈40 % of main thread) with game JS. But gamepad, audio, WebRTC and the DOM HUD stay on the main thread | 3–6 weeks (the game mutates the scene from 20+ modules) | high | simplicity. `SharedArrayBuffer` needs COOP/COEP headers that file:// and claude.ai can't give | **No** for now |
 | 10 | **WebAssembly sim** | smoothness | Measured: one 120 Hz step is **0.10–0.32 ms**, i.e. 2–4 % of the frame. Even a 3× faster sim saves < 0.3 ms | 2–4 weeks | med | two languages, the goldens | **No** |
@@ -196,9 +196,9 @@ Costs are for the RTX at 2560×1440. "est." means estimated from typical figures
 
 | Upgrade | Visual gain | GPU cost | CPU cost | Notes |
 |---|---|---|---|---|
-| **AA in the composer** (MSAA ×4 on the HalfFloat target, or SMAA) | high: the scene currently has **no AA at all** (EffectComposer's own target is created without `samples`) | 0.3–1 (est., see the addendum) | ≈0 | Drone League's `QUAL` already does exactly this (`msaa` / `smaa`) |
+| **AA in the composer** (MSAA ×4 on the HalfFloat target, or SMAA) | high: the scene currently has **no AA at all** (EffectComposer's own target is created without `samples`; setting `samples=4` doubled the GPU time, which confirms there was none) | **meas. SMAA +0.5, MSAA ×4 +2.3** | ±0 (meas.) | Drone League's `QUAL` already does exactly this (`msaa` / `smaa`). SMAA on Med, MSAA (or MSAA + SMAA) on High |
 | **Height / ground fog** (exponential height fog in the existing fog chunk, same colours per weather) | high: valleys, river mist, depth at dawn and dusk; it keeps the current `Fog` look as the far term | 0.1–0.2 | 0 | an `onBeforeCompile` on `fog_fragment` (every material) or a depth-based full-screen pass after the RenderPass. Height fog needs the world position, which the `detail()` materials already pass (`vWP`) |
-| **GTAO / SAO** (half resolution) | med–high: contact shading under houses, trees on the ground, the bunker | 0.8–1.5 (est.) | +1 normal / depth pass (~+60–200 draw calls unless MRT) | r160 has `SAOPass` / `SSAOPass`; `GTAOPass` arrived in r16x: check after route 6. The extra normal pass doubles the CPU draw cost: do it after route 2 |
+| **GTAO** (r160 `GTAOPass`) | med–high: contact shading under houses, trees on the ground, the bunker | **meas. +3.8** (full res and half res alike) | **meas. +2.2** (draw calls 200 → 380, triangles 4.6 M → 9.3 M) | the cost is the pass's own normal / depth re-render of the whole scene, not the AO maths, so half res doesn't help. It becomes affordable after route 4 (forest LOD), or with a depth-only AO (normals from depth) or the r186 MRT path. Note: GTAO with the log depth buffer needs checking visually |
 | **CSM** (3 cascades: 0–150 m, 150–600 m, 600–2500 m) | high: shadows past 220 m (today the forest beyond the 440 m box has none), steadier near shadows | 0.5–1.0 | **+1 shadow draw set per cascade** (today 34–66 calls; with the forest, ×3) | three r160 ships `CSM` (addons, `CSMShader` patches materials, which conflicts with our `onBeforeCompile` chains; needs care). The far cascade at 1024² with trunk-less, impostor or low-LOD trees. Do it after route 4 |
 | **Bloom tuning** (soft-knee bright-pass, as Drone League already does; threshold on luminance) | med: cleaner glows on fires and tracers, less wash on snow | 0 | 0 | copy `src/render/renderer.js` bright-pass |
 | **TAA** | high for foliage and wires, but ghosts on fast FPV motion and on additive particles | 0.4–0.8 | velocity pass (CPU +draws) | not recommended for a 360 km/h FPV game; SMAA + MSAA is safer |
@@ -279,7 +279,42 @@ at first sight of every material, a fresh shader warm-up story). **What it would
 - GPU-driven culling later;
 - a modern post stack (GTAO, TRAA, SSR) maintained upstream.
 
-Prototype status: see the addendum at the end (measurements added after this first push).
+### Prototype: the Zombies smoke on TSL compute (measured)
+
+`proto/webgpu/smoke.html` + `node proto/webgpu/run-smoke.mjs` (three r186.1 installed in `proto/webgpu/` only). It's one scene: a ground plane,
+fog, and 40 smoke columns with the same particle maths as `zfx.js`: respawn, wind drag, buoyancy decay, growth, fade and spin. It runs three ways:
+
+- **gl160**: today's approach. Three r160 `WebGLRenderer`, a JS loop over every particle each frame, a full `bufferSubData` upload, `Points` +
+  `ShaderMaterial` with `gl_PointSize`.
+- **gpu**: three r186 `WebGPURenderer` on WebGPU. A TSL compute kernel updates `instancedArray` storage buffers on the GPU (respawn by `hash`),
+  and an instanced `SpriteNodeMaterial` (`Sprite.count = N`) reads them with `toAttribute()`. No per-particle JS at all.
+- **gpugl**: the same TSL code on `WebGPURenderer({forceWebGL:true})`, the WebGL 2 fallback.
+
+Results: headless Edge on the RTX, 1920×1080, the median of ~600 frames after warm-up. "GPU" is timer / timestamp queries; "JS" is step + draw submit.
+
+| Particles | gl160 JS | gl160 GPU | gpu JS | gpu GPU | gpugl JS | gpugl GPU |
+|---|---|---|---|---|---|---|
+| 3,400 (today's smoke pool) | 0.20 | 2.26 | 0.40 | 1.97 | 0.30 | 2.40 |
+| 50,000 | 1.0 (p95 2.2) | 6.05 | 0.40 | 6.00 | 0.30 | 5.95 |
+| 200,000 | 5.7 (p95 17.5) | 6.97* | 0.60 | 12.4 | 0.60 | 12.3 |
+
+\* r160 clamps `gl_PointSize` to 420 px, so it draws less fill at 200k than the unclamped sprites. The GPU columns aren't equal work at that size.
+
+What the prototype shows:
+
+1. **At the game's current particle counts, compute particles buy nothing measurable.** The JS loop over 3,400 smoke slots costs ~0.2 ms, and
+   WebGPU's own per-frame overhead is about the same. GPU time is set by blending fill, which no API changes.
+2. **They pay off for 10×–60× more particles** (dense storms, battlefield smoke, debris): −0.6 ms JS at 50k, −5 to −17 ms at 200k. Even then it
+   needs **r186's WebGPURenderer, not WebGPU itself**: the WebGL 2 fallback ran the same TSL compute (transform feedback) with the same CPU win.
+3. **The look doesn't port 1:1.** The same constant colour came out visibly lighter in TSL (node materials treat `colorNode` as linear and convert
+   it to sRGB; the r160 `ShaderMaterial` wrote it raw). The pixel-size clamp (3–420 px) and `gl_PointCoord` rotation had to become a world-size
+   sprite with `rotationNode`. Every effect needs a side-by-side screenshot pass.
+4. **Porting cost** for this one effect: ~70 lines and half a day, including learning TSL's typing (`mod(float(i), E)`, not `uint`).
+   The first frame compiles pipelines: JS p95 is higher for the first ~30 frames, the same warm-up story as WebGL.
+
+Not measured: whole-game CPU cost under WebGPURenderer (that would need the full port). That is the number that decides smoothness, and it's the
+reason this route stays parked. Headless WebGPU frames are not paced by the GPU (rAF runs ahead), so only GPU timestamps are trustworthy here;
+a "wait for the GPU each frame" measurement was dominated by GPU clock ramp-down between frames and is not reported.
 
 ## Recommended sequence (next 1–2 weeks)
 

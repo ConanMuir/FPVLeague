@@ -1,7 +1,7 @@
 {
  "info": {
   "gpu": "NVIDIA, NVIDIA GeForce RTX 4070 Laptop GPU ",
-  "tracks": 77,
+  "tracks": 69,
   "buf": [
    2560,
    1440
@@ -11,121 +11,125 @@
  "res": {
   "base": {
    "frame": {
-    "avg": 10.01,
-    "p50": 10.3,
-    "p95": 13,
-    "p99": 14
+    "avg": 6.64,
+    "p50": 6,
+    "p95": 9.7,
+    "p99": 24.4
    },
    "cbCPU": {
-    "avg": 8.4,
-    "p50": 8.7,
-    "p95": 10.9,
-    "p99": 12.1
+    "avg": 5.56,
+    "p50": 5,
+    "p95": 8.5,
+    "p99": 18.6
    },
    "renderCPU": {
-    "avg": 4.84,
-    "p50": 5,
-    "p95": 7.2,
-    "p99": 8.4
+    "avg": 3.24,
+    "p50": 2.8,
+    "p95": 5.4,
+    "p99": 14.1
    },
    "gpu": {
-    "avg": 3.45,
-    "p50": 2.81,
-    "p95": 5.83,
-    "p99": 7.64
+    "avg": 3.05,
+    "p50": 2.82,
+    "p95": 5.22,
+    "p99": 5.93
    },
-   "calls": 196,
-   "tris": "4528k",
+   "calls": 192,
+   "tris": "4529k",
    "progs": 106
   },
   "noShadowPass": null,
   "noBloom": null,
   "noPost": null,
   "noForest": null,
-  "noRadar": {
+  "noRadar": null,
+  "pr1": null,
+  "pr075": null,
+  "msaa4": {
    "base": {
-    "frame": 11.03,
-    "p95": 15.7,
-    "cbCPU": 9.27,
-    "renderCPU": 5.16,
-    "gpu": 2.88,
-    "calls": 202,
-    "tris": "4670k"
+    "frame": 6.42,
+    "p95": 9.4,
+    "cbCPU": 5.33,
+    "renderCPU": 2.98,
+    "gpu": 2.84,
+    "calls": 194,
+    "tris": "4531k"
    },
    "abl": {
-    "frame": 9.09,
-    "p95": 12,
-    "cbCPU": 7.74,
-    "renderCPU": 4.46,
-    "gpu": 2.85,
-    "calls": 203,
-    "tris": "4671k"
+    "frame": 6.43,
+    "p95": 9.7,
+    "cbCPU": 5.34,
+    "renderCPU": 3.01,
+    "gpu": 5.17,
+    "calls": 194,
+    "tris": "4531k"
    }
   },
-  "pr1": {
+  "smaa": {
    "base": {
-    "frame": 7.55,
-    "p95": 11,
-    "cbCPU": 6.22,
-    "renderCPU": 3.36,
-    "gpu": 2.83,
-    "calls": 202,
-    "tris": "4441k"
+    "frame": 6.41,
+    "p95": 9.3,
+    "cbCPU": 5.28,
+    "renderCPU": 2.89,
+    "gpu": 2.84,
+    "calls": 195,
+    "tris": "4532k"
    },
    "abl": {
-    "frame": 6.57,
-    "p95": 9.6,
+    "frame": 6.51,
+    "p95": 9.8,
     "cbCPU": 5.39,
-    "renderCPU": 2.96,
-    "gpu": 2.65,
-    "calls": 203,
-    "tris": "4441k"
+    "renderCPU": 2.98,
+    "gpu": 3.34,
+    "calls": 198,
+    "tris": "4532k"
    }
   },
-  "pr075": {
+  "gtao": {
    "base": {
-    "frame": 7.1,
-    "p95": 10.3,
-    "cbCPU": 5.81,
-    "renderCPU": 3.12,
-    "gpu": 2.85,
-    "calls": 203,
-    "tris": "4374k"
+    "frame": 5.63,
+    "p95": 8.2,
+    "cbCPU": 4.56,
+    "renderCPU": 2.42,
+    "gpu": 2.89,
+    "calls": 200,
+    "tris": "4675k"
    },
    "abl": {
-    "frame": 5.83,
+    "frame": 7.66,
+    "p95": 13.3,
+    "cbCPU": 6.66,
+    "renderCPU": 4.64,
+    "gpu": 6.69,
+    "calls": 378,
+    "tris": "9350k"
+   }
+  },
+  "gtaoHalf": {
+   "base": {
+    "frame": 5.29,
     "p95": 8.5,
-    "cbCPU": 4.76,
-    "renderCPU": 2.49,
-    "gpu": 2.5,
-    "calls": 197,
-    "tris": "1871k"
-   }
-  },
-  "matAuto": {
-   "base": {
-    "frame": 5.72,
-    "p95": 8.8,
-    "cbCPU": 4.52,
-    "renderCPU": 2.49,
-    "gpu": 2.75,
-    "calls": 196,
-    "tris": "4181k"
+    "cbCPU": 4.33,
+    "renderCPU": 2.2,
+    "gpu": 2.93,
+    "calls": 203,
+    "tris": "1867k"
    },
    "abl": {
-    "frame": 7.33,
-    "p95": 10.3,
-    "cbCPU": 5.9,
-    "renderCPU": 3.02,
-    "gpu": 2.75,
-    "calls": 196,
-    "tris": "4221k"
+    "frame": 8.67,
+    "p95": 12.9,
+    "cbCPU": 7.64,
+    "renderCPU": 5.03,
+    "gpu": 6.65,
+    "calls": 384,
+    "tris": "9352k"
    }
-  }
+  },
+  "matAuto": null
  },
  "sim": {
-  "stepMs": 0.124,
-  "simMsPerFrameAt60": 0.25,
-  "visualsMs": 0.18
+  "stepMs": 0.191,
+  "simMsPerFrameAt60": 0.38,
+  "visualsMs": 0.36
  }
 }

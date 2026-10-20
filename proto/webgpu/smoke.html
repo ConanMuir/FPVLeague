@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Smoke prototype</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#000}canvas{display:block}</style>
+<!-- routes-scout prototype: the Zombies smoke columns (games/interceptor/zfx.js) three ways, same scene and the same particle maths.
+ ?r=gl160  : three r160 WebGLRenderer, CPU-updated Points + ShaderMaterial with gl_PointSize (what the game does today)
+ ?r=gpu    : three r186 WebGPURenderer, TSL compute update (storage buffers) + instanced SpriteNodeMaterial, nothing on the CPU per particle
+ ?r=gpugl  : the same TSL code on WebGPURenderer's WebGL 2 fallback (forceWebGL)
+ &n=3400 particles, &f=600 frames measured. Result in window.__result. -->
+<script>
+const R=new URLSearchParams(location.search).get('r')||'gpu',V=R==='gl160'?'/__three/':'/proto/webgpu/node_modules/three/';
+const im=R==='gl160'?{three:V+'build/three.module.js'}:{three:V+'build/three.webgpu.js','three/webgpu':V+'build/three.webgpu.js','three/tsl':V+'build/three.tsl.js'};
+document.write('<script type="importmap">'+JSON.stringify({imports:im})+'<\/script>');
+</script>
+<script type="module">
+const Q=new URLSearchParams(location.search),R=Q.get('r')||'gpu',N=+(Q.get('n')||3400),F=+(Q.get('f')||600),E=40;
+const THREE=await import(R==='gl160'?'three':'three/webgpu');
+const out={r:R,n:N,ok:false};window.__result=null;
+try{
+const W=innerWidth,H=innerHeight;let renderer,gl,ext;
+if(R==='gl160'){renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});gl=renderer.getContext();ext=gl.getExtension('EXT_disjoint_timer_query_webgl2')}
+else{renderer=new THREE.WebGPURenderer({antialias:false,forceWebGL:R==='gpugl',trackTimestamp:true,powerPreference:'high-performance'});await renderer.init()}
+renderer.setPixelRatio(1);renderer.setSize(W,H);document.body.append(renderer.domElement);
+out.backend=R==='gl160'?'WebGL2 (r160)':renderer.backend.isWebGPUBackend?'WebGPU (r186)':'WebGL2 fallback (r186)';
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9fb4c8);scene.fog=new THREE.Fog(0x9fb4c8,300,6000);
+const camera=new THREE.PerspectiveCamera(70,W/H,.5,20000);camera.position.set(0,25,380);camera.lookAt(0,45,0);
+scene.add(new THREE.HemisphereLight(0xdde9ff,0x55663f,1));const sun=new THREE.DirectionalLight(0xfff0dc,2.5);sun.position.set(-400,480,780);scene.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(12000,12000).rotateX(-Math.PI/2),new THREE.MeshStandardMaterial({color:0x6b6a3e,roughness:1}));scene.add(ground);
+const c=document.createElement('canvas');c.width=c.height=64;{const g=c.getContext('2d');let s=7;const rnd=(a,b)=>a+(b-a)*((s=(s*16807)%2147483647)/2147483647);
+ for(let i=0;i<7;i++){const x=32+rnd(-9,9),y=32+rnd(-9,9),r=rnd(13,22),gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,64,64)}}
+const puff=new THREE.CanvasTexture(c);puff.colorSpace=THREE.SRGBColorSpace;
+// emitters: 40 smoke columns on a grid; each particle belongs to emitter i%40, lives 6-12 s, rises, slows, drifts with the wind, grows and fades
+const ex=i=>((i%8)-3.5)*110,ez=i=>(Math.floor(i/8)-2)*-130,WIND=[4,0,1.5];
+let step,draw;
+if(R==='gl160'){
+ const P=new Float32Array(N*3),S=new Float32Array(N*4),Vv=new Float32Array(N*3),A=new Float32Array(N),L=new Float32Array(N),S0=new Float32Array(N),RV=new Float32Array(N);
+ const spawn=(i,age)=>{const e=i%E;P[i*3]=ex(e)+(Math.random()-.5)*4;P[i*3+1]=2;P[i*3+2]=ez(e)+(Math.random()-.5)*4;Vv[i*3]=Math.random()-.5;Vv[i*3+1]=5+Math.random()*3;Vv[i*3+2]=Math.random()-.5;A[i]=age;L[i]=6+Math.random()*6;S0[i]=8+Math.random()*6;RV[i]=(Math.random()-.5)*.5;S[i*4+3]=Math.random()*6.28};
+ for(let i=0;i<N;i++){spawn(i,0);A[i]=Math.random()*L[i]}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setAttribute('sa',new THREE.BufferAttribute(S,4));
+ const U=THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{map:{value:null},k:{value:H/(2*Math.tan(35*Math.PI/180))}}]);U.map.value=puff;
+ const pts=new THREE.Points(g,new THREE.ShaderMaterial({uniforms:U,fog:true,transparent:true,depthWrite:false,
+  vertexShader:`attribute vec4 sa;uniform float k;varying float vA;varying float vS;varying float vR;\n#include <common>\n#include <fog_pars_vertex>\nvoid main(){vS=sa.z;vR=sa.w;vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;float s=sa.x*k/max(1.,-mvPosition.z);vA=sa.y;gl_PointSize=clamp(s,1.,420.);\n#include <fog_vertex>\n}`,
+  fragmentShader:`uniform sampler2D map;varying float vA;varying float vS;varying float vR;\n#include <fog_pars_fragment>\nvoid main(){vec2 c=gl_PointCoord-.5;float s=sin(vR),o=cos(vR);c=mat2(o,-s,s,o)*c;float a=texture2D(map,c+.5).a*vA;if(a<.004)discard;gl_FragColor=vec4(vec3(vS,vS*.96,vS*.92),a);\n#include <fog_fragment>\n}`}));
+ pts.frustumCulled=false;scene.add(pts);
+ step=dt=>{const dm=Math.exp(-dt*.3),db=Math.exp(-dt*.06);for(let i=0;i<N;i++){const i3=i*3,i4=i*4;if((A[i]+=dt)>L[i])spawn(i,0);
+   Vv[i3]=Vv[i3]*dm+WIND[0]*(1-dm);Vv[i3+1]*=db;Vv[i3+2]=Vv[i3+2]*dm+WIND[2]*(1-dm);P[i3]+=Vv[i3]*dt;P[i3+1]+=Vv[i3+1]*dt;P[i3+2]+=Vv[i3+2]*dt;
+   const u=A[i]/L[i];S[i4]=S0[i]+3*A[i];S[i4+1]=.5*Math.min(1,A[i]*2.5)*(1-u)*(1-u*.4);S[i4+2]=.32;S[i4+3]+=RV[i]*dt}
+  g.attributes.position.needsUpdate=g.attributes.sa.needsUpdate=true};
+ draw=()=>renderer.render(scene,camera);
+}else{
+ const T=await import('three/tsl'),{Fn,If,instancedArray,instanceIndex,uniform,vec3,vec4,float,hash,texture,uv,exp,min,mod,floor}=T;
+ const pos=instancedArray(N,'vec3'),vel=instancedArray(N,'vec3'),dat=instancedArray(N,'vec4'),uDt=uniform(0),uT=uniform(0);
+ const spawn=(i,p,v,d,age)=>{const e=mod(float(i),E),h=k=>hash(float(i).mul(7.13).add(uT.mul(1.37)).add(k));
+  p.assign(vec3(mod(e,8).sub(3.5).mul(110).add(h(1).sub(.5).mul(4)),2,floor(e.div(8)).sub(2).mul(-130).add(h(2).sub(.5).mul(4))));
+  v.assign(vec3(h(3).sub(.5),h(4).mul(3).add(5),h(5).sub(.5)));d.assign(vec4(age,h(6).mul(6).add(6),h(7).mul(6).add(8),h(8).mul(6.28)))};
+ const init=Fn(()=>{const i=instanceIndex,d=dat.element(i);spawn(i,pos.element(i),vel.element(i),d,0);d.x.assign(hash(float(i).mul(3.1)).mul(d.y))})().compute(N);
+ const update=Fn(()=>{const i=instanceIndex,p=pos.element(i),v=vel.element(i),d=dat.element(i);d.x.addAssign(uDt);
+  If(d.x.greaterThan(d.y),()=>{spawn(i,p,v,d,0)});
+  const dm=exp(uDt.mul(-.3)),db=exp(uDt.mul(-.06));v.assign(vec3(v.x.mul(dm).add(dm.oneMinus().mul(WIND[0])),v.y.mul(db),v.z.mul(dm).add(dm.oneMinus().mul(WIND[2]))));
+  p.addAssign(v.mul(uDt));d.w.addAssign(hash(float(i).mul(.71)).sub(.5).mul(.5).mul(uDt))})().compute(N);
+ await renderer.computeAsync(init);
+ const m=new THREE.SpriteNodeMaterial({transparent:true,depthWrite:false});const D=dat.toAttribute(),u=D.x.div(D.y);
+ m.positionNode=pos.toAttribute();m.scaleNode=D.z.add(D.x.mul(3));m.rotationNode=D.w;
+ m.colorNode=vec3(.32,.31,.29);m.opacityNode=texture(puff,uv()).a.mul(min(1,D.x.mul(2.5)).mul(u.oneMinus()).mul(u.mul(.4).oneMinus()).mul(.5));
+ const spr=new THREE.Sprite(m);spr.count=N;spr.frustumCulled=false;scene.add(spr);
+ let t=0;step=dt=>{t+=dt;uDt.value=dt;uT.value=t;renderer.compute(update)};
+ draw=()=>renderer.render(scene,camera);
+}
+// measurement: fixed dt (so every run simulates the same thing), frame interval, JS ms per frame (step + draw submit), GPU ms per frame
+/* sync: wait until the GPU has finished the frame (WebGPU onSubmittedWorkDone, WebGL a 1-pixel readPixels), so syncFrame = CPU + GPU cost of one frame, no pipelining */
+const ts=[],cpu=[],gpu=[],pend=[],lat=[],px=new Uint8Array(4),G2=gl||renderer.backend.gl,sync=renderer.backend?.device?()=>renderer.backend.device.queue.onSubmittedWorkDone():()=>G2.readPixels(0,0,1,1,G2.RGBA,G2.UNSIGNED_BYTE,px);let last=0,k=0;
+await new Promise(res=>{const f=async now=>{if(last)ts.push(now-last);last=now;const t0=performance.now();let q;
+ if(ext){q=gl.createQuery();gl.beginQuery(ext.TIME_ELAPSED_EXT,q)}
+ step(1/60);draw();cpu.push(performance.now()-t0);await sync();lat.push(performance.now()-t0);
+ if(q){gl.endQuery(ext.TIME_ELAPSED_EXT);pend.push(q);while(pend.length&&gl.getQueryParameter(pend[0],gl.QUERY_RESULT_AVAILABLE)){const a=pend.shift();if(!gl.getParameter(ext.GPU_DISJOINT_EXT))gpu.push(gl.getQueryParameter(a,gl.QUERY_RESULT)/1e6);gl.deleteQuery(a)}}
+ else if(renderer.resolveTimestampsAsync&&k>30){Promise.all([renderer.resolveTimestampsAsync('render'),renderer.resolveTimestampsAsync('compute')]).then(([a,b])=>{if(a!=null)gpu.push((a||0)+(b||0))})}
+ if(++k<F+30)requestAnimationFrame(f);else res()};requestAnimationFrame(f)});
+const st=a=>{a=a.slice(30);const s=[...a].sort((x,y)=>x-y);return{avg:+(a.reduce((x,y)=>x+y,0)/a.length).toFixed(3),p50:+s[s.length>>1].toFixed(3),p95:+s[Math.floor(s.length*.95)].toFixed(3)}};
+Object.assign(out,{ok:true,frame:st(ts),syncFrame:st(lat),jsCPU:st(cpu),gpu:gpu.length>40?st(gpu):null,gpuSamples:gpu.length});
+}catch(e){out.err=String(e&&e.stack||e)}
+window.__result=out;
+</script>
