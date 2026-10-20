@@ -187,7 +187,7 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-client-wave.png'}); }
 
 // ---------- arsenal in a wave: Ash's EMP goes to the host, which disables the pack; the stun shows on Bea's screen; the laser's beam shows on the clients ----------
-{ const P0 = await ev(A, () => { const {api} = __z, me = api.player; __z.net.n.late = true; me.p.set(-300, api.gh(-300, 600) + 400, 600); me.v.set(0, 0, 0); return [me.p.x, me.p.y, me.p.z]; });
+{ const P0 = await ev(A, () => { const {api} = __z; api.launch(); const me = api.player; __z.net.n.late = true; me.p.set(-300, api.gh(-300, 600) + 400, 600); me.v.set(0, 0, 0); return [me.p.x, me.p.y, me.p.z]; });
   ok(await until(H, ([k, x, y, z]) => { const r = __z.net.n.pil.get(k); return !!r && r.d.p.distanceTo(new __z.api.THREE.Vector3(x, y, z)) < 3; }, [aKey, ...P0]), 'Arsenal: the host sees Ash holding 400 m up');
   const ids = await ev(H, ([x, y, z]) => { const {api, G} = __z, out = []; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
     for (let i = 0; i < 3; i++) { const t = __z.make('shahed', x + 15 + i * 8, z - 20); t.p.set(x + 15 + i * 8, y + 2, z - 20 - i * 5); t.alt = t.p.y - api.gh(t.p.x, t.p.z); t.spd = t.cs = 4; t.v.set(0, 0, -4); t.wps.length = 0; out.push(t.id); } return out; }, P0);
