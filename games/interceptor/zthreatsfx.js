@@ -109,8 +109,7 @@ export function initThreatSfx(api,G,Z){
   s.dp=d;s.x=o.p.x;s.y=o.p.y;s.z=o.p.z}
  function pass(o,k,dm){const sp=o.v.length(),rv=_a.subVectors(o.v,L.v).length();
   if(sp>CS*1.05){const B=BOOM[k];if(!B)return;const M=sp/CS,dl=Math.min(BCAP,dm/CS*Math.sqrt(1-1/(M*M))),lv=B.lv/(1+(dm/700)**1.3);if(lv<.003)return;  /* the shock cone reaches you this long after the closest point */
-   const at=now()+dl,q=BQ.find(b=>Math.abs(b.at-at)<.12);if(q){q.lv=Math.min(1,Math.hypot(q.lv,lv));q.sh=Math.max(q.sh,B.sh*cl(1-dm/1500,0,1));return}
-   BQ.push({at,p:o.p.clone(),lv,len:B.len*(1+dm/25000),dull:cl(dm/9000,0,.85),roll:cl(.6+dm/4000,.6,1.6),sh:B.sh*cl(1-dm/1500,0,1),whoosh:dm<450?cl(1-dm/450,0,1):0,v:o.v.clone()});
+   const at=now()+dl,q=BQ.find(b=>Math.abs(b.at-at)<.12);if(q){q.lv=Math.min(1,Math.hypot(q.lv,lv));q.sh=Math.max(q.sh,B.sh*cl(1-dm/1500,0,1))}else BQ.push({at,p:o.p.clone(),lv,len:B.len*(1+dm/25000),dull:cl(dm/9000,0,.85),roll:cl(.6+dm/4000,.6,1.6),sh:B.sh*cl(1-dm/1500,0,1),whoosh:dm<450?cl(1-dm/450,0,1):0,v:o.v.clone()});  /* two cones landing together make one bigger boom */
    o._sb=simT+dl;log({e:'pass',k,d:Math.round(dm),sup:1,delay:+dl.toFixed(2),id:o.id});return}
   const K=VK[k];if(!K)return;const Rn=24+rv*.45;if(dm>Rn)return;o._wh=1;  /* claims the pass: zfx's generic whoosh stays quiet */
   if(now()-whT<.12||!oneOk())return;whT=now();const f=cl(1-dm/Rn,0,1),side=_b.subVectors(o.p,L.p).normalize().dot(_x.set(1,0,0).applyQuaternion(api.camera.quaternion)),big=k==='jet'||k==='cruise'||k==='heavy'||k==='boss';
@@ -167,5 +166,5 @@ export function initThreatSfx(api,G,Z){
    OS.push(PATCH.boom(AC,nbuf,n,now()+dl,cl((big?.55:.38)/(1+(d/5000)**1.3),.015,.6),{len:big?.16:.1,dull:cl(d/60000,.2,.8),roll:cl(1.6-d/40000,.8,1.6)}));log({e:'icpt',d:Math.round(d),delay:+dl.toFixed(2)})},
   stats:()=>({voices:V.filter(v=>!v.die).length,fading:V.filter(v=>v.die).length,oneShots:OS.filter(t=>t>now()).length,peakV:ST.peakV,peakO:ST.peakO,booms:ST.booms,whoosh:ST.whoosh,drop:ST.drop,src:ST.src,cand:ST.cand,
    kinds:V.filter(v=>!v.die).map(v=>v.k),ids:V.filter(v=>!v.die).map(v=>v.o?.id),lv:V.filter(v=>!v.die).map(v=>+v.lvl.toFixed(4)),pending:BQ.length,rumble:+RB.lvl.toFixed(2)}),
-  log:LOG,reset(){ST.peakV=ST.peakO=ST.booms=ST.whoosh=ST.drop=0;LOG.length=0}};
+  log:LOG,reset(){ST.peakV=ST.peakO=ST.booms=ST.whoosh=ST.drop=0;LOG.length=0;BQ.length=0}};
  return Z.tsfx}
