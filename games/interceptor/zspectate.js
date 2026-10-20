@@ -121,7 +121,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  let lastState='';
  function tick(dt){const st=sp.stats,me=api.player;if(G.state==='wave'||G.state==='clear'){st.simT+=dt;if((st.sampleT-=dt)<=0){st.sampleT=5;logMoney()}}
   if(G.state!==lastState){if(G.state==='wave'){sp.gen=null;sp.cur=null;sp.next=0;for(const d of Z.def.D)st.snap.set(d.id,d.kills);st.waves.push({w:G.wave,cash:Math.round(G.cash),integ:Math.round(100*Z.integrity().hp/Math.max(1,Z.integrity().max))})}lastState=G.state;logMoney()}
-  if(me){const dead=me.dead>0;if(dead&&!st.wasDead){const why=G.detFlag?'det':me.mah>=api.BCAP?'bat':'crash';st.deaths[why]++;if(why==='crash'&&st.crashes.length<40)st.crashes.push({w:G.wave,mode:sp.pilot.st.mode,intent:sp.pilot.st.lastIntent||'',v:Math.round(sp.pilot.st.lastV||0),t:+me.t.toFixed(1)})}st.wasDead=dead}
+  if(me){const dead=me.dead>0;if(dead&&!st.wasDead){const why=G.detFlag?'det':me.mah>=api.BCAP?'bat':'crash';st.deaths[why]++;if(why==='crash'&&st.crashes.length<40)st.crashes.push({w:G.wave,y:Math.round(me.p.y),agl:Math.round(me.p.y-gh(me.p.x,me.p.z)),x:Math.round(me.p.x),z:Math.round(me.p.z),mode:sp.pilot.st.mode,intent:sp.pilot.st.lastIntent||'',v:Math.round(sp.pilot.st.lastV||0),t:+me.t.toFixed(1)})}st.wasDead=dead}
   if(G.state==='wave'||G.state==='clear')sp.pilot.step(dt);
   if(!sp.bench)hudTick()}
 

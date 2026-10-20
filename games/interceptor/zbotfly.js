@@ -77,7 +77,9 @@ export function createPilot(api,G,Z,P,E){
   if(Nh.y<.17){const hl=Math.hypot(Nh.x,Nh.z);if(hl>.3)Nh.set(Nh.x/hl*.985,.17,Nh.z/hl*.985);else Nh.set(0,1,0)}  /* thrust can't point down: to sink faster than it falls, stay upright and cut the throttle */
   let aT=Math.max(0,R.dot(Nh)),N=Nh;
   // at speed: the nose a little off the flight path, toward the side it has to turn, so the fins' side force does the turning
-  if(s>8){const vh=_h.copy(me.v).divideScalar(s),Ap=R.dot(vh),Pp=_f.copy(R).addScaledVector(vh,-Ap),ap=Pp.length(),drag=DQ*s*s+DL*s,Lk=(DL+DQ*s*FS)*s;
+  if(s>8){const vh=_h.copy(me.v).divideScalar(s),Ap=R.dot(vh),Pp=_f.copy(R).addScaledVector(vh,-Ap);
+   if(s>40&&Ap<0&&Pp.length()<-Ap*.5){const sx=-vh.z,sz=vh.x,c=(0-me.p.x)*sx+(1950-me.p.z)*sz>=0?1:-1;Pp.x+=sx*c*-Ap;Pp.z+=sz*c*-Ap}  // fast and told to stop dead: a dart can't brake, it turns (toward the middle of the area)
+   const ap=Pp.length(),drag=DQ*s*s+DL*s,Lk=(DL+DQ*s*FS)*s;
    const al=Math.min(.7,Math.atan2(ap,Lk+Math.max(0,Ap+drag))),Na=_v.copy(vh).multiplyScalar(Math.cos(al));if(ap>1e-6)Na.addScaledVector(Pp,Math.sin(al)/ap);
    const aTa=Math.max(0,(Ap+drag)/Math.max(.35,Math.cos(al))),w=sm((s-8)/22)*Math.max(sm((Ap/Math.max(1e-6,R.length())-.1)/.5),sm((s-40)/40));
    if(_n.dot(Na)<0){if(w>.5)_n.copy(Na)}else _n.multiplyScalar(1-w).addScaledVector(Na,w).normalize();N=_n;aT=aT*(1-w)+aTa*w}  // slow and turning hard about (the thrust it needs points well off the flight path): thrust-vector round like a quad; fast: always the fins
@@ -95,11 +97,12 @@ export function createPilot(api,G,Z,P,E){
   return{thr,yaw,pit,rol}}
 
  // ---------- where it wants to go: a velocity, with terrain and the edge of the area kept clear ----------
- function want(me,Vd,kv,floor){const p=me.p,ag=agl(p),s=me.v.length();
+ function want(me,Vd,kv,floor){const p=me.p,s=me.v.length();for(const q of api.SITES)if(Math.hypot(q.x-p.x,q.z-p.z)<(q.r||80)+200)floor=Math.max(floor,75);const ag=agl(p);  // the sites' buildings stand up to ~40 m: keep above them
+
   Vd.y=Math.max(Vd.y,-Math.max(4,(ag-floor)*.35));  /* a glide slope: never sink faster than it can level off above the floor */
-  for(const k of[1.2,2.6,2.6+s/14]){_a.copy(p).addScaledVector(me.v,k);const ah=_a.y-gh(_a.x,_a.z);if(ah<floor)Vd.y=Math.max(Vd.y,(floor-ah)*1.3+2)}
+  for(const k of[.6,1.2,2.6,2.6+s/14]){_a.copy(p).addScaledVector(me.v,k);const ah=_a.y-gh(_a.x,_a.z);if(ah<floor)Vd.y=Math.max(Vd.y,(floor-ah)*1.3+2)}
   if(ag<floor*.5)Vd.y=Math.max(Vd.y,6+(floor*.5-ag));
-  const AW=(api.AW||4300)-450;for(const ax of['x','z']){const e=Math.abs(p[ax])-AW;if(e>0)Vd[ax]-=Math.sign(p[ax])*(20+e)}
+  const AW=(api.AW||4300)-450;for(const ax of['x','z']){const q=p[ax]+me.v[ax]*(2.5+s/90),e=Math.abs(q)-AW;if(e>0)Vd[ax]-=Math.sign(q)*(20+e)}  // the edge of the area is a wall: turn back before it, looking 2.5 s ahead and more at speed
   const A=_W.subVectors(Vd,me.v).multiplyScalar(kv),Am=Math.max(55,Math.min(250,.006*s*s));if(A.length()>Am)A.setLength(Am);return A}  // at speed the fins pull far harder than the motors push
 
  // ---------- one physics step: guidance, the detonate press, the camera switch ----------
@@ -126,7 +129,7 @@ export function createPilot(api,G,Z,P,E){
     st.intent=`${d<dTerm?'closing on':'chasing'} ${name(t)} · ${rng(d)}`}
    else{const aim=_c.copy(t.p).add(st.aimN),los=aim.sub(me.p),dl=los.length();los.divideScalar(Math.max(dl,1));  /* its velocity plus a closing speed straight at it: it runs the track down from wherever it is */
     const Vc=cl(.5*d+6,8,58);Vd.copy(t.v).addScaledVector(los,Vc);if(Vd.length()>top)Vd.setLength(top);kv=d<40?2.2:2.8;st.intent=`closing on ${name(t)} · ${rng(d)}`}
-   floor=d<500?cl(tAgl-10,t.k==='swarm'?8:15,30):30;
+   floor=Math.max(d<500?cl(tAgl-10,t.k==='swarm'?8:15,30):30,s*(d<120?.08:.25));  // the faster it goes, the more ground it keeps under it (a pull-out at rocket speed takes hundreds of metres)
    if(d<90)detonate(me,t,dt);
    if(st.plan)st.intent=`detonating on ${name(t)}`}
   else{const lowBat=me.mah/Math.max(1,api.BCAP)>.9&&!F.relaunch,P0=lowBat&&me.home?_c.set(me.home.x,gh(me.home.x,me.home.z)+40,me.home.z):loiterPt(_c),e=_a.subVectors(P0,me.p),d=e.length();
