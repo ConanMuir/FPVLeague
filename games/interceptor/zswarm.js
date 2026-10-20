@@ -62,7 +62,7 @@ export function initSwarm(api,G,Z){
   const A=anchor(s,0);for(let i=0;i<n;i++){const p=_a.copy(A.p).add(_b.set(rnd(-6,6),rnd(3,8),rnd(-6,6)));p.y=Math.max(p.y,api.gh(p.x,p.z)+2);
    s.d.push({id:++s.did,p:p.clone(),v:new V3(0,4,0),up:new V3(0,1,0),yaw:0,st:'form',t:null,tt:0,sp:null,fx:0,boost:0,gp:null})}}
  function upkeep(n){const per=SW.upkeep*(Z.meta?.k?.('upkeepK',1)??1);if(!per)return n;const can=Math.min(n,Math.floor(Math.max(0,G.cash)/per)),c=can*per;G.cash-=c;Z.tally?.('swarm',c);return can}
- function waveStart(s){let n=0,mk=0;if(s===mine){n=SW.n[cl(lv('swarm'),0,5)]|0;mk=lv('swarmk')}else if(auth()){n=SW.n[cl(Z.pilotPerk?.(s.key,'swarm')|0,0,5)]|0;mk=Z.pilotPerk?.(s.key,'swarmk')|0}
+ function waveStart(s){let n=0,mk=0;if(s===mine){if(Z.idle?.())return;n=SW.n[cl(lv('swarm'),0,5)]|0;mk=lv('swarmk')}else if(auth()){n=SW.n[cl(Z.pilotPerk?.(s.key,'swarm')|0,0,5)]|0;mk=Z.pilotPerk?.(s.key,'swarmk')|0}
   else{if(s.ww!==G.wave||s.want==null)return;n=s.want}  /* a co-op client flies other pilots' swarms at the size the host says */
   if(!n){s.w=G.wave;s.d.length=0;return}const n0=n;if(auth())n=upkeep(n);deploy(s,n,mk);
   if(s===mine){api.feed(`<span class="cb">Swarm up: ${n} drone${n>1?'s':''} (${SW.mk[s.mk].n}) · ${FORMS[s.form].n}${auth()&&n?` · upkeep −$${Math.round(n*SW.upkeep*(Z.meta?.k?.('upkeepK',1)??1))}`:''}</span>${n<n0?` <span class="cr">short of money: ${n0-n} stay home</span>`:''}`)}}
@@ -189,7 +189,7 @@ export function initSwarm(api,G,Z){
  function pad(e){if(G.state!=='wave'||!lv('swarm'))return false;const fire=[S.fireBtn,S.xfire];for(const[b,c]of[[0,'attack'],[1,'screen'],[2,'strike'],[11,'form'],[5,'next']])if(!fire.includes(b)&&e(b)){command(c);return true}return false}
 
  // ---------- co-op (znet.js): commands out, other pilots' swarms in, the host's counts ----------
- Z.swOut=()=>lv('swarm')?[mine.form,Math.max(0,MODES.indexOf(mine.mode)),mine.mode==='attack'&&mine.tgt?mine.tgt.id:0,mine.sseq,...(mine.sp?[Math.round(mine.sp.x),Math.round(mine.sp.y),Math.round(mine.sp.z)]:[0,0,0]),mine.gid??0]:null;
+ Z.swOut=()=>lv('swarm')&&!Z.idle?.()?[mine.form,Math.max(0,MODES.indexOf(mine.mode)),mine.mode==='attack'&&mine.tgt?mine.tgt.id:0,mine.sseq,...(mine.sp?[Math.round(mine.sp.x),Math.round(mine.sp.y),Math.round(mine.sp.z)]:[0,0,0]),mine.gid??0]:null;
  Z.swIn=(k,a,r)=>{if(!r?.d||!Array.isArray(a)||a.length<8||!a.slice(0,7).every(Number.isFinite))return;let s=SWS.get(k);
   if(!s){s=make(k,()=>r.seen?{p:r.d.p,v:r.d.v,q:r.d.q,ok:!r.dead}:null);s.sseq=a[3]}s.src=()=>r.seen?{p:r.d.p,v:r.d.v,q:r.d.q,ok:!r.dead}:null;
   s.form=cl(a[0]|0,0,FORMS.length-1);const m=MODES[a[1]|0]||'escort';
