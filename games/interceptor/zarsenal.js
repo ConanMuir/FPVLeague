@@ -10,6 +10,7 @@ import {KIND,ORDER} from './zdata.js';
 import {WPN,WORDER,WEFF,FLARE,laserWx,ARS_HELPERS,CARRIER} from './zarsdata.js';
 import {initWeapons} from './zweapons.js';
 import {initArsDef} from './zarsdef.js';
+import {ARSBOT,registerArsBot} from './zarsbot.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),money=n=>'$'+Math.round(n).toLocaleString('en-US');
 export function initArsenal(api,G,Z){
  const {THREE,S}=api,$=id=>document.getElementById(id);
@@ -21,7 +22,7 @@ export function initArsenal(api,G,Z){
  A.cur=()=>A.P(A.me()).cur;
  A.ban=new Set();
  const W=initWeapons(api,G,Z,A),DF=initArsDef(api,G,Z,A);
- Z.ars=A;Object.assign(A,{W,DF,WPN,WORDER,WEFF});
+ Z.ars=A;Object.assign(A,{W,DF,WPN,WORDER,WEFF,bot:ARSBOT});
 
  // ---------- the run: reset, stats (for the bench), what the bench or a test took out of the game (S.zarsBan: ids, or 'all') ----------
  const ST=()=>G.ars||(G.ars={bought:{},eq:{},wk:{},dk:{},dmax:{}});
@@ -32,7 +33,7 @@ export function initArsenal(api,G,Z){
  // a wave starts (every screen: zdef deploy): chaff refilled, stats; the base screen opens: sortie flares, leftovers cleared
  const dp0=Z.def.deploy;Z.def.deploy=()=>{dp0();W&&A.onWave?.();if(!G.on)return;const s=ST();s.eq[A.cur()]=(s.eq[A.cur()]|0)+1;const n={};
   for(const d of Z.def.D){n[d.type]=(n[d.type]|0)+1;s.dk[d.id]=[d.type,d.kills|0]}for(const[k,c]of Object.entries(n))s.dmax[k]=Math.max(s.dmax[k]|0,c)};
- const bo0=Z.base.open;Z.base.open=()=>{A.onBase?.();A.parking=0;bo0()};
+ const bo0=Z.base.open;Z.base.open=()=>{A.onBase?.();A.parking=0;registerArsBot(window.__z);bo0()};  // the shared bot brain (zbotbrain.js), when the build has it, gets the arsenal's hook
  const k0=Z.kill;Z.kill=(t,cat)=>{const was=t.paid;k0(t,cat);if(!was&&t.paid&&t.by==='p'&&G.on){const s=ST(),w=A.cur();s.wk[w]=(s.wk[w]|0)+1}};
  A.stats=()=>{const s=ST(),dk={};for(const d of Z.def.D)s.dk[d.id]=[d.type,d.kills|0];for(const[t,k]of Object.values(s.dk))dk[t]=(dk[t]|0)+k;return{bought:s.bought,eq:s.eq,wk:s.wk,dmax:s.dmax,dkills:dk}};
 
