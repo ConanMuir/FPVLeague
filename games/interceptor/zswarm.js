@@ -69,7 +69,7 @@ export function initSwarm(api,G,Z){
 
  // ---------- what a drone may go after ----------
  const eff=t=>RESIST.rack[t.k]??0;
- const engageable=t=>api.live(t)&&t.st!=='fall'&&eff(t)>0&&KIND[t.k]?.armor!=='hard'&&!(t.k==='decoy'&&t.ident);
+ const engageable=t=>api.live(t)&&t.st!=='fall'&&!(t.iff>0)&&eff(t)>0&&KIND[t.k]?.armor!=='hard'&&!(t.k==='decoy'&&t.ident);
  // escort / screen: threats near you, ahead of a wedge, or (screen) along your formation axis; each gets one drone (armor and the boss two)
  function watch(s,A){const F=FORMS[s.form],n=s.d.length;if(!n)return;const busy=new Map();let eng=0;for(const d of s.d)if(d.t&&(d.st==='eng'||d.st==='strike')){busy.set(d.t,(busy.get(d.t)|0)+1);eng++}
   const cap=Math.ceil(n*SW.maxEng[s.mode==='screen'?1:0]),ax=s.form===3?s.ax:s.f,C=[];if(eng>=cap)return;
@@ -100,7 +100,7 @@ export function initSwarm(api,G,Z){
   if(c==='attack'){const t=arg||Z.lk?.t;if(!t){api.banner('NO LOCK','co',.8);api.tone(300,240,.12,.035,'triangle');return false}if(!attack(s,t)){api.banner('CAN\'T ENGAGE','co',.8);return false}
    api.banner(`SWARM: ATTACK T${String(t.id).padStart(2,'0')}`,'cg',.9);api.tone(500,900,.16,.04,'triangle');return true}
   if(c==='strike'){if(s.ch<=0){api.banner('NO STRIKE CHARGES','co',.8);api.tone(300,240,.12,.035,'triangle');return false}
-   const A=anchor(s,0),cam=api.camera,fw=_b.set(0,0,-1).applyQuaternion(cam.quaternion).clone();let g=arg&&arg.ground?arg.ground:null,P=arg&&!g&&arg.p?_c.set(arg.p.x,arg.p.y,arg.p.z).clone():null;
+   const A=anchor(s,0),cam=Z.sightCam?.()||api.camera,fw=_b.set(0,0,-1).applyQuaternion(cam.quaternion).clone();let g=arg&&arg.ground?arg.ground:null,P=arg&&!g&&arg.p?_c.set(arg.p.x,arg.p.y,arg.p.z).clone():null;
    if(!g&&!P){const GT=ground().filter(q=>_a.set(q.p.x,q.p.y,q.p.z).distanceTo(A.p)<SW.strikeR);const aim=GT.map(q=>[q,_a.set(q.p.x,q.p.y,q.p.z).sub(cam.position).normalize().dot(fw)]).sort((a,b)=>b[1]-a[1])[0];
     P=cluster(s,A,fw);if(aim&&(aim[1]>.94||!P))g=aim[0]}
    if(!g&&!P){api.banner('NO STRIKE TARGET','co',.8);return false}

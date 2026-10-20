@@ -95,7 +95,7 @@ export function initDefences(api,G,Z){
  // ---------- target choice: free, in range, engageable; most urgent first; marked tracks first; leave the player's terminal track alone ----------
  const tti=t=>hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd),NOOPT=Object.freeze({});
  function pickTarget(dd,x,z,range,o=NOOPT){let best=null,bs=-1e9;const me=api.player,sel=api.selT();
-  for(const t of TH){if(!api.live(t)||t.claim||t.dcy||!Z.seen(t)&&t.k!=='swarm')continue;  /* t.dcy: pulled to a decoy site (zwarn.js), not worth a shot */let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)continue;
+  for(const t of TH){if(!api.live(t)||t.claim||t.dcy||t.iff>0||!Z.seen(t)&&t.k!=='swarm')continue;  /* t.dcy: pulled to a decoy site (zwarn.js), not worth a shot */let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)continue;
    if(o.smart&&t.k==='decoy')continue;if(o.only&&!o.only(t))continue;
    const d=hyp(t.p.x-x,t.p.z-z);if(d>range)continue;
    if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)continue;  // t.pc: a co-op pilot is on it
