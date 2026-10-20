@@ -66,6 +66,7 @@ export function initDefences(api,G,Z){
  const tr=[];const tracer=(p,v,life)=>{if(tr.length>=TN){tr.shift()}tr.push({p:p.clone(),v:v.clone(),life})};
 
  const D=[],shots=[],shells=[],pend=[];  // owned defences, guided shots in the air, mortar shells, cannon bursts on their way
+ api.interp?.add(shots);api.interp?.add(shells);api.interp?.add(tr);  /* drawn between their last two sim ticks (engine/interp.js) */
  let did=0,fxBudget=0,sid=0;
  // per-defence numbers: drone racks (rack, and the kit's light rack) use RACK_* and their tier; the rest HELP levels; an Armory refit (d.refit) adjusts both
  const isRack=d=>d.type==='rack'||d.type==='lrack';

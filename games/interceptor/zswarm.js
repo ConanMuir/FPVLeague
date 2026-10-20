@@ -37,6 +37,7 @@ export function initSwarm(api,G,Z){
  // ---------- a swarm: one per pilot (mine, and in co-op one per other pilot keyed by their peer) ----------
  const SWS=new Map();
  function make(key,src){const s={key,src,d:[],form:0,mode:'escort',tgt:null,ch:0,mk:0,w:-1,want:null,ww:-1,sseq:0,cseq:0,kills:0,lost:0,ph:Math.random()*6,f:new V3(0,0,-1),ax:new V3(0,0,-1),axT:0,et:0,home:new V3(),col:key==='me'?[.37,.9,1]:[1,.8,.45],did:0,gid:null};SWS.set(key,s);return s}
+ api.interp?.add(each=>{for(const s of SWS.values())for(const d of s.d)each(d)});  /* every swarm drone is drawn between its last two sim ticks (engine/interp.js) */
  const mine=make('me',()=>{const me=api.player;return me?{p:me.p,v:me.v,q:me.q,ok:me.dead<=0}:null});
  // where the swarm flies around: the pilot's interceptor, or where it last was while the pilot is down
  function anchor(s,dt){const a=s.src(),A=s.A||(s.A={p:new V3(),v:new V3(),ok:false});
