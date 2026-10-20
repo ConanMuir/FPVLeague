@@ -145,6 +145,34 @@ GCs come half as often. A major GC's pause depends on the live heap, so a rare 3
 After merging main with the bosses (#68) and the spectator (#66), the event timeline's worst frame is 66 ms (the boss wave starting:
 deploying the helpers, plus a 35 ms first-sight sprite compile) and frame CPU p95 is 4.1 ms.
 
+**With perf-quickwins (#69) merged** (Graphics levels, warm-up, frame cap, MSAA), the systems are integrated:
+
+- **Particles.** `PFX.scale` follows the level's `gfx.k.fx` (through `gfx.on`).
+  - The sites' fire and smoke thin through it alone, not twice.
+  - Zombies' debris trails opt out, because their debris count already follows `gfx.k.fx`.
+- **Warm-up.** `engine/warm.js` compiles through `compileFor`.
+  - The environment-map variant pass is gone: `envOff` keeps one program per material.
+  - The menu warm-up is now 27 programs instead of 49.
+- **Forest.** There is one LOD system (`igfx.js`): thinning and draw distance per level, plus three crown levels at `gfx.k.lodD` / `lodD2`.
+  - High: 180 faces to 900 m, 80 to 2.5 km, 20 beyond.
+  - Medium: 900 / 2,000 m.
+  - Low: 80 faces from 0 m, 20 from 1.3 km.
+- **Shadows.** The instanced depth materials sit alongside the per-level shadow map size.
+
+**Event timeline, one run each on the RTX:**
+
+| | main (#69 merged) | perf-hotpaths |
+|---|---|---|
+| worst frame CPU | 257 ms | 73 ms |
+| slow shader compiles | 15 | 1 |
+
+On main, `PMREM.Background` recompiled at every weather change (170–340 ms each), and the sites and other materials still compiled on first sight.
+
+Same-seed shots at High against main (`DL_GFX=high`) match for forest, high, sites, storm, snow, overcast, night and burn (mean
+difference 5–9 / 255). The wave-28 views (smoke, thermal) differ because the boss roster diverged (a Ghost intro played in one run), not
+in the rendering. Main's thermal shot also showed a black rectangle over half the frame, which looks like a render-target resize
+artifact worth checking on main.
+
 ## 4. Look
 
 `tools/zombies-perf-shots.mjs` (same seed, fixed cameras), before vs after, all viewed side by side: forest, sites (scattered cloud), high
