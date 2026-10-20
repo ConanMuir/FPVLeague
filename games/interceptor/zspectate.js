@@ -72,7 +72,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};$('gmode').addEventListener('click',()=>setTimeout(syncCard,0));
 
  // ---------- the run ----------
- const newStats=o=>({lv:o.lv,d:ZDIFF[o.d].n,doc:DOCS[o.doc]?.n||'Standard',kit:o.kit||[],sec:o.sec?SECTORS.find(s=>s.id===o.sec)?.n:'',simT:0,money:[],buys:[],kills:{},lastHit:null,dmg:{},bursts:0,deaths:{det:0,crash:0,bat:0},waves:[],sampleT:0,snap:new Map(),wasDead:false,relaunches:0});
+ const newStats=o=>({lv:o.lv,d:ZDIFF[o.d].n,doc:DOCS[o.doc]?.n||'Standard',kit:o.kit||[],sec:o.sec?SECTORS.find(s=>s.id===o.sec)?.n:'',simT:0,money:[],buys:[],kills:{},lastHit:null,dmg:{},bursts:0,deaths:{det:0,crash:0,bat:0},crashes:[],waves:[],sampleT:0,snap:new Map(),wasDead:false,relaunches:0});
  function start(o){if(sp.on)stop();const P=brain.level(o.lv);if(!P)return false;
   Object.assign(sp,{on:true,bench:!!o.bench,P,o:{...o},spd:1,paused:false,cam:'chase',site:0,gen:null,cur:null,next:0,stats:newStats(o),shopT:0});
   sp.pilot=createPilot(api,G,Z,P,E);
@@ -121,7 +121,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  let lastState='';
  function tick(dt){const st=sp.stats,me=api.player;if(G.state==='wave'||G.state==='clear'){st.simT+=dt;if((st.sampleT-=dt)<=0){st.sampleT=5;logMoney()}}
   if(G.state!==lastState){if(G.state==='wave'){sp.gen=null;sp.cur=null;sp.next=0;for(const d of Z.def.D)st.snap.set(d.id,d.kills);st.waves.push({w:G.wave,cash:Math.round(G.cash),integ:Math.round(100*Z.integrity().hp/Math.max(1,Z.integrity().max))})}lastState=G.state;logMoney()}
-  if(me){const dead=me.dead>0;if(dead&&!st.wasDead){st.deaths[G.detFlag?'det':me.mah>=api.BCAP?'bat':'crash']++}st.wasDead=dead}
+  if(me){const dead=me.dead>0;if(dead&&!st.wasDead){const why=G.detFlag?'det':me.mah>=api.BCAP?'bat':'crash';st.deaths[why]++;if(why==='crash'&&st.crashes.length<40)st.crashes.push({w:G.wave,mode:sp.pilot.st.mode,intent:sp.pilot.st.lastIntent||'',v:Math.round(sp.pilot.st.lastV||0),t:+me.t.toFixed(1)})}st.wasDead=dead}
   if(G.state==='wave'||G.state==='clear')sp.pilot.step(dt);
   if(!sp.bench)hudTick()}
 

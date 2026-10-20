@@ -51,7 +51,7 @@ async function run(L, zd, idx) {
       if (st === 'over' || a.w >= CAP || st === 'wave') break;
     }
     const end = await p.evaluate(() => ({wave: __z.G.wave, earned: Math.round(__z.G.earned), kills: __z.G.kills, spend: __z.G.spend || null, exp: __z.G.exp | 0, dmg: window.__dmg, diff: __z.Z.diff().n, bal: __z.Z.kindFrom ? __z.Z.kindFrom('ballistic') : __z.KIND.ballistic.from,
-      pilot: __z.spec?.on ? (s => ({bursts: s.bursts, kills: s.kills.pilot?.n | 0, lost: s.deaths, simT: Math.round(s.simT)}))(__z.spec.sp.stats) : null}));
+      pilot: __z.spec?.on ? (s => ({bursts: s.bursts, kills: s.kills.pilot?.n | 0, lost: s.deaths, simT: Math.round(s.simT), crashes: s.crashes}))(__z.spec.sp.stats) : null}));
     return {lv: L.n, zd, idx, ...end, full, log, errs: errs.slice(0, 3)};
   } finally { await ctx.close().catch(() => {}); }
 }
@@ -63,7 +63,7 @@ const results = [], T0 = Date.now();
 let failed = 0;
 let next = 0;
 async function worker() { while (next < jobs.length) { const j = jobs[next++]; try { const r = await run(...j); results.push(r);
-  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}, positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.pilot ? `, pilot ${r.pilot.kills} kills from ${r.pilot.bursts} detonations, lost ${JSON.stringify(r.pilot.lost)}, ${Math.round(r.pilot.simT / 60)} min in the air` : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
+  console.log(`  ${r.lv} · ${DN[r.zd]} #${r.idx}: wave ${r.wave}${r.wave >= CAP ? ' (cap)' : ''}, positions full before wave ${r.full || '-'}, purse at base ${r.log.filter((_, i) => i % 5 === 4).map(x => x[0] + ':$' + x[2]).join(' ')}, sinks ${JSON.stringify(r.spend)}${DIAG ? ` [${r.diff}, ballistic from wave ${r.bal}]` + '\n    integrity ' + r.log.map(x => x[1]).join(' ') + '\n    damage by wave/kind ' + Object.entries(r.dmg || {}).slice(-8).map(([w, d]) => w + ':' + Object.entries(d).map(([k, v]) => k + ' ' + v).join(',')).join(' | ') : ''}${r.pilot ? `, pilot ${r.pilot.kills} kills from ${r.pilot.bursts} detonations, lost ${JSON.stringify(r.pilot.lost)}, ${Math.round(r.pilot.simT / 60)} min in the air${DIAG && r.pilot.crashes.length ? '\n    crashes ' + r.pilot.crashes.map(c => `w${c.w} ${c.mode} ${c.v} m/s t${c.t} "${c.intent}"`).join(' | ') : ''}` : ''}${r.errs.length ? ' ERR ' + r.errs.join(' | ') : ''} (${Math.round((Date.now() - T0) / 1000)} s)`); }
   catch (e) { failed++; console.log('  run failed', j[0].n, DN[j[1]], String(e.message || e).split('\n')[0]); } } }
 await Promise.all(Array.from({length: Math.min(PAR, jobs.length)}, worker));
 const TL = MERGE ? (results.push(...JSON.parse(fs.readFileSync(MERGE, 'utf8')).filter(r => !LV.some(L => L.n === r.lv))), LEVELS) : LV;
