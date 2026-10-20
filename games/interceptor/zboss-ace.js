@@ -99,12 +99,12 @@ function warn(C,oc,t,W,H){const{api}=C,d=api.player;if(!d||d.dead>0)return;const
 let FXP=null;
 function fxPts(C){if(FXP)return FXP;const T=C.THREE,N=120,pos=new Float32Array(N*3),col=new Float32Array(N*3),geo=new T.BufferGeometry();geo.setAttribute('position',new T.BufferAttribute(pos,3));geo.setAttribute('color',new T.BufferAttribute(col,3));
  const pts=new T.Points(geo,new T.PointsMaterial({size:8,sizeAttenuation:false,vertexColors:true,map:dot,transparent:true,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false}));pts.frustumCulled=false;geo.setDrawRange(0,0);C.api.scene.add(pts);return FXP={pos,col,geo,N}}
-function fxDraw(C){const F=fxPts(C);let n=0;const put=(p,r,g,b)=>{if(n>=F.N)return;F.pos[n*3]=p.x;F.pos[n*3+1]=p.y;F.pos[n*3+2]=p.z;F.col[n*3]=r;F.col[n*3+1]=g;F.col[n*3+2]=b;n++};
- for(const m of MS)put(m.p,3,2,1.1);for(const t of TR)put(t.p,3,2.4,.8);F.geo.setDrawRange(0,n);F.geo.attributes.position.needsUpdate=F.geo.attributes.color.needsUpdate=true}
+function fxDraw(C){if(!MS.length&&!TR.length&&!FXP?.n)return;const F=fxPts(C);let n=0;const put=(p,r,g,b)=>{if(n>=F.N)return;F.pos[n*3]=p.x;F.pos[n*3+1]=p.y;F.pos[n*3+2]=p.z;F.col[n*3]=r;F.col[n*3+1]=g;F.col[n*3+2]=b;n++};
+ for(const m of MS)put(m.p,3,2,1.1);for(const t of TR)put(t.p,3,2.4,.8);F.n=n;F.geo.setDrawRange(0,n);F.geo.attributes.position.needsUpdate=F.geo.attributes.color.needsUpdate=true}
 
 // spectres: instanced copies of the kinds you killed (green, translucent) or of your own swarm drones (the Mirror's, black with red lights)
 const SPI={};
-function spDraw(C){const{THREE:T,api,Z}=C,cnt={};for(const k in SPI)cnt[k]=0;const _m=new T.Matrix4();
+function spDraw(C){if(!Object.keys(SPI).length&&!C.api.TH.some(t=>t.k==='spectre'))return;const{THREE:T,api,Z}=C,cnt={};for(const k in SPI)cnt[k]=0;const _m=new T.Matrix4();
  for(const t of api.TH){if(t.k!=='spectre'||t.st==='dead')continue;const key=t.sv==='mirror'?'mirror':t.src;let I=SPI[key];
   if(!I){let geo;if(key==='mirror')geo=new T.BoxGeometry(.9,.25,.9);else geo=Z.en.IM[key]?.[0]?.geometry||Z.en.IM.shahed[0].geometry;
    const mat=key==='mirror'?new T.MeshStandardMaterial({color:0x050505,roughness:.3,metalness:.8,emissive:new T.Color(0x600000),emissiveIntensity:.6}):new T.MeshStandardMaterial({color:0x0a3a30,emissive:new T.Color(0x22ffaa),emissiveIntensity:.9,transparent:true,opacity:.55,depthWrite:false});
@@ -166,7 +166,7 @@ const ACE={id:'ace',n:'Ace of Aces',tag:KN,col:'#ff3b3b',spd:88,alt:[500,800],hi
  loop(S){const o=S.out(0),g=S.osc('sawtooth',140,S.t,0),f=S.filt('lowpass',900,1.5),n=S.nz(S.t,0),nf=S.filt('bandpass',2200,.8);g.connect(f).connect(o);n.connect(nf).connect(o);return{g:o,stop(){g.stop();n.stop()},set(C,t){const d=t.p.distanceTo(C.api.camera.position);g.frequency.setTargetAtTime(140+60*(t.spd/120)-d*.01,C.api.AC.currentTime,.2)}}},
  reward:{id:'instinct',n:'Ace Instinct',short:'evaders telegraph their break; jets and cruise missiles lock 40% faster',txt:'Tracks that evade show which way they will break (an amber chevron), and your lock on jets and cruise missiles builds 40% faster.',
   lockK:(C,t)=>t.k==='jet'||t.k==='cruise'?.6:1},
- clear(C){MS.length=0;TR.length=0;if(FXP)FXP.geo.setDrawRange(0,0);for(const k in SPI)SPI[k].count=0},
+ clear(C){MS.length=0;TR.length=0;if(FXP){FXP.geo.setDrawRange(0,0);FXP.n=0}for(const k in SPI)SPI[k].count=0},
  fxLeft:()=>({missiles:MS.length+TR.length,spectreMeshes:Object.values(SPI).reduce((a,I)=>a+I.count,0)}),
  g:{step(C,dt){if(C.auth())msStep(C,dt)},vis(C){if(!C.api.TH.some(t=>t.k==='ace'||t.k==='gace'))fxDraw(C);spDraw(C)},stop(){MS.length=0;TR.length=0},
   overlay(C,oc,W,H){if(!C.G.brw?.instinct)return;const{api,Z}=C,d=api.player;if(!d||d.dead>0)return;oc.strokeStyle='#ffc640';oc.lineWidth=2.5;

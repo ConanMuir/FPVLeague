@@ -75,15 +75,15 @@ export function initBosses(api,G,Z){
    if(!L)continue;const v=D.loopVol?D.loopVol(ctx,t):cl(1-t.p.distanceTo(api.camera.position)/2500,0,1)**2*.07;L.g.gain.setTargetAtTime(v*SND.vol()*(live(t)?1:.25),AC.currentTime,.15);L.set?.(ctx,t)}}
 
  // ---------- particle pools of the bosses' own (fire, sparks, smoke, contrails), so the cleanup can empty them; same look as the game's ----------
- function pool(N,size,blend,grav,drag){const P=new Float32Array(N*3).fill(-1e5),C=new Float32Array(N*4),B=new Float32Array(N*4),VV=new Float32Array(N*3),LF=new Float32Array(N),L0=new Float32Array(N);let i0=0;const c=new THREE.Color();
+ function pool(N,size,blend,grav,drag){const P=new Float32Array(N*3).fill(-1e5),C=new Float32Array(N*4),B=new Float32Array(N*4),VV=new Float32Array(N*3),LF=new Float32Array(N),L0=new Float32Array(N);let i0=0,live=0;const c=new THREE.Color();
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setAttribute('color',new THREE.BufferAttribute(C,4));
   const pts=new THREE.Points(g,new THREE.PointsMaterial({size,map:dot,vertexColors:true,transparent:true,blending:blend,depthWrite:false,toneMapped:blend!==THREE.AdditiveBlending}));pts.frustumCulled=false;scene.add(pts);
   return{pts,emit(p,hex,n,spd,life=1,bv=null,k=1,a=1){c.set(hex).multiplyScalar(k);for(let j=0;j<n;j++){const i=i0++%N,i3=i*3,i4=i*4;let x=Math.random()*2-1,y=Math.random()*2-1,z=Math.random()*2-1;const m=spd*(.3+Math.random()*.7)/(Math.hypot(x,y,z)||1);
-    P[i3]=p.x;P[i3+1]=p.y;P[i3+2]=p.z;VV[i3]=x*m+(bv?bv.x:0);VV[i3+1]=y*m+(bv?bv.y:0);VV[i3+2]=z*m+(bv?bv.z:0);B[i4]=c.r;B[i4+1]=c.g;B[i4+2]=c.b;B[i4+3]=a;LF[i]=L0[i]=life*(.5+Math.random()*.5)}},
-   upd(dt){const dm=Math.exp(-dt*drag),W=api.WIND,wx=W.x*(1-dm),wz=W.z*(1-dm);for(let i=0;i<N;i++){if(LF[i]<=0)continue;const i3=i*3,i4=i*4;if((LF[i]-=dt)<=0){P[i3+1]=-1e5;C[i4+3]=0;continue}
+    P[i3]=p.x;P[i3+1]=p.y;P[i3+2]=p.z;VV[i3]=x*m+(bv?bv.x:0);VV[i3+1]=y*m+(bv?bv.y:0);VV[i3+2]=z*m+(bv?bv.z:0);B[i4]=c.r;B[i4+1]=c.g;B[i4+2]=c.b;B[i4+3]=a;LF[i]=L0[i]=life*(.5+Math.random()*.5)}live=1},
+   upd(dt){if(!live)return;live=0;const dm=Math.exp(-dt*drag),W=api.WIND,wx=W.x*(1-dm),wz=W.z*(1-dm);for(let i=0;i<N;i++){if(LF[i]<=0)continue;const i3=i*3,i4=i*4;if((LF[i]-=dt)<=0){P[i3+1]=-1e5;C[i4+3]=0;live=1;continue}live=1;
     VV[i3]=VV[i3]*dm+wx;VV[i3+1]=VV[i3+1]*dm-grav*dt;VV[i3+2]=VV[i3+2]*dm+wz;P[i3]+=VV[i3]*dt;P[i3+1]+=VV[i3+1]*dt;P[i3+2]+=VV[i3+2]*dt;const f=Math.min(1,LF[i]/L0[i]*2);C[i4]=B[i4];C[i4+1]=B[i4+1];C[i4+2]=B[i4+2];C[i4+3]=B[i4+3]*f}
     g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true},
-   clear(){LF.fill(0);P.fill(-1e5);C.fill(0);g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true},get active(){let n=0;for(let i=0;i<N;i++)if(LF[i]>0)n++;return n}}}
+   clear(){live=0;LF.fill(0);P.fill(-1e5);C.fill(0);g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true},get active(){let n=0;for(let i=0;i<N;i++)if(LF[i]>0)n++;return n}}}
  const BFX=pool(1500,1.6,THREE.AdditiveBlending,3,1.8),BSMK=pool(1800,10,THREE.NormalBlending,-2.5,.6);
  // ---------- flight helpers for the movers ----------
  const _tv=new V3();
@@ -231,7 +231,7 @@ export function initBosses(api,G,Z){
  const BO=[],BN=48,bPos=new Float32Array(BN*3),bCol=new Float32Array(BN*3),bGeo=new THREE.BufferGeometry();bGeo.setAttribute('position',new THREE.BufferAttribute(bPos,3));bGeo.setAttribute('color',new THREE.BufferAttribute(bCol,3));
  const bPts=new THREE.Points(bGeo,new THREE.PointsMaterial({size:10,sizeAttenuation:false,vertexColors:true,map:dot,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));bPts.frustumCulled=false;bGeo.setDrawRange(0,0);scene.add(bPts);
  function bolt(from,t,o={}){if(BO.length>=BN||!t)return null;const b={p:from.clone(),v:new V3(0,o.spd||150,0),t,spd:o.spd||150,pk:o.pk??.7,col:o.col||[.4,.9,1],life:o.life||40,trail:o.trail??.6,sw:o.sw};BO.push(b);return b}
- function boltTick(dt){for(let i=BO.length-1;i>=0;i--){const b=BO[i];b.life-=dt;const t=b.t;if(!t||!live(t)||b.life<=0){if(b.retarget&&b.life>0){b.t=b.retarget();if(b.t)continue}BO.splice(i,1);continue}
+ function boltTick(dt){if(!BO.length){if(bGeo.drawRange.count)bGeo.setDrawRange(0,0);return}for(let i=BO.length-1;i>=0;i--){const b=BO[i];b.life-=dt;const t=b.t;if(!t||!live(t)||b.life<=0){if(b.retarget&&b.life>0){b.t=b.retarget();if(b.t)continue}BO.splice(i,1);continue}
    const r=_a.subVectors(t.p,b.p),d=r.length();if(d<9){BO.splice(i,1);api.boom(b.p,.6);if(auth()){const o=Z.helperHit(t,b.pk,.6);if(o==='kill')Z.helperKill(t);else if(o==='damage')api.damage(t)}continue}
    const des=r.addScaledVector(t.v,Math.min(3,d/b.spd)).normalize();b.v.lerp(des.multiplyScalar(b.spd),Math.min(1,dt*3)).setLength(b.spd);b.p.addScaledVector(b.v,dt);
    if(Math.random()<b.trail)BSMK.emit(b.p,0xd8d4cc,1,1,2.2,null,1,.45)}
