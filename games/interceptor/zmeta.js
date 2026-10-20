@@ -88,7 +88,7 @@ export function initMeta(api,G,Z){
  // ---------- goals: per-run record, checked as the run goes ----------
  // G.run: rep repairs bought, perf perfect waves in a row, wk kills this wave {p,h}, clutch this wave, i0 integrity at the wave's start
  M.reset=()=>{G.run={rep:0,perf:0,wk:{p:0,h:0},clutch:0,i0:0,max:0,got:[]}};M.reset();
- function award(id){const m=meta(),di=ZDIFF.indexOf(Z.diff()),min=GOALS[id].min|0;if(!GOALS[id]||di<min||G.state==='trial')return false;
+ function award(id){const m=meta(),di=Z.dfi?Z.dfi():ZDIFF.indexOf(Z.diff()),min=GOALS[id].min|0;if(!GOALS[id]||di<min||G.state==='trial')return false;
   if(m.g[id]>>di&1)return false;const had=open(GOALS[id].un);m.g[id]|=1<<di;S.zmeta=m;save();G.run.got.push(id);
   const u=GOALS[id].un,nm=DOCS[u]?DOCS[u].n+' doctrine':KIT[u].n;
   if(!had&&!all){banner('UNLOCKED: '+nm.toUpperCase(),'cg',2.6);feed(`<span class="cg">Goal met: ${GOALS[id].txt}</span> Unlocked <b>${nm}</b>: pick it under Doctrine &amp; unlocks on the start menu.`)}
