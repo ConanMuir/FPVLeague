@@ -18,7 +18,7 @@ import {BB,BR,DB,DI as DI0,DRAD,BBX,G,GF,HBP,HBR,onTune} from '../config/tune.js
 import {GS} from '../state.js';
 import {arenaData,arenaTrimesh} from './arena-shape.js';
 import {sdN,sdf} from './sdf.js';
-import {ball,ballContact,ballRoll} from './ball.js';
+import {ball,ballContact,ballRoll,ballSpin} from './ball.js';
 import {dfCollision,sdDFt} from '../world/highlands.js';
 import {bodyOf} from '../parts/index.js';
 import {emitEv,hasEv,onEv} from '../core/events.js';
@@ -127,7 +127,7 @@ export function physStep(dt,simBall){const t0=performance.now();world.timestep=d
  ball.hit=0;if(ball.bodyMode==='dyn'){const t=ballBody.translation(),lv=ballBody.linvel(),av=ballBody.angvel(),r=ballBody.rotation();ball.p.set(t.x,t.y,t.z);ball.v.set(lv.x,lv.y,lv.z);ball.w.set(av.x,av.y,av.z);ball.q.set(r.x,r.y,r.z,r.w);
   if(PHYS.ballMesh){let n=null,hit=0;world.contactPairsWith(ballCol,o=>world.contactPair(ballCol,o,(m,fl)=>{for(let i=0;i<m.numContacts();i++)if(m.contactDist(i)<.05){const nn=m.normal();n=_n.set(nn.x,nn.y,nn.z).multiplyScalar(fl?1:-1);break}}));
    if(n){hit=Math.max(0,-ball.v0.dot(n));ballRoll(ball.v,ball.w,n,dt)}ball.hit=hit;if(sdf(ball.p.x,ball.p.y,ball.p.z)>-BR+.3){PHYS.stats.escapes++;ballContact(ball,dt)}}
-  else ball.hit=ballContact(ball,dt)}
+  else{ball.hit=ballContact(ball,dt);ballSpin(ball,dt)}}
  PHYS.stats.steps++;PHYS.stats.ms+=performance.now()-t0}
 // contacts of a stepped drone with the world: ground timer, impact speed, our ground friction (Rapier's solver friction is 0)
 function groundContacts(d,dt){let touch=false,jn=0,hit=0;d.slide=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0);let np=0;

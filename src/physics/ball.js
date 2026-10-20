@@ -7,11 +7,14 @@
 //  surface (gravity) is removed with no bounce and no friction loss, the spin follows the rolling, and a rolling resistance of
 //  .25*BG on flat ground (v15's 4.9 m/s^2 roll-out on the floor) fades out on slopes, so the ball rolls up a quarter-pipe and a
 //  wall and back down without bleeding speed (v15 lost most of it to sliding friction against the centripetal force).
+//  ballSpin: off the map (in the air, or resting on a quad) spin above BALL.wFree fades (time constant wTau) and anything above
+//  BALL.wMax goes within ~0.15 s, so a ball that rolled fast and was then hit or flew off a ramp does not keep spinning hard in the
+//  air. No Magnus: spin never bends the flight, it only shows and changes the next bounce. On the map the spin follows the roll.
 import {QT,V3} from '../config/constants.js';
 import {BB,BD,BG,BR,MAXB} from '../config/tune.js';
 import {sdN,sdf} from './sdf.js';
 export const ball={p:new V3(0,BR+6,0),v:new V3(),w:new V3(),q:new QT(),c:false,n:new V3(),last:null,hit:0,v0:new V3()};  // c, n: touching the map last tick, and its normal
-export const BALL={mu:.25,rr:.25};  // impact friction, rolling resistance (x BG on flat ground)
+export const BALL={mu:.25,rr:.25,wFree:8,wTau:1.2,wMax:16};  // impact friction, rolling resistance (x BG on flat ground); spin in rad/s: free level, fade time above it (s), cap (ballSpin, and touches in modes/step.js)
 const VI=1,_n=new V3(),_r=new V3(),_c=new V3(),_t=new V3(),_qr=new QT();
 export function ballPre(v,dt){v.y-=BG*dt;const s=v.length();v.multiplyScalar(Math.max(0,1-(BD+BD*.02*s)*dt));if(s>MAXB)v.multiplyScalar(MAXB/s)}
 // sphere of radius BR vs the map SDF (b = {p, v, w, c, n}); returns the impact speed. Still touching the same surface = the normal
@@ -29,4 +32,6 @@ export function ballContact(b,dt){const{p,v,w}=b;let m=0,touch=false;
 export function ballRoll(v,w,n,dt){const s=Math.min(1,Math.max(0,(n.y-.8)/.2)),a=BALL.rr*BG*s*s*(3-2*s);if(a<=0)return;const vn=v.dot(n),t=_t.copy(v).addScaledVector(n,-vn),tl=t.length();if(tl<1e-6)return;
  const k=Math.max(0,1-a*dt/tl);v.copy(t.multiplyScalar(k)).addScaledVector(n,vn);w.multiplyScalar(k)}
 // one step of the whole ball (bots' predict(): the same model without Rapier)
-export function ballPhys(b,dt){ballPre(b.v,dt);b.p.addScaledVector(b.v,dt);return ballContact(b,dt)}
+export function ballPhys(b,dt){ballPre(b.v,dt);b.p.addScaledVector(b.v,dt);const m=ballContact(b,dt);ballSpin(b,dt);return m}
+// spin off the map (after ballContact, which sets b.c): above wFree it fades, above wMax it goes fast
+export function ballSpin(b,dt){if(b.c)return;const w=b.w,s=w.length();if(s<=BALL.wFree)return;let t=s-(s-BALL.wFree)*(1-Math.exp(-dt/BALL.wTau));if(t>BALL.wMax)t=BALL.wMax+(t-BALL.wMax)*Math.exp(-dt/.15);w.multiplyScalar(t/s)}
