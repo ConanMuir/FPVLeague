@@ -125,11 +125,11 @@ export function initSwarm(api,G,Z){
    else if(d.st==='eng'||d.st==='strike'){const t=d.t;d.tt+=dt;
     if(!t||!api.live(t)||d.tt>(d.st==='strike'?30:25)||d.p.distanceTo(A.p)>SW.leash&&d.st==='eng'){if(d.st==='strike'&&s.sp){const u=TH.filter(x=>engageable(x)&&x.p.distanceTo(d.p)<600).sort((a,b)=>a.p.distanceTo(d.p)-b.p.distanceTo(d.p))[0];if(u&&d.tt<30){d.t=u;d.pd=1e9;continue}}
      d.st='ret';d.t=null;d.boost=0;continue}
-    const sp=d.st==='strike'?SW.boost:M.spd,r=_a.subVectors(t.p,d.p),dist=r.length(),cv=Math.max(30,sp-t.v.dot(r)/Math.max(dist,1)),tg=Math.min(dist/cv,10),aim=_b.copy(t.p).addScaledVector(t.v,tg);
+    const r=_a.subVectors(t.p,d.p),dist=r.length(),sp=Math.min(d.st==='strike'?SW.boost:M.spd,Math.max(t.v.length()+70,dist*.8+50)),cv=Math.max(30,sp-t.v.dot(r)/Math.max(dist,1)),tg=Math.min(dist/cv,3),aim=_b.copy(t.p).addScaledVector(t.v,tg);
     const vd=aim.sub(d.p).setLength(sp);if(d.p.y<api.gh(d.p.x,d.p.z)+12&&vd.y<0)vd.y=0;_acc.subVectors(vd,d.v).multiplyScalar(3);
     steer(d,_acc,d.st==='strike'?220:140,sp,dt,true);
     const rel=_a.subVectors(d.p,t.p),vr=_b.subVectors(d.v,t.v),vv=vr.lengthSq(),k=vv>1e-6?cl(-rel.dot(vr)/vv,-dt,0):0,cpa=rel.addScaledVector(vr,k).length();
-    if(cpa<(d.st==='strike'?8:6)||dist>d.pd&&d.pd<12)pass(s,d,t);else d.pd=dist}
+    if(cpa<(d.st==='strike'?8:6))pass(s,d,t,1);else if(dist>d.pd&&d.pd<35)pass(s,d,t,cl(1.25-d.pd/28,0,1));else d.pd=dist}  /* slows into the target so it can turn onto it; a wide pass still gets a weaker roll */
    else if(d.st==='gnd'){const g=d.gp;d.tt+=dt;if(!g||g.alive===false||d.tt>40){d.st='ret';d.gp=null;d.boost=0;continue}
     const P=_c.set(g.p.x,g.p.y,g.p.z),r=_a.subVectors(P,d.p),dist=r.length(),vd=r.setLength(SW.boost);if(dist>300)vd.y=Math.max(vd.y,(api.gh(d.p.x,d.p.z)+60-d.p.y)*.5);_acc.subVectors(vd,d.v).multiplyScalar(3);steer(d,_acc,220,SW.boost,dt,true);
     if(dist<(g.r||10)+6)gpass(s,d,g)}}
@@ -138,9 +138,9 @@ export function initSwarm(api,G,Z){
  function steer(d,acc,amax,vmax,dt,keep){acc.clampLength(0,amax);d.v.addScaledVector(acc,dt).clampLength(0,vmax);d.p.addScaledVector(d.v,dt);const g=api.gh(d.p.x,d.p.z)+2.5;if(d.p.y<g){d.p.y=g;if(d.v.y<0)d.v.y=0}
   const u=_u.copy(acc).multiplyScalar(keep?.35:1);u.y+=9.8;u.normalize();d.up.lerp(u,1-Math.exp(-dt*6)).normalize();if(d.v.x*d.v.x+d.v.z*d.v.z>9)d.yaw=Math.atan2(d.v.x,d.v.z)}
  // an attack pass: the host (or solo) rolls it; a co-op client only shows it and trims its copy when the host's count comes in
- function pass(s,d,t){const M=SW.mk[s.mk],F=FORMS[s.form];d.boost=0;
+ function pass(s,d,t,q=1){const M=SW.mk[s.mk],F=FORMS[s.form];d.boost=0;
   if(!auth()){d.st='ret';d.t=null;return}
-  let p=M.pk*eff(t)*(Z.jink?.(t)??1);if(d.st==='strike'||s.mode==='attack')p*=F.pk;if(d.st==='strike')p*=1.15;p=Math.min(.95,p);
+  let p=M.pk*eff(t)*(Z.jink?.(t)??1);if(d.st==='strike'||s.mode==='attack')p*=F.pk;if(d.st==='strike')p*=1.15;p=Math.min(.95,p*q);
   const o=Z.helperHit(t,p,M.direct);if(o==='kill'){t.sw=s.key;s.kills++;Z.helperKill(t);Z.pop?.(t.p,'SWARM','#5fe3ff')}else if(o==='damage'&&t.k!=='boss')api.damage(t);
   if(F.splash&&t.k==='swarm')for(const u of TH)if(u!==t&&u.k==='swarm'&&api.live(u)&&u.p.distanceTo(t.p)<14&&Math.random()<p*.5){s.kills++;Z.helperKill(u)}
   d.st='ret';d.t=null;if(Math.random()<M.loss*F.loss)lose(s,d)}
@@ -151,7 +151,7 @@ export function initSwarm(api,G,Z){
  const live=()=>G.on&&(G.state==='wave'||G.state==='clear');
  function step(dt){if(!live()){for(const s of SWS.values())s.d.length=0;return}
   for(const s of SWS.values()){if(G.state==='wave'&&s.w!==G.wave)waveStart(s);
-   if(!auth()&&s.want!=null&&s.ww===G.wave&&s.w===G.wave)trim(s);fly(s,dt)}
+   if(!auth()&&s.want!=null&&s.ww===G.wave&&s.w===G.wave){if(s!==mine&&!s.d.length&&s.want>0)deploy(s,s.want,0);trim(s)}fly(s,dt)}  /* a co-op client: the host's count is the truth */
   const me=api.player;if(me&&me.dead<=0&&mine.d.length)me.mah+=draw()*dt/3.6}  /* the swarm's link rides on your pack */
  const draw=()=>mine.d.length*SW.amp*FORMS[mine.form].amp;
  // a co-op client: drop drones until its copy matches the host's count (the ones mid-attack first: those are the ones that went down)
