@@ -292,7 +292,7 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
 /* toasts */
 #toasts{position:fixed;right:clamp(12px,2vw,24px);top:calc(14px + env(safe-area-inset-top,0px));z-index:40;display:grid;gap:8px;pointer-events:none;width:min(340px,calc(100% - 24px))}
 /* FPS meter (src/ui/fpsmeter.js, #fpsm top right in the HUD): toasts and the Lab side panel move down under it while it shows */
-body.fpson #toasts{top:calc(44px + env(safe-area-inset-top,0px))}body.fpson #lside{top:calc(44px + env(safe-area-inset-top,0px));max-height:calc(100% - 56px)}
+body.fpson #toasts{top:calc(56px + env(safe-area-inset-top,0px))}body.fpson #lside{top:calc(56px + env(safe-area-inset-top,0px));max-height:calc(100% - 68px)}
 @media (max-width:760px){body.fpson #lside{top:auto}}
 .toast{display:flex;gap:12px;align-items:center;padding:10px 14px;background:linear-gradient(100deg,rgba(18,26,46,.97),rgba(8,12,22,.95));border:1px solid var(--edge);border-left:4px solid var(--amber);border-radius:2px;box-shadow:0 10px 30px rgba(0,0,0,.5);animation:toastin .45s cubic-bezier(.2,.8,.2,1.2)}
 .toast.lvl{border-left-color:#9fe8ff}.toast i{flex:none;display:flex;width:34px;height:34px;align-items:center;justify-content:center;transform:skewX(-10deg);background:linear-gradient(160deg,#ffe08a,var(--amber));color:#140a00}.toast.lvl i{background:linear-gradient(160deg,#5aa6ff,#6a5cff 55%,var(--orange));color:#fff}.toast i svg{width:20px;height:20px}

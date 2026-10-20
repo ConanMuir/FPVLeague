@@ -9,7 +9,7 @@ import {LineSegmentsGeometry} from 'three/examples/jsm/lines/LineSegmentsGeometr
 import {LineMaterial} from 'three/examples/jsm/lines/LineMaterial.js';
 import {S} from '../config/settings.js';
 import {dynRes} from './dynres.js';
-import {onFrame,mountFps} from '../ui/fpsmeter.js';
+import {onFrame,mountFps,setCap} from '../ui/fpsmeter.js';
 // ---------- renderer ----------
 export const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.domElement.id='gl';document.body.prepend(renderer.domElement);
@@ -43,7 +43,7 @@ function sizeAll(){composer.setSize(innerWidth,innerHeight);renderer.getDrawingB
 export const DYN=dynRes({min:.6,max:1});let pr0=1;
 function applyRS(){const pr=pr0*DYN.scale;renderer.setPixelRatio(pr);composer.setPixelRatio(pr);sizeAll()}
 onFrame(ms=>{if(DYN.sample(ms))applyRS()});
-export const fpsMeter=mountFps({parent:document.getElementById('hud')||document.body,on:S.fps!==false,detail:()=>qId[0].toUpperCase()+(DYN.on?' '+Math.round(DYN.scale*100)+'%':'')});
+setCap(S.fcap||0);export const fpsMeter=mountFps({parent:document.getElementById('hud')||document.body,on:S.fps!==false,gl:renderer.getContext(),detail:()=>qId[0].toUpperCase()+(DYN.on?' '+Math.round(DYN.scale*100)+'%':'')});
 export function setQuality(id){qId=QUAL[id]?id:autoQ();Q=QUAL[qId];DYN.on=id==='auto';if(!DYN.on)DYN.reset();pr0=Math.min(devicePixelRatio||1,Q.pr);const pr=pr0*DYN.scale,ms=Q.aa==='msaa'&&cap.isWebGL2?Math.min(4,cap.maxSamples):0;
  direct=Q.aa==='canvas';bloom.enabled=Q.bl>0;smaa.enabled=!direct&&!ms;
  // without SMAA the output pass draws to the canvas and needn't swap, so the scene always lands in renderTarget2 and only that one is multisampled
