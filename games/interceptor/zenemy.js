@@ -54,7 +54,8 @@ export function initEnemies(api,G,Z){
   _a.x+=Math.sin(t.ph*1.7+t.id)*.35;_a.z+=Math.cos(t.ph*1.3+t.id)*.35;_a.setY(0).normalize().multiplyScalar(t.spd);
   _a.y=cl((gh(t.p.x,t.p.z)+t.alt-t.p.y)*.8,-6,6);t.v.lerp(_a,Math.min(1,dt*2.2));t.p.addScaledVector(t.v,dt).addScaledVector(api.WIND,dt*.4);return true}
  // ballistic: a steep straight run at constant speed onto its aim point; hypersonic: glides high, then dives in the last 30 km; ICBM: straight down the line
- function fast(t,dt){const r=_a.subVectors(t.aim,t.p),d=r.length();if(d<t.spd*dt*1.2||t.p.y<=gh(t.p.x,t.p.z)+1){t.p.copy(t.aim);Z.impact(t);return true}
+ function fast(t,dt){if(Z.reMove?.(t,dt))return true;  /* the ICBM's midcourse / re-entry profile (zreentry.js) */
+  const r=_a.subVectors(t.aim,t.p),d=r.length();if(d<t.spd*dt*1.2||t.p.y<=gh(t.p.x,t.p.z)+1){t.p.copy(t.aim);Z.impact(t);return true}
   if(t.k==='hyper'){const hd=Math.hypot(r.x,r.z);if(hd>30000){r.y=(30000+gh(t.aim.x,t.aim.z)-t.p.y)*.2;}}
   t.v.copy(r.normalize()).multiplyScalar(t.spd);t.p.addScaledVector(t.v,dt);return true}
  const mover=(t,dt)=>t.k==='swarm'?swarm(t,dt):KIND[t.k].armor==='hard'?fast(t,dt):false;
