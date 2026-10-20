@@ -91,9 +91,9 @@ const mine=team=>!GS.player||GS.player.team===team;
 function crowdOn(){return!!L&&!GS.demo&&!GS.OBSON&&GS.state!=='lab'}
 // a reaction: kind 'cheer' (roar swell), 'ooh' (rising then falling vowel), 'aww' (falling groan); lvl 0..1, hold s
 function react(kind,lvl,hold=.8){cnt('crowd_'+kind);if(!AC||!crowdOn())return;const t=AC.currentTime,{f1,f2,vG,roar}=L;lvl=cl(lvl,0,1.2);
- if(kind==='cheer'){roar.gain.cancelScheduledValues(t);roar.gain.setTargetAtTime(.5*lvl,t,.12);roar.gain.setTargetAtTime(.03,t+hold,.9);
-  vG.gain.cancelScheduledValues(t);vG.gain.setTargetAtTime(.35*lvl,t,.1);vG.gain.setTargetAtTime(0,t+hold,.7);f1.frequency.setTargetAtTime(700,t,.1);f2.frequency.setTargetAtTime(1250,t,.1);
-  L.ex=Math.max(L.ex,lvl);if(lvl>.6)for(let i=0;i<2+lvl*3;i++){const w=t+rnd(.1,hold),f=rnd(1900,3100);if(slot(.5))os(w,f,f*rnd(.85,1.15),rnd(.25,.6),.025*lvl,'sine',BUS.crowd,.05)}}  // stadium whistles
+ if(kind==='cheer'){roar.gain.cancelScheduledValues(t);roar.gain.setTargetAtTime(.3*lvl,t,.12);roar.gain.setTargetAtTime(.03,t+hold,.9);
+  vG.gain.cancelScheduledValues(t);vG.gain.setTargetAtTime(.22*lvl,t,.1);vG.gain.setTargetAtTime(0,t+hold,.7);f1.frequency.setTargetAtTime(700,t,.1);f2.frequency.setTargetAtTime(1250,t,.1);
+  L.ex=Math.max(L.ex,lvl);if(lvl>.6)for(let i=0;i<2+lvl*3;i++){const w=t+rnd(.1,hold),f=rnd(1900,3100);if(slot(.5))os(w,f,f*rnd(.85,1.15),rnd(.25,.6),.018*lvl,'sine',BUS.crowd,.05)}}  // stadium whistles
  else{const up=kind==='ooh',[a1,b1,a2,b2]=up?[300,480,700,1000]:[620,330,1050,680];vG.gain.cancelScheduledValues(t);f1.frequency.cancelScheduledValues(t);f2.frequency.cancelScheduledValues(t);
   f1.frequency.setValueAtTime(a1,t);f2.frequency.setValueAtTime(a2,t);f1.frequency.linearRampToValueAtTime(b1,t+.35);f2.frequency.linearRampToValueAtTime(b2,t+.35);
   if(up){f1.frequency.linearRampToValueAtTime(a1,t+hold);f2.frequency.linearRampToValueAtTime(a2,t+hold)}
@@ -110,13 +110,14 @@ function nearMiss(hit){if(GS.state!=='play'||hit<8)return;const p=ball.p;if(Math
 // boom: low-passed noise burst and a sub sine dropping 90 -> 30 Hz. Horn: the stadium air horn, three detuned sawtooths on an
 // A-major chord (110 / 138.6 / 164.8 Hz) through a resonant low-pass, scooping up 6% into pitch, held ~1.8 s. Stinger: a quick
 // triangle arpeggio in the scoring team's key (blue C major, orange D major) over the horn's tail.
+// Levels: the whole goal lands about 4 dB (momentary loudness) above a hard ball hit, not 9; tools/sound-level.mjs measures it.
 export function goalSfx(t,p){cnt('goal');if(!AC)return;const t0=AC.currentTime,v=.4+.6*near(p||ball.p),o=dest(p||ball.p);
- nz(t0,1.4,700,.9*v,.5,o,'lowpass',120,.01);os(t0,90,30,1.1,.5*v,'sine',o);nz(t0,.5,2200,.25*v,.7,o,'bandpass',800);
+ nz(t0,1.4,700,.55*v,.5,o,'lowpass',120,.01);os(t0,90,30,1.1,.3*v,'sine',o);nz(t0,.5,2200,.15*v,.7,o,'bandpass',800);
  if(GS.demo)return;cnt('horn');const h0=t0+.18,hl=AC.createBiquadFilter(),hg=AC.createGain();hl.type='lowpass';hl.frequency.value=950;hl.Q.value=3;hg.gain.setValueAtTime(0,h0);
- hg.gain.linearRampToValueAtTime(.16,h0+.06);hg.gain.setValueAtTime(.16,h0+1.7);hg.gain.exponentialRampToValueAtTime(.001,h0+2.2);hl.connect(hg).connect(BUS.fx);
+ hg.gain.linearRampToValueAtTime(.08,h0+.06);hg.gain.setValueAtTime(.08,h0+1.7);hg.gain.exponentialRampToValueAtTime(.001,h0+2.2);hl.connect(hg).connect(BUS.fx);
  for(const[f,dt]of[[110,-3],[110,4],[138.6,-2],[164.8,3]]){const x=AC.createOscillator();x.type='sawtooth';x.detune.value=dt*2;x.frequency.setValueAtTime(f*.94,h0);x.frequency.exponentialRampToValueAtTime(f,h0+.12);x.connect(hl);x.start(h0);x.stop(h0+2.25)}
- const base=t?587.3:523.3;[1,1.26,1.498,2].forEach((r,i)=>os(h0+.15+i*.09,base*r,base*r,.32+(i===3?.4:0),.07,'triangle'));
- react('cheer',mine(t)?1:.5,3);if(GS.player&&!mine(t))setTimeout(()=>react('aww',.6,1.4),150)}
+ const base=t?587.3:523.3;[1,1.26,1.498,2].forEach((r,i)=>os(h0+.15+i*.09,base*r,base*r,.32+(i===3?.4:0),.05,'triangle'));
+ react('cheer',mine(t)?.8:.45,3);if(GS.player&&!mine(t))setTimeout(()=>react('aww',.6,1.4),150)}
 // kickoff: 3-2-1 pips (sine 880 + octave click, like a race start) and a brighter GO chord with an upward air sweep; the crowd builds
 export function countdown(n){cnt(n>0?'count':'go');if(!AC)return;const t0=AC.currentTime;
  if(n>0){os(t0,880,880,.18,.16,'sine',0,.004);os(t0,1760,1760,.05,.04,'triangle');nz(t0,.02,4200,.05,2)}
