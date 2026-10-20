@@ -29,11 +29,11 @@ export function initSpectate(api,G,Z){
 .zspc summary{cursor:pointer;padding:10px 12px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#5fe3ff}.zspc summary span{letter-spacing:.02em;text-transform:none;color:var(--dim);margin-left:6px;font-size:12.5px}
 .zspc .zmb{padding:0 12px 12px;display:grid;gap:8px}.zspc h4{margin:4px 0 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}.zspc .zdocs{display:flex;flex-wrap:wrap;gap:6px}
 .zspc select{font:13px var(--mono);background:rgba(0,0,0,.35);color:var(--ink);border:1px solid var(--edge);border-radius:5px;padding:5px}.zspc .zsp-go{justify-self:start}
-#zspbar{position:fixed;left:50%;top:calc(92px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:7;display:grid;justify-items:center;gap:2px;pointer-events:none;font:700 13px var(--mono);text-shadow:0 0 4px #000;text-align:center;max-width:92vw}
-#zspbar b{color:#5fe3ff;letter-spacing:.1em}#zspbar span{color:#fff;font-size:14px}#zspbar em{font-style:normal;color:var(--amber);font-size:12px}
-#zspctl{position:fixed;left:50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:7;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:6px 8px;background:var(--panel);border:1px solid var(--edge);border-radius:8px;max-width:96vw}
+#zspbar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:92vw;top:calc(76px + env(safe-area-inset-top,0px));z-index:7;display:grid;justify-items:center;gap:1px;pointer-events:none;font:700 13px var(--mono);text-shadow:0 0 4px #000;text-align:center;padding:4px 12px;border-radius:6px;background:rgba(4,10,18,.55)}
+#zspbar[hidden],#zspctl[hidden]{display:none}#zspbar b{color:#5fe3ff;letter-spacing:.1em}#zspbar span{color:#fff;font-size:14px}#zspbar em{font-style:normal;color:var(--amber);font-size:12px}
+#zspctl{position:fixed;left:0;right:0;margin:0 auto;width:max-content;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:7;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:6px 8px;background:var(--panel);border:1px solid var(--edge);border-radius:8px;max-width:96vw}
 #zspctl button{font:700 11.5px var(--mono);padding:5px 8px}#zspctl button.on{background:#5fe3ff;color:#04121a;border-color:#5fe3ff}#zspctl i{width:1px;background:var(--edge);margin:0 3px}
-#zspcap{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:7;max-width:min(760px,94vw);padding:9px 16px;border-radius:8px;background:rgba(4,18,26,.92);border:1px solid #5fe3ff;font:700 15px var(--disp);color:#fff;text-align:center;pointer-events:none}
+#zspcap{position:fixed;left:0;right:0;margin:0 auto;width:max-content;top:calc(10px + env(safe-area-inset-top,0px));z-index:7;max-width:min(760px,94vw);padding:9px 16px;border-radius:8px;background:rgba(4,18,26,.92);border:1px solid #5fe3ff;font:700 15px var(--disp);color:#fff;text-align:center;pointer-events:none}
 #zspcap small{display:block;font:11px var(--mono);color:#5fe3ff;letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px}#zspcap[hidden]{display:none}
 body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.zsp-hl{outline:3px solid #5fe3ff!important;outline-offset:2px;box-shadow:0 0 18px #5fe3ff!important}
 #zsptune{position:fixed;right:12px;top:calc(12px + env(safe-area-inset-top,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));width:min(380px,calc(100% - 24px));overflow:auto;z-index:8;box-sizing:border-box;padding:12px 14px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(8px)}
@@ -101,7 +101,8 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  const ov0=Z.cpOver;Z.cpOver=()=>{if(!sp.on)return ov0?ov0():false;over();return true};
  const st0=Z.step;Z.step=dt=>{st0(dt);if(sp.on&&G.on)tick(dt)};
  const k0=Z.kill;Z.kill=(t,cat)=>{const was=t.paid;k0(t,cat);if(sp.on&&!was&&t.paid)credit(t)};
- const i0=Z.impact;Z.impact=t=>{const s=t.tgt,h=s?s.hp:0;i0(t);const l=h-(s?s.hp:0);if(sp.on&&l>0){const st=sp.stats;st.lastHit={k:t.k,site:s.n,dmg:l,w:G.wave};const D=st.dmg[G.wave]||(st.dmg[G.wave]={});D[t.k]=(D[t.k]|0)+l}};
+ const hit=(t,s,h)=>{const l=h-(s?s.hp:0);if(!sp.on||!(l>0))return;const st=sp.stats;st.lastHit={k:t.k,site:s.n,dmg:l,w:G.wave};const D=st.dmg[G.wave]||(st.dmg[G.wave]={});D[t.k]=(D[t.k]|0)+l};
+ const i0=Z.impact;Z.impact=t=>{const s=t.tgt,h=s?s.hp:0;sp.hit=[t,s,h];i0(t);if(sp.hit)hit(...sp.hit);sp.hit=null};  /* the final hit ends the game inside i0: over() books it first */
  // a helper's kill: zdef.js counts it on the defence just before calling this, so the defence whose count went up is the one (EW spoofs count too: skipped)
  const hk0=Z.helperKill;Z.helperKill=t=>{if(sp.on&&!t.sw){const st=sp.stats;let b=null;for(const d of Z.def.D)if(d.kills>(st.snap.get(d.id)|0)&&(!b||b.type==='ew'))b=d;for(const d of Z.def.D)st.snap.set(d.id,d.kills);if(b&&b.type!=='ew')t._src=ITEMS[b.type]?.n||b.type}return hk0(t)};
  const d0=Z.detonate;Z.detonate=()=>{if(sp.on)sp.stats.bursts++;return d0()};
@@ -119,7 +120,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  function logMoney(){const st=sp.stats;if(st)st.money.push({w:G.wave,t:Math.round(st.simT),cash:Math.round(G.cash),earned:Math.round(G.earned),st:G.state})}
  let lastState='';
  function tick(dt){const st=sp.stats,me=api.player;if(G.state==='wave'||G.state==='clear'){st.simT+=dt;if((st.sampleT-=dt)<=0){st.sampleT=5;logMoney()}}
-  if(G.state!==lastState){if(G.state==='wave'){for(const d of Z.def.D)st.snap.set(d.id,d.kills);st.waves.push({w:G.wave,cash:Math.round(G.cash),integ:Math.round(100*Z.integrity().hp/Math.max(1,Z.integrity().max))})}lastState=G.state;logMoney()}
+  if(G.state!==lastState){if(G.state==='wave'){sp.gen=null;sp.cur=null;sp.next=0;for(const d of Z.def.D)st.snap.set(d.id,d.kills);st.waves.push({w:G.wave,cash:Math.round(G.cash),integ:Math.round(100*Z.integrity().hp/Math.max(1,Z.integrity().max))})}lastState=G.state;logMoney()}
   if(me){const dead=me.dead>0;if(dead&&!st.wasDead){st.deaths[G.detFlag?'det':me.mah>=api.BCAP?'bat':'crash']++}st.wasDead=dead}
   if(G.state==='wave'||G.state==='clear')sp.pilot.step(dt);
   if(!sp.bench)hudTick()}
@@ -151,7 +152,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  function syncCtl(){const c=$('zspctl');if(!c)return;for(const x of c.querySelectorAll('[data-zcam]'))x.classList.toggle('on',x.dataset.zcam===sp.cam);for(const x of c.querySelectorAll('[data-zspd]'))x.classList.toggle('on',+x.dataset.zspd===sp.spd&&!sp.paused);
   $('zsppause').classList.toggle('on',sp.paused);$('zsppause').textContent=sp.paused?'Resume':'Pause';$('zsptbtn').classList.toggle('on',!!$('zsptune'))}
  let hudLast='';
- function hudTick(){const b=$('zspbar');if(!b)return;const me=api.player,lk=Z.lk?.t,camN=CAMS.find(c=>c[0]===sp.cam)[1]+(sp.cam==='sites'?' · '+(SITES[sp.site%SITES.length]?.n||''):'');
+ function hudTick(){const b=$('zspbar');if(!b)return;const ov=G.state==='over';b.hidden=ov;const c=$('zspctl');if(c)c.hidden=ov;if(ov)return;const me=api.player,lk=Z.lk?.t,camN=CAMS.find(c=>c[0]===sp.cam)[1]+(sp.cam==='sites'?' · '+(SITES[sp.site%SITES.length]?.n||''):'');
   const h=`<b>BOT ${esc(sp.P.n.toUpperCase())} · ${esc(sp.stats.d.toUpperCase())}</b><span>${esc(G.state==='base'?'on the base screen':sp.pilot?.intent||'')}</span><em>${camN} · ${sp.paused?'PAUSED':sp.spd+'×'}${lk?` · LOCK T${String(lk.id).padStart(2,'0')}`:Z.lk?.cand&&Z.lk.prog>0?` · LOCKING ${Math.round(Z.lk.prog*100)}%`:''}${me&&me.dead<=0?` · ${Math.round(me.v.length()*3.6)} km/h · ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m`:''}</em>`;
   if(h!==hudLast)b.innerHTML=hudLast=h}
  function setSpeed(s){sp.spd=s;sp.paused=false;Z.stepCap=Math.ceil(12*s);syncCtl()}
@@ -169,7 +170,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
    cam.p.y=Math.max(cam.p.y,gh(cam.p.x,cam.p.z)+2);P=cam.p;L=cam.look.copy(P).add(f)}
   else if(sp.cam==='sites'){const s=SITES[sp.site%SITES.length]||SITES[0],a=performance.now()/9000+sp.site*1.7;P.set(s.x+Math.sin(a)*320,0,s.z-Math.cos(a)*320);P.y=Math.max(gh(P.x,P.z),s.y||0)+110;L.set(s.x,(s.y||gh(s.x,s.z))+20,s.z)}
   else if(sp.cam==='threat'){const t=sp.pilot?.st.tgt&&api.live(sp.pilot.st.tgt)?sp.pilot.st.tgt:Z.urgent?.();
-   if(t){const f=new V3().copy(t.v).setY(0);if(f.lengthSq()<1)f.set(0,0,1);f.normalize();P.copy(t.p).addScaledVector(f,-55).add(new V3(0,14,0));const g=gh(P.x,P.z)+4;if(P.y<g)P.y=g;L.copy(t.p).addScaledVector(t.v,.6)}
+   if(t){const f=new V3().copy(t.v).setY(0);if(f.lengthSq()<1)f.set(0,0,1);f.normalize();P.copy(t.p).addScaledVector(f,-24).add(new V3(0,6,0));const g=gh(P.x,P.z)+4;if(P.y<g)P.y=g;L.copy(t.p).addScaledVector(t.v,.4)}
    else if(me){P.copy(me.p).add(new V3(0,60,140));L.copy(me.p)}}
   if(!cam.init){cam.sm.copy(P);cam.init=true}else cam.sm.lerp(P,sp.cam==='free'?1:1-Math.exp(-dt*4));
   c.position.copy(cam.sm);c.up.set(0,1,0);c.lookAt(L);if(c.fov!==cam.fov){c.fov=cam.fov;c.updateProjectionMatrix()}
@@ -237,7 +238,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  const msg=t=>{const m=$('zsptmsg');if(m)m.textContent=t};
 
  // ---------- the report (instead of the end screen) ----------
- function over(){if(sp.bench){sp.done=true;return}hideCap();const st=sp.stats;logMoney();const won=G.cpRes==='won';
+ function over(){if(sp.hit){hit(...sp.hit);sp.hit=null}if(sp.bench){sp.done=true;return}hideCap();for(const id of['zspbar','zspctl','zsptune'])if($(id))$(id).hidden=true;const st=sp.stats;logMoney();const won=G.cpRes==='won';
   const cause=st.lastHit?`${KIND[st.lastHit.k]?.n||st.lastHit.k} hit the ${String(st.lastHit.site).toLowerCase()} (−${st.lastHit.dmg}, wave ${st.lastHit.w})`:won?'none: sector held':'—';
   const K=Object.entries(st.kills).sort((a,b)=>b[1].n-a[1].n),kmax=Math.max(1,...K.map(x=>x[1].n)),tot=K.reduce((a,x)=>a+x[1].n,0);
   const tuned=Object.keys(TUNE.v).length?`<p class="zhint">Tuned: ${esc(Object.entries(TUNE.v).map(([k,v])=>k+' '+v).join(', '))}</p>`:'';
@@ -264,6 +265,6 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  // ---------- headless benchmark (tools/zombies-bench.mjs --real) and tests ----------
  E.spec={get on(){return sp.on},sp,start,stop,report,TUNE,apply,resetAll,setCam,setSpeed,setPause,stepOnce,toggleTune,
   bench:{start:(lv,d,o={})=>start({lv,d,doc:o.doc||'std',kit:o.kit||[],sec:o.sec||'',bench:true}),
-   shop(){const r=brain.shopNow(sp.P,E);for(const s of r)sp.stats.buys.push({w:G.wave+1,what:s.what,k:s.k||'',why:s.why});return r.length},
+   shop(){const r=brain.shopNow(sp.P,E);for(const s of r)if(s.spent>0||s.what==='chain'||s.what==='sell')sp.stats.buys.push({w:G.wave+1,what:s.what,k:s.k||'',why:s.why,cost:s.spent});return r.length},
    wave(max=2400){let n=0;while(G.state==='wave'&&n++<max)E.sim(.5);if(G.state==='clear')E.sim(4);return G.state}}};
  return E.spec}

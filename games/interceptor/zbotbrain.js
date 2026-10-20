@@ -141,7 +141,7 @@ export function* shopSteps(P, E) {
   for (const h of hooks) if (h.shop) { try { yield* h.shop(P, E, {afford, open}); } catch (e) { console.warn('bot hook ' + h.name, e); } }
 }
 // the benchmark: every step at once
-export function shopNow(P, E) { const done = []; for (const s of shopSteps(P, E)) { done.push(s); s.result = s.run(); } return done; }
+export function shopNow(P, E) { const done = []; for (const s of shopSteps(P, E)) { const c0 = E.G.cash; done.push(s); s.result = s.run(); s.spent = Math.round(c0 - E.G.cash); } return done; }
 
 // new items (feature detection): anything in the shop this brain has no opinion about gets the generic value; a level tries one now and
 // then (tryNew), the better levels when it is worth it and the purse is comfortable
