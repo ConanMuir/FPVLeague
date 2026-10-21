@@ -200,8 +200,12 @@ export function initFX(api,G,Z){
    if(d.type==='flak'&&d.aim&&d.mesh){d.mesh.updateMatrixWorld(true);const p=d.aim.localToWorld(_b.set(0,1.25,0));muzzle(p,4,.12,2,1.4,.7);for(let i=0;i<3;i++)smoke(0,p,rnd(-1,1),rnd(1,3),rnd(-1,1),rnd(4,6),1.2,1.3,.4,.45,.6,.2)}}}
 
  // ---------- near misses: a whoosh when something flies past close ----------
- function nearTick(){const me=api.player;if(!me||me.dead>0)return;const c=cam();for(const t of TH){if(!live(t))continue;const d2=t.p.distanceToSquared(c);if(d2>6400){t._nd=undefined;continue}const d=Math.sqrt(d2);
-   if(t._nd!==undefined&&d>t._nd&&t._nd<32&&!t._wh){t._wh=1;const rv=_a.subVectors(t.v,me.v).length();if(rv>25){_b.subVectors(t.p,c).normalize();const side=_b.dot(_a.set(1,0,0).applyQuaternion(api.camera.quaternion));au.whoosh(cl(.35*(1-t._nd/32)+.08,0,.4),side)}}t._nd=d}}
+ // tracks within 80 m of the camera (grid), plus the ones measured last frame (NW: their _nd is cleared once they are past 80 m)
+ const NW=new Set(),NC=[];
+ function nearTick(){const me=api.player;if(!me||me.dead>0)return;const c=cam();NC.length=0;api.grid.near(c,80,t=>{if(live(t))NC.push(t)});let more=false;
+  for(const t of NW){if(!live(t)){NW.delete(t);continue}if(!NC.includes(t)&&TH.includes(t)){NC.push(t);more=true}}if(more)NC.sort((a,b)=>TH.indexOf(a)-TH.indexOf(b));
+  for(const t of NC){const d2=t.p.distanceToSquared(c);if(d2>6400){t._nd=undefined;NW.delete(t);continue}const d=Math.sqrt(d2);
+   if(t._nd!==undefined&&d>t._nd&&t._nd<32&&!t._wh){t._wh=1;const rv=_a.subVectors(t.v,me.v).length();if(rv>25){_b.subVectors(t.p,c).normalize();const side=_b.dot(_a.set(1,0,0).applyQuaternion(api.camera.quaternion));au.whoosh(cl(.35*(1-t._nd/32)+.08,0,.4),side)}}t._nd=d;NW.add(t)}}
 
  // ---------- intensity for the score: how many, how close to impact, a boss, a failing defence ----------
  function intensity(){let n=0,tmin=1e9,boss=false;for(const t of TH){if(!live(t))continue;n++;const K=KIND[t.k];if(t.k==='boss')boss=true;if(K&&K.dmg&&!(t.k==='decoy'&&t.ident)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);if(tt<tmin)tmin=tt}}
@@ -255,7 +259,7 @@ export function initFX(api,G,Z){
    if(after){after.after(l,i,o);after=o}else set?.append(l,i,o);sndRows.push({els:[l,i,o],show})}}
  function sndSync(){for(const q of sndRows){q.show();for(const e of q.els)e.style.display=S.gmode==='z'?'':'none'}}
  sndSync();document.getElementById('gmode')?.addEventListener('click',()=>setTimeout(sndSync));
- function wipe(){endCine();MZ.length=0;KB.length=0;FI.length=0;smokeClear();FLM.upd(1e3);TRL.upd(1e3);TR.length=0;for(const d of DB)d.on=false;for(const s of SW){s.L.length=0;s.m.count=0}gn=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0);KC.on=false;TS.s=1;TS.t0=-9;RQ.clear();FR.salvo=FR.aaS=null}
+ function wipe(){endCine();MZ.length=0;NW.clear();KB.length=0;FI.length=0;smokeClear();FLM.upd(1e3);TRL.upd(1e3);TR.length=0;for(const d of DB)d.on=false;for(const s of SW){s.L.length=0;s.m.count=0}gn=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0);KC.on=false;TS.s=1;TS.t0=-9;RQ.clear();FR.salvo=FR.aaS=null}
  const z0=Z.start;Z.start=()=>{wipe();z0();an.reset();newWave();W.st=G.state;root.visible=true};
  const z1=Z.stop;Z.stop=()=>{const was=G.on;z1();if(!was)return;wipe();an.reset();au.stopMusic();root.visible=false};
  // harness: what the FX layer is doing right now (tools/zombies-fx.mjs)

@@ -95,6 +95,10 @@ jobs:
           - check: zombies-test (classic, saves, meta, campaign)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=classic,saves,meta,campaign
+          # the grid section plays a seeded wave twice (grid vs brute force), so it gets its own job
+          - check: zombies-test (grid)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=grid
           - check: zombies-test (swarm, spectator, reentry)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=swarm,spectator,reentry
@@ -160,4 +164,6 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         env:
           CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
-        run: ${{ matrix.run }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }

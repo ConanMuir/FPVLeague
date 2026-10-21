@@ -16,7 +16,9 @@ import {keys,pad,axv,thrFull,calib,fireBtnIn,initInput,padEdges,mountPad,mountSw
 import {initMenu,syncUI} from '../../engine/menu.js';
 import {mountMod,initModPanel,toggleMod,tab,modMsg} from '../../engine/modpanel.js';
 import {startLoop} from '../../engine/loop.js';
+import {makeInterp} from '../../engine/interp.js';
 import {initZombies} from './zombies.js';
+import {makeGrid} from './grid.js';
 import {strelaBody} from './strela.js';
 import {FA,CW,CH,CROPS,fieldLayout,partRects,fieldData,groundMaterial} from './ground.js';
 import {initBuildings,houseTex,houseWallGeo,houseRoofGeo,houseNight} from './buildings.js';
@@ -330,7 +332,7 @@ class Drone{
  // on the launch mat at the forward position nearest the most urgent track, standing on its fins, nose up, facing the track, motors off
  spawn(){const u=selT(),f=this.home=u?FOBS.reduce((a,b)=>Math.hypot(b.x-u.p.x,b.z-u.p.z)<Math.hypot(a.x-u.p.x,a.z-u.p.z)?b:a):FOBS[1];
   this.p.set(f.mat.x,f.mat.y+(.36+.04)*MSZ+.005,f.mat.z);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);
-  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.vp=0;this.vc=4.2;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true;this.look()}
+  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.vp=0;this.vc=4.2;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true;this.look();IP.cut(this)}
  step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT);if(THR*this.ms**TE<G*.5&&_u.set(0,1,0).applyQuaternion(this.q).y>.7)wt.set(0,0,0)}this.t+=dt;  // standing on its fins below half-hover thrust: the sticks can't tip it over
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&_u.y<.7&&this.pivot(wt,dt))return 0;  // only once it has fallen over: standing on its fins it stays put
@@ -350,7 +352,7 @@ class Drone{
  // airframe aerodynamics and the air it flies through: turbulence (stronger with wind, speed, near the ground and in a Shahed's wake), cruciform fins that
  // weathervane the nose into the airflow and damp pitch/yaw, gusts that push the airframe around. The rate loop has to fight all of it with finite authority.
  aero(dt){const vr=_vr.subVectors(this.v,WIND),s=vr.length(),agl=this.p.y-gh(this.p.x,this.p.z);let wk=0;
-  for(const t of TH)if(live(t)){const r=_wk.subVectors(this.p,t.p),dv=_tv.copy(t.v).normalize(),al=r.dot(dv);if(al<-2&&al>-70){const lat=r.addScaledVector(dv,-al).length();if(lat<7)wk=Math.max(wk,(1-lat/7)*(1+al/70))}}
+  GRID.near(this.p,71,t=>{if(!live(t))return;const r=_wk.subVectors(this.p,t.p),dv=_tv.copy(t.v).normalize(),al=r.dot(dv);if(al<-2&&al>-70){const lat=r.addScaledVector(dv,-al).length();if(lat<7)wk=Math.max(wk,(1-lat/7)*(1+al/70))}});  /* a wake is under 70.4 m behind its track */
   const sg=(.3+WX.wind*.12+s*.015)*(1+.5*sm(1-agl/60))*(1+2*wk),gs=.08*WX.wind+.2+3*wk;
   this.w.addScaledVector(ou(this.tb,dt,.25,sg,.4),dt);ou(this.gu,dt,1.8,gs,.5);  // coloured noise: sg rad/s² over 0.25 s, gs m/s over 1.8 s
   if(s>6)weathervane(this,vr,s,dt,KW,KD)}  // fins rotate the nose toward the relative wind
@@ -417,6 +419,11 @@ function shahedMesh(jet){const g=new THREE.Group(),m=jet?SHJ:SHM[Math.random()*3
  if(jet){add(SHG.pod,SHEN,0,.36,-1.05);add(SHG.pylon,m,0,.2,-1.0);add(SHG.ex,EXM,0,.36,-1.64)}else{add(SHG.hub,SHEN,0,0,-1.86);add(SHG.disc,MAT.prop,0,0,-1.96);prop=add(SHG.blade,MS.dark,0,0,-1.96)}
  scene.add(g);return{g,prop}}
 const TH=[],FIRES=[];let tid=0;
+// render interpolation (engine/interp.js): the sim ticks at 120 Hz, frames draw the interceptor and the tracks between their last two ticks.
+// Zombies registers its own movers (helper shots, swarm drones) through api.interp.
+const IP=makeInterp();IP.add(each=>{if(player)each(player)});IP.add(TH);
+// spatial grid over the tracks for neighbour queries (grid.js): open while a tick runs (not while the threats move) and while a frame is drawn
+const GRID=makeGrid(TH);
 const live=t=>t.st==='cruise'||t.st==='dive',liveSites=()=>SITES.filter(s=>s.hp>0);
 function spawnThreat(jet){const L=liveSites();if(!L.length)return;const s=L[Math.random()*L.length|0],aim=s.aims[Math.random()*s.aims.length|0],D=DIFF[demo?1:S.diff];
  const x0=(Math.random()-.5)*4600,alt=Math.random()<.35?80+Math.random()*120:250+Math.random()*650,p=new V3(x0,gh(x0,SPAWNZ)+alt,SPAWNZ);
@@ -451,7 +458,7 @@ function killThreat(t,cat){if(Z.on)Z.kill(t,cat);if(cat){t.st='dead';boom(t.p,3.
 function boom(p,k){if(Z.on)Z.flash(p,k);FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
  boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*(Z.on?Math.min(k,3):k));shake=Math.max(shake,near(p)*k*.6);noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}
 function fires(dt){for(const f of FIRES)if((f.t-=dt)<=0){f.t=.06;FX.emit(f.p,0xff7a20,3,3,.8,_t.set(0,7,0),2.5);SMK.emit(f.p,0x2b2724,1,2,9,_t.set(0,8,0),1,.75)}}
-const nearestThreat=p=>{let b=null,bd=1e18;for(const t of TH)if(live(t)){const q=t.p.distanceToSquared(p);if(q<bd){bd=q;b=t}}return b};
+const nearestThreat=p=>GRID.nearest(p,live);
 // most urgent track: least time to reach its target
 const urgent=()=>{if(Z.on)return Z.urgent();let b=null,bt=1e18;for(const t of TH)if(live(t)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(tt<bt){bt=tt;b=t}}return b};
 // selected track: the most urgent unless you picked one with Next track (N); tracks cycle in order of urgency
@@ -475,7 +482,7 @@ const aspect=(t,p)=>{const c=_ad.subVectors(p,t.p).normalize().dot(_tv.copy(t.v)
 let player=null,demo=true,paused=false,menuOpen=true,shake=0,camMode=S.cam|0;
 let wave=0,wstate='brief',wT=0,toSpawn=0,spawnT=0,saved=0,lost=0,spent=0,ws=0,wl=0;
 const deadP=new V3(),deadC=new V3();
-function launch(){if(!player)player=new Drone();player.spawn();TH.forEach(t=>{t.pd=t.dmin=1e9;t.cvm=0});fireWas=true;kbThr=0;kbArm=false;camUp=false;lqS=1;{const v=typeof S.tiltSw==='string'?swRead(S.tiltSw):null;if(v!=null)camUp=v}
+function launch(){if(!player)player=new Drone();player.spawn();TH.forEach(t=>{t.pd=t.dmin=1e9;t.cvm=0});FW.clear();fireWas=true;kbThr=0;kbArm=false;camUp=false;lqS=1;{const v=typeof S.tiltSw==='string'?swRead(S.tiltSw):null;if(v!=null)camUp=v}
  if(!demo)feed(`On the mat at <b>${player.home.n}</b>. Throttle up to take off`)}
 function relaunch(){if(player.dead<=0&&player.p.distanceTo(player.home.mat)>3)spent++;launch()}
 function lose(why){const d=player;if(d.dead>0)return;d.dead=RELT;spent++;deadP.copy(d.p);d.mesh.visible=false;
@@ -484,19 +491,28 @@ function lose(why){const d=player;if(d.dead>0)return;d.dead=RELT;spent++;deadP.c
  if(why==='crash')feed('Interceptor lost: crashed');if(why==='bat')feed('Interceptor lost: battery flat')}
 const tName=t=>`T${String(t.id).padStart(2,'0')} ${t.k&&Z.on?Z.tname(t):t.jet?'Geran-3':'Shahed'}`;
 function detonate(){if(Z.on)return Z.detonate();const d=player,out=[];
- for(const t of TH)if(live(t)){const r=t.p.distanceTo(d.p);if(r>30)continue;const cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a.subVectors(t.p,d.p))/(r||1)),re=r+cv*FDLY;
+ GRID.near(d.p,30,t=>{if(!live(t))return;const r=t.p.distanceTo(d.p);if(r>30)return;const cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a.subVectors(t.p,d.p))/(r||1)),re=r+cv*FDLY;
   if(Math.random()<pkill(r,cv)){const cat=re<2.4&&Math.random()<.55;killThreat(t,cat);out.push(`<span class="cg">${tName(t)} ${cat?'destroyed: its warhead went up':'hit, going down'}</span> (${r.toFixed(1)} m)`)}
   else if(!t.dmg&&Math.random()<Math.exp(-(((re-1.2)/(5*LETH/4))**2))){damage(t);out.push(`<span class="co">${tName(t)} damaged, still flying</span> (${r.toFixed(1)} m)`)}
-  else out.push(`<span class="co">Missed ${tName(t)}: burst ${re.toFixed(1)} m away</span>${cv>40?' · closing too fast, get in its six':''}`)}
+  else out.push(`<span class="co">Missed ${tName(t)}: burst ${re.toFixed(1)} m away</span>${cv>40?' · closing too fast, get in its six':''}`)});
  lose('det');if(!demo)feed(out.join('<br>')||'Detonated: nothing in range')}
 // damaged: smoking, slower, sinking; some fail a little later
 function damage(t){t.dmg=1;t.cs*=.8;t.spd*=.8;t.fail=Math.random()<.45?6+Math.random()*16:0;FX.emit(t.p,0xffb040,30,8,.6,null,2)}
 // warhead: contact always fires it; the proximity fuse fires at closest approach inside its 6 m sensing range; the detonate button fires it any time
-function fuse(){const d=player,fire=Z.on&&Z.botFire?Z.botFire():fireIn(),edge=fire&&!fireWas;fireWas=fire;let hit=false,rec=false;
- for(const t of TH){if(!live(t))continue;const r=_a.subVectors(t.p,d.p).length(),cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a)/(r||1));
-  if(r<1.5)hit=true;else if(r<LETH*1.5&&r>t.pd)rec=true;
-  if(r<20){t.dmin=Math.min(t.dmin,r);t.cvm=Math.max(t.cvm,cv)}else if(t.dmin<20&&r>t.pd&&!demo){feed(`<span class="co">Passed ${tName(t)} ${Math.round(t.dmin)} m off</span>${S.fuse==='auto'?' · outside the 6 m fuse':''}`);t.dmin=1e9;t.cvm=0}
-  t.pd=r}
+// Only tracks near the interceptor matter (grid query): a track's range at the last fuse check (t.pd) is kept for those it saw then (t.fk);
+// one it didn't see was farther than FR then, and FR covers the fuse window, so for it "opening" can't be true yet. Tracks that came inside
+// 20 m and haven't been reported yet (FW) are followed wherever they go, for the "Passed ... m off" line.
+let FK=0;const FW=new Set(),FC=[];
+// sim tick counter (restarts with each match) and the rotating schedule for AI decisions: think(id) is true on every THINK-th tick, offset
+// by the entity's id, so helpers and tracks spread their target searches and re-plans over the ticks; their movement still runs every tick
+let TK=0;const THINK=4,think=(id,k=THINK)=>(TK+(id|0))%k===0;
+function fuse(){const d=player,fire=Z.on&&Z.botFire?Z.botFire():fireIn(),edge=fire&&!fireWas;fireWas=fire;let hit=false,rec=false;const k=++FK;FC.length=0;
+ GRID.near(d.p,Math.max(30,LETH*1.5+10),t=>{if(live(t))FC.push(t)});let more=false;
+ for(const t of FW){if(!live(t)){FW.delete(t);continue}if(!FC.includes(t)&&TH.includes(t)){FC.push(t);more=true}}if(more)FC.sort((a,b)=>TH.indexOf(a)-TH.indexOf(b));
+ for(const t of FC){const pd=t.fk===k-1?t.pd:Infinity,r=_a.subVectors(t.p,d.p).length(),cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a)/(r||1));
+  if(r<1.5)hit=true;else if(r<LETH*1.5&&r>pd)rec=true;
+  if(r<20){t.dmin=Math.min(t.dmin,r);t.cvm=Math.max(t.cvm,cv)}else if(t.dmin<20&&r>pd&&!demo){feed(`<span class="co">Passed ${tName(t)} ${Math.round(t.dmin)} m off</span>${S.fuse==='auto'?' · outside the 6 m fuse':''}`);t.dmin=1e9;t.cvm=0}
+  t.pd=r;t.fk=k;if(t.dmin<20)FW.add(t);else FW.delete(t)}
  if(hit||(Z.on?Z.autoFuse():S.fuse==='auto')&&rec||edge)detonate()}
 
 // ---------- waves ----------
@@ -509,7 +525,7 @@ function waves(dt){if(Z.on)return Z.waves(dt);
   if(!toSpawn&&!TH.some(live)){wstate='clear';wT=5;if(!demo){banner(`WAVE ${wave} CLEAR`,'cg',2.6);feed(`Wave ${wave}: <span class="cg">${ws} down</span> · <span class="cr">${wl} hit${wl===1?'':'s'}</span>`)}}return}
  if(wstate==='clear'&&(wT-=dt)<=0)startWave()}
 const dropMesh=m=>{scene.remove(m);if(m?.userData.own)m.traverse(o=>o.geometry?.dispose())};  // a track mesh with its own geometry (the Mothership) frees it when the track goes
-function resetWorld(){pickT=null;TH.forEach(t=>dropMesh(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
+function resetWorld(){TK=0;pickT=null;TH.forEach(t=>dropMesh(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
 function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);if(S.gmode==='z')Z.start();else{Z.stop();startWave();toSpawn--;spawnThreat(false);spawnT=25+Math.random()*20}launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
 function startDemo(){Z.stop();demo=true;resetWorld();setWeather(S.wx);if(player)player.mesh.visible=false;startWave();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
 function showMenu(v){menuOpen=v;$('menu').hidden=!v;paused=v&&!demo&&!(Z.on&&Z.online)}  // a co-op game (znet.js) keeps running behind the menu
@@ -653,23 +669,24 @@ $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','
  try{navigator.clipboard.writeText(t).then(()=>feed('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 
 // ---------- main loop ----------
-function step(dt){const me=player;
+function step(dt){const me=player;TK++;IP.snap();GRID.open();try{
  if(me&&!demo&&!(Z.on&&Z.idle())){if(me.dead>0){  /* Z.idle: a co-op pilot who joined mid-wave waits on the mat for the next base screen */if((me.dead-=dt)<=0&&wstate!=='over')launch()}else{humanControl(me,dt);if(me.mah>=BCAP)me.thr=0;const h=me.step(dt);if(h>CRASH)lose('crash');else if(me.mah>=BCAP&&me.gt>0)lose('bat');else fuse()}}
- for(const t of TH)threatStep(t,dt);waves(dt);fires(dt);if(Z.on)Z.step(dt)}
+ GRID.close();for(const t of TH)threatStep(t,dt);GRID.open();waves(dt);fires(dt);if(Z.on)Z.step(dt)}finally{GRID.close()}}
 // Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
 const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
- setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
+ interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
 // Graphics quality and the FPS meter (igfx.js); the shader warm-up (engine/warm.js) runs once the menu is up: the scene with and without the
 // sky's environment map (cloud decks, night and thermal drop it), and one frame through the camera-feed pass
 const IG=initGfx({renderer,composer,bloom,resize,scene,camera,sun,clouds:cloudG,S,feed,rain:()=>{if(WX)wxLook(thermLook)},active:()=>!menuOpen&&!demo&&!paused&&!(Z.on&&Z.hold()),steps:()=>Z.on&&Z.G.state==='wave'});
 setTimeout(()=>{let e=null;const se=sens.enabled;sens.enabled=true;try{composer.render()}catch(x){}sens.enabled=se;warmUp({variants:[[()=>{e=scene.environment;scene.environment=e?null:envRT?.texture||null},()=>scene.environment=e]]})},1200);
 startDemo();
-startLoop({pre:()=>padEdges(padKeys),step,cap:()=>Z.stepCap||12,speed:()=>GSPD*(Z.on?Z.tsc:1),slow:()=>Z.on&&Z.tsc<1,paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now)=>{
+// each frame draws the moment alpha of the way from the previous tick to the last one (IP.begin), then puts the sim state back (IP.end)
+startLoop({pre:()=>padEdges(padKeys),step,cap:()=>Z.stepCap||12,speed:()=>GSPD*(Z.on?Z.tsc:1),paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now,alpha)=>{IP.begin(alpha);GRID.open();try{
  if(!menuOpen&&!demo)switches();
  const fpvOn=!demo&&camMode===0&&player&&player.dead<=0&&!Z.cine,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
  sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.04-.18*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
- weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);hud(vd);overlay();if(Z.on)Z.overlay(oc)}});
+ weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);hud(vd);overlay();if(Z.on)Z.overlay(oc)}finally{GRID.close();IP.end()}}});

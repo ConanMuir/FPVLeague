@@ -19,8 +19,8 @@ export function applyQ(G){const f=QF[qId]||1;G.traverse(o=>{const u=o.userData;i
 
 // ---------- procedural textures ----------
 // tileable value noise (period P cells) and fbm
-function pn(x,y,P,s){const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf),h=(a,b)=>hash2((a%P+P)%P+s*17.3,(b%P+P)%P-s*7.1);
- const a=h(xi,yi),b=h(xi+1,yi),c=h(xi,yi+1),d=h(xi+1,yi+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v}
+function pn(x,y,P,s){const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf),x1=xi+1,y1=yi+1,sx=s*17.3,sy=s*7.1;  // the four corner hashes written out (a closure per call made the texture builds slow)
+ const a=hash2((xi%P+P)%P+sx,(yi%P+P)%P-sy),b=hash2((x1%P+P)%P+sx,(yi%P+P)%P-sy),c=hash2((xi%P+P)%P+sx,(y1%P+P)%P-sy),d=hash2((x1%P+P)%P+sx,(y1%P+P)%P-sy);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v}
 function pf(x,y,P,s,o=4){let t=0,a=.5,f=1,n=0;for(let i=0;i<o;i++){t+=pn(x*f,y*f,P*f,s+i)*a;n+=a;a*=.5;f*=2}return t/n}
 function dataTex(S,fn,lin=true){const d=new Uint8Array(S*S*4),c=[0,0,0];for(let j=0;j<S;j++)for(let i=0;i<S;i++){fn(c,i/S,j/S,i,j);const k=(j*S+i)*4;d[k]=cl(c[0],0,1)*255;d[k+1]=cl(c[1],0,1)*255;d[k+2]=cl(c[2],0,1)*255;d[k+3]=255}
  const t=new THREE.DataTexture(d,S,S);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.magFilter=THREE.LinearFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.generateMipmaps=true;t.anisotropy=8;if(!lin)t.colorSpace=THREE.SRGBColorSpace;t.needsUpdate=true;return t}
@@ -33,6 +33,8 @@ let DET=null;export const detTex=()=>DET||(DET=dataTex(512,(c,x,y)=>{const r=has
 let TN=null;const turfN=()=>TN||(TN=(()=>{const S=256,h=new Float32Array(S*S);for(let j=0;j<S;j++)for(let i=0;i<S;i++)h[j*S+i]=.55*hash2(i*1.37,j*.91)+.45*pf(i/S*16,j/S*64,16,9,2);
  const H=(i,j)=>h[((j+S)%S)*S+(i+S)%S];return dataTex(S,(c,x,y,i,j)=>{const dx=(H(i+1,j)-H(i-1,j))*1.6,dy=(H(i,j+1)-H(i,j-1))*1.6,l=Math.hypot(dx,dy,1);c[0]=.5-dx/l*.5;c[1]=.5-dy/l*.5;c[2]=.5+.5/l})})());
 export const turfNormal=()=>turfN();
+/** render/warm.js: the textures every outdoor map shares, built ahead in idle time (~0.4 s the first time an outdoor map is picked) */
+export function warmOutdoor(){detTex();turfN()}
 
 // ---------- terrain: CPU colour layers (ground/rock/snow, water beds) + shader detail (world-space, triplanar rock, derivative bump) ----------
 export function terrainMat(D){const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0});const td=detTex();

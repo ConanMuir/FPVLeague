@@ -166,7 +166,7 @@ export function initZombies(api){
    P.q.splice(i,1);const j=P.list.lastIndexOf(q.k);if(j>=0)P.list.splice(j,1);c++}return c};
  // movers for the kinds Riley's flight code doesn't cover (zenemy.js); true = handled there
  // Nightmare feints (tac.feint): a track marked at spawn switches to another site (the weakest) about 2.2 km out, straight in from there
- Z.tstep=(t,dt)=>{if(t.feint===1&&t.st==='cruise'&&Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)<2200){t.feint=2;const L=api.liveSites().filter(s=>s!==t.tgt);
+ Z.tstep=(t,dt)=>{if(t.feint===1&&t.st==='cruise'&&api.think(t.id)&&Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)<2200){t.feint=2;const L=api.liveSites().filter(s=>s!==t.tgt);
    if(L.length&&!t.spoof&&!(t.lure>0)){const s=weakest(L);t.tgt=s;t.aim=pick(s.aims);t.wps.length=0}}
   return en.tstep(t,dt)};
 
@@ -197,15 +197,15 @@ export function initZombies(api){
 
  // player warhead in Zombies: Riley's kill model (pkill from miss distance + fuse delay), plus the one-hit/armor rules
  Z.detonate=()=>{const d=api.player,out=[];G.burst={n:0};
-  for(const t of TH)if(api.live(t)){const r=t.p.distanceTo(d.p);if(r>30)continue;const cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a.subVectors(t.p,d.p))/(r||1));
+  api.grid.near(d.p,30,t=>{if(!api.live(t))return;const r=t.p.distanceTo(d.p);if(r>30)return;const cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a.subVectors(t.p,d.p))/(r||1));
    const o=outcome(t,r,cv);t.by='p';
-   if(t.k==='boss'){if(o!=='miss'){Z.bossHit(t);out.push(`<span class="cg">${Z.tname(t)} hit</span> (${r.toFixed(1)} m)`)}else out.push(`<span class="co">Missed ${Z.tname(t)}</span>`);continue}
+   if(t.k==='boss'){if(o!=='miss'){Z.bossHit(t);out.push(`<span class="cg">${Z.tname(t)} hit</span> (${r.toFixed(1)} m)`)}else out.push(`<span class="co">Missed ${Z.tname(t)}</span>`);return}
    if(o==='kill'){const cat=r<2.4&&Math.random()<.55;api.killThreat(t,cat);out.push(`<span class="cg">${Z.tname(t)} ${r<KIND[t.k].hitR?'direct hit':'down'}</span> (${r.toFixed(1)} m)`)}
    else if(o==='damage'){api.damage(t);out.push(`<span class="co">${Z.tname(t)} damaged${KIND[t.k].armor===1?' (armored: needs a direct hit)':''}</span>`)}
-   else out.push(`<span class="co">Missed ${Z.tname(t)} (${r.toFixed(1)} m)</span>`)}
+   else out.push(`<span class="co">Missed ${Z.tname(t)} (${r.toFixed(1)} m)</span>`)});
   const kills=G.burst.n;G.burst=null;G.streak=kills?G.streak+1:0;G.detFlag=true;
   // big readout of how good the timing was: the closest track's miss distance at the moment of the burst, plus a result sound
-  let nr=1e9;for(const t of TH)nr=Math.min(nr,t.p.distanceTo(d.p));  // includes the tracks this burst just killed (they leave TH later)
+  let nr=1e9;api.grid.near(d.p,300,t=>{nr=Math.min(nr,t.p.distanceTo(d.p))});  // includes the tracks this burst just killed (they leave TH later); past 300 m the readout is just NOTHING IN RANGE
   const dmg=out.some(s=>s.includes('damaged')),txt=kills?`HIT — ${nr.toFixed(1)} m`:dmg?`DAMAGED — ${nr.toFixed(1)} m`:nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';
   banner(txt,kills?'cg':dmg?'co':'cr',1.4);G.det={txt,t:performance.now()};
   if(kills)tone(520,1040,.22,.14,'triangle');else if(dmg)tone(440,520,.2,.1,'triangle');else tone(260,190,.16,.045,'triangle');
@@ -249,10 +249,13 @@ export function initZombies(api){
   pk.step(dt);rk.step(dt);if(alive){G.detFlag=false;if(G.pp)directHits(me);(G.pp||(G.pp=new V3())).copy(me.p)}else G.pp=null;G.wasAlive=alive;def.step(dt);
   for(const t of TH)if(t.k==='decoy'&&!t.ident&&api.live(t)&&(alive&&me.p.distanceTo(t.p)<900||Z.ident?.(t)))t.ident=1};
  // fast tracks (or your interceptor under Rocket Assist) move metres per step, faster than the fuse's sampling: check the closest approach over the step itself. Only a direct hit counts.
- function directHits(me){const fast=me.v.lengthSq()>150*150;for(const t of TH){if(!api.live(t)||!t.pp||t.spd<150&&!fast)continue;const K=KIND[t.k];
+ // only tracks that can come within a hit radius over the tick are checked: now within hitR + .4 + how far it and you moved this tick (grid)
+ const HITR=Math.max(...Object.values(KIND).map(K=>K.hitR||0));
+ function directHits(me){const fast=me.v.lengthSq()>150*150,R=HITR+.4+api.grid.moved()+me.p.distanceTo(G.pp)+1;
+  api.grid.near(me.p,R,t=>{if(!api.live(t)||!t.pp||t.spd<150&&!fast)return;const K=KIND[t.k];
    const r0=_a.subVectors(t.pp,G.pp),dr=_b.subVectors(t.p,me.p).sub(r0),L=dr.lengthSq(),s=L>1e-9?cl(-r0.dot(dr)/L,0,1):0,d=r0.addScaledVector(dr,s).length();
-   if(d<K.hitR+.4&&Z.mirror){G.streak++;G.detFlag=true;Z.req(['h',t.id]);banner('DIRECT HIT','cg',1.6);api.lose('det');return}  /* co-op client: the host confirms it */
-   if(d<K.hitR+.4){t.by='p';G.burst={n:0};api.killThreat(t,true);G.burst=null;G.streak++;G.detFlag=true;feed(`<span class="cg">DIRECT HIT: ${Z.tname(t)} destroyed</span>`);banner('DIRECT HIT','cg',1.6);api.lose('det');return}}}
+   if(d<K.hitR+.4&&Z.mirror){G.streak++;G.detFlag=true;Z.req(['h',t.id]);banner('DIRECT HIT','cg',1.6);api.lose('det');return true}  /* co-op client: the host confirms it */
+   if(d<K.hitR+.4){t.by='p';G.burst={n:0};api.killThreat(t,true);G.burst=null;G.streak++;G.detFlag=true;feed(`<span class="cg">DIRECT HIT: ${Z.tname(t)} destroyed</span>`);banner('DIRECT HIT','cg',1.6);api.lose('det');return true}})}
 
  // ---------- track display: claimed = yellow, free = red; the selected track gets a white ring ----------
  // radar picture: each kind has a detection range from the radar site (the radar perk stretches it); the fast threats come from early warning.

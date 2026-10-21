@@ -128,9 +128,13 @@ export function initSites(api,G,Z,fog){
 
  // ---------- convoys: 3-5 trucks on a road, one kind of cargo for the next wave; AA trucks from wave 6 ----------
  function convoy(ri,w,cargo,o){const r=W.routes[ri];if(!r)return null;const t={id:o?o.id:W.nid++,t:'convoy',route:ri,sec:r.sec,tier:0,parts:[],dead:false,known:false,seen:false,ls:null,halt:0,cargo,extra:[],pats:[]};
-  const n=o?o.parts.length:3+(w>=8?1:0)+(w>=18?1:0),aa=o?0:(w>=6?1:0)+(w>=16?1:0),s0=o?0:r.L*rnd(.12,.42);
+  const n=o?o.parts.length:3+(w>=8?1:0)+(w>=18?1:0),aa=o?0:(w>=6?1:0)+(w>=16?1:0),s0=o?0:convoyStart(r,(n+aa)*SO.truck.gap);
   if(o)for(const q of o.parts)tpart(t,q.t,q.s,q.hp);else{for(let i=0;i<n+aa;i++){const ty=aa&&(i===1||i===n+aa-1&&aa>1)?'aat':'truck';tpart(t,ty,s0-i*SO.truck.gap,1)}}
   const p=W.at(r,t.parts[0].s);t.x=p.x;t.z=p.z;t.tier=tierOf(depth(p.x,p.z));W.list.push(t);W.ver++;return t}
+ // where a new convoy's lead truck starts: 12-42% along its road, but with every truck already inside the area a pilot can reach
+ // (the roads begin beyond the map edge, outside the AO wall at 4.3 km)
+ function convoyStart(r,span){let sIn=0;for(let i=0;i<r.X.length;i++)if(Math.abs(r.X[i])<4000&&Math.abs(r.Z[i])<4000){sIn=r.cum[i];break}
+  return Math.min(r.L*.85,Math.max(sIn+span,r.L*rnd(.12,.42)))}
  function tpart(t,ty,s,hp){const p=part(t,{t:ty,main:ty==='truck',aa:ty==='aat',s,r:3.4,h:3.2,hp:Math.max(0,hp),max:1});p.mesh=mesh(ty==='aat'?GEO.aat:GEO.truck,0,0,0);if(ty==='aat'){p.tur=mesh(GEO.turret,0,0,0);p.tur.rotation.order='YXZ'}
   place(t,p);if(hp<=0)wreck(t,p,true);return p}
  function place(t,p){const r=W.routes[t.route],q=W.at(r,p.s);p.x=q.x;p.z=q.z;p.y=gh(q.x,q.z);p.yaw=q.yaw;if(p.mesh){p.mesh.position.set(p.x,p.y,p.z);p.mesh.rotation.y=p.yaw}if(p.tur)p.tur.position.set(p.x-Math.sin(p.yaw)*1,p.y+2.6,p.z-Math.cos(p.yaw)*1)}
@@ -178,7 +182,7 @@ export function initSites(api,G,Z,fog){
   q.p.addScaledVector(q.v,dt);if(q.p.y<gh(q.p.x,q.p.z)+3)q.p.y=gh(q.p.x,q.p.z)+3;
   if(tg.d.p.distanceTo(q.p)<P.blast){patDie(t,q,true);W.onHit?.(tg.key,P.dmg,'pat')}}
  // one step of the enemy side while someone is out on a sortie (solo / host). pilots: [{key, d}] alive interceptors
- W.step=(dt,pilots,live)=>{bombs(dt);for(let i=W.later.length-1;i>=0;i--){const l=W.later[i];if((l.t-=dt)<=0){W.later.splice(i,1);l.f()}}if(!W.auth||!live)return;
+ W.step=(dt,pilots,live)=>{bombs(dt);for(let i=W.later.length-1;i>=0;i--){const l=W.later[i];if((l.t-=dt)<=0){W.later.splice(i,1);l.f()}}if(!W.auth||!live||W.calm)return;  /* W.calm (tests): guns, patrols and convoys hold still */
   for(const t of W.list){if(t.t==='convoy'&&!t.done){if(t.halt>0)t.halt-=dt;else{for(const p of t.parts)if(p.alive){p.s+=SO.truck.spd*dt;place(t,p)}}
     const L=t.parts.filter(p=>p.alive),r=W.routes[t.route];if(L.length){t.x=L[0].x;t.z=L[0].z}if(L.some(p=>p.main)&&L.some(p=>p.s>=r.L)){t.done=true;for(const p of L){p.alive=false;p.mesh.visible=false;if(p.tur)p.tur.visible=false}W.onDeliver?.(t);W.ver++}}
    for(const q of t.parts)if(q.aa&&q.alive)aaStep(t,q,dt,pilots);for(const q of t.pats)patStep(t,q,dt,pilots)}};
