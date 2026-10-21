@@ -12,7 +12,7 @@
 import {KIND,FAST,SECTORS,sectorOf,chainFrom,BOOST,STOCK,PDEF,EWARN,WACT} from './zdata.js';
 import {warm} from '../../engine/warm.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
-const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+import {money} from '../../engine/hot.js';
 export function initChain(api,G,Z){
  const {THREE,scene,TH,SITES,gh}=api,V3=THREE.Vector3,_a=new V3();
  const SITE_C={x:0,z:1950};  // centre of the defended area (zombies.js): spawn bearings are measured from here

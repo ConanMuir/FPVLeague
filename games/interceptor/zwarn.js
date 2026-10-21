@@ -9,7 +9,7 @@
 // The actions apply to the selected track if it is a fast one with an alert, else to the most urgent alert. Co-op: a client's action is a
 // request ('W') that the host checks against its own state and applies (znet.js); the result reaches everyone through the team feed.
 import {KIND,FAST,EWARN,WACT} from './zdata.js';
-const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+import {money} from '../../engine/hot.js';
 export function initWarn(api,G,Z){
  const {THREE,TH,SITES,gh}=api,V3=THREE.Vector3,$=id=>document.getElementById(id);
  const isFast=t=>FAST.includes(t.k);

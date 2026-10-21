@@ -6,6 +6,7 @@ import {dot,glow} from '../../engine/render.js';
 import {fbm,sm} from '../../engine/util.js';
 import {warm} from '../../engine/warm.js';
 import {KIND,EVADE_SOME} from './zdata.js';
+import {hyp} from '../../engine/hot.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initEnemies(api,G,Z){
  const {THREE,scene,TH,gh,SHG,SHM,SHJ,SHEN,EXM}=api,V3=THREE.Vector3;
@@ -48,7 +49,7 @@ export function initEnemies(api,G,Z){
  // FPV swarm: each member keeps a loose slot around its group's path, low and weaving, then they all dive on their aim points
  function swarm(t,dt){if(!t.off){t.off=new V3(rnd(-45,45),0,rnd(-45,45));t.ph=Math.random()*6}t.ph+=dt;
   const w=t.wps[0]||t.aim;_a.set(w.x-t.p.x,0,w.z-t.p.z);if(t.wps.length&&_a.length()<250)t.wps.shift();
-  const ad=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z);
+  const ad=hyp(t.aim.x-t.p.x,t.aim.z-t.p.z);
   if(ad<260||t.st==='dive'){t.st='dive';_a.subVectors(t.aim,t.p);if(_a.length()<4||t.p.y<=gh(t.p.x,t.p.z)+.5){Z.impact(t);return true}_a.normalize().multiplyScalar(t.spd*1.3);t.v.lerp(_a,Math.min(1,dt*3));t.p.addScaledVector(t.v,dt);return true}
   const k=cl(ad/1500,0,1);_a.set(w.x+t.off.x*k-t.p.x,0,w.z+t.off.z*k-t.p.z).normalize();
   _a.x+=Math.sin(t.ph*1.7+t.id)*.35;_a.z+=Math.cos(t.ph*1.3+t.id)*.35;_a.setY(0).normalize().multiplyScalar(t.spd);
@@ -56,7 +57,7 @@ export function initEnemies(api,G,Z){
  // ballistic: a steep straight run at constant speed onto its aim point; hypersonic: glides high, then dives in the last 30 km; ICBM: straight down the line
  function fast(t,dt){if(Z.reMove?.(t,dt))return true;  /* the ICBM's midcourse / re-entry profile (zreentry.js) */
   const r=_a.subVectors(t.aim,t.p),d=r.length();if(d<t.spd*dt*1.2||t.p.y<=gh(t.p.x,t.p.z)+1){t.p.copy(t.aim);Z.impact(t);return true}
-  if(t.k==='hyper'){const hd=Math.hypot(r.x,r.z);if(hd>30000){r.y=(30000+gh(t.aim.x,t.aim.z)-t.p.y)*.2;}}
+  if(t.k==='hyper'){const hd=hyp(r.x,r.z);if(hd>30000){r.y=(30000+gh(t.aim.x,t.aim.z)-t.p.y)*.2;}}
   t.v.copy(r.normalize()).multiplyScalar(t.spd);t.p.addScaledVector(t.v,dt);return true}
  const mover=(t,dt)=>t.k==='swarm'?swarm(t,dt):KIND[t.k].armor==='hard'?fast(t,dt):false;
 

@@ -19,14 +19,14 @@ import {dynRes} from '../src/render/dynres.js';
 // to `thin` of their trees, beyond far not at all; wx: weather particles; fx: smoke, fire, debris and tracer rates; ground: the field
 // shader's crop rows and the surface bump (0 = flat texture); bld: site fires and smoke; swarm: swarm drone detail (shadows, booster puffs);
 // bloom: glow pass; houseSh: village houses cast shadows.
-// Proximity (detail falls off with distance; on High only where it can't be seen): lodD: forest tiles past this (m) get low-poly crowns
+// Proximity (detail falls off with distance; on High only where it can't be seen): lodD / lodD2: forest tiles past these (m) get 80- / 20-face crowns (180 nearer)
 // (at 3 km a crown is two pixels); gFar: the field shader's rows, tracks and verges fade out by this distance and are skipped beyond;
 // detD: the surface bump is skipped past this (it has faded to nothing by then); fxR: explosion shockwaves, debris and smoke and the fires'
 // flames are skipped this much nearer (×7000 m, 3000 m, 3500 m...); bldFar: site fires and smoke past this (m) are thinned to a third.
 export const GK={
- high:{aa:'msaa',pr:1.5,res:1,sh:4096,box:220,treeSh:1,near:Infinity,far:Infinity,thin:1,wx:1,fx:1,ground:1,bld:1,swarm:1,bloom:1,houseSh:1,lodD:3000,gFar:6000,detD:2000,fxR:1,bldFar:Infinity},
- med:{aa:'smaa',pr:1.25,res:.9,sh:2048,box:170,treeSh:1,near:2200,far:6500,thin:.5,wx:.6,fx:.7,ground:1,bld:.7,swarm:1,bloom:1,houseSh:1,lodD:1200,gFar:3500,detD:1000,fxR:.7,bldFar:3000},
- low:{aa:'',pr:1,res:.75,sh:1024,box:120,treeSh:0,near:1300,far:3800,thin:.35,wx:.3,fx:.45,ground:0,bld:.4,swarm:0,bloom:0,houseSh:0,lodD:0,gFar:1,detD:0,fxR:.45,bldFar:1500}};
+ high:{aa:'msaa',pr:1.5,res:1,sh:4096,box:220,treeSh:1,near:Infinity,far:Infinity,thin:1,wx:1,fx:1,ground:1,bld:1,swarm:1,bloom:1,houseSh:1,lodD:900,lodD2:2500,gFar:6000,detD:2000,fxR:1,bldFar:Infinity},
+ med:{aa:'smaa',pr:1.25,res:.9,sh:2048,box:170,treeSh:1,near:2200,far:6500,thin:.5,wx:.6,fx:.7,ground:1,bld:.7,swarm:1,bloom:1,houseSh:1,lodD:900,lodD2:2000,gFar:3500,detD:1000,fxR:.7,bldFar:3000},
+ low:{aa:'',pr:1,res:.75,sh:1024,box:120,treeSh:0,near:1300,far:3800,thin:.35,wx:.3,fx:.45,ground:0,bld:.4,swarm:0,bloom:0,houseSh:0,lodD:0,lodD2:1300,gFar:1,detD:0,fxR:.45,bldFar:1500}};
 export const LEVELS=['high','med','low'],PREFS=['auto',...LEVELS],NAMES={auto:'Auto',high:'High',med:'Medium',low:'Low'};
 export const cleanPref=v=>PREFS.includes(v)?v:'auto';
 const subs=new Set(),dyn=dynRes({min:.6,max:1});
