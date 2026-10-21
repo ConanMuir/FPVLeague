@@ -7,6 +7,7 @@ import {viteSingleFile} from 'vite-plugin-singlefile';
 export default defineConfig({
   base: './',
   plugins: [viteSingleFile()],
-  server: {open: '/app.html'},
+  /* no browser tab on dev-server start (tools and agents start it headless); DL_OPEN=1 npm run dev opens app.html */
+  server: {open: process.env.DL_OPEN === '1' ? '/app.html' : false},
   build: {target: 'es2020', modulePreload: {polyfill: false}, chunkSizeWarningLimit: 2000, rollupOptions: {input: 'app.html'}},
 });
