@@ -6,7 +6,9 @@
 //  freeze(o): a static object's matrices are computed once and its subtree is no longer walked by updateMatrixWorld
 //  compileFor(renderer,scene,camera): renderer.compile() the way the frame really draws, into a render target. A plain compile() targets the
 //   screen, so tone-mapped materials get the tone-mapped sRGB variant, while an EffectComposer draws the scene into a render target (no tone
-//   mapping, linear): that variant was then compiled again on first sight anyway (1-2 s the first time the camera turned to the sites)
+//   mapping, linear): that variant was then compiled again on first sight anyway (1-2 s the first time the camera turned to the sites).
+//   compileFor(renderer,root,camera,targetScene,into): root's materials against targetScene's lights / fog / environment, and into=false for
+//   something drawn to the canvas (the last post-processing pass). The one compile path: engine/warm.js and engine/idle.js's warm-ups use it
 //  hyp(x,z): Math.hypot for two numbers without the varargs allocation (Math.hypot boxes its arguments; it showed up as KB per frame)
 import * as THREE from 'three';
 export const hyp=(x,z)=>Math.sqrt(x*x+z*z),hyp3=(x,y,z)=>Math.sqrt(x*x+y*y+z*z);
@@ -21,4 +23,4 @@ export function depthFix(scene){scene.traverse(o=>{const M=o.material;if(!o.isIn
 export const money=n=>{const r=Math.round(n);if(!(Math.abs(r)<1e21))return'$'+r.toLocaleString('en-US');if(Object.is(r,-0))return'$-0';return'$'+String(r).replace(/\B(?=(\d{3})+(?!\d))/g,',')};
 export function freeze(o){o.updateMatrixWorld(true);o.traverse(q=>{q.matrixAutoUpdate=false});o.matrixWorldAutoUpdate=false;return o}
 let _crt=null;
-export function compileFor(renderer,scene,camera,target=null){const rt=renderer.getRenderTarget();_crt=_crt||new THREE.WebGLRenderTarget(1,1);renderer.setRenderTarget(_crt);try{renderer.compile(scene,camera,target)}finally{renderer.setRenderTarget(rt)}}  // target: the scene whose lights / fog / environment to compile against (three's compile)
+export function compileFor(renderer,scene,camera,target=null,into=true){const rt=renderer.getRenderTarget();_crt=_crt||new THREE.WebGLRenderTarget(1,1);renderer.setRenderTarget(into?_crt:null);try{renderer.compile(scene,camera,target)}finally{renderer.setRenderTarget(rt)}}  // target: the scene whose lights / fog / environment to compile against (three's compile)
