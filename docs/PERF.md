@@ -173,6 +173,33 @@ difference 5–9 / 255). The wave-28 views (smoke, thermal) differ because the b
 in the rendering. Main's thermal shot also showed a black rectangle over half the frame, which looks like a render-target resize
 artifact worth checking on main.
 
+**Against main after sim-smooth (#70), league-smooth (#74), pop-strict (#76), CI retry (#77) and sorties (#78).** Interleaved, two
+rounds, medians. CPU side uses `DL_NORENDER=1`. Main is much quieter now (fixed tick, interpolation, grid, warm-up), and the machine
+was too:
+
+| scenario | frame CPU avg | CPU p95 | CPU worst | KB allocated per frame | draw calls |
+|---|---|---|---|---|---|
+| wave 1 | 2.3 → 1.4 | 2.8 → 1.8 | 3.3 → 2.3 | 161 → 89 | 207 → 155 |
+| wave 28 | 2.8 → 2.0 | 3.3 → 2.5 | 4.1 → 3.8 | 308 → 184 | 171 → 141 |
+| boss | 2.7 → 1.8 | 3.2 → 2.3 | 4.1 → 3.0 | 262 → 157 | 233 → 140 |
+| storm | 2.9 → 2.4 | 3.3 → 2.9 | 4.0 → 4.0 | 337 → 207 | 179 → 137 |
+| snow | 2.8 → 2.2 | 3.4 → 2.9 | 4.2 → 4.0 | 327 → 216 | 180 → 137 |
+| night | 2.8 → 2.3 | 3.3 → 2.8 | 3.9 → 4.2 | 328 → 256 | 182 → 190 |
+| dust | 2.8 → 2.2 | 3.3 → 2.7 | 4.4 → 3.3 | 303 → 170 | 164 → 178 |
+| heavy effects | 3.0 → 2.3 | 3.5 → 2.8 | 4.1 → 4.5 | 332 → 229 | 233 → 180 |
+
+- **Frame intervals:** p95 17.1–17.5 ms and worst 17.7–18.1 ms on both builds (vsync-bound, no spikes).
+- **GC:** main had a major GC of 1.7–3.9 ms in 10 of 16 windows; this branch had one in 2 of 16 (2.4 and 2.8 ms).
+- **RTX at 2560×1600, wave 28:** frame CPU 3.1 → 2.3 ms, 179 → 101 draw calls, 3.0 M → 1.3 M triangles.
+- **Event timeline:** main's worst was 48 and 51 ms, this branch's 48 and 47 ms. Main's warm-up and fixed tick already removed its big hitches. CPU p95 over the timeline was 3.5 → 2.8 ms.
+
+In this merge, sim-smooth's grid queries, interpolation and staggered thinking are kept. On top of them, the hot searches make no
+closures: `pickTarget`, the jammer and lock-on keep their query state in one object, with callbacks made once.
+
+`Math.hypot` stays in the jammer's range test. With `hyp()` there, the grid-vs-loop whole-wave comparison in zombies-test diverged.
+That suggests a latent grid/brute-dependent path that a borderline roll exposes. One candidate is the near-miss readout in
+`zombies.js`, which has no range cap of its own in brute mode. sim-smooth may want to look at it.
+
 ## 4. Look
 
 `tools/zombies-perf-shots.mjs` (same seed, fixed cameras), before vs after, all viewed side by side: forest, sites (scattered cloud), high
