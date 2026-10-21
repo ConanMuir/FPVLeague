@@ -63,6 +63,8 @@ function update(){const ids=S.loadout,lo=computeLoadout(ids),st=statsOf(lo,MDEF)
 let PEEK=null;
 function pickCos(c,id){if(!COS[c]?.some(x=>x.id===id))return;if(lockOf(P,c,id)){PEEK={c,id};update();return}PEEK=null;S.cos={...S.cos,[c]:id};save();update()}
 function pick(s,id){if(!partOf(s,id))return;S.loadout=[...S.loadout];S.loadout[s]=id;save();update()}
+/** render/warm.js: the preview renderer, the drone, its shaders and the stat bar ranges, ahead of the first open */
+export function warmGarage(){if(V)return;initView();showDrone(computeLoadout(S.loadout));ranges();V.r.compile(V.sc,V.cam)}
 export function openGarage(){if(!V)initView();$('garage').hidden=false;cosTiles();tab(TAB);if(!V.raf)V.raf=requestAnimationFrame(frame)}
 export function closeGarage(){$('garage').hidden=true}
 // Rocket League-style: a category tab bar, then item tiles for that category (name, one line, good/bad stat tags, EQUIPPED badge)

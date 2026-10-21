@@ -51,6 +51,15 @@ export function setQuality(id){qId=QUAL[id]?id:autoQ();Q=QUAL[qId];DYN.on=id==='
  renderer.setPixelRatio(pr);composer.setPixelRatio(pr);[[composer.renderTarget1,0],[composer.renderTarget2,ms]].forEach(([t,n])=>{if(t.samples!==n){t.samples=n;t.dispose()}});
  if(sun.shadow.mapSize.x!==Q.sh){sun.shadow.mapSize.set(Q.sh,Q.sh);sun.shadow.map?.dispose();sun.shadow.map=null}if(shC)fitShadow(...shC);sizeAll()}
 // the MSAA resolve skips depth (nothing after the scene pass reads it; resolving multisampled depth is slow on ANGLE/D3D11)
+// shader programs: three frees a program when the last material using it is disposed, and every match rebuilds the drones (their trail
+// materials too), so going back to a mode compiled shaders again that it had compiled before (0.1-0.5 s frozen). keepPrograms() holds one
+// more use of every program compiled so far, so they last the session (a few dozen; GPU memory only). main.js calls it now and then.
+export function keepPrograms(){const P=renderer.info.programs;if(P)for(let i=0;i<P.length;i++){const p=P[i];if(!p.__keep){p.__keep=true;p.usedTimes++}}}
+// compile the programs the materials under roots (an object or a list) need for the scene as it is set up now (fog, environment, lights, shadows), the way draw() renders
+// (into the composer's target, or straight to the canvas), and upload their textures: with KHR_parallel_shader_compile the driver compiles
+// in the background, so the first frame that draws them doesn't stall for it (render/warm.js, world/maps.js).
+export function compileFor(roots){if(!Array.isArray(roots))roots=[roots];const rt=renderer.getRenderTarget();renderer.setRenderTarget(direct?null:composer.readBuffer);try{for(const r of roots)renderer.compile(r,camera,scene)}finally{renderer.setRenderTarget(rt)}
+ for(const r of roots)r.traverse(o=>{const ms=Array.isArray(o.material)?o.material:o.material?[o.material]:[];for(const m of ms)for(const k in m){const t=m[k];if(t&&t.isTexture&&!t.isRenderTargetTexture)renderer.initTexture(t)}})}
 export function draw(){if(direct)return renderer.render(scene,camera);const t=composer.renderTarget2;if(t.samples)renderer.properties.get(t).__ignoreDepthValues=true;composer.render()}
 addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);sizeAll();camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()});
 

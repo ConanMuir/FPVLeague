@@ -4,9 +4,9 @@ import {COL,GD,GW,HL,HW,L,RF,V3,W,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {onTune} from '../config/tune.js';
 import {dot} from '../render/particles.js';
-import {bloom,fitShadow,hemi,instDepth,qId,renderer,scaleUV,scene,sun,tex} from '../render/renderer.js';
+import {bloom,compileFor,fitShadow,hemi,instDepth,qId,renderer,scaleUV,scene,sun,tex} from '../render/renderer.js';
 import {GS} from '../state.js';
-import {GOALF,NETM,RIML,floorM,gridTex,mouthM,neonG,outer,pitchLines,rampM,wallM} from './arena.js';
+import {GOALF,NETM,RIML,floorM,goalG,gridTex,mouthM,neonG,outer,pitchLines,rampM,wallM} from './arena.js';
 import {fbm,sm,vnoise} from './noise.js';
 import {UT,applyQ,buildProps,buildStadium,offR,terrainGeo,terrainMat,turfNormal,waterMat} from './outdoor.js';
 export let lookBK=1,mapId='',uvDone=false;export const mapMat={},mapG={};
@@ -95,10 +95,13 @@ function buildOutdoor(id){if(mapG[id])return;const c=OUT[id],G=mapG[id]=new THRE
   s.position.set(Math.cos(a)*r,rnd(200,180),Math.sin(a)*r);s.scale.set(k,k*.5,1);cl2.add(s)}G.add(cl2)}
 // screenshot hook for tools/map-views.mjs: pins the camera at p looking at t (null releases it). Overrides whatever camera.js set, just before each render
 window.__dlMapCam=(p,t)=>{scene.onBeforeRender=p?(r,s,cam)=>{cam.position.set(...p);cam.lookAt(...t);cam.fov=60;cam.updateProjectionMatrix();cam.updateMatrixWorld()}:()=>{}};
-export function setMap(id){if(!LOOKS[id])id='arena';if(id===mapId)return;mapId=id;const O=OUT[id],K=LOOKS[id],DF=id==='df';if(O)buildOutdoor(id);const A=O?mapMat[id]:arenaMat;
+/** render/warm.js: compile the shaders map id needs (its look, the drones, the effects) without showing it; for the Highlands the goals
+ *  (and their two point lights, which are part of every lit shader's key) go away too, as setGame() does */
+export function warmLook(id){if(!LOOKS[id]||id===mapId)return;const prev=mapId,gv=goalG.visible;setMap(id);if(id==='df')goalG.visible=false;try{compileFor(scene)}finally{goalG.visible=gv;setMap(prev)}}
+export function setMap(id){if(!LOOKS[id])id='arena';if(id===mapId)return;mapId=id;const O=OUT[id],K=LOOKS[id],DF=id==='df';const fresh=O&&!mapG[id];if(O)buildOutdoor(id);const A=O?mapMat[id]:arenaMat;
  neonG.visible=outer.visible=!O&&!DF;[floorM,rampM,wallM,...mouthM,...RIML].forEach(m=>m.visible=!DF);sun.target.position.set(0,0,0);for(const k in mapG)mapG[k].visible=k===id;snowP.visible=!!O?.snow;scene.background=K.bg;scene.fog=K.fog;scene.environment=K.env||(O||DF?K.bg:null);
  hemi.color.set(K.hemi[0]);hemi.groundColor.set(K.hemi[1]);hemi.intensity=K.hemi[2];sun.color.set(K.sun[0]);sun.intensity=K.sun[1];sun.position.copy(K.sp);
  fitShadow(...K.sc);
  renderer.toneMappingExposure=K.exp;lookBK=K.bk;bloom.threshold=K.th;bloom.radius=K.br;bloom.strength=(GS.hostTune||S.mod).bloom*K.bk;
  floorM.material=A.floor;rampM.material=A.ramp;wallM.material=A.wall;mouthM.forEach((m,i)=>m.material=A.mouth[i]);GOALF.forEach((m,t)=>m.material=A.gf[t]);
- NETM.forEach(m=>{m.blending=O?THREE.NormalBlending:THREE.AdditiveBlending;m.forceSinglePass=!O;m.opacity=O?.75:.5;m.needsUpdate=true});instDepth(scene)}
+ NETM.forEach(m=>{m.blending=O?THREE.NormalBlending:THREE.AdditiveBlending;m.forceSinglePass=!O;m.opacity=O?.75:.5;m.needsUpdate=true});instDepth(scene);if(fresh)compileFor(scene.children.filter(o=>o.visible))}  // a new map's shaders (and the drones' and effects' under its light) compile in parallel now, not one by one inside its first frame

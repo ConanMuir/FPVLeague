@@ -167,6 +167,8 @@ function groundHit(d,n,np,hit){const P=GEV.p.set(0,0,0);for(let i=0;i<np;i++)P.a
  const vp=_gv.crossVectors(_gw.copy(d.w).applyQuaternion(d.q),_gr.subVectors(P,d.p)).add(d.v);vp.addScaledVector(n,-vp.dot(n));
  GEV.d=d;GEV.speed=hit;GEV.slide=vp.length();GEV.n.copy(n);emitEv('ground',GEV)}
 // League arena or Highlands colliders, swapped with the mode (Highlands built on first use)
+/** render/warm.js: the Highlands colliders ahead of the first Dogfight, built switched off */
+export function warmDFPhys(){if(dfCols)return;buildDF();dfCols.forEach(c=>c.setEnabled(!!mapDF))}
 function setMap(df){if(df===mapDF)return;mapDF=df;if(df&&!dfCols)buildDF();arenaCol.forEach(c=>c.setEnabled(!df));dfCols?.forEach(c=>c.setEnabled(df))}
 function buildDF(){const D=dfCollision(),add=(cd,x,y,z,q)=>{cd.setTranslation(x,y,z).setCollisionGroups(grp(GW_,GHULL|GB_|QRY)).setFriction(1).setFrictionCombineRule(R.CoefficientCombineRule.Min).setRestitution(0).setRestitutionCombineRule(R.CoefficientCombineRule.Max);
   if(q)cd.setRotation(q);dfCols.push(world.createCollider(cd))};dfCols=[];

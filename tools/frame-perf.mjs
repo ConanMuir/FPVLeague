@@ -99,11 +99,19 @@ for (const mode of ['league', 'df']) {
 // ---------- first-use hitches ----------
 // the worst frame (work ms) in the window after each event, plus the synchronous time of the call where there is one
 if (ONLY.has('hitch')) {
-  const p = await page(); await startMatch(p, 'league'); await sleep(5000);
+  const p = await page();
   const worstAfter = async (fn, ms = 1500) => { await p.evaluate(() => { window.__ft.log.length = 0; window.__ft.on = true; });
     const call = await p.evaluate(fn); await sleep(ms); const w = await p.evaluate(() => { window.__ft.on = false; return window.__ft.log.map(x => x[1]); });
     return {call: call == null ? null : r2(call), worst: r2(Math.max(0, ...w)), frames: w.length}; };
   const H = out.hitch = {};
+  // a player in the menu first (12 s): render/warm.js does its first-use work then (builds without it skip this). The worst frame of the
+  // menu's attract demo meanwhile is what that costs.
+  const warm = await p.evaluate(async () => { try { return !!(window.__fp.W = await import('/src/render/warm.js')); } catch (e) { return false; } });
+  if (warm) { await p.evaluate(() => { window.__ft.log.length = 0; window.__ft.on = true; }); const t0 = Date.now(); while (Date.now() - t0 < 30000 && (await p.evaluate(() => window.__fp.W.warmLeft().length))) await sleep(250);
+    const w = await p.evaluate(() => { window.__ft.on = false; const L = window.__ft.log; return [Math.max(0, ...L.map(x => x[2])), L.length]; }); H.menuWhileWarming = {call: null, worst: r2(w[0]), frames: w[1]};  // the warm-up runs between frames: its cost is the longest gap between two menu frames
+    H.warmTasks = await p.evaluate(() => window.__fp.W.warmLog()); await p.evaluate(() => { window.__ft.on = false; }); }
+  else await sleep(12000);
+  await startMatch(p, 'league'); await sleep(5000);
   const score = `() => { const {GS, ball, C, T} = window.__fp; GS.state = 'play'; ball.p.set(0, T.BR + 3, -(C.HL + T.BR + 1)); ball.v.set(0, 0, -5); }`;
   // first goal: the explosion; second goal later for comparison
   H.goal1 = await worstAfter(new Function('return (' + score + ')()'), 1800);
@@ -128,7 +136,7 @@ if (ONLY.has('hitch')) {
   H.dogfight2 = await worstAfter(() => { const {DF, MA, GS} = window.__fp; const t0 = performance.now(); DF.setGame('df'); MA.startMatch(); GS.menuOpen = false; GS.player.bot = true; return performance.now() - t0; }, 2500);
   console.log('\n== first-use hitches (call: ms inside the call; worst: worst frame ms in the window after it)');
   const show = (k, v) => console.log(`   ${k.padEnd(22)} call ${String(v.call ?? '-').padStart(7)}   worst frame ${String(v.worst).padStart(7)} ms  (${v.frames} frames)`);
-  for (const [k, v] of Object.entries(H)) if (v.worst != null) show(k, v); else for (const [m, w] of Object.entries(v)) show(k + ' ' + m, w);
+  for (const [k, v] of Object.entries(H)) if (k === 'warmTasks') console.log('   warm-up tasks (ms): ' + v.map(([n, ms]) => n + ' ' + ms).join(', ')); else if (v.worst != null) show(k, v); else for (const [m, w] of Object.entries(v)) show(k + ' ' + m, w);
   if (p.errs.length) console.log('   page errors: ' + p.errs.slice(0, 5).join(' | '));
   await p.close();
 }
