@@ -369,6 +369,20 @@ const cv = await run('h', async () => {
     const above = new M.V3(c.x, H.dfHt(c.x, c.z) + 30, c.z); const shaft = CV.CAVE.pieces.some(p => p.ent && Array.from({length: 60}, (_, k) => CV.sdPiece(p, c.x, c.y + (above.y - c.y) * k / 59, c.z)).some(v => v < 0));  // under an entrance the sky is meant to be in sight
     if (!o.ent && !shaft && W.los(c, above)) { losBad++; badAt.push(o.n + '@' + [c.x, c.y, c.z].map(Math.round).join(',')); } const c2 = new M.V3(...sg.a.map((v, j) => v + sg.d[j] * Math.min(sg.L, t + 6))); if (!o.ent) { nAlong++; if (W.los(c, c2)) losAlong++; } }  // a few metres along the axis: always in sight
   out.bullets = {shots, through, losThroughRock: losBad, losAlongTunnel: losAlong + '/' + nAlong, badAt};
+  // the cave mouths: the gold trim round each one is decoration on the rim of the real opening. A drone flies straight through it, along
+  // the entrance's axis from 35 m outside to 35 m in, and back; small balls placed inside the trim (0.2 m over the ground, 0.55 m out
+  // from the hole) must touch no collider at all (no ring collision); rays from the axis out to the tunnel wall just under the rim, and
+  // down onto the ground just outside it, must all hit (no gap between the hole and the ground)
+  {const dr = d, ball = new R.Ball(.12); let ticks = 0, wall = 0, worstM = -99, trimHits = 0, gapMiss = 0, rays = 0; const mouthAt = [];
+   for (const e of CV.CAVE.entrances) { const d = new M.V3(...e.d), c = new M.V3(...e.p), n = new M.V3(...e.n), A = c.clone().addScaledVector(d, -35), B = c.clone().addScaledVector(d, 35);
+    for (const [P0, P1] of [[A, B], [B, A]]) { dr.p.copy(P0); dr.v.set(0, 0, 0); dr.q.set(0, 0, 0, 1); dr.w.set(0, 0, 0); dr.gt = 0;
+     for (let i = 0; i < 600 && dr.p.distanceTo(P1) > 4; i++) { const want = P1.clone().sub(dr.p).setLength(40), a = want.sub(dr.v).multiplyScalar(6).clampLength(0, 200); a.y += M.T.G; dr.q.setFromUnitVectors(new M.V3(0, 1, 0), a.clone().normalize()); dr.w.set(0, 0, 0); dr.wt.set(0, 0, 0);
+      dr.thr = Math.min(1, (a.length() / (M.T.THR * dr.fl.thr)) ** (1 / (M.T.TE * dr.fl.te))); dr.step(dt); W.physStep(dt, false); ticks++; if (dr.gt > 0) { wall++; if (mouthAt.length < 4) mouthAt.push(e.name); } worstM = Math.max(worstM, H.sdDF(dr.p.x, dr.p.y, dr.p.z)); } }
+    for (const q of e.rim.filter((_, i) => i % 3 === 0)) { const p = new M.V3(...q), o = p.clone().sub(c); o.addScaledVector(n, -o.dot(n)).normalize(); const t = p.clone().addScaledVector(o, .55).addScaledVector(n, .2);
+     if (W.world.castShape(t, {x: 0, y: 0, z: 0, w: 1}, {x: 0, y: 1, z: 0}, ball, 0, .001, true, undefined, W.grp(W.QRY, W.GW_))) trimHits++;
+     const ax = c.clone().addScaledVector(d, d.dot(p.clone().sub(c)) + 1.5), out = p.clone().addScaledVector(d, 1.5).sub(ax), L = out.length(); rays++; const h1 = W.world.castRay(new R.Ray(ax, out.clone().divideScalar(L)), L + 1.5, true, undefined, W.grp(W.QRY, W.GW_)); if (!h1 || h1.timeOfImpact < L - .6) gapMiss++;
+     const top = p.clone().addScaledVector(o, 1.2).addScaledVector(n, 2); rays++; const h2 = W.world.castRay(new R.Ray(top, n.clone().negate()), 3, true, undefined, W.grp(W.QRY, W.GW_)); if (!h2 || Math.abs(h2.timeOfImpact - 2) > .3) gapMiss++; } }
+   out.mouths = {ticks, wall, worst: +worstM.toFixed(1), at: mouthAt, trimHits, rays, gapMiss, tops: CV.CAVE.entrances.map(e => +H.sdDF(...e.top).toFixed(1))}; }
   // respawns: 300 picks with random others alive, every one in open air
   {let bad = 0; for (let i = 0; i < 300; i++) { const sp = H.dfSpawnPoint([{p: new M.V3((Math.random() - .5) * 800, 60, (Math.random() - .5) * 1200)}]); if (H.sdDF(sp[0], sp[1], sp[2]) > -5) bad++; } out.spawnBad = bad; }
   // two bots against two in the caves for 40 s (turrets off): none may sit stuck on a wall (touching, under 4 m/s) for more than 2 s
@@ -383,6 +397,7 @@ const cv = await run('h', async () => {
   const BD = await import('/src/bots/dogfight.js'), TR = M.DF.TUR.map(t => t.re); M.DF.TUR.forEach(t => t.re = 1e9); GS.state = 'play';  // turrets off: the foe is the only target
   const ring = CV.caveAxes().find(a => a.name === "ring'"), N = CV.CAVE.nodes;
   const chases = [['hall', N.H0, [0, 120, -380]], ['deep', N["D1'"], [-150, H.dfHt(-150, 380) + 40, 380]], ['far ring', ring.pts[ring.pts.length >> 1], N.H1], ['deep hall', N.D0, N.H1]];
+  for (const e of CV.CAVE.entrances) { const ax = CV.caveAxes().find(q => q.ent && q.name.split('-')[0] === e.name); chases.push(['in at ' + e.name, ax.pts[ax.pts.length - 1], e.p.map((v, j) => v - e.d[j] * 40)]); }  // from 40 m outside each mouth to the far end of its tunnel
   out.bot = []; for (const [name, fp, bp] of chases) { const foe = new D.Drone(0, 0, false, 'foe'), bot = new D.Drone(1, 0, true, 'b10'); GS.drones = [foe, bot]; foe.p.set(...fp); bot.p.set(...bp); bot.v.set(0, 0, 0);
     let reachedUG = null, closest = 1e9, i = 0; for (; i < 120 * 60; i++) { foe.v.set(0, 0, 0); foe.ph = 0; BD.dfBot(bot, dt); bot.step(dt); W.physStep(dt, false); if (reachedUG == null && CV.inCave(bot.p.x, bot.p.y, bot.p.z)) reachedUG = i * dt; closest = Math.min(closest, bot.p.distanceTo(foe.p)); if (closest < 60) break; }
     out.bot.push({name, underground: reachedUG == null ? null : +reachedUG.toFixed(1), closestM: +closest.toFixed(0), s: +(i * dt).toFixed(1)}); foe.dispose(); bot.dispose(); }
@@ -396,6 +411,7 @@ if (cv) { const CVS = await page.evaluate(() => window.__pc.CV.SEAM);
   console.log(`  entrances (axis meets the ground): ${cv.entrances.join('  ')}`);
   console.log(`  scripted flights through all ${cv.flight.routes} routes and entrances, both ways: ${cv.flight.km} km flown, ${cv.flight.wallTicks} ticks touching a wall, worst SDF ${cv.flight.worstSdf} m, safety-net escapes ${cv.flight.escapes}; unfinished: ${cv.flight.unfinished.join(' ') || 'none'}; touching or close: ${cv.flight.bad.join(' ') || 'none'}`);
   console.log(`  chase cam following those flights: ${cv.cam.frames} frames, ${cv.cam.bad} in or within 25 cm of rock${cv.cam.at.length ? ' (' + cv.cam.at.join(' ') + ')' : ''}, closest ${(-cv.cam.worst).toFixed(2)} m`);
+  console.log(`  cave mouths: flights straight through each gold trim and back, ${cv.mouths.ticks} ticks, ${cv.mouths.wall} touching anything${cv.mouths.at.length ? ' (' + cv.mouths.at.join(' ') + ')' : ''}, closest ${(-cv.mouths.worst).toFixed(1)} m; colliders inside the trims ${cv.mouths.trimHits}; rays at the rim (tunnel wall just under it, ground just outside it) ${cv.mouths.rays}, missed ${cv.mouths.gapMiss}; entrance top points in open air (SDF) ${cv.mouths.tops.join(' ')}`);
   console.log(`  1 m balls cast where the SDF says they fit: ${cv.clear.casts}, hit something ${cv.clear.hits}${cv.clear.hitAt.length ? ' (' + cv.clear.hitAt.join(' ') + ')' : ''}; respawn points not in open air: ${cv.spawnBad} of 300`);
   console.log(`  2 v 2 bots in the caves for 40 s: ${Math.round(cv.ugFight.underground * 100)}% of the time underground, longest stuck on a wall ${cv.ugFight.worstStuck} s`);
   console.log(`  bullets from inside the tunnels at the walls: ${cv.bullets.through} of ${cv.bullets.shots} got through the rock; sight from a tunnel to the surface above: ${cv.bullets.losThroughRock} clear (should be 0)${cv.bullets.badAt.length ? ' at ' + cv.bullets.badAt.join(' ') : ''}; sight a few metres along a tunnel: ${cv.bullets.losAlongTunnel} clear`);
@@ -406,9 +422,10 @@ if (cv) { const CVS = await page.evaluate(() => window.__pc.CV.SEAM);
   check(cv.flight.escapes === 0 && cv.flight.worstSdf < -2 && cv.flight.wallTicks === 0 && cv.flight.unfinished.length === 0, 'a drone flies every tunnel and entrance, on the axis and 0.7 r off it, without touching a wall or being pushed out');
   check(cv.bullets.through === 0 && cv.bullets.losThroughRock === 0, 'bullets and line of sight stop at the cave walls');
   check(cv.cam.bad === 0, 'the chase cam never goes into the rock');
+  check(cv.mouths.wall === 0 && cv.mouths.trimHits === 0 && cv.mouths.gapMiss === 0 && cv.mouths.tops.every(v => v < -3), 'the gold trims frame the real openings: fly straight through, no ring collision, no gap round the rim');
   check(cv.clear.hits === 0, 'no lips, flaps or invisible walls: the collided triangles stay where the SDF puts the walls');
   check(cv.spawnBad === 0 && cv.ugFight.worstStuck <= 2, 'respawns are in open air, and bots fighting underground do not get stuck on walls');
-  check(cv.bot.every(b => b.underground != null && b.closestM <= 60), 'a bot follows a foe into the caves, round the ring and down to the lower level');
+  check(cv.bot.every(b => b.underground != null && b.closestM <= 60), 'a bot follows a foe into the caves (in at each of the six mouths too), round the ring and down to the lower level');
 }
 
 // ---------- (i) Dogfight turret spots ----------
