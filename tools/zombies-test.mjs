@@ -734,16 +734,16 @@ if (want('grid')) {
       G.perks.swarm = 2; G.perks.swarmk = 1; G.perks.fuse = 1; Z.pk.apply();
       [['rack', 0, 3], ['gepard', 1], ['flak', 6], ['sam', 9], ['ew', 10], ['rack', 12, 2], ['gepard', 4], ['rack', 3, 1]].forEach(([t, sl, l]) => { const d = Z.def.add(t, sl); if (t === 'rack') { d.tier = l; d.cap = 3; } else d.lvl = 1; });
       __z.jump(18, 40000); G.next = __z.plan(18); __z.cont(); api.WB.set(3, 0, -2); api.WIND.set(3, 0, -2);
-      const me = api.player, dir = new V(), h = 1 / 120; let shots = 0, dets = 0, was = true;
+      const me = api.player, dir = new V(), h = 1 / 120; let shots = 0, dets = 0, was = true, swMax = 0;
       for (let i = 0; i < 120 * 80 && G.state === 'wave'; i++) {
         if (me.dead <= 0) { const t = Z.urgent(); if (t) { dir.copy(t.v).normalize(); me.p.copy(t.p).addScaledVector(dir, -(4 + 26 * Math.sin(i / 40) ** 2)).add(new V(2, 1, 0)); me.v.copy(t.v); cam.position.copy(me.p); cam.lookAt(t.p); cam.updateMatrixWorld(); } }
         else if (i % 120 === 0) api.launch();
         if (i === 1800) Z.sw.command('screen'); if (i === 3000) Z.sw.command('strike');
-        api.step(h); T += 1000 / 120; shots = Math.max(shots, Z.def.shots.length); if (was && me.dead > 0) dets++; was = me.dead <= 0;
+        api.step(h); T += 1000 / 120; shots = Math.max(shots, Z.def.shots.length); swMax = Math.max(swMax, Z.sw.drones.length); if (was && me.dead > 0) dets++; was = me.dead <= 0;
         if (i % 12 === 11) api.visuals(h * 12, T); }
       const r = x => Math.round(x * 1e6) / 1e6, P = v => [r(v.x), r(v.y), r(v.z)];
       return JSON.stringify({st: G.state, w: G.wave, k: G.kills, cash: r(G.cash), earned: r(G.earned), sites: api.SITES.map(q => r(q.hp)), dets, shots, lock: Z.lk.t?.id || 0, sel: api.selT()?.id || 0,
-        th: api.TH.map(t => [t.id, t.st, ...P(t.p), t.claim ? 1 : 0]), sh: Z.def.shots.map(q => [q.id, ...P(q.p)]), sw: Z.sw.drones.map(d => [d.st, ...P(d.p)]), me: [...P(me.p), r(me.dead)], rnd: Math.random()});
+        th: api.TH.map(t => [t.id, t.st, ...P(t.p), t.claim ? 1 : 0]), sh: Z.def.shots.map(q => [q.id, ...P(q.p)]), sw: Z.sw.drones.map(d => [d.st, ...P(d.p)]), swMax, swLost: Z.sw.mine.lost | 0, swKills: Z.sw.mine.kills | 0, me: [...P(me.p), r(me.dead)], rnd: Math.random()});
     } finally { performance.now = pn; api.grid.brute = false; } };
   const game = async brute => { const errs = [], p = await open(browser, 'about:blank', errs);
     await p.evaluateOnNewDocument(() => { let s = 4242; Math.random = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; });
@@ -751,7 +751,7 @@ if (want('grid')) {
     await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
     const o = await p.evaluate(RUN, brute); await p.close(); return {o, errs}; };
   const A = await game(false), B = await game(true), a = JSON.parse(A.o), b = JSON.parse(B.o);
-  console.log(`  grid game: wave ${a.w} ${a.st}, ${a.k.p} pilot / ${a.k.h} helper kills, ${a.dets} bursts, ${a.th.length} tracks, up to ${a.shots} shots, ${a.sw.length} swarm drones`);
+  console.log(`  grid game: wave ${a.w} ${a.st}, ${a.k.p} pilot / ${a.k.h} helper kills, ${a.dets} bursts, ${a.th.length} tracks, up to ${a.shots} shots, swarm ${a.swMax} up, ${a.swLost} lost, ${a.swKills} kills, ${a.sw.length} left`);
   ok(a.k.p + a.k.h >= 10 && a.dets > 3 && a.sw.length, `Grid game: busy enough to mean something (${a.k.p + a.k.h} kills, ${a.dets} bursts)`);
   ok(A.o === B.o, `Grid: a whole wave plays out identically with the grid and with plain loops (${A.o.length} chars of end state compared)` + (A.o === B.o ? '' : `\n  grid ${A.o.slice(0, 300)}\n  loop ${B.o.slice(0, 300)}`));
   ok(!A.errs.length && !B.errs.length, 'Grid game: no errors' + (A.errs.length + B.errs.length ? '\n  ' + [...A.errs, ...B.errs].join('\n  ') : ''));
