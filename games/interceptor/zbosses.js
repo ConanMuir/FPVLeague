@@ -24,6 +24,7 @@
 import {KIND,RESIST} from './zdata.js';
 import {tex,dot} from '../../engine/render.js';
 import {AC,nbuf} from '../../engine/audio.js';
+import {ownRandom} from '../../engine/idle.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
 export const BOSSES={},ROSTER=[],REWARDS={};
@@ -34,7 +35,7 @@ export function registerBoss(def){const id=def.id;
 export const isBossKind=k=>!!BOSSES[k];
 // decal canvases: one texture per key, drawn once (g = 2D context, w, h)
 const DEC=new Map();
-export const decal=(key,w,h,draw,rep)=>{let t=DEC.get(key);if(!t){t=tex(w,h,draw,rep);DEC.set(key,t)}return t};
+export const decal=(key,w,h,draw,rep)=>{let t=DEC.get(key);if(!t){t=ownRandom(()=>tex(w,h,draw,rep));DEC.set(key,t)}return t};  /* drawn with the idle stream (engine/idle.js): the warm-up may draw it first */
 // shared drawing helpers for decals
 export const D2={
  text(g,s,x,y,px,col,font='700',al='center'){g.font=`${font} ${px}px "Arial Narrow",Arial,sans-serif`;g.textAlign=al;g.textBaseline='middle';g.fillStyle=col;g.fillText(s,x,y)},

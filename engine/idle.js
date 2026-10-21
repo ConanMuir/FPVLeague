@@ -11,6 +11,7 @@
 //                    so a warm-up that way compiled programs nothing used. The scene's last draw target is watched (scene.onBeforeRender);
 //                    into (true / false) forces a render target / the canvas: a shadow map is a render target, the last pass draws to the canvas
 //   texturesOf(root) the textures root's materials use; upload(renderer,t) uploads one now, if it isn't already
+//   ownRandom(f)     f() drawing from the idle tasks' private random stream (see below)
 //   idleStats        tasks run, ms spent, the longest task (ms), tasks waiting
 import * as THREE from 'three';
 const Q=[],ric=typeof requestIdleCallback==='function'?(f)=>requestIdleCallback(f,{timeout:250}):f=>setTimeout(()=>f({timeRemaining:()=>8}),16);
@@ -19,6 +20,9 @@ let quiet=()=>true,sched=false,rt1=null;
 // run, a replay or a determinism test would diverge depending on when the idle slices ran)
 let seed=(typeof crypto!=='undefined'&&crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(1))[0]:Date.now())>>>0;
 const own=()=>(seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296;
+// f() with that private stream: one-off builds that can run either in idle time or at first use (a decal, the sites' damage stages) use it
+// both ways, so the game's sequence is the same whichever happened
+export function ownRandom(f){const r0=Math.random;Math.random=own;try{return f()}finally{Math.random=r0}}
 export const idleStats={tasks:0,ms:0,worst:0,left:0},warmers=[];
 export const setQuiet=f=>{quiet=f};
 function pump(dl){sched=false;const t0=performance.now();
