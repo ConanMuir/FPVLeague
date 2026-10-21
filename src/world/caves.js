@@ -6,7 +6,7 @@
 // what you hit. Caves sit 70-130 m down (the lowest ground is the river canyon at -40), so they keep a solid roof except at entrances.
 import {COL} from '../config/constants.js';
 import {hyp2,hyp3} from '../core/hypot.js';
-import {DBASE,cxR,dfGrid,dfH,dfHt} from './terrain.js';
+import {DBASE,MOUTHS,cxR,dfGrid,dfH,dfHt} from './terrain.js';
 import {fbm} from './noise.js';
 const mir=p=>[-p[0],p[1],-p[2]],mn=n=>n==='H0'?n:n.endsWith("'")?n.slice(0,-1):n+"'";
 const top=(x,z,a)=>{let m=-1e9;for(const dx of[-14,0,14])for(const dz of[-14,0,14])m=Math.max(m,dfH(x+dx,z+dz));return m+a};
@@ -28,7 +28,8 @@ const ROUTES=[[['H0','H1'],22],
  [[[0,-110,0],'D0'],16,{self:1,n:'shaft'}],                           // straight down from the hall floor to the deep hall
  [['H1','D1'],18,{n:'ramp'}],                                          // a straight 33 deg ramp from each half's cavern down to its deep cavern
  [['D0','D1'],20,{n:'deep'}],                                          // the lower level: the deep hall to each deep cavern
- [['S1','H1'],17,{ent:1}],[['S2','H0'],17,{ent:1}],[['S3','B'],16,{ent:1}]];
+ // entrances (the first segment stays straight to past the mouth; the canyon one bends down 60 m in, so it stays under the canyon floor)
+ [['S1','H1'],17,{ent:1}],[['S2',[-95,-75,-120],'H0'],17,{ent:1}],[['S3','B'],16,{ent:1}]];
 export const CAVE={nodes:N,pieces:[],entrances:[],graph:{p:[],adj:[]}};
 const P3=q=>typeof q==='string'?N[q]:q,sub3=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],len3=v=>Math.hypot(...v),nrm=v=>{const l=len3(v)||1;return v.map(x=>x/l)};
 // a polyline with its corners rounded (quadratic arcs of radius about f) and resampled every <= 8 m
@@ -39,15 +40,26 @@ function dense(P,f,round){const R=[P[0]];for(let i=1;i<P.length-1;i++){const u=n
 {const P=CAVE.pieces,G=CAVE.graph,key=new Map(),node=p=>{const k=p.map(v=>v.toFixed(2)).join(',');let i=key.get(k);if(i==null){i=G.p.length;key.set(k,i);G.p.push({x:p[0],y:p[1],z:p[2]});G.adj.push([])}return i},
   link=(i,j)=>{if(i!==j&&!G.adj[i].includes(j)){G.adj[i].push(j);G.adj[j].push(i)}},box=(pts,r)=>[[0,1,2].map(i=>Math.min(...pts.map(p=>p[i]))-r),[0,1,2].map(i=>Math.max(...pts.map(p=>p[i]))+r)];
  for(const[n,r]of CAV)for(const m of n==='H0'||n==='D0'?[n]:[n,mn(n)]){const lo=N[m].map((v,i)=>v-r[i]),hi=N[m].map((v,i)=>v+r[i]);P.push({k:'d',c:N[m],r,rr:8,n:m,lo,hi});node(N[m])}
- for(const[pts,r,o={}]of ROUTES)for(const mirror of o.self?[0]:[0,1]){const src=pts.map(q=>mirror?(typeof q==='string'?(N[mn(q)]?mn(q):q):mir(q)):q),C=src.map(P3),D=dense(C,2.5*r,!o.spiral&&!o.ent);
+ for(const[pts,r,o={}]of ROUTES)for(const mirror of o.self?[0]:[0,1]){const src=pts.map(q=>mirror?(typeof q==='string'?(N[mn(q)]?mn(q):q):mir(q)):q),C=src.map(P3),D=dense(C,2.5*r,!o.spiral);
   const segs=[];for(let i=0;i<D.length-1;i++){const a=D[i],L=len3(sub3(D[i+1],a)),[lo,hi]=box([a,D[i+1]],r);segs.push({a,d:sub3(D[i+1],a).map(v=>v/L),L,lo,hi})}
   const[lo,hi]=box(D,r);P.push({k:'r',pts:D,segs,r,lo,hi,ent:!!o.ent,n:o.n?o.n+(mirror?"'":''):src.filter(q=>typeof q==='string').join('-')});
   let prev=null;for(let i=0;i<D.length;i++)if(i===0||i===D.length-1||i%3===0){const k=node(D[i]);if(prev!=null)link(prev,k);prev=k}}  // waypoints every ~24 m along the route
  // route ends join the nearest node of whatever they open into (a cavern, or the middle of another tunnel)
  for(const pc of P)if(pc.k==='r')for(const e of[pc.pts[0],pc.pts[pc.pts.length-1]]){const k=node(e);let best=-1,bd=60;G.p.forEach((q,i)=>{if(i===k||G.adj[k].includes(i))return;const d=Math.hypot(q.x-e[0],q.y-e[1],q.z-e[2]);if(d<bd&&inside(e,q)){bd=d;best=i}});if(best>=0)link(k,best)}
- // entrance mouths: where the entrance's axis goes into the ground
- for(const p of P)if(p.ent){const s=p.segs[0];let lo=0,hi=p.segs.reduce((m,q)=>m+q.L,0);const at=t=>{let u=t;for(const q of p.segs){if(u<=q.L)return q.a.map((v,j)=>v+q.d[j]*u);u-=q.L}return p.pts[p.pts.length-1]};
-  for(let i=0;i<40;i++){const t=(lo+hi)/2,q=at(t);if(q[1]>dfH(q[0],q[2]))lo=t;else hi=t}CAVE.entrances.push({p:at(lo),d:s.d,r:p.r,top:p.pts[0],name:p.n.split('-')[0]})}}
+ // entrance mouths: where the entrance's axis goes into the ground (natural terrain). Round each, the ground becomes a plane (a terrain
+ // pad, MOUTHS, flat out to 3 m past the hole and blended back over 22 m) that the tunnel cuts in a clean ellipse. rim: that ellipse
+ // (where the tunnel wall meets the plane), which the gold trim follows
+ for(const p of P)if(p.ent){const s=p.segs[0],d=s.d;let lo=0,hi=p.segs.reduce((m,q)=>m+q.L,0);const at=t=>{let u=t;for(const q of p.segs){if(u<=q.L)return q.a.map((v,j)=>v+q.d[j]*u);u-=q.L}return p.pts[p.pts.length-1]};
+  for(let i=0;i<40;i++){const t=(lo+hi)/2,q=at(t);if(q[1]>dfH(q[0],q[2]))lo=t;else hi=t}const c=at(lo),hl=Math.hypot(d[0],d[2]);
+  // the plane: the best fit through the mouth to the natural ground within 30 m (least squares of y = c.y + gx dx + gz dz), turned
+  // toward the axis just enough that it meets the axis within 45 deg of square on (so the hole is at most ~1.4 times as long as wide)
+  let sxx=0,sxz=0,szz=0,sxy=0,szy=0;for(let i=0;i<24;i++)for(const rr of[10,20,30]){const a=i/24*Math.PI*2,dx=Math.cos(a)*rr,dz=Math.sin(a)*rr,dy=dfH(c[0]+dx,c[2]+dz)-c[1];sxx+=dx*dx;sxz+=dx*dz;szz+=dz*dz;sxy+=dx*dy;szy+=dz*dy}
+  const det=sxx*szz-sxz*sxz,gx=(sxy*szz-szy*sxz)/det,gz=(szy*sxx-sxy*sxz)/det;let n=nrm([-gx,1,-gz]);const md=d.map(v=>-v),cmax=Math.cos(45*Math.PI/180);
+  for(let i=0;i<40&&n[0]*md[0]+n[1]*md[1]+n[2]*md[2]<cmax;i++)n=nrm(n.map((v,j)=>v+(md[j]-v)*.05));if(n[1]<.5)n=nrm([n[0],.5/Math.sqrt(.75)*Math.hypot(n[0],n[2]),n[2]]);
+  const e1=nrm([d[1]*0-d[2]*1,d[2]*0-d[0]*0,d[0]*1-d[1]*0]),u0=hl>.05?e1:[1,0,0],v0=[d[1]*u0[2]-d[2]*u0[1],d[2]*u0[0]-d[0]*u0[2],d[0]*u0[1]-d[1]*u0[0]],nd=n[0]*d[0]+n[1]*d[1]+n[2]*d[2];
+  const rim=Array.from({length:144},(_,i)=>{const a=i/144*Math.PI*2,u=[0,1,2].map(j=>Math.cos(a)*u0[j]+Math.sin(a)*v0[j]),t=-p.r*(n[0]*u[0]+n[1]*u[1]+n[2]*u[2])/nd;return[0,1,2].map(j=>c[j]+d[j]*t+u[j]*p.r)});
+  const ext=Math.max(...rim.map(q=>Math.hypot(q[0]-c[0],q[2]-c[2])));MOUTHS.push({c,n,r:ext+3,b:22});
+  CAVE.entrances.push({p:c,d,n,r:p.r,rim,top:p.pts[0],name:p.n.split('-')[0]})}}
 // is the straight line between a route end and a graph point inside the caves (so they can be joined)?
 function inside(a,q){for(let i=1;i<8;i++){const w=i/8;if(sdCave(a[0]+(q.x-a[0])*w,a[1]+(q.y-a[1])*w,a[2]+(q.z-a[2])*w)>-2)return false}return true}
 // signed distance to one piece (negative inside its free space); drums are exact, ellipsoids use the k0(k0-1)/k1 bound (exact zero set)
