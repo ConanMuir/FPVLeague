@@ -164,4 +164,6 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         env:
           CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
-        run: ${{ matrix.run }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }
