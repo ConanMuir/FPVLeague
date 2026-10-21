@@ -19,19 +19,22 @@ export function initWarm(api,G,Z){
  setQuiet(()=>api.menuOpen||api.demo||!G.on||G.state!=='wave');
  // the environment map's other state: a stand-in cube map (PMREM, same size) when there is none at the moment, so both variants compile
  let envT=null;const other=()=>{if(scene.environment)return null;if(!envT){const pm=new THREE.PMREMGenerator(renderer);envT=pm.fromScene(new THREE.Scene());pm.dispose()}return envT.texture};
- // shadow casters: the shadow map draws each with three.js's depth material, or a copy of it carrying the material's map / alpha test, on
- // the caster's side flipped (WebGLShadowMap getDepthMaterial). Twins of those (kept, so their programs stay cached) compile the same programs
+ // shadow casters: the shadow map draws each with three.js's depth material (or the caster's own customDepthMaterial), given the
+ // material's map, alpha map, alpha test and displacement map and its side flipped (WebGLShadowMap getDepthMaterial), so each combination
+ // is its own program. Twins of those (kept, so their programs stay cached) compile the same programs
  const DEPTH=new Map(),FLIP={0:1,1:0,2:2};
- function depthTwins(root){const L=new THREE.Group();root.traverse(o=>{if(!o.isMesh||!o.castShadow)return;for(const m of[o.material].flat()){if(!m)continue;const cut=m.alphaTest>0&&(m.map||m.alphaMap),side=m.shadowSide??FLIP[m.side];
-   const k=(o.customDepthMaterial?.uuid||'D')+(o.isInstancedMesh?(o.instanceColor?'ic':'i'):'')+(cut?'a'+(m.map?'m':'')+(m.alphaMap?'a':''):'')+side;if(DEPTH.has(k))continue;
-   let d=o.customDepthMaterial;if(!d){d=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});d.side=side;if(cut){d.map=m.map;d.alphaMap=m.alphaMap;d.alphaTest=m.alphaTest}}DEPTH.set(k,d);
+ function depthTwins(root){const L=new THREE.Group();root.traverse(o=>{if(!o.isMesh||!o.castShadow)return;for(const m of[o.material].flat()){if(!m)continue;const side=m.shadowSide??FLIP[m.side];
+   const k=(o.customDepthMaterial?.type||'D')+(o.isInstancedMesh?(o.instanceColor?'ic':'i'):'')+(m.map?'m':'')+(m.alphaMap?'a':'')+(m.alphaTest>0?'t':'')+(m.displacementMap?'d':'')+side;if(DEPTH.has(k))continue;
+   const d=o.customDepthMaterial?o.customDepthMaterial.clone():new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});Object.assign(d,{side,map:m.map,alphaMap:m.alphaMap,alphaTest:m.alphaTest,displacementMap:m.displacementMap});DEPTH.set(k,d);
    const q=o.isInstancedMesh?new THREE.InstancedMesh(o.geometry,d,1):new THREE.Mesh(o.geometry,d);if(o.isInstancedMesh)q.instanceColor=o.instanceColor;L.add(q)}});
   if(!L.children.length)return;const f=scene.fog;scene.fog=null;try{compileLike(renderer,L,scene,camera,true)}finally{scene.fog=f}}  /* the shadow pass draws with the scene's lights but no fog */
  const TX=new Set();
  function compile(root){compileLike(renderer,root,scene,camera);const e0=scene.environment;scene.environment=other();try{compileLike(renderer,root,scene,camera)}finally{scene.environment=e0}
   depthTwins(root);texturesOf(root,TX)}
  // the post-processing passes (the FPV camera feed is off until you fly): to the canvas when last, else into the next pass's target
- function passes(){for(const p of composer?.passes||[]){const m=p.fsQuad?._mesh;if(!m?.material)continue;for(const into of[true,false])compileLike(renderer,m,m,camera,into)}}
+ // (every material a pass holds: the bloom's blur and composite steps, the SMAA pass's three, swapped onto one full-screen quad as it draws)
+ function passes(){for(const p of composer?.passes||[]){const q=p.fsQuad?._mesh;if(!q)continue;const M=new Set([q.material]);for(const v of Object.values(p))for(const x of[v].flat())if(x?.isMaterial)M.add(x);
+  for(const m of M){if(!m)continue;const o=new THREE.Mesh(q.geometry,m);for(const into of[true,false])compileLike(renderer,o,o,camera,into);texturesOf(m,TX)}}}
  // compile() only queues the work: the GPU process compiles in the background, and the first draw would wait for it (and for three.js's
  // error check). So the warm-up ends when every program reports done (polled), with its check run here (once each: on a program already
  // drawn it is a no-op; engine/warm.js's menu warm-up made some before this started)

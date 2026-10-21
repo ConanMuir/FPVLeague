@@ -11,7 +11,7 @@ const ONLY = arg('--only', ''), JSONOUT = arg('--json', ''), EXTRA = arg('--url-
 const {server, origin} = await serve();
 const browser = await launch({w: 960, h: 540});
 const errs = [], p = await open(browser, origin + '/games/interceptor/?' + EXTRA, errs, {w: 960, h: 540});
-await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', zmus: 0, cam: 0})));
+await p.evaluate(g => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', zmus: 0, cam: 0, gfx: g, fps: false})), process.env.DL_GFX || 'high');  /* the level pinned (DL_GFX), so Auto doesn't step mid-measurement; the steps are measured as events */
 // the probes, from page load on: __fr.d = every rAF interval (ms), __fr.c = the main-thread time of each frame's callbacks (the game's frame:
 // sim, scene, draw calls, and any shader compile or upload that blocks it); __gl = what the GL context was asked to do (programs linked, time
 // blocked on link status, texture uploads and their pixels, buffer bytes)
@@ -55,7 +55,7 @@ async function ev(name, js, {n = 40, settle = 25, arg = null, pre = ''} = {}) { 
   const fu = await p.evaluate(() => { const R = __z.api.renderer, own = q => { const L = new Set(); __z.api.scene.traverse(o => { for (const m of [o.material].flat()) if (m && R.properties.get(m).currentProgram === q) L.add((o.name || o.type) + '/' + (m.name || m.type) + (m.map ? '+map' : '') + (o.isInstancedMesh ? '+inst' : '') + (o.parent && o.parent !== __z.api.scene ? '<' + (o.parent.name || o.parent.type) : '')); }); if (!L.size && /^depth/.test(q.cacheKey)) __z.api.scene.traverse(o => { if (o.isMesh && o.castShadow && o.visible) for (const m of [o.material].flat()) if (m && m.alphaTest > 0 && (m.map || m.alphaMap)) L.add('caster? ' + o.geometry.type + ' ' + m.type + ' map ' + m.map?.image?.width + 'x' + m.map?.image?.height + ' alphaTest ' + m.alphaTest + ' parent kids ' + o.parent?.children.length + ' pos ' + o.getWorldPosition(new __z.api.THREE.Vector3()).toArray().map(Math.round)); });
     return [...L].slice(0, 4).join(' ') || 'not in the scene'; };
     return [...__fu.list.map(([q, d]) => 'first use ' + Math.round(d) + ' ms ' + q.name + ' [' + own(q) + ']'), ...R.info.programs.filter(q => !__P0.has(q)).map(q => { const a = q.cacheKey.split(','), best = [...__P0].filter(o => o.name === q.name).map(o => { const b = o.cacheKey.split(','), d = []; for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) d.push(i + ':' + String(b[i]).slice(0, 20) + '>' + String(a[i]).slice(0, 20)); return d; }).sort((x, y) => x.length - y.length)[0];
-    return 'NEW ' + (q.name || '?') + ' [' + own(q) + '] ' + (best ? 'vs nearest: ' + best.slice(0, 5).join(' ') : a.slice(0, 8).join(',').slice(0, 90)); })]; });
+    return 'NEW ' + (q.name || '?') + ' [' + own(q) + '] ' + (best ? 'vs nearest: ' + best.slice(0, 5).join(' ') + ' key ' + a.slice(0, 8).join(',') + '|' + a.slice(-8).join(',') : a.slice(0, 8).join(',').slice(0, 90)); })]; });
   const gt = await p.evaluate(() => __gl.t ? Object.entries(__gl.t).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => k + ' ' + Math.round(v)).join(', ') : '');
   row.firstUse = fu; rows.push(row); console.log(`${name.padEnd(26)} cpu ${String(row.cpu).padStart(6)} ms (js ${row.sync} + frame ${row.frame}; frame p50 ${row.p50})  interval worst ${row.worst} (p50 ${row.d50})  link ${gl.link} wait ${gl.wait} ms tex ${gl.tex} ${Math.round(gl.px / 1e3)}kpx buf ${Math.round(gl.buf / 1e3)}kB${row.note != null ? '  ' + JSON.stringify(row.note).slice(0, 80) : ''}${gt ? '\n      gl: ' + gt : ''}${fu.length ? '\n      shaders: ' + fu.join(' | ') : ''}`);
 }
@@ -107,10 +107,18 @@ await ev('swarm deploy', `__clear(); const {Z, api} = __z; api.player.p.set(api.
 await ev('kill chain mounts', `__clear(); const {Z, api, G} = __z; G.cash = 1e6; const a = [0, 1, 2].map(i => Z.chain.act('pb', i)); Z.chain.act('bb', 0); __sc.at = new api.THREE.Vector3(api.SITES[0].x, api.SITES[0].y, api.SITES[0].z); __sc.off.set(60, 40, 60); return a.map(x => !!x)`);
 // the long-range radar layers (zstratradar.js): unlocked from wave 25 / 40; jump there and draw the HUD
 await ev('strategic radar unlock', `__clear(); const {G, Z} = __z; G.wave = 41; Z.sr && Z.sr.state(); __z.sim(.2); return Z.sr.state()`);
+// the thermal camera (FPV), the Graphics level changing (Auto steps down mid-wave; Medium adds the SMAA pass), a dynamic-resolution step
+await ev('thermal on', `__clear(); __sc.at = null; document.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyH', key: 'h'})); return __z.api.thermLook`, {n: 30});
+await ev('thermal off', `document.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyH', key: 'h'})); return __z.api.thermLook`, {n: 30});
+for (const g of ['med', 'low', 'high']) await ev('gfx ' + g, `__z.gfx.set(arg); return __z.gfx.level`, {arg: g, n: 30});
+await ev('dyn res step', `__z.gfx.set('auto'); __z.gfx.dyn.scale = .9; __z.gfx.emit('res'); return __z.api.renderer.getPixelRatio()`, {n: 30});
+await ev('dyn res back', `__z.gfx.dyn.scale = 1; __z.gfx.emit('res'); __z.gfx.set('high'); return __z.api.renderer.getPixelRatio()`, {n: 30});
 // base screen open and close, the campaign map, Watch a bot
 await ev('base open', `__clear(); __z.G.state = 'clear'; __z.Z.openBase(); return !document.getElementById('zbase').hidden`, {n: 40});
 await ev('base tab chain', `__z.Z.base.setTab?.('chain'); return null`);
+await ev('sortie tab', `__z.Z.base.setTab?.('sortie'); return !!document.querySelector('[data-so]')`);
 await ev('base close', `__z.Z.continue(); return __z.G.state`, {n: 40});
+await ev('sortie launch', `__clear(); __z.G.state = 'clear'; __z.Z.openBase(); __z.Z.base.setTab?.('sortie'); return __z.so?.launch?.() ?? 'no sorties'`, {n: 60});
 await ev('campaign map', `__z.Z.cp.openMap(); return !document.getElementById('zcamp')?.hidden`, {n: 40});
 await ev('campaign map close', `document.getElementById('zcamp').hidden = true; document.body.classList.remove('zcp-open'); return null`);
 await ev('menu (leave)', `__z.api.startDemo(); return null`, {n: 40});

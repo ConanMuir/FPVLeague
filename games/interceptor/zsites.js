@@ -8,6 +8,7 @@
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {seeded} from '../../engine/util.js';
 import {ORDER,sectorOf} from './zdata.js';
+import {warmers} from '../../engine/idle.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 
 // clock = sortie length (s); from = first break with sorties (after wave 1); hull = what your drone takes on a sortie; bombs per drone, blast
@@ -72,6 +73,7 @@ export function initSites(api,G,Z,fog){
   bomb:geo([[CY(.12,.12,.7,8),C.dk,0,0,0,Math.PI/2],[B(.32,.02,.14),C.ol2,0,0,-.3],[B(.02,.32,.14),C.ol2,0,0,-.3]])};
  const MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,metalness:.1}),BURN=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,color:0x3a3430});
  const RMAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4});
+ warmers.push(()=>{const g=new THREE.BoxGeometry();return[MAT,BURN,RMAT].map(m=>{const o=new THREE.Mesh(g,m);o.castShadow=o.receiveShadow=true;return o})});  /* the sites' materials meet the scene when a run builds them: samples for the warm-up (zwarm.js) */
  const mesh=(g,x,y,z,ry=0,sx=1,sy=1,sz=1)=>{const m=new THREE.Mesh(g,MAT);m.position.set(x,y,z);m.rotation.y=ry;m.scale.set(sx,sy,sz);m.castShadow=m.receiveShadow=true;root.add(m);return m};
 
  // ---------- the world ----------
