@@ -573,6 +573,7 @@ function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:nul
 let lqS=1,lqT=0;
 function linkQ(me,dt){if((lqT-=dt)>0)return lqS;lqT=.1;const h=me.home,ax=h.x-3,ay=h.y+5.5,az=h.z+1,d=Math.hypot(me.p.x-ax,me.p.z-az);let q=1-.8*sm((d-1800)/3400);
  for(let i=1;i<20;i++){const f=i/20,x=ax+(me.p.x-ax)*f,z=az+(me.p.z-az)*f;if(gh(x,z)>ay+(me.p.y-ay)*f-1.5&&d>60){q*=.35;break}}
+ if(Z.on&&Z.lq)q=Z.lq(me,q);  /* Zombies sorties: a relay holds the link out past the line (zsortie.js) */
  return lqS+=(q-lqS)*.35}
 const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';let siteHTML='';
 const hdg=v=>String(Math.round((Math.atan2(v.x,-v.z)*180/Math.PI+360)%360)).padStart(3,'0');

@@ -12,6 +12,8 @@ export function initBase(Z,api,G){
  const over=document.createElement('div');over.id='zover';over.hidden=true;$('menu').before(over);
  let tab='shop',focusSlot=-1,mapImg=null;
  const doc=()=>Z.meta.doc(),dk=(k,d=1)=>Z.meta.k(k,d);
+ // Z.xTab (sorties, zsortie.js): one extra tab {id, n, html(), wire(el), map(g, W, H), click(x, y, W, H), legend()} that draws its own map
+ const tabList=()=>[['shop','Shop'],['armory','Armory'],['sites','Base'],...(Z.chainHTML?[['chain','Kill chain']]:[]),...(Z.xTab?[[Z.xTab.id,Z.xTab.n]]:[])],xt=()=>!!Z.xTab&&tab===Z.xTab.id&&!G.placing;
  const repairK=()=>Z.repairK?.()??1,repairCost=s=>Math.ceil((s.max-s.hp)*REPAIR_PER_HP*repairK());
  const upCost=c=>Math.round(c*dk('upK')/10)*10,refund=d=>Math.floor((d.spent||ITEMS[d.type].price)*dk('sellK',.5));
  const mx=x=>(x-MAPX[0])/(MAPX[1]-MAPX[0])*MW,mz=z=>(z-MAPZ[0])/(MAPZ[1]-MAPZ[0])*MH;
@@ -116,6 +118,7 @@ export function initBase(Z,api,G){
   else if(tab==='shop')body=shopHTML();
   else if(tab==='armory'){const perks=Z.perkRows?.(money)||'';body=`${def.D.length?def.D.map(defRow).join(''):'<p class="zhint">No defences yet. Buy helpers from the shop cards.</p>'}${perks?`<h3 style="margin-top:14px">Perks</h3>${perks}`:''}`}
   else if(tab==='chain'&&Z.chainHTML)body=Z.chainHTML();  /* the kill chain against the fast missiles (zchain.js) */
+  else if(xt())body=Z.xTab.html();
   else body=baseHTML();
   const fc=forecast(),D=doc(),U=Z.upkeep?.(),sh=Z.def.D.filter(d=>d.short).length;
   el.innerHTML=`<div class="zpanel zb"><header><div><h2>${G.wave?`Wave ${G.wave} cleared`:'Briefing'}</h2><div class="zbig">${money(G.cash)}</div></div>
@@ -123,8 +126,8 @@ export function initBase(Z,api,G){
    <button class="go" id="zgo">${Z.goTxt?.()||`Start wave ${G.wave+1} ▸`}</button>
    <div class="zdoc">Doctrine <b>${D.n}</b>${U&&U.total?` · upkeep <b>${money(U.total)}</b> after this wave`:''}${sh?` · <span class="co">${sh} short of ammo (upkeep unpaid)</span>`:''}${G.lastUp?` · last upkeep ${money(G.lastUp)}`:''}</div></header>${Z.coopHTML?.()||''}${Z.cpHTML?.()||''}
    <div class="zcols"><div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
-    <div class="zleg"><span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lx">+</i>position to open (Base tab)</span><span><i class="lt"></i>next wave's approach</span></div></div>
-   <div class="zside"><nav class="ztabs">${[['shop','Shop'],['armory','Armory'],['sites','Base'],['chain','Kill chain']].filter(([k])=>TABS().includes(k)).map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
+    <div class="zleg">${xt()?Z.xTab.legend():`<span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lx">+</i>position to open (Base tab)</span><span><i class="lt"></i>next wave's approach</span>`}</div></div>
+   <div class="zside"><nav class="ztabs">${tabList().map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
    <footer class="zfc"><h3>Wave ${G.wave+1}${fc.boss?' · <span class="cr">BOSS</span>':''}${Z.wx?.note(G.next.wx)||''}</h3>${fc.html}</footer></div>`;
   $('zgo').onclick=()=>{if(!G.placing)Z.continue()};$('zcancel')&&($('zcancel').onclick=cancelPlace);
   for(const b of el.querySelectorAll('[data-tab]'))b.onclick=()=>{if(G.placing)return;tab=b.dataset.tab;render();focus(`[data-tab="${tab}"]`)};
@@ -138,8 +141,9 @@ export function initBase(Z,api,G){
   for(const b of el.querySelectorAll('[data-sell]'))b.onclick=()=>sell(+b.dataset.sell);
   for(const b of el.querySelectorAll('[data-rb]'))b.onclick=()=>rebuild(+b.dataset.rb);
   for(const b of el.querySelectorAll('[data-kc]'))b.onclick=()=>{const k=b.dataset.kc,i=k.indexOf(':');Z.chain.req(k.slice(0,i),k.slice(i+1));render();focus(`[data-kc="${k}"]`)};
+  if(xt())Z.xTab.wire(el);
   for(const b of el.querySelectorAll('[data-rep]'))b.onclick=()=>{const i=+b.dataset.rep,s=SITES[i],k=repairK(),hp=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return;if(Z.req)Z.req(['r',i,hp]);else act.repair(i,hp);render();focus(`[data-rep="${b.dataset.rep}"]`)};
-  const cv=$('zmap');cv.onclick=e=>{const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*MW,y=(e.clientY-r.top)/r.height*MH;let bj=-1,bd=24;
+  const cv=$('zmap');cv.onclick=e=>{const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*MW,y=(e.clientY-r.top)/r.height*MH;let bj=-1,bd=24;if(xt()){Z.xTab.click(x,y,MW,MH);return}
    const can=j=>G.placing?def.slotFree(j):tab==='sites'&&def.canOpen(j,doc());def.SLOTS.forEach((s,j)=>{const[sx,sy]=spx(j),d=Math.hypot(sx-x,sy-y);if(can(j)&&d<bd){bd=d;bj=j}});
    if(bj<0)return;if(G.placing)place(bj);else{focusSlot=bj;drawMap();el.querySelector(`[data-ex="${bj}"]`)?.focus()}};
   drawMap()}
@@ -148,12 +152,13 @@ export function initBase(Z,api,G){
   const isNew=k=>Z.kindFrom(k)===G.wave+1;
   const html=Object.entries(n).map(([k,c])=>{const K=KIND[k];return`<span class="zfk ${isNew(k)?'new':''}">${c}× ${K.n}${isNew(k)?' <b>NEW</b>':''}</span>`}).join('');
   const nw=Object.keys(n).filter(isNew).map(k=>`<p class="zhint"><b>${KIND[k].n}</b>: ${Z.kindNote?.(k)||''}</p>`).join('');
-  return{html:`<div class="zfks">${html}</div>${nw}${Z.tacNote?.()||''}`,boss:!!n.boss}}
+  return{html:`<div class="zfks">${html}</div>${nw}${Z.tacNote?.()||''}${Z.cutNote?.()||''}`,boss:!!n.boss}}
 
  // ---------- overview map ----------
  function bg(){if(mapImg)return mapImg;const src=api.groundTex.image,TW=9000,KP=src.width/TW,c=document.createElement('canvas');c.width=MW*2;c.height=MH*2;const g=c.getContext('2d');
   g.drawImage(src,(MAPX[0]+TW/2)*KP,(MAPZ[0]+TW/2)*KP,(MAPX[1]-MAPX[0])*KP,(MAPZ[1]-MAPZ[0])*KP,0,0,c.width,c.height);g.fillStyle='rgba(6,10,18,.45)';g.fillRect(0,0,c.width,c.height);return mapImg=c}
  function drawMap(){const cv=$("zmap");if(!cv||!G.next||el.hidden)return;const g=cv.getContext('2d');g.setTransform(2,0,0,2,0,0);g.drawImage(bg(),0,0,MW,MH);
+  if(xt()){Z.xTab.map(g,MW,MH);return}Z.mapFog?.(g,mx,mz);  // the extra tab (sorties) draws its own wider map; here: the fog of war over the enemy side
   g.strokeStyle='rgba(120,200,255,.35)';g.setLineDash([6,6]);g.strokeRect(mx(-api.AW),mz(-api.AW),mx(api.AW)-mx(-api.AW),mz(api.AW)-mz(-api.AW));g.setLineDash([]);
   // approach arrows
   for(const b of G.next.brgs){const R=3800,x=Math.sin(b)*R,z=1950-Math.cos(b)*R,X=Math.min(MW-14,Math.max(14,mx(x))),Y=Math.min(MH-14,Math.max(14,mz(z))),a=Math.atan2(mz(1950)-Y,mx(0)-X);
@@ -180,7 +185,7 @@ export function initBase(Z,api,G){
  function open(){document.body.classList.add('zb-open');G.state="base";G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
  function close(){el.hidden=true;G.placing=null;document.body.classList.remove('zb-open')}
  // redraw for a change made elsewhere (co-op: the purse, the defences, who is ready), keeping focus and the tab's scroll
- function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','tab'].find(x=>a.dataset[x]!=null):null,
+ function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','so','tab'].find(x=>a.dataset[x]!=null):null,
    q=k?`[data-${k}="${a.dataset[k]}"]`:mine&&a.id?'#'+a.id:null,sc=el.querySelector('.ztab')?.scrollTop||0;
   render();const t=el.querySelector('.ztab');if(t)t.scrollTop=sc;if(q)el.querySelector(q)?.focus()}
  // spatial focus move between the visible buttons
@@ -188,7 +193,7 @@ export function initBase(Z,api,G){
   if(!ra){bs[0].focus();return}const cx=ra.x+ra.width/2,cy=ra.y+ra.height/2;let best=null,bd=1e9;
   for(const b of bs){if(b===a)continue;const r=b.getBoundingClientRect(),x=r.x+r.width/2-cx,y=r.y+r.height/2-cy,along=x*dx+y*dy;if(along<=4)continue;const d=along+Math.abs(x*dy+y*dx)*2;if(d<bd){bd=d;best=b}}
   best?.focus();drawMap()}
- const setTab=k=>{if(G.placing)return;tab=k;render();focus(`[data-tab="${k}"]`)},TABS=()=>['shop','armory','sites',...(Z.chainHTML?['chain']:[])];  // the Kill chain tab comes with zchain.js (set up after this file)
+ const setTab=k=>{if(G.placing)return;tab=k;render();focus(`[data-tab="${k}"]`)},TABS=()=>tabList().map(t=>t[0]);  // Kill chain (zchain.js) and Sortie (zsortie.js) come with their files, set up after this one
  function key(e){if(el.hidden)return false;const c=e.code;
   if(c==='ArrowUp')move(0,-1);else if(c==='ArrowDown')move(0,1);else if(c==='ArrowLeft')move(-1,0);else if(c==='ArrowRight')move(1,0);
   else if(c==='Space'&&el.contains(document.activeElement))document.activeElement.click();

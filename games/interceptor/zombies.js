@@ -14,6 +14,7 @@ import {initRocket} from './zrocket.js';
 import {initNet} from './znet.js';
 import {initChain} from './zchain.js';
 import {initWarn} from './zwarn.js';
+import {initSortie} from './zsortie.js';
 import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
@@ -108,7 +109,7 @@ export function initZombies(api){
   const brgs=[];for(let i=0;i<raids;i++)brgs.push(w===1?(Math.random()-.5)*.6:(Math.random()-.5)*2.6);  // edge bearing per raid: 0 = north, ±1.3 rad = west/east
   const q=list.map((k,i)=>{const ri=w===1?0:i%raids,K=KIND[k.split(':')[0]];let at=w===1?(i?25:0):(K.armor==='boss'?5:ri*win/raids*(1-tot)+rnd(0,10));
    if(tot&&w>1&&K.armor!=='boss')at+=tot*Math.max(0,TOT_T-(K.far||5200)/K.spd);return{k,at,brg:brgs[ri]+rnd(-.12,.12)}}).sort((a,b)=>a.at-b.at);
-  return{list,brgs,q,wx:wx.plan(w)}}
+  const P={list,brgs,q,wx:wx.plan(w)};Z.cutPlan?.(P,w);return P}  // Z.cutPlan (sorties, zsortie.js): what earlier strikes still take out of wave w (a factory for 3 waves, a launch site for 2); it rebuilds P.list from P.q
  // what the next wave's raids will do (base-screen forecast), on the difficulties that use tactics
  Z.tacNote=()=>{const t=DF().tac||{},a=[];if(t.tot)a.push('raids timed to arrive together');if(t.escort)a.push('decoys escort the Shaheds');if(t.focus)a.push('they go for your weakest site');if(t.feint)a.push('some switch targets on the way in');if(t.jink)a.push('evading kinds dodge your helpers too');
   return a.length?`<p class="zhint"><b>${DF().n} tactics</b>: ${a.join(' · ')}.</p>`:''};
@@ -318,6 +319,7 @@ export function initZombies(api){
  initBosses(api,G,Z);  // the boss roster (zbosses.js + zboss-*.js): wraps the hooks above, before the effects and co-op layers
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
- initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
+ initNet(api,G,Z);  // co-op (znet.js): wraps them again
+ initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
  return Z}

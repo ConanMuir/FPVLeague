@@ -105,9 +105,13 @@ jobs:
           - check: zombies-test (zombies, roster)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=zombies,roster
-          - check: zombies-test (helpers, weather, chain)
+          - check: zombies-test (helpers, weather, chain, sorties)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=helpers,weather,chain
+            run: node tools/zombies-test.mjs --sections=helpers,weather,chain,sorties
+          # Zombies co-op: a host and two clients over the ?netloop transport in one headless browser
+          - check: zombies-coop
+            area: interceptor
+            run: node tools/zombies-coop.mjs
           - check: zombies-test (bosses)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=bosses
