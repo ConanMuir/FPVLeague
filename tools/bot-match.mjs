@@ -21,6 +21,7 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
   const onTop = d => { _r.subVectors(ball.p, d.p); const h = topOf(d) + BR; return Math.hypot(_r.x, _r.z) < 1.2 && _r.y > h - .5 && _r.y < h + .6; };
   const track = (key, sim) => { for (const d of GS.drones) { if (d.dead > 0) continue; const st = sim(d), k = key(d);
       if (GS.state === 'play' && onTop(d)) st.carry = (st.carry || 0) + 1 / 120;
+      if (GS.state === 'play' && d.ai.pos && d.role === 'attack') st.posMode = (st.posMode || 0) + 1 / 120;  // Dribbler / Freestyler attacker playing the possession game
       const c0 = prevC.get(d) || 0; if (!(c0 > 0) && d.popC > 0) st.earned = (st.earned || 0) + 1; prevC.set(d, d.popC || 0);
       const t0 = prevT.get(d) || 0; if (!(t0 > 0) && d.popT > 0) { st.popsFired = (st.popsFired || 0) + 1; pend.push({st, d, t: 1, withBall: Math.hypot(ball.p.x - d.p.x, ball.p.z - d.p.z) < 1.6 && ball.p.y > d.p.y}); } prevT.set(d, d.popT || 0); }
     for (let i = pend.length - 1; i >= 0; i--) { const e = pend[i]; e.t -= 1 / 120; const gz = (e.d.team ? 1 : -1) * HL, gx = -ball.p.x, gzz = gz - ball.p.z, gl = Math.hypot(gx, gzz) || 1, vg = (ball.v.x * gx + ball.v.z * gzz) / gl;
@@ -59,7 +60,7 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
   const trickStats = (o, min) => { const ch = (o.chains || []).filter(n => n >= 2), sp = o.spins || [], wa = o.wAll || [], avg = a => a.length ? +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : null;
     return {chains_perMin: +(ch.length / min).toFixed(2), chainAvg: avg(ch), chainMax: ch.length ? Math.max(...ch) : 0, popsInChains: ch.reduce((x, y) => x + y, 0), airTouches: o.air || 0, airTouches_perMin: +((o.air || 0) / min).toFixed(1),
       wallPops: o.wallPops || 0, doubleTaps: o.taps || 0, doubleTapsPlanned: o.tapsPlanned || 0, airDribbleTouches: o.airDribble || 0, trickAttempts: o.modes || {}, finishers: o.fins || {}, flipResets: o.resets || 0, resetDodges: o.resetDodges || 0, resetDodgeHits: o.resetHits || 0, ceilingPops: o.ceilPops || 0, ceilingShots: o.ceilShots || 0, ceilingShotsGoalward: o.ceilGoalward || 0, spinShots: sp.length, spinPops: o.spinPops || 0, spinAvg: avg(sp), spinMax: sp.length ? +Math.max(...sp).toFixed(1) : null, spin10: sp.filter(x => x >= 10).length, curveAvg_m: avg(o.curves || []), curveMax_m: (o.curves || []).length ? +Math.max(...o.curves).toFixed(2) : null, otherTouchSpinAvg: avg(wa)}; };
-  const rates = (o, min) => ({carryS_perMin: +((o.carry || 0) / min).toFixed(1), earned_perMin: +((o.earned || 0) / min).toFixed(1), popsFired_perMin: +((o.popsFired || 0) / min).toFixed(1), popsGoalward: o.popGood || 0, popsFired: o.popsFired || 0, popSuccessPct: o.popsFired ? Math.round(100 * (o.popGood || 0) / o.popsFired) : null});
+  const rates = (o, min) => ({posModeS_perMin: +((o.posMode || 0) / min).toFixed(1), carryS_perMin: +((o.carry || 0) / min).toFixed(1), earned_perMin: +((o.earned || 0) / min).toFixed(1), popsFired_perMin: +((o.popsFired || 0) / min).toFixed(1), popsGoalward: o.popGood || 0, popsFired: o.popsFired || 0, popSuccessPct: o.popsFired ? Math.round(100 * (o.popGood || 0) / o.popsFired) : null});
   const lv = x => { const i = DIFF.findIndex(d => d.n.toLowerCase() === String(x).toLowerCase()); return i >= 0 ? i : +x; }, A = lv(la), B = lv(lb), dt = 1 / 120; Object.assign(DIFF[A], bt.D || {}); Object.assign(DIFF[B], bt.DB || {});
   DF.setGame(mode); MA.startDemo(); GS.paused = true; GS.menuOpen = true;
   GS.drones = GS.drones.filter(d => { if (d.i < size) return true; d.dispose(); return false; });
@@ -68,7 +69,7 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
   const out = {levels: [DIFF[A].n, DIFF[B].n], forA: 0, forB: 0, touchA: 0, touchB: 0, playS: 0, halves: []};
   // kickoffs (League): who touches first, who has the ball (last toucher) 3 s after that first touch, and goals within 10 s of a kickoff;
   // possession: share of play time each side was the last to touch the ball
-  const KO = {n: 0, firstA: 0, firstB: 0, holdA: 0, holdB: 0, goalsA: 0, goalsB: 0}, POS = {A: 0, B: 0};
+  const KO = {n: 0, firstA: 0, firstB: 0, holdA: 0, holdB: 0, goalsA: 0, goalsB: 0}, POS = {A: 0, B: 0}, GOALS = [];  // GOALS: how each goal came about
   if (mode === 'drill') {  // shooting drill: one bot, random ball and start, until its first touch; then did it score within 4 s?
     const bot = GS.drones.find(d => d.team === 0 && d.i === 0); for (const d of GS.drones) if (d !== bot) d.dead = 1e9;
     let seed = 7; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647, res = {};
@@ -103,7 +104,7 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
   for (const half of [0, 1]) {
     for (const d of GS.drones) d.skill = (d.team === half) ? A : B;  // half 0: A is blue, half 1: A is orange
     GS.score = [0, 0]; MA.kickoff(); let last = null, lastT = -1, n = Math.round(mins * 60 / 2 / dt), tA = 0, tB = 0;
-    let koN = -1, koT = 0, koFirst = -1, sa0 = 0, sb0 = 0; const side = d => d.team === half ? 'A' : 'B';
+    let koN = -1, koT = 0, koFirst = -1, sa0 = 0, sb0 = 0, ga0 = 0, gb0 = 0, lt = null; const side = d => d.team === half ? 'A' : 'B';
     for (let i = 0; i < n; i++) {
       hitBy = null; if (mode === 'league') vb.copy(ball.v);
       const al = GS.drones.map(d => d.dead <= 0), pt = GS.drones.map(d => d.popT > 0), tu = DFm.TUR.map(t => t.re > 0);
@@ -111,9 +112,13 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
       touchedNow = hitBy;
       if (mode === 'league') { if (GS.koN !== koN) { koN = GS.koN; KO.n++; koT = 0; koFirst = -1; sa0 = GS.score[half]; sb0 = GS.score[1 - half]; } koT += dt;
         if (touchedNow && koFirst < 0) { koFirst = koT; KO['first' + side(touchedNow)]++; }
-        if (koFirst >= 0 && koT - koFirst >= 3 && koT - koFirst < 3 + dt * 1.5 && ball.last) KO['hold' + side(ball.last)]++;
+        if (koFirst >= 0 && koT - koFirst >= 3 && ball.last && koFirst !== 1e9) { KO['hold' + side(ball.last)]++; koFirst = 1e9; }
         if (koT < 10) { if (GS.score[half] > sa0) { KO.goalsA++; sa0 = GS.score[half]; } if (GS.score[1 - half] > sb0) { KO.goalsB++; sb0 = GS.score[1 - half]; } }
-        if (GS.state === 'play' && ball.last) POS[side(ball.last)] += dt; }
+        if (GS.state === 'play' && ball.last) POS[side(ball.last)] += dt;
+        if (touchedNow) lt = {by: side(touchedNow), lvl: DIFF[touchedNow.skill].n, z: Math.round(ball.p.z * (touchedNow.team ? 1 : -1)), y: Math.round(ball.p.y), spd: Math.round(ball.v.length()), t: koT, pop: touchedNow.popT > 0};
+        if (GS.score[half] > ga0 || GS.score[1 - half] > gb0) { const sc = GS.score[half] > ga0 ? 'A' : 'B'; ga0 = GS.score[half]; gb0 = GS.score[1 - half];
+          const gz = (sc === 'A' ? (half ? 1 : -1) : (half ? -1 : 1)) * HL; let keep = 1e9; for (const d of GS.drones) if (side(d) !== sc && d.dead <= 0) keep = Math.min(keep, Math.hypot(d.p.x, d.p.z - gz));
+          GOALS.push({sc, last: lt && lt.by, own: lt && lt.by !== sc, lastToGoal: lt ? Math.round(HL - lt.z) : null, lastY: lt?.y, spd: lt?.spd, afterKo: +koT.toFixed(1), sinceTouch: lt ? +(koT - lt.t).toFixed(1) : null, pop: lt?.pop, keeperDist: Math.round(keep)}); } }
       if (mode === 'league') track(d => d.team === half ? 'A' : 'B', d => q[d.team === half ? 'A' : 'B']);
       DFm.TUR.forEach((t, j) => { if (!tu[j] && t.re > 0) { const k = t.t === half ? 'A' : 'B'; q[k].turretsLost = (q[k].turretsLost || 0) + 1; } }); GS.drones.forEach((d, j) => { const k = d.team === half ? 'A' : 'B'; if (al[j] && d.dead > 0 && GS.state === 'play') q[k].demoed = (q[k].demoed || 0) + 1; if (!pt[j] && d.popT > 0) q[k].pops = (q[k].pops || 0) + 1; });
       if (mode === 'league' && touchedNow) { const d = touchedNow; if (d !== last || i - lastT > 30) { const k = d.team === half ? 'A' : 'B'; if (k === 'A') tA++; else tB++;
@@ -133,7 +138,7 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
     const think = (performance.now() - t0) / N / GS.drones.length; t0 = performance.now(); const M = 1200; for (let i = 0; i < M; i++) ST.step(dt);
     const stepMs = (performance.now() - t0) / M; let pr = 0; if (mode === 'league') { t0 = performance.now(); for (let i = 0; i < 200; i++) LB.predict(); pr = (performance.now() - t0) / 200; }
     cost[DIFF[L].n] = {thinkMsPerBot: +think.toFixed(4), stepMs: +stepMs.toFixed(3), predictMs: +pr.toFixed(3)}; }
-  if (mode === 'league') { out.kickoffs = KO; const pt = POS.A + POS.B || 1; out.possessionA = Math.round(100 * POS.A / pt); }
+  if (mode === 'league') { out.goals = GOALS; out.kickoffs = KO; const pt = POS.A + POS.B || 1; out.possessionA = Math.round(100 * POS.A / pt); }
   out.cost = cost; for (const k in q) { const o = q[k]; out['shots' + k] = {touches: o.n, onTarget: o.onT, avgSpeed: +(o.spd / (o.n || 1)).toFixed(1), normalErrDeg: o.nc ? +(o.nErr / o.nc).toFixed(1) : null, demolished: o.demoed || 0, turretsLost: o.turretsLost || 0, pops: o.pops || 0, ...(mode === 'league' ? {...rates(o, out.playS / 60), ...trickStats(o, out.playS / 60)} : {})}; } out.playS = +out.playS.toFixed(0); return out;
 }, mode, la, lb, +mins, +size, JSON.parse(process.env.BT || '{}'));
 r.errors = errs; console.log(JSON.stringify(r)); await b.close(); await server.close(); process.exit(errs.length ? 1 : 0);

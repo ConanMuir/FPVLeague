@@ -5,12 +5,12 @@
 // Same flight model and thrust limits as everyone (the controller only chooses an acceleration, like botControl).
 import {GW,H,HL,HW,V3,cl} from '../config/constants.js';
 import {hyp2} from '../core/hypot.js';
-import {BG,BOTV,BR,BTHR,DL,DQ,G,TE,THR} from '../config/tune.js';
+import {BG,BOTV,BR,DL,DQ,G,TE,THR} from '../config/tune.js';
 import {attitude} from '../flight/attitude.js';
 import {GS} from '../state.js';
 import {ball} from '../physics/ball.js';
 import {sdN,sdf} from '../physics/sdf.js';
-import {PDT,PRED,PV,reachT} from './league.js';
+import {PDT,PRED,PV,reachT,thrOf} from './league.js';
 import {fsCarry} from './freestyle.js';
 const _r=new V3(),_a=new V3(),_T=new V3(),_u=new V3(),_g=new V3(),_q=new V3(),_v=new V3(),_lk=new V3(),_px=new V3();
 // height of the top of this quad's parts above its centre (the ball rests at top + BR)
@@ -31,7 +31,7 @@ export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+
    let best=null,bd=.55;for(const p of PS){_px.set(p[3],p[4],p[5]).applyQuaternion(d.q);_px.y=0;const l=_px.length();if(l<.5)continue;const k=_px.dot(g)/l;if(k>bd){bd=k;best=p}}
    if(best&&d.tryPop(best))ai.ct=0}}
  else{ai.ct=0;if(!grounded)ai.sct=0;let foe=null;const md=d.p.distanceToSquared(ball.p);for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0){const q=o.p.distanceToSquared(ball.p);if(q<49&&q<md){foe=o;break}}
-  if(foe){  // someone else is on the ball: give them room (this bot is here to show the mechanics, not to fight for the ball) and shadow it
+  if(foe&&!D.iq){  // someone else is on the ball: give them room and shadow it (the levels with the planner, DIFF[].iq, fight for it instead: bots/league.js)
    ai.dm='wait';_q.subVectors(d.p,ball.p);_q.y=0;if(_q.lengthSq()<1)_q.set(1,0,0);_q.setLength(15).add(ball.p);_q.y=Math.max(6,ball.p.y);_v.subVectors(_q,d.p).multiplyScalar(2).clampLength(0,vm).add(ball.v);a.subVectors(_v,d.v).multiplyScalar(4)}
   else if(grounded&&hd<30){  // scoop: from behind (along its roll, or away from the goal when it is slow), skim in low (centre ~1 m up), nose down, into the bottom half of the ball: it leaves at ~45 degrees
    ai.dm='scoop';look=_lk.subVectors(ball.p,d.p);ai.sct=(ai.sct||0)+dt;const bs=hyp2(ball.v.x,ball.v.z),sw=sdf(ball.p.x,ball.p.y,ball.p.z);let sd=bs>5?_px.set(ball.v.x/bs,0,ball.v.z/bs):_px.copy(g);
@@ -55,7 +55,7 @@ export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+
     if(D.apex&&hd>1.2&&r.y<H0+1.5)vy=Math.min(vy,(ball.p.y-H0-1-d.p.y)*4);  // not under it yet: stay low enough to pass beneath it
     a.y=(D.apex?16:12)*(vy-d.v.y)+(d.p.y<1.5?(1.5-d.p.y)*20:0);if(D.apex)a.y=Math.min(a.y,D.ayM??40)}  // apex: leave thrust for chasing it sideways  // follow its fall only partly: a soft landing, and lift left to steer with
    else{  // on the way: be about 2.5 m under its path where it comes down through a comfortable height, moving with it
-    const acc=BTHR*D.thr*.7;let tt=.6,ok=false;for(let pass=0;pass<2&&!ok;pass++)for(let i=3;i<PRED.length;i+=2){const P=PRED[i];if(PV[i].y>0||P.y<H0+2+PV[i].y*PV[i].y/(D.rm??50)||P.y>(pass?40:16))continue;_q.copy(P);_q.y=Math.max(P.y-H0-2.5,1.5);const t=(i+1)*PDT;if(reachT(d,_q,acc,vm)*1.15+.2<=t){tt=t;ok=true;_v.copy(PV[i]);break}}
+    const acc=thrOf(D)*D.thr*.7;let tt=.6,ok=false;for(let pass=0;pass<2&&!ok;pass++)for(let i=3;i<PRED.length;i+=2){const P=PRED[i];if(PV[i].y>0||P.y<H0+2+PV[i].y*PV[i].y/(D.rm??50)||P.y>(pass?40:16))continue;_q.copy(P);_q.y=Math.max(P.y-H0-2.5,1.5);const t=(i+1)*PDT;if(reachT(d,_q,acc,vm)*1.15+.2<=t){tt=t;ok=true;_v.copy(PV[i]);break}}
     if(!ok){_q.copy(ball.p).addScaledVector(ball.v,.25);_q.y=Math.max(ball.p.y-H0-3,1.5);_v.copy(ball.v);tt=.5}  // nowhere comfortable: stay under it, below it, and let it come down
     const l=_q.distanceTo(d.p),vd=_u.subVectors(_q,d.p).divideScalar(cl(tt*.5,.25,.7)).clampLength(0,Math.min(vm,Math.sqrt(60*l)+hyp2(_v.x,_v.z)));if(hd<10)vd.y=Math.min(vd.y,(ball.p.y-H0-2-d.p.y)*3+ball.v.y);a.subVectors(vd,d.v).multiplyScalar(D.kd)}}}  // near it, never rise into it from below
  const fl=ai.dm==='scoop'?.7:1.4;if(d.p.y<fl&&d.v.y<0)a.y+=-d.v.y*2+(fl-d.p.y)*8;
@@ -69,12 +69,7 @@ export function steer(d,D,a,look){if(d.p.y>H-10&&a.y>-5&&!d.ai.roof)a.y=-5;  // 
  const ah=hyp2(a.x,a.z),hm=D.ah??55;if(ah>hm){a.x*=hm/ah;a.z*=hm/ah}a.y=Math.max(a.y,-G*.85,Math.min(ah,hm)/1.7-G);  // never thrust downward or tip past ~60 degrees (it has to stay under the ball): lift is added rather than steering lost
  fly(d,D,a,look)}
 // thrust and attitude for a wanted acceleration a (any direction: upside down too), same thrust cap as everyone
-export function fly(d,D,a,look){const s=d.team?1:-1,lim=Math.min(1,D.thr*BOTV),cap=BTHR*lim;if(a.length()>cap)a.setLength(cap);
+export function fly(d,D,a,look){const s=d.team?1:-1,lim=Math.min(1,D.thr*BOTV),cap=thrOf(D)*lim;if(a.length()>cap)a.setLength(cap);
  const T=_T.copy(a);T.y+=G;T.addScaledVector(d.v,DL+DQ*d.v.length());const need=T.length()||1;T.divideScalar(need);
  const al=_u.set(0,1,0).applyQuaternion(d.q).dot(T),F=d.fl;d.boosting=false;d.thr=cl(Math.max(need/(THR*F.thr),0)**(1/(TE*F.te)),0,lim)*cl((al-.1)/.6,.05,1);
  const lk=_lk.copy(look);lk.y=0;if(lk.lengthSq()<1e-4)lk.set(0,0,s);lk.normalize();attitude(d,T,lk,D.att,D.rate,.6)}
-// the Dribbler's teammates stay out of its way: the keeper hovers in its goal mouth, the other holds a spot behind the play; neither touches the ball
-export function dribbleSupport(d,D){const ai=d.ai,s=d.team?1:-1,own=-s*HL;ai.dm='support';
- if(d.role==='keep')_q.set(cl(ball.p.x*.3,-12,12),7,own+s*6);else{_q.set(ball.p.x>0?-25:25,9,cl(ball.p.z-s*35,-HL+20,HL-20))}
- const r=_r.subVectors(d.p,ball.p);if(r.length()<BR+6)_q.addScaledVector(r.normalize(),8);  // never in the ball's way
- const a=_a.subVectors(_q,d.p).multiplyScalar(1.5).clampLength(0,D.vmax*BOTV*.6).sub(d.v).multiplyScalar(3);steer(d,D,a,_lk.subVectors(ball.p,d.p))}
