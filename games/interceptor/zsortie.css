@@ -1,0 +1,16 @@
+/* Zombies sorties (zsortie.js): the sortie HUD under the wave bar, the base screen's Sortie tab and its map legend */
+#zso{display:grid;justify-items:center;gap:4px;font:700 14px var(--mono)}#zso[hidden]{display:none}
+#zso .zso1{display:flex;align-items:stretch;border-radius:6px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.45)}
+#zso .zso1>span{padding:4px 11px;background:var(--panel);white-space:nowrap;display:flex;align-items:center;color:#fff}
+#zso .zso1 .lo{color:var(--red);animation:zbl 1s steps(2) infinite}#zso .cy{color:var(--amber)}
+#zso .hull{position:relative;min-width:150px;padding:0!important;background:rgba(8,12,22,.84)!important}
+#zso .hull i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#1f8f55,#3ddc84)}#zso .hull i.lo{background:linear-gradient(90deg,#8f1f1f,#ff4d4d)}
+#zso .hull em{position:relative;font-style:normal;font-size:12px;width:100%;text-align:center;text-shadow:0 0 3px #000}
+#zso .zso2{font-size:12px;padding:2px 10px;border-radius:4px;background:rgba(8,12,22,.7)}#zso .zso2.in{color:var(--green)}#zso .zso2.out{color:#ffd77a}
+.zso-l{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.zso-l button.go{margin-left:0}.zso-pads{display:flex;gap:4px}.zso-pads button.on{background:var(--green);color:#04140a;border-color:var(--green)}
+.zso-t{grid-template-columns:auto minmax(0,1fr) auto}.zso-t.on{border-color:#ffe23c;background:rgba(255,226,60,.06)}
+.zso-t .zso-fx{color:#cfe6d6}.zso-b{display:grid;gap:4px}.zso-b button{min-width:8.5em}.zso-b button.on{border-color:#ffe23c;color:#ffe23c}
+.zso-cut{color:#9fe8bd}.zso-cut b{color:var(--green)}
+.zleg .lso-in{border:1.5px solid #3ddc84;box-sizing:border-box}.zleg .lso-fog{background:rgba(5,8,14,.9);border:1px solid var(--edge);border-radius:1px;box-sizing:border-box}
+.zleg .lso-t{background:#ffb070;border-radius:1px}.zleg .lso-r{border-top:2px dashed #ffc640;border-radius:0;height:0!important;vertical-align:3px!important}.zleg .lso-aa{background:#ff4d4d;width:6px!important;height:6px!important;border-radius:1px}
+@media (max-width:560px){.zso-t{grid-template-columns:auto 1fr}.zso-b{grid-column:1/-1;grid-auto-flow:column}}

@@ -3,19 +3,18 @@
 //   node tools/fx-shots.mjs [--only boost,hover,tumble,hit] [--maps arena,meadow,canyon,alpine] [--q high] [--no-perf] [--no-shots]
 // Writes shots/fx-<scenario>-<cam>.png (shots/ is gitignored) and prints frame times per quality.
 import fs from 'node:fs';
-import puppeteer from 'puppeteer-core';
+import {launchBrowser} from './browser.mjs';
 const {createServer} = await import('vite');
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const ONLY = arg('only', 'boost,hover,tumble,hit').split(','), MAPS = arg('maps', 'arena,meadow,canyon,alpine').split(','), Q = arg('q', 'high');
 const PERF = !process.argv.includes('--no-perf'), SHOTS = !process.argv.includes('--no-shots');
 fs.mkdirSync('shots', {recursive: true});
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
 const server = await createServer({root: process.cwd(), logLevel: 'error', server: {port: 0, host: '127.0.0.1'}}); await server.listen();
-const b = await puppeteer.launch({executablePath: process.env.EDGE_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true, env, protocolTimeout: 300000,
+const b = await launchBrowser({protocolTimeout: 300000,
   args: ['--window-size=1280,720', '--ignore-gpu-blocklist', '--disable-gpu-vsync', '--disable-frame-rate-limit']});
 const p = await b.newPage(); await p.setViewport({width: 1280, height: 720}); const errs = [];
 p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/fonts\.g|favicon|peerjs|Failed to load resource/i.test(m.text())) errs.push(m.text()); });
-await p.goto(server.resolvedUrls.local[0]); await new Promise(r => setTimeout(r, 6000));
+await p.goto(server.resolvedUrls.local[0] + 'app.html'); await new Promise(r => setTimeout(r, 6000));
 await p.addStyleTag({content: 'body>*:not(#gl),body>*:not(#gl) *{visibility:hidden!important}'});
 await p.evaluate(async () => {
   const M = {DF: await import('/src/modes/dogfight.js'), MA: await import('/src/modes/match.js'), ST: await import('/src/modes/step.js'), I: await import('/src/input/input.js'),
@@ -51,7 +50,7 @@ if (SHOTS) for (const s of ONLY) for (const cam of [1, 0, 2]) await SC[s](cam);
 if (PERF) {
   // frame time: the real game loop (unpaused, uncapped), League 3v3 vs bots with super boost, the player pinned low and boosting; effects on vs off
   const pp = await b.newPage(); await pp.setViewport({width: 1280, height: 720}); pp.on('pageerror', e => errs.push(e.message));
-  await pp.goto(server.resolvedUrls.local[0]); await new Promise(r => setTimeout(r, 6000)); await pp.addStyleTag({content: 'body>*:not(#gl),body>*:not(#gl) *{visibility:hidden!important}'});
+  await pp.goto(server.resolvedUrls.local[0] + 'app.html'); await new Promise(r => setTimeout(r, 6000)); await pp.addStyleTag({content: 'body>*:not(#gl),body>*:not(#gl) *{visibility:hidden!important}'});
   for (const q of ['high', 'low']) {
     const r = await pp.evaluate(async q => { const M = {DF: await import('/src/modes/dogfight.js'), MA: await import('/src/modes/match.js'), I: await import('/src/input/input.js'), S: await import('/src/config/settings.js'),
         R: await import('/src/render/renderer.js'), FX: await import('/src/render/effects.js')}, {GS} = await import('/src/state.js'); M.S.S.sboost = true; M.S.S.size = 3; M.S.S.bots = 1; M.R.setQuality(q); M.DF.setGame('league'); M.MA.startMatch(); GS.camMode = 1; GS.menuOpen = false;

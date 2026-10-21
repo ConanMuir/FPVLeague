@@ -1,0 +1,270 @@
+{
+ "date": "2026-10-20",
+ "version": "0.16.0+d1c9667",
+ "runs": 6,
+ "cap": 60,
+ "note": "Median wave reached by each bot pilot level (tools/zbot.mjs) on each difficulty, fresh profile, Standard doctrine, no kit. Written by tools/zombies-bench.mjs.",
+ "levels": [
+  {
+   "n": "Rookie",
+   "d": {
+    "Easy": {
+     "med": 32.5,
+     "min": 28,
+     "max": 34,
+     "cause": {
+      "ballistic": 2,
+      "heavy": 3,
+      "cruise": 1
+     }
+    },
+    "Normal": {
+     "med": 20.5,
+     "min": 20,
+     "max": 26,
+     "cause": {
+      "boss": 3,
+      "cruise": 3
+     }
+    },
+    "Hard": {
+     "med": 14,
+     "min": 12,
+     "max": 15,
+     "cause": {
+      "jet": 6
+     }
+    },
+    "Nightmare": {
+     "med": 11,
+     "min": 7,
+     "max": 12,
+     "cause": {
+      "jet": 5,
+      "heavy": 1
+     }
+    }
+   }
+  },
+  {
+   "n": "Pro",
+   "d": {
+    "Easy": {
+     "med": 39,
+     "min": 36,
+     "max": 40,
+     "cause": {
+      "ballistic": 2,
+      "boss": 1,
+      "hyper": 3
+     }
+    },
+    "Normal": {
+     "med": 31,
+     "min": 31,
+     "max": 33,
+     "cause": {
+      "hyper": 2,
+      "ballistic": 4
+     }
+    },
+    "Hard": {
+     "med": 27.5,
+     "min": 24,
+     "max": 30,
+     "cause": {
+      "ballistic": 4,
+      "hyper": 1,
+      "swarm": 1
+     }
+    },
+    "Nightmare": {
+     "med": 17,
+     "min": 14,
+     "max": 22,
+     "cause": {
+      "ballistic": 1,
+      "jet": 1,
+      "cruise": 3,
+      "heavy": 1
+     }
+    }
+   }
+  },
+  {
+   "n": "All-Star",
+   "d": {
+    "Easy": {
+     "med": 44,
+     "min": 38,
+     "max": 47,
+     "cause": {
+      "ballistic": 3,
+      "hyper": 3
+     }
+    },
+    "Normal": {
+     "med": 34,
+     "min": 31,
+     "max": 36,
+     "cause": {
+      "ballistic": 3,
+      "hyper": 3
+     }
+    },
+    "Hard": {
+     "med": 29.5,
+     "min": 25,
+     "max": 32,
+     "cause": {
+      "ballistic": 3,
+      "hyper": 1,
+      "cruise": 1,
+      "boss": 1
+     }
+    },
+    "Nightmare": {
+     "med": 21.5,
+     "min": 17,
+     "max": 25,
+     "cause": {
+      "cruise": 1,
+      "ballistic": 3,
+      "hyper": 1,
+      "jet": 1
+     }
+    }
+   }
+  },
+  {
+   "n": "Champion",
+   "d": {
+    "Easy": {
+     "med": 52.5,
+     "min": 49,
+     "max": 57,
+     "cause": {
+      "icbm": 5,
+      "hyper": 1
+     }
+    },
+    "Normal": {
+     "med": 38,
+     "min": 36,
+     "max": 41,
+     "cause": {
+      "icbm": 1,
+      "ballistic": 2,
+      "hyper": 3
+     }
+    },
+    "Hard": {
+     "med": 33,
+     "min": 29,
+     "max": 37,
+     "cause": {
+      "icbm": 1,
+      "hyper": 2,
+      "ballistic": 2,
+      "jet": 1
+     }
+    },
+    "Nightmare": {
+     "med": 23,
+     "min": 19,
+     "max": 27,
+     "cause": {
+      "ballistic": 3,
+      "boss": 1,
+      "swarm": 1,
+      "cruise": 1
+     }
+    }
+   }
+  },
+  {
+   "n": "Grand Champion",
+   "d": {
+    "Easy": {
+     "med": 60,
+     "min": 59,
+     "max": 60,
+     "cause": {
+      "ballistic": 1
+     }
+    },
+    "Normal": {
+     "med": 45,
+     "min": 41,
+     "max": 48,
+     "cause": {
+      "ballistic": 1,
+      "icbm": 3,
+      "hyper": 1,
+      "cruise": 1
+     }
+    },
+    "Hard": {
+     "med": 35.5,
+     "min": 34,
+     "max": 37,
+     "cause": {
+      "hyper": 3,
+      "swarm": 1,
+      "ballistic": 2
+     }
+    },
+    "Nightmare": {
+     "med": 27,
+     "min": 25,
+     "max": 29,
+     "cause": {
+      "ballistic": 3,
+      "cruise": 1,
+      "hyper": 1,
+      "swarm": 1
+     }
+    }
+   }
+  },
+  {
+   "n": "Legend",
+   "d": {
+    "Easy": {
+     "med": 60,
+     "min": 60,
+     "max": 60,
+     "cause": {}
+    },
+    "Normal": {
+     "med": 60,
+     "min": 60,
+     "max": 60,
+     "cause": {}
+    },
+    "Hard": {
+     "med": 43.5,
+     "min": 38,
+     "max": 47,
+     "cause": {
+      "ballistic": 3,
+      "icbm": 2,
+      "hyper": 1
+     }
+    },
+    "Nightmare": {
+     "med": 32,
+     "min": 27,
+     "max": 37,
+     "cause": {
+      "hyper": 2,
+      "ballistic": 1,
+      "jet": 1,
+      "icbm": 1,
+      "swarm": 1
+     }
+    }
+   }
+  }
+ ]
+}

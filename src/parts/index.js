@@ -7,6 +7,7 @@ import {ARMS,motorsOf,rootOf} from './arms.js';
 import {CHASSIS} from './chassis.js';
 import {POWER} from './power.js';
 import {ATTACH} from './attach.js';
+import {hyp2} from '../core/hypot.js';
 export {ARMS,ATTACH,CHASSIS,POWER,motorsOf};
 export const SLOTS=['arms','chassis','power','attach'],SLOT_NAMES=['Arms','Chassis','Power','Attachment'],PARTS={arms:ARMS,chassis:CHASSIS,power:POWER,attach:ATTACH};
 export const STOCK=Object.freeze(['stock','stock','stock','none']);
@@ -118,9 +119,9 @@ export const SCORED=['speed','punch','roll','pitch','yaw','resp','boost','hit','
 export function statsOf(lo,T){const f=lo.flight,G=T.grav,dl=T.dl*f.dl,thr=T.thr*f.thr,vp=T.vp*f.vp,maxv=T.maxv*f.maxv,te=T.te*f.te,dt=1/60;
  // level top speed: full throttle at a fixed forward tilt with the game's own drag and inflow model; best speed that still holds height
  let top=0;for(let deg=20;deg<=88;deg+=2){const th=deg*Math.PI/180,s=Math.sin(th),c=Math.cos(th);let vy=0,vz=0;
-  for(let i=0;i<540;i++){const va=vy*c-vz*s,acc=thr*cl(1-va/vp,0,1.15);vy+=(acc*c-G)*dt;vz-=acc*s*dt;const sp=Math.hypot(vy,vz);
-   if(sp>1e-4){const k=T.dq*sp,uy=vy*c-vz*s,uz=vy*s+vz*c,Dy=uy*(dl+k*1.8*f.dq[1]),Dz=uz*(dl+k*.7*f.dq[2]);let ay=c*Dy+s*Dz,az=-s*Dy+c*Dz;const l=Math.hypot(ay,az)*dt;if(l>sp){ay*=sp/l;az*=sp/l}vy-=ay*dt;vz-=az*dt}
-   const s2=Math.hypot(vy,vz);if(s2>maxv){const m=Math.max(maxv/s2,1-dt*2);vy*=m;vz*=m}}
+  for(let i=0;i<540;i++){const va=vy*c-vz*s,acc=thr*cl(1-va/vp,0,1.15);vy+=(acc*c-G)*dt;vz-=acc*s*dt;const sp=hyp2(vy,vz);
+   if(sp>1e-4){const k=T.dq*sp,uy=vy*c-vz*s,uz=vy*s+vz*c,Dy=uy*(dl+k*1.8*f.dq[1]),Dz=uz*(dl+k*.7*f.dq[2]);let ay=c*Dy+s*Dz,az=-s*Dy+c*Dz;const l=hyp2(ay,az)*dt;if(l>sp){ay*=sp/l;az*=sp/l}vy-=ay*dt;vz-=az*dt}
+   const s2=hyp2(vy,vz);if(s2>maxv){const m=Math.max(maxv/s2,1-dt*2);vy*=m;vz*=m}}
   if(vy>-1)top=Math.max(top,-vz)}
  const real=9.81/G,rate=i=>f.rmax[i]*180/Math.PI*.1/(.1+f.snap[i]+T.tau/1000);  // achievable rate, discounted by the time to reach it
  return {speed:top*real*3.6,punch:thr/G,pitch:rate(0),yaw:rate(1),roll:rate(2),resp:1000/(T.spool*f.spool),boost:T.boost*f.boost*100/(T.drain*f.drain),hit:(1.6+f.kick)/(1/.7+1/f.mass)/(1.6/(1/.7+1)),ball:f.grip*Math.sqrt(lo.bbx[0]*lo.bbx[2]/REF_TOP),size:lo.size,tough:1/f.armor,ground:f.wheels?2:1,

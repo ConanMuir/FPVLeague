@@ -1,11 +1,11 @@
 // ---------- match flow: teams/slots, kickoff, goals, end, menu state ----------
 import {AC,audioInit,near,noise,tone} from '../audio/audio.js';
-import {goalSfx} from '../audio/sfx.js';
 import {llDrop} from './longline.js';
 import {assignRoles,predict} from '../bots/league.js';
-import {$,COL,TEAM} from '../config/constants.js';
+import {$,COL,GH,GW,HL,TEAM} from '../config/constants.js';
+import {emitEv} from '../core/events.js';
 import {S} from '../config/settings.js';
-import {BR} from '../config/tune.js';
+import {BG,BR} from '../config/tune.js';
 import {Drone,NAMES} from '../flight/drone.js';
 import {TUR,TUR_HP} from './dogfight.js';
 import {BUL} from './guns.js';
@@ -13,8 +13,8 @@ import {leaveGame} from '../net/net.js';
 import {ball} from '../physics/ball.js';
 import {ballMesh} from '../render/ball.js';
 import {emit} from '../render/particles.js';
-import {goalBoom} from '../render/goalfx.js';
-import {qId} from '../render/renderer.js';
+import {compileFor,qId} from '../render/renderer.js';
+import {goalHold} from '../render/replay.js';
 import {GS,auth,isBot,nick} from '../state.js';
 import {banner,feed,tag} from '../ui/hud.js';
 import {ORBS} from '../world/orbs.js';
@@ -26,15 +26,24 @@ export function applySlots(T){const old=new Map(GS.drones.map(d=>[d.key,d])),nd=
  T.forEach((arr,t)=>arr.forEach((k,i)=>{let d=old.get(k);if(d&&d.team===t&&d.i===i)old.delete(k);else d=new Drone(t,i,false,k);
   const mine=GS.net?k===(GS.net.host?'h':GS.myPeer):k==='h';d.bot=isBot(k)&&auth();d.remote=!!GS.net&&!mine&&!d.bot;d.name=nameOf(k,t,i);if(mine){GS.player=d;d.setLoadout(S.loadout);d.setCos(S.cos)}nd.push(d)}));
  old.forEach(d=>d.dispose());GS.drones=nd;if(!GS.player&&GS.demo)GS.player=GS.drones[0]}
-function buildTeams(){GS.drones.forEach(d=>d.dispose());GS.drones=[];GS.lseed=Math.random()*1e9|0;const n=GS.demo?3:S.size,free=!GS.demo&&MODES[GS.GM]?.free;applySlots([0,1].map(t=>Array.from({length:free?(t?0:1):GS.demo||S.bots?n:t?0:1},(_,i)=>!GS.demo&&!t&&!i?'h':'b'+t+i)))}
+function buildTeams(){GS.drones.forEach(d=>d.dispose());GS.drones=[];GS.lseed=Math.random()*1e9|0;const n=GS.demo?3:S.size,free=!GS.demo&&MODES[GS.GM]?.free;applySlots([0,1].map(t=>Array.from({length:free?(t?0:1):GS.demo||S.bots?n:t?0:1},(_,i)=>!GS.demo&&!t&&!i?'h':'b'+t+i)));compileFor(GS.drones.flatMap(d=>d.trail?[d.mesh,d.trail]:[d.mesh]))}  // compileFor: the new quads' shaders (the bots' cosmetics are new each match) compile in parallel now, not one by one in the first frame
 export function kickoff(){llDrop();GS.koN++;GS.state='kickoff';GS.stT=3;GS.timeScale=1;GS.lastCount=4;ball.p.set(0,BR+6,0);ball.v.set(0,0,0);ball.last=null;ballMesh.visible=!GS.OBSON;GS.drones.forEach(d=>{if(!d.remote)d.spawn()});ORBS.forEach(p=>p.cd=0);predict();assignRoles();
- if(GS.OBSON){TUR.forEach(t=>{t.hp=TUR_HP;t.re=0;t.cd=1+Math.random()});BUL.forEach(b=>b.life=0)}}
-export function goalFx(t,lt){ballMesh.visible=false;goalBoom(t,ball.p);emit(ball.p,COL[t],qId==='low'?200:400,45,1.8);emit(ball.p,0xffffff,qId==='low'?50:120,25,1.2);goalSfx(t,ball.p);
+ if(GS.OBSON){TUR.forEach(t=>{t.hp=TUR_HP;t.re=0;t.cd=1+Math.random()});BUL.forEach(b=>b.life=0)}E_KO.n=GS.koN;emitEv('kickoff',E_KO)}
+// event payloads (core/events.js), one reused object per type
+const E_KO={n:0},E_GOAL={team:0,by:null,p:null},E_END={winner:0,score:null},E_DEMO={d:null,by:null};
+// goal: the explosion (render/goalfx.js) and the sound (audio/sfx.js) listen to the 'goal' event
+export function goalFx(t,lt){ballMesh.visible=false;E_GOAL.team=t;E_GOAL.by=lt??null;E_GOAL.p=ball.p;emitEv('goal',E_GOAL);emit(ball.p,COL[t],qId==='low'?200:400,45,1.8);emit(ball.p,0xffffff,qId==='low'?50:120,25,1.2);
  if(!GS.demo){const d=GS.drones.find(x=>x.key===lt);banner('GOAL!',t?'co':'cb',2.6);feed(`${d&&d.team===t?tag(d):'Own goal'} scores for ${TEAM[t]}`)}}
-export function goal(t){GS.score[t]++;GS.state='goal';GS.stT=3.2;GS.timeScale=GS.net?1:.3;GS.goalSide=t;goalFx(t,ball.last?.key);if(GS.overtime)GS.endPending=true}
-export function endFx(){const w=GS.score[0]>GS.score[1]?0:1;banner(`${TEAM[w]} WINS ${GS.score[0]}–${GS.score[1]}`,w?'co':'cb',0);tone(523,1046,.6,.2,'triangle')}
+export function goal(t){GS.score[t]++;GS.state='goal';GS.stT=3.2;GS.timeScale=GS.net?1:.3;GS.goalSide=t;goalFx(t,ball.last?.key);GS.goalLen=GS.stT=3.2+goalHold();if(GS.overtime)GS.endPending=true}  // goalHold: the extra wait a goal replay needs (render/replay.js; it ends the wait early once it is over)
+export function endFx(){const w=GS.score[0]>GS.score[1]?0:1;banner(`${TEAM[w]} WINS ${GS.score[0]}–${GS.score[1]}`,w?'co':'cb',0);tone(523,1046,.6,.2,'triangle');E_END.winner=w;E_END.score=GS.score;emitEv('end',E_END)}
+// the crowd's judgement of a ball touch (modes/step.js sends it as a 'save' / 'shot' event before the touch): a defender turning an
+// on-target ball away is a save; sending it on target at the other goal faster than 12 m/s is a shot; '' otherwise, and outside play
+function onTarget(p,v){const vz=v.z;if(Math.abs(vz)<6)return -1;const gz=vz>0?HL:-HL,tt=(gz-p.z)/vz;if(tt<0||tt>1.8)return -1;const x=p.x+v.x*tt,y=Math.max(BR,p.y+v.y*tt-.5*BG*tt*tt);  // the floor bounces it back up
+ return Math.abs(x)<GW/2+BR&&y<GH+BR?(vz>0?0:1):-1}  // the team defending that goal (blue defends +z: blue scores at -z)
+export function touchVerdict(d,speed){if(!d||GS.state!=='play')return'';const pre=onTarget(ball.p,ball.v0),post=onTarget(ball.p,ball.v);
+ if(pre>=0&&d.team===pre&&post!==pre)return'save';return post>=0&&post!==d.team&&speed>12?'shot':''}
 export function endMatch(){GS.state='end';GS.stT=5;endFx()}
-export function demolish(v,by){v.dead=2.5;v.mesh.visible=false;emit(v.p,COL[v.team],160,30,1.2);emit(v.p,0xffc640,80,18,1);GS.shake=Math.max(GS.shake,near(v.p)*.8);noise(.6,200,.7*near(v.p));if(!GS.demo)feed(`${tag(by)} demolished ${tag(v)}`)}
+export function demolish(v,by){v.dead=2.5;v.mesh.visible=false;emit(v.p,COL[v.team],160,30,1.2);emit(v.p,0xffc640,80,18,1);GS.shake=Math.max(GS.shake,near(v.p)*.8);noise(.6,200,.7*near(v.p));if(!GS.demo)feed(`${tag(by)} demolished ${tag(v)}`);E_DEMO.d=v;E_DEMO.by=by;emitEv('demo',E_DEMO)}
 export function startMatch(){leaveGame();audioInit();AC?.resume();GS.demo=false;buildTeams();GS.score=[0,0];GS.clock=S.len;GS.overtime=GS.endPending=false;kickoff();showMenu(false);$('hud').hidden=false;$('resume').hidden=false}
 export function startDemo(){GS.demo=true;buildTeams();GS.score=[0,0];kickoff();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
 export function showMenu(v){GS.menuOpen=v;$('menu').hidden=!v;if(v){$('menu').classList.toggle('pause',!GS.demo);$('play').textContent=MODES[GS.GM]?.free?(GS.demo?'Start freeplay':'Restart freeplay'):GS.demo?'Play vs bots':'Restart match';$('play').classList.toggle('go',GS.demo);$('leave').hidden=GS.demo&&!GS.net;$('leave').textContent=GS.net?'Leave game':'Leave match';for(const s of document.querySelectorAll('#menu .scr'))s.hidden=true;$('home').hidden=false}GS.paused=v&&!GS.demo&&!GS.net}

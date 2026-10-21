@@ -13,4 +13,8 @@ export const DIFF=[
  {n:'Legend',kp:1.5,kd:3.4,vmax:76,att:13,rate:12,thr:1,react:.08,noise:.4,slack:1},
  // iq: the smarter planner in bots/ (shot placement, ball-aware intercepts, rotations, keeper, Dogfight leading); pop: uses pops on a carry. Same flight model and thrust limits as everyone.
  {n:'Champion',kp:1.7,kd:3.6,vmax:80,att:14,rate:13,thr:1,react:.06,noise:.3,slack:.95,iq:1,ka:1.5,fl:.55},
- {n:'Grand Champion',kp:1.9,kd:4.2,vmax:90,att:17,rate:16,thr:1,react:.035,noise:.08,slack:.92,iq:2,ka:1.5,fl:.55,aim:1,demo:1,pop:1}];
+ {n:'Grand Champion',kp:1.9,kd:4.2,vmax:90,att:17,rate:16,thr:1,react:.035,noise:.08,slack:.92,iq:2,ka:1.5,fl:.55,aim:1,demo:1,pop:1},
+ // Dribbler: a demonstration of the carry and pop mechanics (bots/dribble.js): its attacker scoops, catches and carries the ball on top and pops it at the goal
+ {n:'Dribbler',kp:1.5,kd:3.4,vmax:70,att:22,rate:18,thr:1,react:.06,noise:.3,slack:1,drib:1,pop:1,dv:10,hold:.9,cm:.9,cl:30,apex:1,topR:2,nr:18,sa:16,sbk:18,kc:4,kn:16,kv:8,ke:4},
+ // Freestyler: the Dribbler's pickup plus chosen pops, pop chains, air dribbles, double taps and spin shots (bots/freestyle.js)
+ {n:'Freestyler',kp:1.5,kd:3.4,vmax:70,att:22,rate:18,thr:1,react:.06,noise:.3,slack:1,drib:1,fs:1,pop:1,dv:10,hold:.3,tapP:.3,cy:9,cm:.9,cl:30,apex:1,topR:2,nr:18,sa:16,sbk:18,rdE:.5,rdU:.85,rdY:3,kc:4,kn:16,kv:8,ke:4,ka:1.5,fl:.55}];

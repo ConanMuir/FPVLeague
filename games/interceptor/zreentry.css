@@ -1,0 +1,17 @@
+/* Zombies re-entry banner and sky flash (zreentry.js), the long-range radar inset (zstratradar.js) */
+#zre{position:absolute;left:50%;top:calc(106px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:grid;justify-items:center;gap:3px;pointer-events:none;font:700 15px var(--mono);text-align:center;white-space:nowrap}
+#zre:empty{display:none}
+#zre .l{background:rgba(60,6,6,.84);border:1px solid #ff4d4d;border-radius:5px;padding:5px 14px;color:#fff;letter-spacing:.04em;box-shadow:0 0 18px rgba(255,77,77,.45);animation:zreb 1s steps(2) infinite}
+#zre .l b{color:#ff5d5d}#zre .l i{font-style:normal;color:#ffb0b0;font-size:12px}
+#zre .l.b{background:rgba(50,30,6,.8);border-color:#ffb347;box-shadow:0 0 10px rgba(255,179,71,.35);font-size:13px;animation:none}#zre .l.b b{color:#ffb347}
+#zre .s{font-size:12px;color:#5fe3ff;background:rgba(6,20,30,.78);border-radius:4px;padding:2px 10px}#zre .s.ok{color:#3ddc84}
+@keyframes zreb{50%{border-color:#ffa0a0;box-shadow:0 0 28px rgba(255,77,77,.75)}}
+#zreflash{position:absolute;inset:0;pointer-events:none;opacity:0;}
+#zsr{position:absolute;right:278px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:220px;display:grid;gap:3px;pointer-events:none}
+#zsr canvas{width:220px;height:220px;border-radius:50%;box-shadow:0 0 0 1px rgba(95,227,255,.35),0 4px 18px rgba(0,0,0,.5)}
+#zsr .h{display:flex;justify-content:space-between;gap:8px;font:700 11px var(--mono);color:#5fe3ff;letter-spacing:.06em}#zsr .h span{color:var(--dim)}
+#zsr.new canvas{animation:zsrn 1s ease-in-out 6}
+@keyframes zsrn{50%{box-shadow:0 0 0 2px #5fe3ff,0 0 26px rgba(95,227,255,.8)}}
+#hud:not(.z) #zsr,#hud:not(.z) #zre,#hud:not(.z) #zreflash{display:none}
+#hud.zcine #zreflash{visibility:visible}
+@media (max-width:900px){#zsr{right:16px;bottom:calc(300px + env(safe-area-inset-bottom,0px));width:150px}#zsr canvas{width:150px;height:150px}#zre{font-size:13px}}

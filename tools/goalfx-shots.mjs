@@ -2,16 +2,15 @@
 // on the Neon Arena and an outdoor map, and grabs frames through the explosion. Runs the live modules through the Vite dev server.
 //   node tools/goalfx-shots.mjs [--maps arena,meadow] [--gfx high|med|low]    writes shots/goalfx-<map>-<cam>-<ms>.png (shots/ is gitignored)
 import fs from 'node:fs';
-import puppeteer from 'puppeteer-core';
+import {launchBrowser} from './browser.mjs';
 const {createServer} = await import('vite');
 const arg = (n, d) => (i => i > 0 ? process.argv[i + 1] : d)(process.argv.indexOf(n));
 const maps = arg('--maps', 'arena,meadow').split(','), gfx = arg('--gfx', 'high');
 fs.mkdirSync('shots', {recursive: true});
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__COMPAT_LAYER|CHROME_|ELECTRON_|VSCODE_)/i.test(k)));
 const server = await createServer({root: process.cwd(), logLevel: 'error', server: {port: 0, host: '127.0.0.1'}}); await server.listen();
-const b = await puppeteer.launch({executablePath: process.env.EDGE_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true, env, args: ['--ignore-gpu-blocklist']});
+const b = await launchBrowser({args: ['--ignore-gpu-blocklist']});
 const p = await b.newPage(); await p.setViewport({width: 1280, height: 720}); const errs = []; p.on('pageerror', e => errs.push(e.message));
-await p.goto(server.resolvedUrls.local[0]); await new Promise(r => setTimeout(r, 6000));
+await p.goto(server.resolvedUrls.local[0] + 'app.html'); await new Promise(r => setTimeout(r, 6000));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 await p.evaluate(async gfx => {
   const DF = await import('/src/modes/dogfight.js'), MA = await import('/src/modes/match.js'), {GS} = await import('/src/state.js'), R = await import('/src/render/renderer.js');

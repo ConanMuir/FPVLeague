@@ -1,5 +1,6 @@
 // ---------- bots (League): ball prediction, intercept, roles, cascaded controller into attitude() ----------
 import {DIFF,GD,GH,GW,H,HL,HW,UP,V3,cl} from '../config/constants.js';
+import {hyp2} from '../core/hypot.js';
 import {LL,hoopMode,hoops,ropeLen} from '../modes/longline.js';
 import {S} from '../config/settings.js';
 import {BG,BOOST,BOTV,BR,BTHR,DL,DQ,G,TE,THR} from '../config/tune.js';
@@ -9,8 +10,10 @@ import {sdN,sdf} from '../physics/sdf.js';
 import {_T,_a,_b,_dir,_f,_ip,_lat,_t,_u} from '../scratch.js';
 import {GS,SB} from '../state.js';
 import {ORBS} from '../world/orbs.js';
+import {dribble,dribbleSupport} from './dribble.js';
+import {freestyle} from './freestyle.js';
 // the ball 4 s ahead: the same ball model as the game (physics/ball.js, spin included) without Rapier, at 50 Hz
-const PDT=1/50,PRED=Array.from({length:200},()=>new V3()),PV=Array.from({length:200},()=>new V3()),_pb={p:new V3(),v:new V3(),w:new V3(),c:false,n:new V3()};
+export const PDT=1/50,PRED=Array.from({length:200},()=>new V3()),PV=Array.from({length:200},()=>new V3()),_pb={p:new V3(),v:new V3(),w:new V3(),c:false,n:new V3()};
 export function predict(){_pb.p.copy(ball.p);_pb.v.copy(ball.v);_pb.w.copy(ball.w);_pb.c=ball.c;_pb.n.copy(ball.n);for(let i=0;i<PRED.length;i++){ballPhys(_pb,PDT);PRED[i].copy(_pb.p);PV[i].copy(_pb.v)}}  // PV: its velocity there (the smarter planner aims with it)
 const _aim=new V3();
 function intercept(d,D){const acc=BTHR*D.thr*.6,vm=D.vmax*BOTV;
@@ -35,7 +38,8 @@ function think(d,D){if(D.iq)return thinkIQ(d,D);const ai=d.ai,was=ai.strike;ai.s
  else{let best=null,bd=1e9;for(const p of ORBS)if(p.cd<=0){const dd=p.p.distanceToSquared(d.p)*(p.big?.5:1);if(dd<bd){bd=dd;best=p}}
   if(best){ai.tg.copy(best.p);ai.tv.set(0,0,0);ai.look.copy(best.p)}}
  const inMouth=Math.abs(ai.tg.x)<GW/2-2&&ai.tg.y<GH-2;ai.tg.x=cl(ai.tg.x,-HW+2.5,HW-2.5);ai.tg.y=cl(ai.tg.y,1.6,H-3);ai.tg.z=cl(ai.tg.z,-(inMouth?HL+GD-2:HL-2.5),inMouth?HL+GD-2:HL-2.5);const sd=sdf(ai.tg.x,ai.tg.y,ai.tg.z);if(sd>-3){sdN(ai.tg,_lat);ai.tg.addScaledVector(_lat,-(sd+3))}}
-export function botControl(d,dt){const D=DIFF[d.skill??S.diff],ai=d.ai;if((ai.t-=dt)<=0){ai.t=D.react*(.7+Math.random()*.6);think(d,D)}
+// the Dribbler and Freestyler levels (DIFF[].drib, .fs) have their own controllers: bots/dribble.js, bots/freestyle.js
+export function botControl(d,dt){const D=DIFF[d.skill??S.diff],ai=d.ai;if(D.drib){d.pops=true;if(d.role!=='attack')dribbleSupport(d,D);else if(D.fs)freestyle(d,D,dt);else dribble(d,D,dt);return}if((ai.t-=dt)<=0){ai.t=D.react*(.7+Math.random()*.6);think(d,D)}
  if(LL.d===d){const s=d.team?1:-1;ai.strike=false;ai.demo=false;ai.tv.set(0,0,0);
   if(hoopMode()){const hs=hoops().filter(o=>o.c.z*s>0);let o=hs[0];for(const q of hs)if(q.c.distanceToSquared(ball.p)<o.c.distanceToSquared(ball.p))o=q;  // nearest of their rings
    const lead=(o.c.z-ball.p.z)*s;ai.tg.set(o.c.x,Math.min(H-4,o.c.y+ropeLen()+BR+(lead>40?6:0)),o.c.z+s*(lead>25?-8:25))}  // line up in front, then fly through so the ball trails through the ring
@@ -58,7 +62,7 @@ export function assignRoles(){for(const t of[0,1]){const s=t?1:-1,ms=GS.drones.f
 // normal (kept off the floor and walls), and checks whether this quad, flying the same flight model, can be there in time coming from
 // behind the ball. It then flies a timed run through that point (strikeV). Roles rotate by who can actually reach the ball first.
 const _g=new V3(),_n=new V3(),_c=new V3(),_e=new V3(),_k=new V3();
-function reachT(d,X,acc,vm){_k.subVectors(X,d.p);const dist=_k.length();if(dist<1e-3)return 0;const v0=d.v.dot(_k)/dist,vp=Math.sqrt(Math.max(0,d.v.lengthSq()-v0*v0));
+export function reachT(d,X,acc,vm){_k.subVectors(X,d.p);const dist=_k.length();if(dist<1e-3)return 0;const v0=d.v.dot(_k)/dist,vp=Math.sqrt(Math.max(0,d.v.lengthSq()-v0*v0));
  let t;if(v0>=vm)t=dist/v0;else{const ta=(vm-v0)/acc,da=(v0+vm)*.5*ta;t=da>=dist?(Math.sqrt(v0*v0+2*acc*dist)-v0)/acc:ta+(dist-da)/vm}return t+vp/acc*.6}  // straight-line time: accelerate to vm, kill the sideways speed
 function keeperOf(team){const gz=(team?1:-1)*HL;let k=null,kd=1e9;for(const e of GS.drones)if(e.team!==team&&e.dead<=0){const q=Math.abs(e.p.z-gz)+Math.abs(e.p.x)*.5;if(q<kd){kd=q;k=e}}return kd<50?k:null}
 // where in the goal to put it: away from the defender nearest the goal, low or high against where he sits, lifted for the ball's drop
@@ -74,14 +78,14 @@ function bestAim(d,D,P,t0){const gz=(d.team?1:-1)*(HL+3),acc=BTHR*.72,vm=D.vmax*
   m-=Math.abs(x)*.004;if(m>best){best=m;d.ai.gx=x;d.ai.gy=y}}}
 // earliest time a quad (any skill: assumed as quick as this one) can get a touch on the ball, from any side
 function firstT(o,acc,vm,slack){for(let i=1;i<PRED.length;i+=3)if(reachT(o,PRED[i],acc,vm)*slack+.1<=(i+1)*PDT)return(i+1)*PDT;return 4}
-function plan(d,D){const ai=d.ai,acc=BTHR*D.thr*.72,vm=D.vmax*BOTV,vs=vm*.8,R=BR+.75,kp=keeperOf(d.team);let pick=-1,i0=-1;
- if(D.aim)bestAim(d,D,ai.tt>0&&ai.P?ai.P:ball.p,ai.tt>0?ai.tt:0);else ai.gx=null;
+export function plan(d,D){const ai=d.ai,acc=BTHR*D.thr*.72,vm=D.vmax*BOTV,vs=vm*.8,R=BR+.75,kp=keeperOf(d.team);let pick=-1,i0=-1;
+ if(D.aim)bestAim(d,D,ai.tt>0&&ai.P?ai.P:ball.p,ai.tt>0?ai.tt:0);else if(!ai.fsAim)ai.gx=null;
  for(let i=1;i<PRED.length;i+=2){const P=PRED[i],t=(i+1)*PDT;
   goalAim(d,P,kp,_g).sub(P).normalize();_n.copy(_g).multiplyScalar(vs*1.2).sub(PV[i]).normalize();
-  const ny=(P.y-1.6)/(R+10);if(_n.y>ny){const h=Math.hypot(_n.x,_n.z)||1,k=Math.sqrt(Math.max(0,1-ny*ny))/h;_n.x*=k;_n.z*=k;_n.y=ny}  // the contact point and a 10 m run-up to it stay above the floor
+  const ny=(P.y-1.6)/(R+10);if(_n.y>ny){const h=hyp2(_n.x,_n.z)||1,k=Math.sqrt(Math.max(0,1-ny*ny))/h;_n.x*=k;_n.z*=k;_n.y=ny}  // the contact point and a 10 m run-up to it stay above the floor
   _c.copy(P).addScaledVector(_n,-R);const sd=sdf(_c.x,_c.y,_c.z);if(sd>-1){sdN(_c,_lat);_c.addScaledVector(_lat,-(sd+1));_n.subVectors(P,_c).normalize()}  // ...and off the walls: then it plays the ball along them
   _k.subVectors(_c,d.p);const dist=_k.length(),al=dist<1?1:_k.dot(_n)/dist;let tr;
-  if(i0<0){_n0.subVectors(P,d.p).normalize().addScaledVector(_n,.7).normalize();if(_n0.y>ny){const h=Math.hypot(_n0.x,_n0.z)||1,k=Math.sqrt(Math.max(0,1-ny*ny))/h;_n0.x*=k;_n0.z*=k;_n0.y=ny}
+  if(i0<0){_n0.subVectors(P,d.p).normalize().addScaledVector(_n,.7).normalize();if(_n0.y>ny){const h=hyp2(_n0.x,_n0.z)||1,k=Math.sqrt(Math.max(0,1-ny*ny))/h;_n0.x*=k;_n0.z*=k;_n0.y=ny}
    _c0.copy(P).addScaledVector(_n0,-R);if(reachT(d,_c0,acc,vm)*D.slack+.1<=t){i0=i;ai.t0=t;ai.n0.copy(_n0);ai.C0.copy(_c0);ai.P0.copy(P)}}  // the quickest touch: straight at it, bent toward the shot
   if(al>.4)tr=reachT(d,_c,acc,vm);else{const L=6+6*(1-al);tr=reachT(d,_e.copy(_c).addScaledVector(_n,-L),acc,vm)+L/vs+.3*(1-al)}  // from the wrong side it has to go round first
   if(tr*D.slack+.1<=t||i>=PRED.length-2){if(i0<0){i0=i;ai.t0=t;ai.n0.copy(_n);ai.C0.copy(_c);ai.P0.copy(P)}pick=i;ai.al=al;ai.tt=t;ai.n.copy(_n);ai.C.copy(_c);ai.P.copy(P);break}}
@@ -110,7 +114,7 @@ function thinkIQ(d,D){const ai=d.ai,s=d.team?1:-1,ownZ=-s*HL;let role=d.role;ai.
  if(ai.strike)return;
  const inMouth=Math.abs(ai.tg.x)<GW/2-2&&ai.tg.y<GH-2;ai.tg.x=cl(ai.tg.x,-HW+2.5,HW-2.5);ai.tg.y=cl(ai.tg.y,1.6,H-3);ai.tg.z=cl(ai.tg.z,-(inMouth?HL+GD-2:HL-2.5),inMouth?HL+GD-2:HL-2.5);const sd=sdf(ai.tg.x,ai.tg.y,ai.tg.z);if(sd>-3){sdN(ai.tg,_lat);ai.tg.addScaledVector(_lat,-(sd+3))}}
 // the timed run: be (speed x time left) behind the contact point on the normal, moving along it, so it arrives on time and hits through
-function strikeV(d,D,dt){const ai=d.ai,vm=D.vmax*BOTV;ai.tt=Math.max(.04,ai.tt-dt);const along=_c.subVectors(ai.C,d.p).dot(ai.n),sp=cl(along/ai.tt,vm*D.fl,vm);
+export function strikeV(d,D,dt){const ai=d.ai,vm=D.vmax*BOTV;ai.tt=Math.max(.04,ai.tt-dt);const along=_c.subVectors(ai.C,d.p).dot(ai.n),sp=cl(along/ai.tt,vm*D.fl,vm);
  _b.copy(ai.C).sub(d.p).addScaledVector(ai.n,-along);  // off the line through the contact point
  _b.y=Math.max(_b.y,1.8-d.p.y);return _b.multiplyScalar(3).addScaledVector(ai.n,sp+(along-sp*ai.tt)*D.ka).clampLength(0,vm)}  // on time: ahead of schedule it eases off (or backs up for a run-up)
 // roles by time to the ball (from the right side), with a little stickiness so they don't flap

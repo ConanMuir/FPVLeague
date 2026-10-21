@@ -1,0 +1,37 @@
+/* Interceptor Zombies game feel (zfx.js / zannounce.js): kill announcer, radio subtitles, end-of-wave stars, cash bump, hit vignette. */
+#zann{position:absolute;left:0;right:0;top:57%;display:grid;justify-items:center;gap:2px;pointer-events:none;text-align:center}
+#zann .a{font:italic 700 clamp(28px,4.4vw,52px) var(--disp);letter-spacing:.04em;color:#fff;text-shadow:0 0 22px var(--c),0 0 4px var(--c),0 3px 0 rgba(0,0,0,.55);animation:zann 1.6s cubic-bezier(.2,1.5,.4,1) both}
+#zann .s{font:700 14px var(--mono);color:var(--c);text-shadow:0 0 4px #000,0 0 2px #000;animation:zsub 1.6s ease both}
+@keyframes zann{0%{transform:scale(2.4);opacity:0;filter:blur(8px)}10%{transform:scale(.95);opacity:1;filter:blur(0)}20%{transform:scale(1)}78%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.03) translateY(-10px)}}
+@keyframes zsub{0%,8%{opacity:0;transform:translateY(6px)}22%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0}}
+
+#zradio{position:absolute;left:50%;bottom:calc(124px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:min(600px,80vw);box-sizing:border-box;display:flex;gap:10px;align-items:baseline;
+ font:600 14px var(--mono);color:#dff5d8;background:rgba(5,12,7,.74);border-left:3px solid #7dff9a;border-radius:4px;padding:6px 12px;pointer-events:none;opacity:0;transition:opacity .3s}
+#zradio.on{opacity:1}#zradio b{flex:none;font-size:11px;letter-spacing:.14em;color:#7dff9a}#zradio b::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:7px;vertical-align:1px;animation:zbl 0.6s steps(2) infinite}
+#zradio.hi{border-color:var(--red);color:#ffdede}#zradio.hi b{color:var(--red)}
+
+#zsum{position:absolute;left:50%;top:47%;transform:translateX(-50%);display:grid;justify-items:center;gap:7px;padding:12px 26px 14px;background:rgba(8,12,22,.8);border:1px solid var(--edge);border-radius:10px;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+#zsum.in{animation:zsumin .35s ease-out both}@keyframes zsumin{from{opacity:0;transform:translate(-50%,10px)}}
+#zsum .st{font-size:42px;line-height:1;letter-spacing:8px}#zsum .st i{font-style:normal;display:inline-block;color:#2c313c}
+#zsum .st i.on{color:var(--amber);text-shadow:0 0 18px rgba(255,198,64,.75);animation:zstar .5s cubic-bezier(.2,1.9,.4,1) both}#zsum .st i.off{animation:zoff .3s ease both}
+@keyframes zstar{0%{transform:scale(2.2) rotate(-25deg);opacity:0}100%{transform:none;opacity:1}}@keyframes zoff{0%{transform:scale(.6)}100%{transform:none}}
+#zsum .ln{font:13px var(--mono);color:var(--dim)}#zsum .ln b{color:#fff}#zsum .ln b.g{color:var(--green)}#zsum .ln b.r{color:var(--red)}
+#zsum .md{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}#zsum .md span{font:700 11px var(--mono);letter-spacing:.08em;padding:3px 8px;border-radius:4px;background:rgba(255,198,64,.16);color:#ffd77a}
+
+#zc.bump{animation:zbump .4s ease-out}@keyframes zbump{0%{transform:scale(1.28);color:#fff;text-shadow:0 0 14px #3ddc84}100%{transform:none}}
+
+#zvig{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(200,20,10,.55) 100%)}
+#zvig.hit{animation:zvig .9s ease-out}@keyframes zvig{0%{opacity:var(--v,.6)}100%{opacity:0}}
+#zvig.lo:not(.hit){animation:zlo 1.6s ease-in-out infinite}@keyframes zlo{0%,100%{opacity:.08}50%{opacity:.3}}
+@media (max-width:760px){#zradio{font-size:12px;bottom:calc(120px + env(safe-area-inset-bottom,0px))}#zsum .st{font-size:32px}}
+#hud:not(.z) #zann,#hud:not(.z) #zradio,#hud:not(.z) #zsum,#hud:not(.z) #zvig{display:none}
+
+/* cinematic cams (zfx.js: Mothership fly-by, ballistic impact cam): letterbox bars and a caption; the HUD steps aside, the radio stays */
+#zcine{position:absolute;inset:0;pointer-events:none;display:none}#hud.zcine #zcine{display:block}
+#hud.zcine>*:not(#zcine):not(#zradio){visibility:hidden}
+#zcine i{position:absolute;left:0;right:0;height:11vh;background:#000;animation:zbar .35s ease-out both}#zcine i:first-child{top:0;transform-origin:top}#zcine i:nth-child(2){bottom:0;transform-origin:bottom}
+@keyframes zbar{from{transform:scaleY(0)}}
+#zcine .c{position:absolute;left:6vw;top:calc(11vh + 18px);display:grid;gap:3px;animation:zcin .5s .15s ease-out both}@keyframes zcin{from{opacity:0;transform:translateY(8px)}}
+#zcine b{font:italic 700 clamp(26px,3.6vw,44px) var(--disp);letter-spacing:.06em;color:#fff;text-shadow:0 0 18px #ff4d4d,0 3px 0 rgba(0,0,0,.6)}
+#zcine span{font:700 13px var(--mono);color:#ff9a8a;text-shadow:0 0 4px #000}#zcine em{font:600 11px var(--mono);font-style:normal;color:#b8c2cc;opacity:.8;text-shadow:0 0 4px #000}
+#hud:not(.z) #zcine{display:none}

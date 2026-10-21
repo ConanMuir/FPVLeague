@@ -4,10 +4,10 @@ $root=$PSScriptRoot
 $types=@{'.html'='text/html; charset=utf-8';'.js'='text/javascript; charset=utf-8';'.css'='text/css; charset=utf-8';'.json'='application/json';'.png'='image/png';'.jpg'='image/jpeg';'.svg'='image/svg+xml';'.md'='text/plain; charset=utf-8'}
 $http=New-Object System.Net.HttpListener
 $http.Prefixes.Add("http://localhost:$Port/")
-try{$http.Start()}catch{Write-Host "Port $Port is busy. Drone League may already be running: http://localhost:$Port/";Start-Process "http://localhost:$Port/";exit}
+try{$http.Start()}catch{Write-Host "Port $Port is busy. Drone League may already be running: http://localhost:$Port/";Start-Process "http://localhost:$Port/games/drone-league/";exit}
 Write-Host "Drone League is running at http://localhost:$Port/  (close this window to stop it)"
-Start-Process msedge "--app=http://localhost:$Port/ --start-maximized" -ErrorAction SilentlyContinue
-if(-not $?){Start-Process "http://localhost:$Port/"}
+Start-Process msedge "--app=http://localhost:$Port/games/drone-league/ --start-maximized" -ErrorAction SilentlyContinue
+if(-not $?){Start-Process "http://localhost:$Port/games/drone-league/"}
 while($http.IsListening){
  $c=$http.GetContext();$p=[Uri]::UnescapeDataString($c.Request.Url.AbsolutePath).TrimStart('/')
  if($p -eq '' -or $p.EndsWith('/')){$p+='index.html'}

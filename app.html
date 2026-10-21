@@ -35,6 +35,7 @@
       <button class="go" id="play">Play vs bots</button>
       <button id="onlbtn" data-scr="online">Play online</button>
       <button id="garbtn">Garage</button>
+      <button id="profbtn" data-scr="profile">Profile<small id="proflv">Level 1</small></button>
       <button id="trainbtn" data-scr="training">Training<small>Skill packs · Calibration Lab</small></button>
       <button id="setbtn" data-scr="settings">Settings</button>
       <button id="modbtn">Mod panel</button>
@@ -51,6 +52,14 @@
 
       <p class="note" id="mpnote">Connecting…</p>
   </section>
+  <section class="scr wide" id="scr-intercept" hidden aria-label="Interceptor">
+    <div class="shead"><button class="sm back">Back</button><h2>Interceptor</h2></div>
+    <div class="thub">
+      <button class="ttile" id="icClassic"><span class="tbody"><b>Classic</b><small>Fly a warhead-carrying interceptor drone and take down waves of Shahed attack drones before they reach the substation.</small><em>Riley's original game</em></span></button>
+      <button class="ttile lab" id="icZombies"><span class="tbody"><b>Zombies</b><small>Endless, growing waves from every edge. Earn money per intercept and spend it between waves on helper drones, guns, missiles, domes and perks. A boss every 10 waves.</small><em>Survive as long as you can</em></span></button>
+    </div>
+    <p class="note" id="icnote" hidden>The Interceptor needs the local server: open the game with Play Drone League.bat.</p>
+  </section>
   <section class="scr wide" id="scr-training" hidden aria-label="Training">
     <div class="shead"><button class="sm back">Back</button><h2>Training</h2></div>
     <div class="thub">
@@ -65,6 +74,12 @@
     <div class="ptabs" id="ptabs" role="tablist" aria-label="Category"></div>
     <p class="pblurb" id="pblurb"></p>
     <div class="ptiles" id="ptiles"></div>
+  </section>
+  <section class="scr wide" id="scr-profile" hidden aria-label="Profile">
+    <div class="shead"><button class="sm back">Back</button><h2>Profile</h2></div>
+    <div class="pfhead" id="pfhead"></div>
+    <div class="ptabs" id="pftabs" role="tablist" aria-label="Profile sections"></div>
+    <div id="pfbody"></div>
   </section>
   <section class="scr set-scr" id="scr-settings" hidden aria-label="Settings">
     <div class="shead"><button class="sm back">Back</button><h2>Settings</h2></div>
@@ -117,7 +132,7 @@
         <kbd>R</kbd><span>Reset your drone (Freeplay only) · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
 
 
-        <kbd>E</kbd><span>Flip back over. <b>Pop:</b> touch the ball with the top of your quad, inside the four motors (a faint white ring flashes, the dial shows POP for 5 s), then hold a direction (roll, pitch or yaw) and press E for a locked flip that way. Where the ball sits on you decides the pop</span>
+        <kbd>E</kbd><span>Flip back over. <b>Pop:</b> catch the ball on the top of your quad, centred so it sits over all four motors (a cyan ring flashes under it, the dial shows POP for 5 s), then hold a direction (roll, pitch or yaw) and press E for a locked flip that way. Where the ball sits on you decides the pop</span>
 
 
         <kbd>Gamepad</kbd><span>Mode 2 sticks. Xbox: RT fire, B flip over, LB camera, Y reset (Freeplay), Menu pause. Every button can be remapped in the Controls tab</span>
@@ -164,11 +179,14 @@
   <div class="trbig"><div><b id="trsn2"></b><span>/ <i id="trsof"></i> shots</span></div><em id="trsbest"></em></div>
   <div class="trsstats" id="trsstats"></div>
   <ol class="trslist" id="trslist"></ol>
+  <div class="trsxp" id="trsxp" hidden></div>
   <div class="trsact"><button class="go" id="trsretry">Retry pack</button><button id="trsnext">Next pack</button><button id="trsback">Skill packs</button><button id="trsmenu">Main menu</button></div>
 </div></div>
 <div id="bind" class="modal" hidden><div class="sbox wide"><div class="mhead"><b id="bstep"></b><span class="note" id="bdev" style="margin:0"></span><button class="sm" id="bx" aria-label="Cancel">✕</button></div>
   <h3 id="bq"></h3><p class="note" id="bmsg"></p><div id="blive" class="blive"></div><div id="bres" class="bres"></div>
   <div class="mp"><button class="sm" id="bredo">Redo step</button><button class="sm" id="bskip">Skip</button><button class="go sm" id="bsave" hidden>Save</button></div></div></div>
+<div id="pmsum" class="modal" hidden></div>
+<div id="toasts" aria-live="polite"></div>
 <div id="garage" hidden role="dialog" aria-label="Garage">
   <canvas id="gcv" aria-label="Drone preview: drag to turn, scroll to zoom"></canvas>
   <div class="ghead"><h2>Garage</h2><div id="gname"></div><div class="gauw osd" id="gauw"></div></div>

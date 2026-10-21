@@ -3,12 +3,14 @@
 import * as THREE from 'three';
 import {camTilt} from '../render/camera.js';
 import {near,noise,tone} from '../audio/audio.js';
-import {$,COL,TEAM,V3} from '../config/constants.js';
+import {dfBot} from '../bots/dogfight.js';
+import {emitEv} from '../core/events.js';
+import {$,COL,TEAM,V3,cl} from '../config/constants.js';
 import {S} from '../config/settings.js';
 import {btnOn,keys,mouseFire,pad,padX} from '../input/input.js';
-import {BUL,gunDir,shoot} from './guns.js';
+import {BUL,bullets,droneFire,gunDir,shoot} from './guns.js';
 import {endMatch} from './match.js';
-import {MODES,modeId,registerMode} from './registry.js';
+import {registerMode,switchMode} from './registry.js';
 import {los} from '../physics/sdf.js';
 import {ballMesh} from '../render/ball.js';
 import {MAT} from '../render/drone-mesh.js';
@@ -17,12 +19,21 @@ import {_gd,_gp,_gq} from '../scratch.js';
 import {GS,auth} from '../state.js';
 import {feed,tag} from '../ui/hud.js';
 import {goalG} from '../world/arena.js';
-import {DHL,DLEN,DW,buildDF,cxR,dfG,dfH,sdCave,sdDF,seeded} from '../world/highlands.js';
+import {DBASE,DHL,DLEN,DW,buildDF,cxR,dfG,dfH,dfSpawns,sdCave,sdDF,sdObs,seeded} from '../world/highlands.js';
 import {setMap} from '../world/maps.js';
 import {ORBS} from '../world/orbs.js';
 export const TUR=[],TUR_HP=60;{const rnd=seeded(11),base=new THREE.CylinderGeometry(2.2,2.8,1.6,16),dome=new THREE.SphereGeometry(1.7,16,10,0,Math.PI*2,0,Math.PI/2),
  barrel=new THREE.CylinderGeometry(.22,.22,3.2,8).rotateX(Math.PI/2).translate(0,0,-1.8),mB=new THREE.MeshStandardMaterial({color:0x2a2f38,roughness:.5,metalness:.6});
- for(let i=0;i<6;i++){let x,z,n=0;do{x=(rnd()-.5)*(DW-420);z=120+rnd()*(DHL-330)}while((sdDF(x,dfH(x,z)+2,z)>-4||sdCave(x,dfH(x,z)-4,z)<14||Math.abs(x-cxR(z))<45||TUR.some(t=>Math.hypot(t.p.x-x,t.p.z-z)<90))&&++n<80);
+ // turret spots (team 0's half; team 1 gets the mirror image): open high ground. Clear of buildings, trees and rings (nothing within 9 m of the
+ // turret or the air above it), solid ground with no cave under it or mouth beside it, off the river, flat enough to stand on, away from the
+ // base pad and the respawn points, 90 m apart; of the seeded candidates that pass, the highest. (sdDF 2 m over the ground is always > -4: the
+ // ground itself is 2 m away, so the old test never passed and every turret was the 80th random try.)
+ const SP=dfSpawns(),okSpot=(x,z)=>{const h=dfH(x,z);if(sdObs(x,h+2.5,z)<9||sdObs(x,h+9,z)<9||sdCave(x,h-4,z)<14||sdCave(x,h+1,z)<8||Math.abs(x-cxR(z))<45)return false;
+  for(const[dx,dz]of[[7,0],[-7,0],[0,7],[0,-7]])if(Math.abs(dfH(x+dx,z+dz)-h)>3)return false;
+  return Math.hypot(x,z-DBASE)>150&&SP.every(p=>Math.hypot(p[0]-x,p[2]-z)>50&&Math.hypot(p[0]+x,p[2]+z)>50)&&TUR.every(t=>Math.hypot(t.p.x-x,t.p.z-z)>=90)};
+ const CAND=Array.from({length:400},()=>[(rnd()-.5)*(DW-300),100+rnd()*(DHL-220)]);
+ for(let i=0;i<6;i++){let x=0,z=0,best=-1e9;for(const[cx,cz]of CAND)if(dfH(cx,cz)>best&&okSpot(cx,cz)){best=dfH(cx,cz);x=cx;z=cz}
+  if(best===-1e9){const c=CAND.find(([cx,cz])=>TUR.every(t=>Math.hypot(t.p.x-cx,t.p.z-cz)>=90))||CAND[i];x=c[0];z=c[1]}  // never: the checks report it (tools/physics-check.mjs)
   const y=dfH(x,z);for(const t of[0,1]){const s=t?-1:1,g=new THREE.Group(),b=new THREE.Mesh(base,mB),head=new THREE.Group(),d=new THREE.Mesh(dome,MAT.team[t]),br=new THREE.Mesh(barrel,mB);
    g.position.set(s*x,y,s*z);b.position.y=.8;head.position.y=1.6;br.position.y=.9;head.add(d,br);g.add(b,head);g.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true});dfG.add(g);
    TUR.push({isTurret:true,t,team:t,p:new V3(s*x,y+2.2,s*z),hp:TUR_HP,cd:1,re:0,g,head,br,aim:new V3(0,0,-1),tg:null,scan:0})}}}
@@ -44,22 +55,33 @@ export function hitDrone(d,dmg,by){if(d.lock>performance.now())return;if(by===GS
 export function hitTurret(t,dmg,by){if(by===GS.player)hitMark();if(GS.net&&!GS.net.host){if(by===GS.player)GS.net.hits.push([++GS.net.hseq,keyOf(t),dmg]);return}
  if((t.hp-=dmg)<=0){t.re=25;boom(t);scored(by,t)}}
 function kill(d,by){d.hp=100;d.life++;d.lock=performance.now()+800;if(!d.remote){boom(d);d.dead=3;d.mesh.visible=false}scored(by,d)}
-function scored(by,v){const bt=by?.isTurret?by.t:by?.team;if(GS.state==='play'&&bt!=null&&bt!==(v.isTurret?v.t:v.team))GS.score[bt]++;
+const E_KILL={d:null,by:null};  // the 'kill' event payload (core/events.js), reused
+function scored(by,v){E_KILL.d=v;E_KILL.by=by??null;if(v===GS.player){GS.killedBy=by??null;GS.killedAt=performance.now()}emitEv('kill',E_KILL);const bt=by?.isTurret?by.t:by?.team;if(GS.state==='play'&&bt!=null&&bt!==(v.isTurret?v.t:v.team))GS.score[bt]++;
  if(!GS.demo)feed(`${who(by)} ${v.isTurret?'destroyed':'shot down'} ${who(v)}`);if(GS.net?.host)GS.net.kf.push([++GS.net.kfId,by?keyOf(by):'',keyOf(v)]),GS.net.kf.splice(0,GS.net.kf.length-6);
  if(GS.overtime&&auth()&&GS.state==='play')endMatch()}
 export function applyHit(k,dmg,by){const o=objOf(k);if(!o||!by||o.team===by.team)return;if(o.isTurret){if(o.re<=0)hitTurret(o,dmg,by)}else if(o.dead<=0)hitDrone(o,dmg,by)}
 export const aimOk=(d,p,f,deg,r=260)=>{_gq.subVectors(p,d.p);const l=_gq.length();return l<r&&_gq.dot(f)/l>Math.cos(deg*Math.PI/180)};
 export function fireIn(d){if(keys.KeyF||mouseFire)return true;const v=btnOn(pad(),padX?S.xfire:S.fireBtn);if(v!=null&&v!==!!S.fireInv)return true;  // invert: fire with the switch/button in the other position
  if(!S.afire)return false;const f=gunDir(d,camTilt()*Math.PI/180,_gd);return GS.drones.some(e=>e.dead<=0&&e.team!==d.team&&aimOk(d,e.p,f,3.5))||TUR.some(t=>t.re<=0&&t.t!==d.team&&aimOk(d,t.p,f,4))}
+// the mode (modes/registry.js): no goals (points come from kills and turrets), Dogfight bots, the fire button, guns, turrets, and its net state
 registerMode('df',{name:'Dogfight',title:'DOGFIGHT',world:'highlands',order:1,
- sub:'Acro quad dogfighting over the Highlands: a 1.4 km valley with a river canyon, mesas, spire fields, hangars to fly through and forests to hide in. Guns on the FPV camera axis, enemy turrets on the ground, bots in the air. Most points wins.'});
-// switch game mode (any registered mode): sets the world up for it and updates the menu heading and mode buttons
-export function setGame(m){const M=MODES[modeId(m)];GS.GM=M.id;GS.OBSON=M.world==='highlands';if(GS.OBSON)buildDF();setMap(GS.OBSON?'df':S.map);dfG.visible=GS.OBSON;ORBS.forEach(o=>{o.p.copy(GS.OBSON?o.dp:o.p0);o.g.position.copy(o.p)});goalG.visible=!GS.OBSON;ballMesh.visible=!GS.OBSON;BUL.forEach(b=>b.life=0);GS.drones.forEach(d=>d.firing=false);
- $('h1o').textContent=M.title;$('sub').textContent=M.sub;for(const b of $('modes').children)b.classList.toggle('on',b.dataset.m===GS.GM)}
+ sub:'Acro quad dogfighting over the Highlands: a 1.4 km valley with a river canyon, mesas, spire fields, hangars to fly through and forests to hide in. Guns on the FPV camera axis, enemy turrets on the ground, bots in the air. Most points wins.',
+ allowGoals:false,bot:dfBot,
+ pilot:d=>{d.firing=!GS.menuOpen&&GS.state==='play'&&fireIn(d)},
+ droneTick:(d,dt,A)=>droneFire(d,dt,A||d===GS.player),
+ tick:dt=>{for(const d of GS.drones)if(d.remote)droneFire(d,dt,false);bullets(dt);turrets(dt)},
+ net:{pilot:(P,me)=>{P.f=me.firing?1:0;P.ti=camTilt()},
+  host:g=>{g.hp={};g.lf={};for(const d of GS.drones){g.hp[d.key]=Math.round(d.hp);g.lf[d.key]=d.life}g.tg=TUR.map(t=>t.re>0?0:Math.max(1,Math.round(t.hp)));g.kf=GS.net.kf},
+  joiner:P=>{if(GS.net.hits.length)P.hs=GS.net.hits.slice(-16)},
+  fromHost:g=>dfState(g),
+  fromPeer:(pr,d,peer)=>{if(Array.isArray(pr.hs))for(const h of pr.hs)if(Array.isArray(h)&&+h[0]>(GS.net.hk[peer]||0)){GS.net.hk[peer]=+h[0];if(GS.state==='play'&&d&&d.dead<=0)applyHit(h[1],cl(+h[2]||0,0,10),d)}}}});
+// switch game mode (any registered mode): runs the mode lifecycle (exit / enter), sets the world up for it and updates the menu heading and mode buttons
+export function setGame(m){switchMode(m,M=>{GS.GM=M.id;GS.OBSON=M.world==='highlands';if(GS.OBSON)buildDF();setMap(GS.OBSON?'df':S.map);dfG.visible=GS.OBSON;ORBS.forEach(o=>{o.p.copy(GS.OBSON?o.dp:o.p0);o.g.position.copy(o.p)});goalG.visible=!GS.OBSON;ballMesh.visible=!GS.OBSON;BUL.forEach(b=>b.life=0);GS.drones.forEach(d=>d.firing=false);
+ $('h1o').textContent=M.title;$('sub').textContent=M.sub;for(const b of $('modes').children)b.classList.toggle('on',b.dataset.m===GS.GM)})}
 // nearest living enemy drone (enemy cam and the off-screen arrow)
 // joining pilot: health, deaths, turrets and the kill feed all come from the host
 export function dfState(g){const now=performance.now();if(g.hp&&typeof g.hp==='object')for(const k in g.hp){const d=GS.drones.find(x=>x.key===k),v=+g.hp[k];if(!d||!Number.isFinite(v))continue;if(d===GS.player&&v<d.hp-.5&&d.dead<=0)hurt();d.hp=v}
  if(g.lf&&typeof g.lf==='object')for(const k in g.lf){const d=GS.drones.find(x=>x.key===k),l=g.lf[k]|0;if(!d)continue;if(d.lfSeen==null||l<d.lfSeen)d.lfSeen=l;else if(l>d.lfSeen){d.lfSeen=l;if(d===GS.player&&d.dead<=0){boom(d);d.dead=3;d.mesh.visible=false;d.hp=100}}}
  if(Array.isArray(g.tg))g.tg.forEach((v,i)=>{const t=TUR[i];if(!t)return;if(!v&&t.re<=0)boom(t);t.re=v?0:1;t.hp=+v||0});
- if(Array.isArray(g.kf)){const first=GS.net.kfSeen<0;for(const e of g.kf){if(!Array.isArray(e)||!(e[0]>GS.net.kfSeen))continue;GS.net.kfSeen=e[0];const v=objOf(e[2]);if(!first&&v)feed(`${who(objOf(e[1]))} ${v.isTurret?'destroyed':'shot down'} ${who(v)}`)}}}
+ if(Array.isArray(g.kf)){const first=GS.net.kfSeen<0;for(const e of g.kf){if(!Array.isArray(e)||!(e[0]>GS.net.kfSeen))continue;GS.net.kfSeen=e[0];const v=objOf(e[2]);if(v&&v===GS.player){GS.killedBy=objOf(e[1]);GS.killedAt=now}if(!first&&v)feed(`${who(objOf(e[1]))} ${v.isTurret?'destroyed':'shot down'} ${who(v)}`)}}}
 export function nearestFoe(me){let best=null,bd=1e9;for(const e of GS.drones)if(e.dead<=0&&e.team!==me.team){const q=e.p.distanceToSquared(me.p);if(q<bd){bd=q;best=e}}return best}

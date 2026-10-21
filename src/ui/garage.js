@@ -12,6 +12,10 @@ import {MAT} from '../render/drone-mesh.js';
 import {COS,COS_CATS,COS_DEF,COS_NAMES,RARITY,cosItem,shifted} from '../parts/cosmetics.js';
 import {cosMats} from '../render/cos-mat.js';
 import {cosTile} from './cos-tiles.js';
+import {achById,achProg} from '../progress/achievements.js';
+import {P,achView} from '../progress/tracker.js';
+import {lockOf,reqText} from '../progress/unlocks.js';
+import {levelOf} from '../progress/xp.js';
 import {GS,esc} from '../state.js';
 
 let V=null,RANGE=null;  // V: preview renderer state (built on first open); RANGE: [min,max] of every stat over all 125 loadouts
@@ -49,20 +53,25 @@ function update(){const ids=S.loadout,lo=computeLoadout(ids),st=statsOf(lo,MDEF)
  $('gname').textContent=lo.name;$('gauw').textContent=`AUW ${lo.auw} g · ${partOf(2,ids[2]).batt.cells}`;
  const bar=(k,v)=>{const[a,b]=R[k];return Math.max(0,Math.min(1,(v-a)/((b-a)||1)))*100};
  $('gstats').innerHTML=STATS.map(([k,n])=>`<div title="${esc(n)}"><span>${esc(n)}</span><b><i style="width:${bar(k,st[k]).toFixed(1)}%"></i><u style="left:${bar(k,R.stock[k]).toFixed(1)}%"></u></b><span>${esc(fmt[k](st,lo))}</span></div>`).join('');
- document.querySelectorAll('#gslots button[data-c]').forEach(b=>b.classList.toggle('on',S.cos[b.dataset.c]===b.dataset.id));
- if(TAB>=NP){const c=COS_CATS[TAB-NP],it=cosItem(c,S.cos[c]),[rn,rc]=RARITY[it.r];$('gdesc').innerHTML=`<h4>${esc(it.name)}</h4><p><b style="color:${rc}">${esc(rn)}</b> · ${esc(COS_NAMES[TAB-NP])}${it.sub?' · '+esc(it.sub):''}</p><ul><li class="n">Cosmetic: no effect on flight, stats or hitbox</li>${shifted(it.col,team())||shifted(it.col2,team())?`<li class="n">Shown in your team colour: too close to the other team's</li>`:''}</ul>`}
+ document.querySelectorAll('#gslots button[data-c]').forEach(b=>{b.classList.toggle('on',S.cos[b.dataset.c]===b.dataset.id);b.classList.toggle('pk',!!PEEK&&PEEK.c===b.dataset.c&&PEEK.id===b.dataset.id)});
+ if(TAB>=NP){const c=COS_CATS[TAB-NP],id=PEEK&&PEEK.c===c?PEEK.id:S.cos[c],it=cosItem(c,id),[rn,rc]=RARITY[it.r],lk=lockOf(P,c,id),a=lk?.ach&&achById(lk.ach),pr=a&&achProg(a,achView());
+  $('gdesc').innerHTML=`<h4>${esc(it.name)}</h4><p><b style="color:${rc}">${esc(rn)}</b> · ${esc(COS_NAMES[TAB-NP])}${it.sub?' · '+esc(it.sub):''}</p><ul>${lk?`<li class="c">Locked. ${esc(reqText(lk))}${a?` (${esc(a.desc)} ${pr.v}/${pr.goal})`:` (you are level ${levelOf(P.xp).lv})`}</li>`:''}<li class="n">Cosmetic: no effect on flight, stats or hitbox</li>${shifted(it.col,team())||shifted(it.col2,team())?`<li class="n">Shown in your team colour: too close to the other team's</li>`:''}</ul>`}
  else{const p=partOf(TAB,ids[TAB]);$('gdesc').innerHTML=`<h4>${esc(p.name)}</h4><p>${esc(p.sub)}</p><ul>${p.pros.map(t=>`<li class="p">${esc(t)}</li>`).join('')}${p.cons.map(t=>`<li class="c">${esc(t)}</li>`).join('')}</ul>`}  // the equipped part (or cosmetic) in the open category
  if(V)showDrone(lo);
  if(GS.player&&!GS.player.remote){GS.player.setLoadout(ids);GS.player.setCos(S.cos)}}  // your own drone refits now (online, the new ids go out with your next state)
-function pickCos(c,id){if(!COS[c]?.some(x=>x.id===id))return;S.cos={...S.cos,[c]:id};save();update()}
+// a locked cosmetic (progress/unlocks.js) can't be worn: clicking it shows what unlocks it instead (PEEK)
+let PEEK=null;
+function pickCos(c,id){if(!COS[c]?.some(x=>x.id===id))return;if(lockOf(P,c,id)){PEEK={c,id};update();return}PEEK=null;S.cos={...S.cos,[c]:id};save();update()}
 function pick(s,id){if(!partOf(s,id))return;S.loadout=[...S.loadout];S.loadout[s]=id;save();update()}
+/** render/warm.js: the preview renderer, the drone, its shaders and the stat bar ranges, ahead of the first open */
+export function warmGarage(){if(V)return;initView();showDrone(computeLoadout(S.loadout));ranges();V.r.compile(V.sc,V.cam)}
 export function openGarage(){if(!V)initView();$('garage').hidden=false;cosTiles();tab(TAB);if(!V.raf)V.raf=requestAnimationFrame(frame)}
 export function closeGarage(){$('garage').hidden=true}
 // Rocket League-style: a category tab bar, then item tiles for that category (name, one line, good/bad stat tags, EQUIPPED badge)
 let TAB=0;const SN=Object.fromEntries(STATS.map(([k,n])=>[k,n])),NP=SLOTS.length;  // tabs 0..NP-1: parts; NP..: cosmetics (COS_CATS)
 // cosmetic tiles: swatch, name, rarity colour; rebuilt on open so the swatches show your current team
-const cosTiles=()=>{const t=team();for(const el of document.querySelectorAll('#gslots .gcat[data-c]')){const c=el.dataset.c;el.innerHTML=COS[c].map(it=>cosTile(c,it,t)).join('')}};
-function tab(s){TAB=s;for(const b of $('gtabs').querySelectorAll('button'))b.classList.toggle('on',+b.dataset.s===s);for(const c of $('gslots').children)c.hidden=+c.dataset.s!==s;update()}
+const cosTiles=()=>{const t=team();for(const el of document.querySelectorAll('#gslots .gcat[data-c]')){const c=el.dataset.c;el.innerHTML=COS[c].map(it=>cosTile(c,it,t,{lock:reqText(lockOf(P,c,it.id))})).join('')}};
+function tab(s){TAB=s;PEEK=null;for(const b of $('gtabs').querySelectorAll('button'))b.classList.toggle('on',+b.dataset.s===s);for(const c of $('gslots').children)c.hidden=+c.dataset.s!==s;update()}
 export function initGarage(){
  $('gtabs').innerHTML=`<div><span>Parts</span>${SLOT_NAMES.map((n,s)=>`<button data-s="${s}" role="tab">${esc(n)}</button>`).join('')}</div><div><span>Style</span>${COS_NAMES.map((n,i)=>`<button data-s="${NP+i}" role="tab">${esc(n)}</button>`).join('')}</div>`;$('gtabs').onclick=e=>{const b=e.target.closest('button[data-s]');if(b)tab(+b.dataset.s)};
  $('gslots').innerHTML=SLOTS.map((slot,s)=>`<div class="gcat" data-s="${s}">${PARTS[slot].map(p=>`<button class="gtile" data-s="${s}" data-id="${esc(p.id)}"><i>Equipped</i><b>${esc(p.name)}</b><small>${esc(p.sub)}</small><span>${(p.good||[]).map(k=>`<em class="p">+${esc(SN[k]||k)}</em>`).join('')}${(p.bad||[]).map(k=>`<em class="c">−${esc(SN[k]||k)}</em>`).join('')}${p.id==='stock'?'<em class="c">no strengths</em>':''}</span></button>`).join('')}</div>`).join('')+COS_CATS.map((c,i)=>`<div class="gcat gcos" data-s="${NP+i}" data-c="${c}"></div>`).join('');cosTiles();
@@ -70,7 +79,7 @@ export function initGarage(){
  $('garbtn').onclick=openGarage;$('gx').onclick=$('gok').onclick=closeGarage;
  // Reset / Random act on the open group: parts on a parts tab, the whole look on a style tab
  $('gstock').onclick=()=>{if(TAB>=NP)S.cos={...COS_DEF};else S.loadout=[...STOCK];save();update()};
- $('grand').onclick=()=>{const r=l=>l[Math.floor(Math.random()*l.length)].id;if(TAB>=NP)S.cos=Object.fromEntries(COS_CATS.map(c=>[c,r(COS[c])]));else S.loadout=SLOTS.map(sl=>r(PARTS[sl]));save();update()};
+ $('grand').onclick=()=>{const r=l=>l[Math.floor(Math.random()*l.length)].id;PEEK=null;if(TAB>=NP)S.cos=Object.fromEntries(COS_CATS.map(c=>[c,r(COS[c].filter(it=>!lockOf(P,c,it.id)))]));else S.loadout=SLOTS.map(sl=>r(PARTS[sl]));save();update()};  // Random: unlocked cosmetics only
  $('ghit').onchange=()=>{if(V?.wire)V.wire.visible=$('ghit').checked};
  addEventListener('keydown',e=>{if(e.code==='Escape'&&!$('garage').hidden){closeGarage();e.stopImmediatePropagation()}},true)}
 // tooling hook (tools/parts-shots.mjs): fixed camera angle, no auto-spin

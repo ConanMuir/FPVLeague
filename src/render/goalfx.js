@@ -1,5 +1,5 @@
 // ---------- goal explosion (Rocket League style): flash, team-colour shockwave shell + rings, spark streaks, light pulse, goal glow, camera shake ----------
-// goalBoom(t,p) starts it (modes/match.js goalFx); goalFxTick(dt,now) runs it from visuals(), after the ball light is set. Purely visual (runs on joiners too).
+// goalBoom(t,p) starts it (the 'goal' event, sent by modes/match.js goalFx); goalFxTick(dt,now) runs it from visuals(), after the ball light is set. Purely visual (runs on joiners too).
 // Everything is built once and pooled: no allocations per goal or per frame. The sparks move entirely in the vertex shader (one uniform per frame).
 // Runs on real time (not the goal slow-mo), ~1.5 s; Low quality draws fewer sparks.
 import * as THREE from 'three';
@@ -9,6 +9,7 @@ import {ballLight} from './ball.js';
 import {dot} from './particles.js';
 import {GS} from '../state.js';
 import {goalG} from '../world/arena.js';
+import {onFx} from '../core/events.js';
 const DUR=1.5,NS=180,NS_LOW=70,SDRAG=2.2,SGRAV=30;
 const add={transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,fog:false};
 // premultiplied: the colour adds light (so it glows on the dark arena) and alpha also covers what's behind (so it still reads in team colour over snow or a bright sky)
@@ -50,6 +51,7 @@ const C=new THREE.Color(),W=new THREE.Color(1,1,1),O=new THREE.Vector3(),LP=new 
 let t0=-1,last=0,el=0,side=0,amp=1,warm=2;  // warm: draw everything once, invisible, on the first frames so the shaders compile before the first goal (no hitch)
 function restore(){for(const e of GL){if(e.o.isLight)e.o.intensity=e.li;else{e.mat.color.copy(e.col);e.mat.opacity=e.op;if(e.mat.emissive)e.mat.emissiveIntensity=e.ei}}GL.length=0;
  if(bl.on){ballLight.color.copy(bl.col);ballLight.distance=bl.dist;bl.on=false}}
+onFx('goal',e=>goalBoom(e.team,e.p));
 export function goalBoom(t,p){if(!SIDES)findSides();restore();const c=COL[t];O.copy(p);side=p.z>0?0:1;const s=side?-1:1;
  // the light sits a little out of the goal mouth so it lights the field, not just the pocket
  LP.set(p.x,Math.max(14,p.y),s*(HL-6));bl.col.copy(ballLight.color);bl.dist=ballLight.distance;bl.on=true;ballLight.color.set(c);ballLight.distance=170;

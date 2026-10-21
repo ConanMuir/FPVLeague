@@ -5,9 +5,13 @@ import {camera} from '../render/renderer.js';
 import {GS} from '../state.js';
 import {S} from '../config/settings.js';
 import {sfxInit,sfxTick} from './sfx.js';
-export let AC=null,BUS=null,mg,mf,nbuf,mw,pf,pg,wf,wg,ov=null,awp=null;export const mo=[],aw=new V3(),_au=new V3(),_ar=new V3(),_ad=new V3();
+export let AC=null,BUS=null,LIM=null,mg,mf,nbuf,mw,pf,pg,wf,wg,ov=null,awp=null;export const mo=[],aw=new V3(),_au=new V3(),_ar=new V3(),_ad=new V3();
+// master limiter (LIM, after the master volume): sounds that stack up (a goal with a hard hit, a landing and full motors) are held
+// under 0 dBFS instead of clipping. Fast attack, high ratio, threshold -3 dB: normal play stays below it and passes untouched.
+// The browsers' compressor adds its own make-up gain (about +1.45 dB at these settings, measured by tools/sound-level.mjs); the gain after it takes that back.
+function limiter(){const c=AC.createDynamicsCompressor();c.threshold.value=-3;c.knee.value=2;c.ratio.value=20;c.attack.value=.002;c.release.value=.15;const g=AC.createGain();g.gain.value=.846;c.connect(g);return{c,g}}
 // 4 motors, each a tri-blade prop buzz (blade-pass sawtooth + harmonic) over the shaft tone; a slight per-motor offset gives the real beating
-export function audioInit(){if(AC)return;try{AC=new(window.AudioContext||window.webkitAudioContext)();const mst=AC.createGain();mst.connect(AC.destination);BUS={mst};for(const k of['mot','wind','oth','fx','crowd']){BUS[k]=AC.createGain();BUS[k].connect(mst)}  // Audio tab volumes: master, then own motors, wind, other quads, effects, crowd
+export function audioInit(){if(AC)return;try{AC=new(window.AudioContext||window.webkitAudioContext)();const mst=AC.createGain();try{const l=limiter();LIM=l.c;mst.connect(l.c);l.g.connect(AC.destination)}catch(e){LIM=null;mst.connect(AC.destination)}BUS={mst};for(const k of['mot','wind','oth','fx','crowd']){BUS[k]=AC.createGain();BUS[k].connect(mst)}  // Audio tab volumes: master, then own motors, wind, other quads, effects, crowd
  mf=AC.createBiquadFilter();mf.type='lowpass';mf.Q.value=.9;mg=AC.createGain();mg.gain.value=0;mf.connect(mg).connect(BUS.mot);
  for(let i=0;i<4;i++){const v=[];[['sawtooth',.3,3],['square',.05,6],['sine',.16,1]].forEach(([t,g0,h])=>{const o=AC.createOscillator(),g=AC.createGain();o.type=t;g.gain.value=g0;o.connect(g).connect(mf);o.start();v.push([o,h])});mo.push({v,off:1+(i-1.5)*.009})}
  mw=AC.createOscillator();mw.type='triangle';const wg0=AC.createGain();wg0.gain.value=.02;mw.connect(wg0).connect(mg);mw.start();mw.g=wg0;  // ESC/motor whine: shaft rpm x 7 pole pairs
@@ -18,8 +22,11 @@ export function audioInit(){if(AC)return;try{AC=new(window.AudioContext||window.
  const oo=[['sawtooth',.4,3],['sine',.25,1]].map(([t,g0,h])=>{const o=AC.createOscillator(),g=AC.createGain();o.type=t;g.gain.value=g0;o.connect(g).connect(of);o.start();return[o,h]});
  const[on,onf]=loop('bandpass',.8,of);onf.gain.value=.35;ov={oo,og,pan,on};  // the nearest other quad, with distance, doppler and pan
  sfxInit();setVolumes()}catch(e){AC=null;BUS=null}}
-// slider % -> gain, squared so the slider feels even to the ear
-export function setVolumes(){if(!BUS)return;const t=AC.currentTime;for(const[k,s]of[['mst','vMaster'],['mot','vMotor'],['wind','vWind'],['oth','vOther'],['fx','vFx'],['crowd','vCrowd']])BUS[k].gain.setTargetAtTime(((S[s]??100)/100)**2,t,.02)}
+// slider % -> gain, squared so the slider feels even to the ear; while a replay plays (duckReplay) each bus is also scaled by DUCK
+let ducked=false;const DUCK={mot:.25,wind:0,oth:.3,fx:.4,crowd:.5};
+export function setVolumes(){if(!BUS)return;const t=AC.currentTime;for(const[k,s]of[['mst','vMaster'],['mot','vMotor'],['wind','vWind'],['oth','vOther'],['fx','vFx'],['crowd','vCrowd']])BUS[k].gain.setTargetAtTime(((S[s]??100)/100)**2*(ducked?DUCK[k]??1:1),t,ducked?.05:.02)}
+// replays (render/replay.js): effects -8 dB, crowd -6 dB, motors and the other quads lower, wind off; the sliders still apply
+export function duckReplay(on){ducked=!!on;setVolumes()}
 // shaft speed (Hz): thrust ~ rpm² so rpm follows ms^(TE/2); props unload and spin up a little as air flows through the disc
 const rotHz=d=>(70+470*Math.max(d.ms,0)**(TE/2))*(1+.12*cl(d.v.dot(_au.set(0,1,0).applyQuaternion(d.q))/VP,-.5,1));
 export function audioTick(dt){sfxTick(dt);const me=GS.player,on=!GS.demo&&!GS.paused&&me&&me.dead<=0,t=AC.currentTime;
