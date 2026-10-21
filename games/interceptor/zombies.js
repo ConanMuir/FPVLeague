@@ -219,7 +219,7 @@ export function initZombies(api){
  // one-hit rules: a direct hit always kills; proximity uses pkill; armor 1 turns a proximity kill into damage; 'hard' needs a direct hit
  function outcome(t,r,cv){const K=KIND[t.k]||KIND.shahed;if(r<K.hitR)return'kill';if(K.armor==='hard')return'miss';
   const p=api.pkill(r,cv);if(Math.random()<p)return K.armor===1||K.armor==='boss'?'damage':'kill';
-  const re=r+cv*api.FDLY;if(!t.dmg&&Math.random()<Math.exp(-(((re-1.2)/(5*api.LETH/4))**2)))return'damage';return'miss'}
+  if(!t.dmg&&Math.random()<api.pdmg(r,cv))return'damage';return'miss'}
  Z.outcome=outcome;
  // helper hits: p = the helper's kill chance for this target. Marked targets take double damage from helpers: two rolls (1-(1-p)^2),
  // near-miss damage becomes a kill, and armor is ignored. Unmarked armor turns non-direct hits into damage.
