@@ -1,7 +1,9 @@
-// ---------- the Dribbler bot (DIFF[].drib): a show-off for the carry and pop mechanics, not a winner ----------
+// ---------- the Dribbler bot (DIFF[].drib): the carry and pop mechanics, played to win ----------
+// Its attacker runs this possession game only while the ball is its own (bots/league.js possess: on its top, or clearly its own to
+// collect, away from its own third); otherwise it and its teammates play the shot planner (bots/league.js thinkIQ).
 // Its attacker scoops the ball off the floor (a low, nose-down run into its bottom half), gets under it and catches it on the top
 // of the frame, carries it toward the enemy goal over the pop zone (ball and quad share gravity, so the ball takes the tilted top's
-// acceleration and only drifts when their speeds differ), and spends the pop it earns toward the goal. Its teammates keep clear.
+// acceleration and only drifts when their speeds differ), and spends the pop it earns toward the goal.
 // Same flight model and thrust limits as everyone (the controller only chooses an acceleration, like botControl).
 import {GW,H,HL,HW,V3,cl} from '../config/constants.js';
 import {hyp2} from '../core/hypot.js';

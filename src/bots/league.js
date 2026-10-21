@@ -64,14 +64,14 @@ export function botControl(d,dt){const D=DIFF[d.skill??S.diff],ai=d.ai;
  const look=_f.subVectors(ai.look,d.p);look.y=0;if(look.lengthSq()<1)look.set(0,0,d.team?1:-1);look.normalize();attitude(d,T,look,D.att,D.rate,.6)
  d.pops=!!D.pop;if(D.pop)popShot(d)}
 // is the ball this quad's to play with? On its top; or, away from its own third and with its goal safe, it gets there within ~0.6 s and a
-// second before any foe (a little less once it has it), and no open goal is begging for a shot
+// second and a half before any foe (a little less once it has it), and no open goal is begging for a shot
 function possess(d,D,dt){const ai=d.ai,h=topOf(d)+BR;_k.subVectors(ball.p,d.p);const hd=hyp2(_k.x,_k.z);
  ai.top=hd<(D.topR??2)&&_k.y>h-.8&&_k.y<h+1.2;if(ai.top){ai.pos=true;return true}  // on top: keep it
  if(threat(d.team)||Math.abs((d.team?-1:1)*HL-ball.p.z)<HL*(D.posZ??.66)){ai.pos=false;return false}  // its goal under threat, or the ball in its own third: no showing off there
  if((ai.pc=(ai.pc||0)-dt)>0)return ai.pos;ai.pc=.05;
  const me=firstT(d,thrOf(D)*D.thr*.72,D.vmax*BOTV,1);let foe=4;for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)foe=Math.min(foe,firstT(o,accOf(o),vmOf(o),1));
  if(me>(D.posT??.6)||openGoal(d)){ai.pos=false;return false}  // not to be collected soon (high up, far off), or an open goal: play it with the planner (shoot)
- ai.pos=foe-me>(ai.pos?D.posK??.4:D.posG??1);return ai.pos}
+ ai.pos=foe-me>(ai.pos?D.posK??.6:D.posG??1.5);return ai.pos}
 // nobody can get back to cover the goal before a shot from here gets there (a demolished keeper, everyone upfield): shoot now
 function openGoal(d){const gz=(d.team?1:-1)*HL;_e.set(0,GH*.4,gz);const L=_e.distanceTo(ball.p),tb=L/60+.4;
  for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0&&reachT(o,_e,accOf(o),vmOf(o))<tb+.3)return false;return true}
@@ -141,7 +141,7 @@ function thinkIQ(d,D){const ai=d.ai,s=d.team?1:-1,ownZ=-s*HL;let role=d.role;ai.
  if(role==='keep'&&(danger||near))role='attack';
  if(role==='mid'){if(danger)role='keep';else if(SB()&&d.boost<35&&d.p.distanceTo(ball.p)>30)role='boost'}
  if(role==='attack'&&D.kdemo&&openDemo(d,D)){ai.look.copy(ai.demo.p)}  // the ball is safe and their keeper is all that stands in the way: demolish him first
- else if(role==='attack'){plan(d,D);
+ else if(role==='attack'){const clr=D.shadow&&Math.abs(ownZ-ball.p.z)<(D.clrZ??50);if(clr){ai.fsAim=true;ai.gx=(Math.sign(ball.p.x)||(d.i%2?1:-1))*(HW-12);ai.gy=14}plan(d,D);ai.fsAim=false;  // in front of its own goal: clear it to the near side, upfield
   // contested: if a foe can touch it before the placed shot is ready, take the quickest touch instead (still bent toward the goal)
   if(ai.t0<ai.tt-.05){let ot=4;for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)ot=Math.min(ot,firstT(o,accOf(o),vmOf(o),D.slack));
    if(ot<ai.tt+.15&&!(D.shadow&&ai.n0.z*s<-.25)){ai.tt=ai.t0;ai.n.copy(ai.n0);ai.C.copy(ai.C0);ai.P.copy(ai.P0);_k.subVectors(ai.C,d.p);const l=_k.length();ai.al=l<1?1:Math.max(.41,_k.dot(ai.n)/l)}}
