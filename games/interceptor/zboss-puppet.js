@@ -31,7 +31,7 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group(),sub={};const grp=k=>{con
  for(let i=0;i<6;i++){const a=(i<3?-1:1)*(.5+(i%3)*.6),x=Math.sin(a)*1.6*(i<3?1:-1);const l=C.mesh(s,new T.CylinderGeometry(.07,.07,3,6),M.dark,(i<3?-1:1)*1.6,1.2,(i%3-1)*1.1);l.rotation.z=(i<3?1:-1)*.9}
  // the tell, on every disguise: a little glinting spool and a whip antenna
  C.mesh(g,new T.CylinderGeometry(.22,.22,.3,10),M.glint,.6,2.3,-.4);C.mesh(g,new T.CylinderGeometry(.015,.015,2.6,4),M.glint,.6,3.6,-.4);
- g.userData={sub};return g}
+ Object.assign(g.userData,{sub});return g}
 function droneModel(C){const T=C.THREE,M=mats(C),g=C.group();C.mesh(g,new T.BoxGeometry(.5,.18,.65),M.drone);for(const[x,z]of[[.5,.5],[-.5,.5],[.5,-.5],[-.5,-.5]])C.mesh(g,new T.CylinderGeometry(.28,.28,.03,10),M.dark,x,.12,z,false);
  C.mesh(g,new T.SphereGeometry(.12,6,4),M.eye,0,.15,.35,false);g.scale.setScalar(1.8);return g}
 const show=(t,k)=>{const S=t.mesh.userData.sub;if(!S)return;for(const q in S)S[q].visible=q===k};

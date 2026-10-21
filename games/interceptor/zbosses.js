@@ -134,7 +134,7 @@ export function initBosses(api,G,Z){
  const oc0=Z.outcome;Z.outcome=(t,r,cv)=>{if(mine(t)){pctx=t;pr=r;if(BOSSES[t.k].burst&&r<45)return'damage'}return oc0(t,r,cv)};  /* co-op: a client's burst, rolled on the host */
  const spark=p=>{BFX.emit(p,0xfff0c0,18,14,.35,null,3)};
  function hitBy(t,q,src){if(Z.mirror||!t.bs||t.bs.dead)return;const D=BOSSES[t.k],d=api.player,h={q,src,at:src==='p'&&d?d.p.clone():null,r:pctx===t?pr:null,txt:''};
-  let n=D.hit?D.hit(ctx,t,h):q==='kill'?2:1;n=Math.max(0,n|0);LOG.push({t,n,txt:h.txt});
+  let n=D.hit?D.hit(ctx,t,h):q==='kill'?2:1;n=Math.max(0,n|0);LOG.push({t,n,txt:h.txt});if(LOG.length>32)LOG.shift();  /* only the last is read (Z.detonate clears it); helpers hit between bursts, and kept, it held every dead track */
   if(!n){spark(h.at||t.p);if(h.txt&&src!=='h')Z.pop?.(t.p,h.txt,'#9fb3c8');return}hurt(t,n,h)}
  function hurt(t,n,h={}){const B=t.bs;if(!B||B.dead)return;B.hp=Math.max(0,B.hp-n);B.hitT=performance.now();api.boom(h.at&&h.at.distanceTo(t.p)<40?h.at:t.p,1.4);Z.pop?.(t.p,`−${n} ${t.bs.hp}/${t.bs.max}`,'#ffb347');
   if(B.hp<=0){kill(t,h.src==='h'?'h':h.src==='o'?'o':'p');return}phaseCheck(t);BOSSES[t.k].hurt?.(ctx,t,n,h)}

@@ -38,6 +38,7 @@ export async function longSoak({origin, open, sleep, ok, heapMB, PLAY, SHOP, SKI
   const sample = async () => { const s = await p.evaluate(SAMPLE), heap = await heapMB(p), m = await metrics(), f = await frameStats(45);
     await p.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyH', key: 'h'})));  /* the thermal camera, toggled every minute */
     const r = {min: Math.round(simSec / 60), ...s, heap, ...m, frame: f}; rows.push(r);
+    if (rows.length > 1 && s.orphan > rows.at(-2).orphan + 20) console.log('    orphans by origin:', JSON.stringify(s.orphanTop));
     console.log(`  min ${String(r.min).padStart(3)} w${r.wave} heap ${heap} nodes ${m.nodes} lis ${m.listeners} geo ${s.geo} tex ${s.tex} prog ${s.progs} objs ${s.objs} th ${s.th} pops ${s.pops} shots ${s.shots} sw ${s.sw} audio ${s.audioLive}/${s.audioMade} orphan ${s.orphan} | frame ${f.p50}/${f.p95}/${f.worst}`); };
   while (simSec < MINUTES * 60 && w < 400) {
     const st = await p.evaluate(() => __z.G.state); if (st === 'over') break;
@@ -48,8 +49,12 @@ export async function longSoak({origin, open, sleep, ok, heapMB, PLAY, SHOP, SKI
     await p.evaluate(([w, WXC, SH]) => { const {G, Z} = __z, R = Z.bosses?.ROSTER || []; G.cash = Math.max(G.cash, 60000);
       if (R.length) Z.bosses.force(R[w % R.length]); for (let i = 0; i < 3; i++) Z.chain?.act?.('pb', i);
       const id = WXC[w % WXC.length]; if (G.next) { G.next.wx = {id}; if (w % 3 === 1 && SH[id]) Object.assign(G.next.wx, {to: SH[id], why: 'changing', at: 25, dur: 30}); }
-      if (w % 3 === 2) try { __z.so?.launch?.(); } catch (e) {} }, [w, WXC, SH]);
-    await p.click('#zgo'); await sleep(50); w++;
+      }, [w, WXC, SH]);
+    /* a sortie every third break: it flies out of the base screen and the wave starts when its clock runs out (the scripted pilot stays home) */
+    const so = w % 3 === 2 && await p.evaluate(() => { try { return __z.so?.launch?.() === true; } catch (e) { return false; } });
+    if (so) { for (let i = 0; i < 400 && await p.evaluate(() => __z.G.state === 'base'); i++) await p.evaluate(() => __z.sim(.5)); }
+    else { await p.click('#zgo'); await sleep(50); }
+    w++;
     await p.evaluate(w => { const {api, Z} = __z, R = Z.bosses?.ROSTER || []; if (R.length) Z.bosses.spawn(R[(w + 4) % R.length]);
       if (w % 2 === 0) { const s = api.SITES[1]; __z.make('boss', s.x + 1500, s.z - 3000, s); }
       try { Z.sw?.deploy?.(Z.sw.mine, 6, 2); } catch (e) {} }, w);
@@ -57,6 +62,9 @@ export async function longSoak({origin, open, sleep, ok, heapMB, PLAY, SHOP, SKI
     for (let chunk = 0; chunk < 60 && r.st === 'wave'; chunk++) {
       r = await p.evaluate(PLAY + `(${SKILL}, true, 20)`); simSec += r.t;
       if (chunk === 2) await p.evaluate(() => { try { __z.Z.sw?.command?.('strike'); } catch (e) {} });
+      /* the bosses get fought (a bot pilot's bursts from where each boss module says one would be); after 3 minutes they are finished off */
+      await p.evaluate(chunk => { const B = __z.Z.bosses; if (!B) return; for (let i = 0; i < 4; i++) try { B.bot(.9); } catch (e) {}
+        if (chunk >= 9) for (const t of B.alive()) for (let i = 0; i < 12 && t.st !== 'dead'; i++) try { B.hitAt(t, 'kill', t.p.clone()); } catch (e) { break; } }, chunk);
       await sleep(30);
       if (simSec >= nextMin * 60) { nextMin = Math.floor(simSec / 60) + 1; if (r.st === 'wave') await sample(); }
       if (simSec >= MINUTES * 60) break;
