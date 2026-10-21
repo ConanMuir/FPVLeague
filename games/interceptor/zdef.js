@@ -107,7 +107,8 @@ export function initDefences(api,G,Z){
   return best}
  // jammer: tracks entering the bubble get one roll (ew below); its state in EW and its callback made once, like pickTarget
  const EW={d:null,s:null,l:null,f:null,r:0},ewCb=t=>{const d=EW.d,s=EW.s,l=EW.l,f=EW.f,r=EW.r;if(!api.live(t)||d.jam.has(t.id))return;const e=effOf(d,t.k);if(e<=0)return;
-   if(hyp(t.p.x-s.x,t.p.z-s.z)>r)return;d.jam.add(t.id);if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
+   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)return;d.jam.add(t.id);  /* Math.hypot kept here: with hyp() the grid-vs-loop whole-wave test diverged (a borderline jam roll, see docs/PERF.md) */
+   if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
     api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}};
  const claim=(t,h)=>{t.claim=h;h.tgt=t};
  const release=h=>{if(h.tgt&&h.tgt.claim===h)h.tgt.claim=null;h.tgt=null};
