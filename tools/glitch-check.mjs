@@ -1,9 +1,12 @@
 // Visual glitch hunt for both games, headless: consecutive drawn frames while things move, checked for one-frame flicker, black / blown-out
 // frames, non-finite or teleporting drawn positions, and a few geometric invariants.
 //   node tools/glitch-check.mjs [parts] [--shots=DIR] [--n=40]
-// parts (default: all): river  classic  zombies  league  dogfight
+// parts (default: all): river  motes  classic  zombies  league  dogfight
 //   river     Interceptor terrain: the river's water ribbon never floats over dry ground (every ribbon edge buried in its bank, every
 //             bank 70-300 m out above the water), checked against the drawn terrain mesh (no frames needed)
+//   motes     weather motes that drift past the lens (League's Alpine snow, the Interceptor's snow and dust) fade out instead of drawing
+//             a screen-sized blot: every mote put 0.3-0.6 m (dust 2-5 m) in front of the camera, drawn with the game's material and with a
+//             plain copy of it (the old look), white / dust coverage of the frame compared
 //   classic   Interceptor Classic: the menu demo and a flight on each camera (FPV, chase, threat), Graphics High / Medium / Low / Auto, every
 //             weather, a weather change, pausing
 //   zombies   Interceptor Zombies with the Bot Spectator flying: each camera, each Graphics level, the base screen opening and closing
@@ -28,7 +31,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {serve, launch, open, sleep, frames, until, root} from './zlib.mjs';
 const A = process.argv.slice(2), arg = k => A.find(a => a.startsWith('--' + k + '='))?.split('=')[1];
-const PARTS = new Set(A.filter(a => !a.startsWith('--')).length ? A.filter(a => !a.startsWith('--')) : ['river', 'classic', 'zombies', 'league', 'dogfight']);
+const PARTS = new Set(A.filter(a => !a.startsWith('--')).length ? A.filter(a => !a.startsWith('--')) : ['river', 'motes', 'classic', 'zombies', 'league', 'dogfight']);
 const SHOTS = arg('shots') ? path.resolve(arg('shots')) : null, N = +(arg('n') || 40);
 if (SHOTS) fs.mkdirSync(SHOTS, {recursive: true});
 let fails = 0; const errs = [], summary = [];
@@ -156,6 +159,40 @@ async function river(b, origin) {
   await p.close();
 }
 
+// in-page: every point of pts put d0..d1 m in front of the camera (spread over the middle of the view), one frame drawn straight to the
+// canvas with the points' own material and with a plain copy of it; returns the share of the frame (in %) that changed by > 40 against
+// the same frame without the points
+function lensTest(T, pts, d0, d1) {
+  const {scene, camera, renderer} = T, g = pts.geometry, P = g.attributes.position, keep = P.array.slice(), vis = pts.visible, dr = [g.drawRange.start, g.drawRange.count];
+  camera.updateMatrixWorld(); const e = camera.matrixWorld.elements, V = (k, s) => [e[k] * s, e[k + 1] * s, e[k + 2] * s];
+  for (let i = 0; i < P.count; i++) { const d = d0 + (d1 - d0) * (i % 7) / 6, x = ((i * 7919) % 101 / 101 - .5) * d, y = ((i * 104729) % 97 / 97 - .5) * d * .6, f = V(8, -d), r = V(0, x), u = V(4, y);
+    P.setXYZ(i, e[12] + f[0] + r[0] + u[0], e[13] + f[1] + r[1] + u[1], e[14] + f[2] + r[2] + u[2]); }
+  P.needsUpdate = true; g.setDrawRange(0, Infinity);
+  const c = document.createElement('canvas'); c.width = 160; c.height = 90; const x2 = c.getContext('2d', {willReadFrequently: true});
+  const grab = () => { renderer.setRenderTarget(null); renderer.render(scene, camera); x2.drawImage(renderer.domElement, 0, 0, 160, 90); return x2.getImageData(0, 0, 160, 90).data; };
+  pts.visible = false; const base = grab(); pts.visible = true;
+  const cover = d => { let n = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - base[i]) + Math.abs(d[i + 1] - base[i + 1]) + Math.abs(d[i + 2] - base[i + 2]) > 120) n++; return +(100 * n / (160 * 90)).toFixed(1); };
+  const fixed = cover(grab()), after = renderer.domElement.toDataURL(), m = pts.material, plain = new m.constructor(); plain.copy(m); pts.material = plain; const old = cover(grab()), before = renderer.domElement.toDataURL(); pts.material = m; plain.dispose();
+  P.array.set(keep); P.needsUpdate = true; pts.visible = vis; g.setDrawRange(dr[0], dr[1]);
+  return {fixed, old, before, after};
+}
+const lensShots = (tag, r) => { if (SHOTS) for (const k of ['before', 'after']) fs.writeFileSync(path.join(SHOTS, `${tag}-${k}.png`), Buffer.from(r[k].split(',')[1], 'base64')); };
+async function motes(b, iorigin, lorigin) {
+  console.log('motes');
+  const p = await iPage(b, iorigin, {gmode: 'classic', wx: 'clear', cam: 1, gfx: 'high'});
+  for (const [n, sz, d0, d1] of [['snow', .3, .3, .6], ['dust', 3.4, 2, 5]]) {
+    const r = await p.evaluate(`(${lensTest})({scene:__z.api.scene,camera:__z.api.camera,renderer:__z.api.renderer},__z.api.scene.children.find(o=>o.isPoints&&o.material.size===${sz}&&o.material.map),${d0},${d1})`);
+    lensShots('motes-interceptor-' + n, r); chk(r.old > 5 && r.fixed < 1, `Interceptor ${n} at ${d0}-${d1} m from the lens: ${r.fixed} % of the frame covered (a plain material: ${r.old} %)`);
+  }
+  await p.close();
+  if (!lorigin) return;
+  const q = await lPage(b, lorigin);
+  await setSel(q, 'map', 'alpine'); await frames(q, 20);
+  const r = await q.evaluate(`(${lensTest})(window.__dl.gl(),window.__dl.gl().scene.children.find(o=>o.isPoints&&o.material.size===.45),.3,.6)`);
+  lensShots('motes-league-alpine', r); chk(r.old > 5 && r.fixed < 1, `League Alpine snow at 0.3-0.6 m from the lens: ${r.fixed} % of the frame covered (a plain material: ${r.old} %)`);
+  await q.close();
+}
+
 async function classic(b, origin) {
   console.log('classic');
   const p = await iPage(b, origin, {gmode: 'classic', wx: 'clear', cam: 1, gfx: 'high', fps: false});
@@ -231,7 +268,7 @@ async function dogfight(b, origin) {
 // ---------- run ----------
 const {server, origin} = await serve();
 let lserver = null, lorigin = null;
-if (PARTS.has('league') || PARTS.has('dogfight')) {
+if (PARTS.has('league') || PARTS.has('dogfight') || PARTS.has('motes')) {
   const f = path.join(root, 'dist', 'index.html'); if (!fs.existsSync(f)) { console.error('glitch-check: dist/index.html missing; run npm run build'); process.exit(2); }
   const html = fs.readFileSync(f, 'utf8');
   lserver = http.createServer((q, r) => { if (q.url.startsWith('/new/')) { r.writeHead(200, {'content-type': 'text/html; charset=utf-8'}); r.end(html); } else { r.writeHead(404); r.end(); } });
@@ -240,6 +277,7 @@ if (PARTS.has('league') || PARTS.has('dogfight')) {
 const b = await launch({w: 1280, h: 720});
 try {
   if (PARTS.has('river')) await river(b, origin);
+  if (PARTS.has('motes')) await motes(b, origin, lorigin);
   if (PARTS.has('classic')) await classic(b, origin);
   if (PARTS.has('zombies')) await zombies(b, origin);
   if (PARTS.has('league')) await league(b, lorigin);

@@ -22,7 +22,7 @@ import {connectRoom,netSend,netSync} from './net/net.js';
 import {ball} from './physics/ball.js';
 import {ballMesh,setBall} from './render/ball.js';
 import {updateCam} from './render/camera.js';
-import {camera,compileFor,draw,keepPrograms,scene} from './render/renderer.js';
+import {camera,compileFor,draw,keepPrograms,renderer,scene} from './render/renderer.js';
 import {warmIdle,warmQueue} from './render/warm.js';
 import {warmDFPhys} from './physics/world.js';
 import {buildDF} from './world/highlands.js';
@@ -73,4 +73,4 @@ warmIdle(()=>GS.menuOpen&&GS.demo&&!GS.net&&!document.hidden);
 connectRoom()});
 // read-only snapshot for tools/smoke.mjs; nothing in the game reads it
 window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo,train:trainSnap,prof:profSnap,replay:rpState,
- view:()=>{const P=m=>{const e=m.matrixWorld.elements;return[e[12],e[13],e[14]]},e=camera.matrixWorld.elements,o={t:simT-(1-drawA)/120,cam:P(camera),camU:[e[4],e[5],e[6]],camF:[-e[8],-e[9],-e[10]]};if(ballMesh.visible)o.ball=P(ballMesh);for(const d of GS.drones)if(d.mesh&&d.mesh.visible&&!d.dead)o[d.key]=P(d.mesh);return o}};  // tools/glitch-check.mjs: drawn positions
+ view:()=>{const P=m=>{const e=m.matrixWorld.elements;return[e[12],e[13],e[14]]},e=camera.matrixWorld.elements,o={t:simT-(1-drawA)/120,cam:P(camera),camU:[e[4],e[5],e[6]],camF:[-e[8],-e[9],-e[10]]};if(ballMesh.visible)o.ball=P(ballMesh);for(const d of GS.drones)if(d.mesh&&d.mesh.visible&&!d.dead)o[d.key]=P(d.mesh);return o},gl:()=>({scene,camera,renderer})};  // tools/glitch-check.mjs: drawn positions
