@@ -48,7 +48,7 @@ export function initArsDef(api,G,Z,A){
 
  // ---------- logic (host / solo; zdef.js calls it every step during a wave) ----------
  const smoked=p=>{for(const e of def.D)if(e.type==='smoke'&&e.mesh){const s=sl(e);if(Math.hypot(p.x-s.x,p.z-s.z)<R(e))return true}return false};
- function setLz(d,t){d.lz=t?{t,prog:0}:null;if(t)d.shots++;A.ev(['lz',d.id,t?t.id:0])}
+ function setLz(d,t){d.lz=t?{t,prog:0}:null;if(t){d.shots++;d.lzSeen=t.id}A.ev(['lz',d.id,t?t.id:0])}  // lzSeen: the last track it locked (sticky, for tests)
  const LOGIC={
   laser(d,dt){const s=sl(d),l=LV(d),rg=R(d),wx=d.wx=laserWx(api.WX);let z=d.lz;
    if(z&&(!live(z.t)||Math.hypot(z.t.p.x-s.x,z.t.p.z-s.z)>rg*1.05||wx<=0)){X.release(d);setLz(d,null);z=null}
@@ -100,7 +100,7 @@ export function initArsDef(api,G,Z,A){
   snd.pulse(_a.set(s.x,s.y+3,s.z));api.FX.emit(_a,0xff9ad8,fxn(40),20,.4,null,2)}
  function snag(d,t){snd.twang(t.p);api.FX.emit(t.p,0xd8dde2,fxn(20),8,.4,null,1.6);Z.pop?.(t.p,'SNAGGED','#cfd6dc')}
  function volley(d,n){const s=sl(d);snd.volley(_a.set(s.x,s.y+3,s.z),n)}
- A.on.lz=a=>{const d=def.D.find(q=>q.id===a[0]);if(!d)return;const t=a[1]?TH.find(u=>u.id===a[1]):null;d.lz=t?{t,prog:0}:null};
+ A.on.lz=a=>{const d=def.D.find(q=>q.id===a[0]);if(!d)return;const t=a[1]?TH.find(u=>u.id===a[1]):null;d.lz=t?{t,prog:0}:null;if(a[1])d.lzSeen=a[1]};
  A.on.mw=a=>{const d=def.D.find(q=>q.id===a[0]);if(d)pulse(d)};
  A.on.sn=a=>{const d=def.D.find(q=>q.id===a[0]),t=TH.find(u=>u.id===a[1]);if(d&&t)snag(d,t)};
  A.on.cv=a=>{const d=def.D.find(q=>q.id===a[0]);if(d)volley(d,a[1]|0)};
