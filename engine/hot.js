@@ -7,7 +7,7 @@
 //  compileFor(renderer,scene,camera): renderer.compile() the way the frame really draws, into a render target. A plain compile() targets the
 //   screen, so tone-mapped materials get the tone-mapped sRGB variant, while an EffectComposer draws the scene into a render target (no tone
 //   mapping, linear): that variant was then compiled again on first sight anyway (1-2 s the first time the camera turned to the sites).
-//   compileFor(renderer,root,camera,targetScene,into): root's materials against targetScene's lights / fog / environment; into=false for
+//   compileFor(renderer,root,camera,targetScene,into): root's materials against targetScene's lights / fog / environment, and into=false for
 //   something drawn to the canvas (the last post-processing pass). The one compile path: engine/warm.js and engine/idle.js's warm-ups use it
 //  hyp(x,z): Math.hypot for two numbers without the varargs allocation (Math.hypot boxes its arguments; it showed up as KB per frame)
 import * as THREE from 'three';
