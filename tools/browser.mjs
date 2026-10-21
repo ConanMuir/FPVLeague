@@ -74,7 +74,8 @@ function renderStub(on) {
     const g = function (...a) { if (window.__dlNoRender) return; return f.apply(this, a); }; g.__stub = true; C.prototype[m] = g;
   }
 }
-export const installRenderStub = p => NO_RENDER ? p.evaluateOnNewDocument(renderStub, true) : Promise.resolve();
+// force: stub this page even locally (a harness that needs no pixels and runs several game windows at once, tools/zombies-coop.mjs)
+export const installRenderStub = (p, force = false) => NO_RENDER || force ? p.evaluateOnNewDocument(renderStub, true) : Promise.resolve();
 // draw n real frames (no-op locally, where everything is drawn anyway)
 export async function drawFrames(page, n = 3) {
   if (!NO_RENDER) return;

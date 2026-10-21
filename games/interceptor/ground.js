@@ -4,7 +4,7 @@
 // two-rut dirt tracks beside the field edges and grass verges, all box-filtered or faded by pixel footprint so nothing shimmers from altitude.
 // Fields sit on a grid rotated by FA: cell (i,j) is centred at u=FU0+i*CW, v=FU0+j*CH in the grid frame (x,z rotated by FA).
 import * as THREE from 'three';
-import {detail} from '../../engine/render.js';
+import {detail,GFAR} from '../../engine/render.js';
 export const FA=.17,CW=620,CH=380,FU0=-6200,NU=20,NV=33,EDGE=6;
 // crop types: 1 ripe wheat, 2 green barley, 3 stubble, 4 sunflower, 5 maize, 6 ploughed black earth, 7 harrowed, 8 meadow
 export const CROPS=[null,{n:'wheat',w:3,c:['#bea558','#b39a50','#c4aa60','#b69d57']},{n:'barley',w:1.2,c:['#888b4f','#90904e','#7f8449']},{n:'stubble',w:2.6,c:['#b8a874','#ae9c68','#bdae7c','#a9996c']},
@@ -36,7 +36,8 @@ const GLSL=`
  float M=texture2D(dTex,vWP.xz/700.+.11).g,M2=texture2D(dTex,vWP.xz/2300.+.53).r,M3=texture2D(dTex,vWP.xz/170.+.3).r;
  diffuseColor.rgb*=.84+.32*M;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.08,1.,.84),clamp(M2*1.6-.5,0.,1.));
  diffuseColor.rgb*=mix(vec3(.9,.96,.86),vec3(1.),smoothstep(-12.,30.,vWP.y));
- if(msk>.01){
+ float gfo=1.-smoothstep(uGFar*.75,uGFar,length(vViewPosition));  // proximity: the field detail fades out by uGFar (Graphics quality) and is skipped beyond
+ if(msk>.01&&uLoD<.5&&gfo>0.){
   vec2 uv=vec2(vWP.x*${Math.cos(FA).toFixed(6)}+vWP.z*${Math.sin(FA).toFixed(6)},-vWP.x*${Math.sin(FA).toFixed(6)}+vWP.z*${Math.cos(FA).toFixed(6)});
   vec2 g=(uv-vec2(${(FU0-CW/2).toFixed(1)},${(FU0-CH/2).toFixed(1)}))/vec2(${CW}.,${CH}.),ci=clamp(floor(g),vec2(0.),vec2(${NU-1}.,${NV-1}.)),lp=(g-ci-.5)*vec2(${CW}.,${CH}.);
   vec4 cd=floor(texture2D(fTex,(ci+.5)/vec2(32.,40.))*255.+.5);
@@ -69,7 +70,7 @@ const GLSL=`
    rut=tL*step(dL,${EDGE}.)*(lines(dL-2.35,1e4,.5,fx)+lines(dL-4.05,1e4,.5,fx))+tT*step(dT,${EDGE}.)*(lines(dT-2.35,1e4,.5,fz)+lines(dT-4.05,1e4,.5,fz)),
    bed=tL*(lines(dL-3.2,1e4,2.6,fx))+tT*(lines(dT-3.2,1e4,2.6,fz));
   fc=mix(fc,mix(fc,vec3(.2,.16,.11),.45),clamp(bed,0.,1.)*(1.-in1));fc=mix(fc,vec3(.16,.125,.085),clamp(rut,0.,1.)*.8);bb-=rut*.35*(1.-smoothstep(.12,.4,max(fx,fz)));
-  diffuseColor.rgb=mix(diffuseColor.rgb,fc,msk);hb=hb*mix(1.,.5,msk)+bb*msk;}
+  float mf=msk*gfo;diffuseColor.rgb=mix(diffuseColor.rgb,fc,mf);hb=hb*mix(1.,.5,mf)+bb*mf;}
  // snow (Zombies weather sets uSnow): settles on the flatter ground first, patchy, and hides the furrows; the fields still show through a little
  // (darker under the ploughland, brighter on stubble) and the roads, villages and yards stay slushier
  if(uSnow>.001){vec3 upV=normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz);float sn=uSnow*smoothstep(.55,.85,dot(normal,upV))*smoothstep(.15,.5,M3*.5+uSnow*.75)*(.62+.26*M3+.1*M);float L=dot(diffuseColor.rgb,vec3(.3,.59,.11));sn*=mix(.72,1.,msk);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.74,.76,.8)*(.92+.1*M)*(.86+.9*clamp(L-.16,-.12,.14)),sn);hb*=1.-sn*.7;}}
@@ -78,6 +79,6 @@ const GLSL=`
 // m.userData.snow: uniform {value 0..1} for a snow cover (Zombies weather)
 export function groundMaterial(map,fTex,mTex){const m=detail(new THREE.MeshStandardMaterial({map,roughness:1}),7,53,0,.45,0),ob=m.onBeforeCompile,snow=m.userData.snow={value:0};
  m.customProgramCacheKey=()=>'ifields1';
- m.onBeforeCompile=sh=>{ob(sh);sh.uniforms.fTex={value:fTex};sh.uniforms.mTex={value:mTex};sh.uniforms.uSnow=snow;
-  sh.fragmentShader=sh.fragmentShader.replace('uniform sampler2D dTex;','uniform sampler2D dTex;uniform sampler2D fTex;uniform sampler2D mTex;uniform float uSnow;'+GLSL_FN).replace('#include <normal_fragment_maps>',GLSL+'#include <normal_fragment_maps>')};
+ m.onBeforeCompile=sh=>{ob(sh);sh.uniforms.fTex={value:fTex};sh.uniforms.mTex={value:mTex};sh.uniforms.uSnow=snow;sh.uniforms.uGFar=GFAR;
+  sh.fragmentShader=sh.fragmentShader.replace('uniform sampler2D dTex;','uniform sampler2D dTex;uniform sampler2D fTex;uniform sampler2D mTex;uniform float uSnow;uniform float uGFar;'+GLSL_FN).replace('#include <normal_fragment_maps>',GLSL+'#include <normal_fragment_maps>')};
  return m}

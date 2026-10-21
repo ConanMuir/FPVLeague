@@ -14,10 +14,12 @@ import {initRocket} from './zrocket.js';
 import {initNet} from './znet.js';
 import {initChain} from './zchain.js';
 import {initWarn} from './zwarn.js';
+import {initSortie} from './zsortie.js';
 import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
 import {initBatt} from './zbatt.js';
+import {gfx} from '../../engine/gfx.js';
 import {initSpectate} from './zspectate.js';
 import {initWarm} from './zwarm.js';
 import {initThreatSfx} from './zthreatsfx.js';
@@ -108,7 +110,7 @@ export function initZombies(api){
   const brgs=[];for(let i=0;i<raids;i++)brgs.push(w===1?(Math.random()-.5)*.6:(Math.random()-.5)*2.6);  // edge bearing per raid: 0 = north, ±1.3 rad = west/east
   const q=list.map((k,i)=>{const ri=w===1?0:i%raids,K=KIND[k.split(':')[0]];let at=w===1?(i?25:0):(K.armor==='boss'?5:ri*win/raids*(1-tot)+rnd(0,10));
    if(tot&&w>1&&K.armor!=='boss')at+=tot*Math.max(0,TOT_T-(K.far||5200)/K.spd);return{k,at,brg:brgs[ri]+rnd(-.12,.12)}}).sort((a,b)=>a.at-b.at);
-  return{list,brgs,q,wx:wx.plan(w)}}
+  const P={list,brgs,q,wx:wx.plan(w)};Z.cutPlan?.(P,w);return P}  // Z.cutPlan (sorties, zsortie.js): what earlier strikes still take out of wave w (a factory for 3 waves, a launch site for 2); it rebuilds P.list from P.q
  // what the next wave's raids will do (base-screen forecast), on the difficulties that use tactics
  Z.tacNote=()=>{const t=DF().tac||{},a=[];if(t.tot)a.push('raids timed to arrive together');if(t.escort)a.push('decoys escort the Shaheds');if(t.focus)a.push('they go for your weakest site');if(t.feint)a.push('some switch targets on the way in');if(t.jink)a.push('evading kinds dodge your helpers too');
   return a.length?`<p class="zhint"><b>${DF().n} tactics</b>: ${a.join(' · ')}.</p>`:''};
@@ -282,13 +284,12 @@ export function initZombies(api){
   for(let i=G.pops.length-1;i>=0;i--){const p=G.pops[i];if(p.amt&&Z.flyPop){if(Z.flyPop(oc,p,W,H))G.pops.splice(i,1);continue}if(p.t>1.6){G.pops.splice(i,1);continue}_a.copy(p.p).project(cam);if(_a.z>1)continue;
    oc.globalAlpha=cl(2-p.t*1.25,0,1);oc.fillStyle=p.col;oc.fillText(p.txt,(_a.x*.5+.5)*W,(-_a.y*.5+.5)*H-30-p.t*40)}
   pk.overlay(oc,W,H);oc.restore()};
- // performance governor (Zombies only): the forest's shadow pass is the biggest frame cost; if frames stay slow for a few seconds, trees stop casting shadows.
- // Classic is never touched: the shadows come back when Zombies stops.
- const perf={ema:16,last:0,slow:0,off:false,trees:null};
- const trees=()=>perf.trees||(perf.trees=api.scene.children.filter(o=>o.userData.forest&&o.castShadow));
- function govern(){const now=performance.now(),ft=now-(perf.last||now);perf.last=now;if(ft<=0||ft>500||G.state!=='wave')return;perf.ema+=(ft-perf.ema)*.05;
-  perf.slow=perf.ema>26?perf.slow+ft:0;if(!perf.off&&perf.slow>3000){perf.off=true;for(const o of trees())o.castShadow=false;feed('<span class="co">Performance: tree shadows off to keep the frame rate up</span>')}}
- Z.shadowsBack=()=>{if(perf.off){for(const o of trees())o.castShadow=true;perf.off=false}perf.slow=0;perf.last=0};
+ // performance governor: Graphics quality owns it (engine/gfx.js, igfx.js). On Auto it lowers the render resolution, then (in a Zombies wave) the
+ // level; Low drops the tree shadows, as this governor used to. A fixed level is left alone. Z.perf keeps the smoothed wave frame time (zwx.js
+ // halves the weather particles while it is slow); off = the tree shadows are dropped (Low). Leaving Zombies puts Auto back to High.
+ const perf={ema:16,last:0,get off(){return gfx.k.treeSh===0}};
+ function govern(){const now=performance.now(),ft=now-(perf.last||now);perf.last=now;if(ft<=0||ft>500||G.state!=='wave')return;perf.ema+=(ft-perf.ema)*.05}
+ Z.shadowsBack=()=>{gfx.resetAuto();perf.last=0};
  Z.perf=perf;
  Z.visuals=dt=>{govern();wx.step(dt,performance.now());G.selNow=api.selT();for(const p of G.pops)p.t+=dt;lead.clear();for(const t of TH)if(t.k==='swarm'&&api.live(t)&&!lead.has(t.grp))lead.set(t.grp,t);def.visuals();en.visuals(dt);rk.visuals()};
  Z.key=e=>base.el.hidden?pk.key(e):base.key(e);
@@ -316,7 +317,8 @@ export function initZombies(api){
  initBosses(api,G,Z);  // the boss roster (zbosses.js + zboss-*.js): wraps the hooks above, before the effects and co-op layers
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
- initNet(api,G,Z);  // co-op (znet.js): wraps them again, so it goes last
+ initNet(api,G,Z);  // co-op (znet.js): wraps them again
+ initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
  initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
  return Z}
