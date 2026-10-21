@@ -65,7 +65,7 @@ League" card opens the built file, `games/drone-league/index.html`, so playing i
 To change it you need Node 20+:
 ```
 npm ci
-npm run dev      # live dev server, opens http://localhost:5173/app.html
+npm run dev      # live dev server at http://localhost:5173/app.html (DL_OPEN=1 opens it in the browser)
 npm run build    # dist/index.html: the whole game in one HTML file; also updates games/drone-league/index.html
                  # and writes dist/drone-league.artifact.html (the claude.ai artifact form)
 npm run smoke    # headless Microsoft Edge smoke test, plus a comparison run of the frozen v15 file (needs internet)
