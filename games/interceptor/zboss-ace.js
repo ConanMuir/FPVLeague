@@ -106,13 +106,15 @@ function fxDraw(C){if(!MS.length&&!TR.length&&!FXP?.n)return;const F=fxPts(C);le
 
 // spectres: instanced copies of the kinds you killed (green, translucent) or of your own swarm drones (the Mirror's, black with red lights)
 const SPI={};
+// a spectre kind's instanced mesh (made on its first spectre; the warm-up makes the two materials ahead: zwarm.js)
+function spMake(C,key){const{THREE:T,api,Z}=C;let geo;if(key==='mirror')geo=new T.BoxGeometry(.9,.25,.9);else geo=Z.en.IM[key]?.[0]?.geometry||Z.en.IM.shahed[0].geometry;
+   const mat=key==='mirror'?new T.MeshStandardMaterial({color:0x050505,roughness:.3,metalness:.8,emissive:new T.Color(0x600000),emissiveIntensity:.6}):new T.MeshStandardMaterial({color:0x0a3a30,emissive:new T.Color(0x22ffaa),emissiveIntensity:.9,transparent:true,opacity:.55,depthWrite:false});
+   const I=SPI[key]=new T.InstancedMesh(geo,mat,24);I.frustumCulled=false;I.count=0;api.scene.add(I);return I}
 function spDraw(C){if(!Object.keys(SPI).length&&!C.api.TH.some(t=>t.k==='spectre'))return;const{THREE:T,api,Z}=C,cnt={};for(const k in SPI)cnt[k]=0;const _m=new T.Matrix4();
  for(const t of api.TH){if(t.k!=='spectre'||t.st==='dead')continue;const key=t.sv==='mirror'?'mirror':t.src;let I=SPI[key];
-  if(!I){let geo;if(key==='mirror')geo=new T.BoxGeometry(.9,.25,.9);else geo=Z.en.IM[key]?.[0]?.geometry||Z.en.IM.shahed[0].geometry;
-   const mat=key==='mirror'?new T.MeshStandardMaterial({color:0x050505,roughness:.3,metalness:.8,emissive:new T.Color(0x600000),emissiveIntensity:.6}):new T.MeshStandardMaterial({color:0x0a3a30,emissive:new T.Color(0x22ffaa),emissiveIntensity:.9,transparent:true,opacity:.55,depthWrite:false});
-   I=SPI[key]=new T.InstancedMesh(geo,mat,24);I.frustumCulled=false;I.count=0;api.scene.add(I);cnt[key]=0}
+  if(!I){I=spMake(C,key);cnt[key]=0}
   const i=cnt[key]++;if(i>=24)continue;t.mesh.updateMatrix();_m.copy(t.mesh.matrix).scale(new C.V3(1.4,1.4,1.4).multiplyScalar(key==='mirror'?1.6:key==='swarm'?2.2:1));I.setMatrixAt(i,_m)}
- for(const k in SPI){SPI[k].count=cnt[k]|0;SPI[k].instanceMatrix.needsUpdate=true}}
+ for(const k in SPI){const n=cnt[k]|0;if(n||SPI[k].count){SPI[k].count=n;SPI[k].instanceMatrix.needsUpdate=true}}}
 
 // ---------- the legion: spectres in formation around their leader (your swarm's formations, zswarm.js slot()) ----------
 export function legionRaise(C,lead,n,kinds,o={}){const L=[];const tot=Object.values(kinds).reduce((a,b)=>a+b,0)||1;
@@ -146,7 +148,7 @@ const ACE={id:'ace',n:'Ace of Aces',tag:KN,col:'#ff3b3b',spd:88,alt:[500,800],hi
  can:(C,w)=>!C.G.bseen?.ace||C.G.aceEsc&&w-C.G.aceEsc>=6,
  intro:{title:'ACE OF ACES',sub:(C)=>{const r=C.rec().ace;return`${KN} · ${r.kills|0} kills · ${r.hits|0} sites hit · beaten ${r.beaten|0}× · escaped ${r.escaped|0}×`},
   radio:(C)=>C.rec().ace.beaten?`${KN}: "You again. I remember how you fly."`:`${KN}: "Your little drones. Come and dance."`,who:KN},
- build:(C)=>aceModel(C,false),
+ build:(C)=>aceModel(C,false),warm:C=>{fxPts(C);spMake(C,'mirror');spMake(C,'shahed')},
  init(C,t){const B=t.bs;B.learn={};t.p.y=C.api.gh(t.p.x,t.p.z)+600;C.recAdd('ace','met')},
  tick(C,t,dt){const B=t.bs;if(B.ph>=2&&!B.p2)B.p2=B.age;if(!B.flee&&(B.age>200||B.p2&&B.age-B.p2>50)){B.flee=1;C.Z.an?.radio(KN,'"Another day, little drone."',2)}
   return duel(C,t,dt,{spd:88,missiles:true,bomb:45,who:KN,escape:(C,t)=>{C.vanish(t,'escaped');C.recAdd('ace','escaped');C.G.aceEsc=C.G.wave},

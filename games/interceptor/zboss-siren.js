@@ -23,7 +23,7 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group();
  const ring=C.mesh(g,new T.TorusGeometry(2.4,.22,10,32),M.ring,0,1.6,-2.5,false);ring.rotation.x=Math.PI/2;C.mesh(g,new T.CylinderGeometry(.15,.15,1.4,6),M.dark,0,.9,-2.5);
  for(const s of[-1,1]){const f=C.mesh(g,new T.PlaneGeometry(2,2),M.face,s*1.12,0,0,false);f.rotation.y=s*Math.PI/2;C.mesh(g,new T.BoxGeometry(.12,2.2,2),M.skin,s*1.4,1,-5).rotation.z=-s*.4}
  const waves=[];for(let i=0;i<3;i++){const sp=new T.Sprite(new T.SpriteMaterial({map:ringTex(C),color:new T.Color(0x5ff0e0),transparent:true,opacity:0,depthWrite:false,blending:T.AdditiveBlending}));sp.position.set(0,1.6,-2.5);g.add(sp);waves.push(sp)}
- g.userData={ring,waves};return g}
+ Object.assign(g.userData,{ring,waves});return g}
 const ringTex=C=>C.decal('sr-ring',128,128,(g,w)=>{g.strokeStyle='#fff';g.lineWidth=6;g.beginPath();g.arc(w/2,w/2,w/2-6,0,7);g.stroke()});
 const R=t=>t.bs.ph>=1?1200:900,singing=t=>!(t.bs.ph>=2&&(t.bs.age||0)%7>4);
 const group=(C,t)=>{const L=C.api.TH.filter(u=>C.api.live(u)&&!C.BOSSES[u.k]);if(!L.length)return null;const c=new C.V3();let n=0;const near=L.filter(u=>u.p.distanceTo(t.p)<1500);

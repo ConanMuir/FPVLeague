@@ -18,7 +18,7 @@ function model(C,R,k){const T=C.THREE,M=mats(C),g=C.group(),H=R*.38;
   C.mesh(g,new T.CylinderGeometry(R*.22,R*.22,R*.08,14),M.dark,x,H*.2,z);props.push(C.mesh(g,new T.CircleGeometry(R*.2,18).rotateX(-Math.PI/2),M.prop,x,H*.26,z,false));
   const e=C.mesh(g,new T.PlaneGeometry(R*.5,R*.5),M.emb[k],Math.cos(a+Math.PI/6)*R*.95,0,Math.sin(a+Math.PI/6)*R*.95,false);e.lookAt(Math.cos(a+Math.PI/6)*R*3,0,Math.sin(a+Math.PI/6)*R*3)}
  for(let i=0;i<(k?2:6);i++){const a=i*Math.PI*2/(k?2:6);bays.push(C.mesh(g,new T.CircleGeometry(R*.12,6).rotateX(Math.PI/2),M.bay,Math.cos(a)*R*.45,-H*.92,Math.sin(a)*R*.45,false))}
- g.userData={props,bays};return g}
+ Object.assign(g.userData,{props,bays});return g}
 function swarmFrom(C,t,n){const{api,G}=C,live=api.TH.reduce((a,u)=>a+(u.k==='swarm'&&api.live(u)?1:0),0);if(live>=160)return;const g=++G.gid;
  for(let i=0;i<n;i++){const u=C.Z.make('swarm',t.p.x+C.rnd(-14,14),t.p.z+C.rnd(-14,14));if(u){u.p.y=t.p.y-8;u.grp=g}}api.feed(`<span class="cr">${t.k==='hive'?'The Hive':'A brood carrier'} launched a swarm (${n})</span>`)}
 const _hz={x:0,y:0,z:0};  // haze emit point (reused)

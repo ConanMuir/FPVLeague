@@ -28,7 +28,7 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group();
  const claws=[];for(const s of[-1,1]){const a=new T.Group();a.position.set(s*1.6,-1.4,1.5);C.mesh(a,new T.CylinderGeometry(.18,.18,6,8),M.dark,0,-3,0);for(const k of[-1,1])C.mesh(a,new T.BoxGeometry(.25,2.2,.25),M.dark,k*.5,-6.6,0).rotation.z=k*.5;g.add(a);claws.push(a)}
  C.mesh(g,new T.SphereGeometry(.5,10,8),M.eye,0,0,6.2,false);
  const plates=[];for(let i=0;i<MAXA;i++){const a=(i%5)/5*Math.PI*2,y=i<5?1.5:-.5,p=C.mesh(g,new T.BoxGeometry(2.6,1.8,.35),M.rust,Math.cos(a)*3.6,y,Math.sin(a)*5.4);p.lookAt(Math.cos(a)*20,y,Math.sin(a)*30);p.visible=false;plates.push(p)}
- g.userData={fans,claws,plates};return g}
+ Object.assign(g.userData,{fans,claws,plates});return g}
 // tethers: a dark red line to each site it drains
 let TG=null;
 function tethers(C){if(TG)return TG;const T=C.THREE,geo=new T.BufferGeometry();geo.setAttribute('position',new T.BufferAttribute(new Float32Array(6*24*3),3));TG=new T.LineSegments(geo,new T.LineBasicMaterial({color:new T.Color(0xff2a20).multiplyScalar(2.5),transparent:true,opacity:.8,toneMapped:false,depthWrite:false}));TG.frustumCulled=false;TG.visible=false;C.api.scene.add(TG);return TG}
@@ -43,7 +43,7 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
  resist:{rack:.45,lrack:.45,gepard:.5,sam:.7,mpads:.4,flak:.35,hflak:.45,idome:.3},hp:C=>2/C.hpK(),
  note:'a salvage drone that strips a wrecked or neglected site and leeches the others, growing armour while you leave it. Repair the site it strips, or kill it early.',warn:'a scavenger over your wreck',
  introFn(C,t){C.Z.an?.say('THE UNDERTAKER','it feeds on what you neglect','#ff5a40',3);C.Z.an?.radio('OVERLORD','Something is stripping our wreck. It is draining the other sites!',2)},
- build:C=>model(C),
+ build:C=>model(C),warm:C=>tethers(C),
  init(C,t){const B=t.bs;B.anchor=B.anchor||victim(C);B.gt=0;B.waves=0;t.p.y=C.api.gh(t.p.x,t.p.z)+260},
  save:(C,t)=>{const A=t.bs.anchor;return{anchor:C.api.SITES.indexOf(A),hp:t.bs.hp,max:t.bs.max,waves:t.bs.waves|0,at:A?{x:A.x+8,z:A.z-6}:null}},
  restore(C,t,st){const B=t.bs,S=C.api.SITES;B.anchor=S[st.anchor]||victim(C);B.hp=Math.max(2,st.hp|0);B.max=Math.max(B.hp,st.max|0);B.waves=st.waves|0;if(B.anchor)t.p.set(B.anchor.x+8,B.anchor.y+30,B.anchor.z-6)},

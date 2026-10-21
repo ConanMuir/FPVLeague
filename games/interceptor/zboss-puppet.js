@@ -31,7 +31,7 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group(),sub={};const grp=k=>{con
  for(let i=0;i<6;i++){const a=(i<3?-1:1)*(.5+(i%3)*.6),x=Math.sin(a)*1.6*(i<3?1:-1);const l=C.mesh(s,new T.CylinderGeometry(.07,.07,3,6),M.dark,(i<3?-1:1)*1.6,1.2,(i%3-1)*1.1);l.rotation.z=(i<3?1:-1)*.9}
  // the tell, on every disguise: a little glinting spool and a whip antenna
  C.mesh(g,new T.CylinderGeometry(.22,.22,.3,10),M.glint,.6,2.3,-.4);C.mesh(g,new T.CylinderGeometry(.015,.015,2.6,4),M.glint,.6,3.6,-.4);
- g.userData={sub};return g}
+ Object.assign(g.userData,{sub});return g}
 function droneModel(C){const T=C.THREE,M=mats(C),g=C.group();C.mesh(g,new T.BoxGeometry(.5,.18,.65),M.drone);for(const[x,z]of[[.5,.5],[-.5,.5],[.5,-.5],[-.5,-.5]])C.mesh(g,new T.CylinderGeometry(.28,.28,.03,10),M.dark,x,.12,z,false);
  C.mesh(g,new T.SphereGeometry(.12,6,4),M.eye,0,.15,.35,false);g.scale.setScalar(1.8);return g}
 const show=(t,k)=>{const S=t.mesh.userData.sub;if(!S)return;for(const q in S)S[q].visible=q===k};
@@ -66,7 +66,7 @@ registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14
  note:'a ground unit in disguise that strings wires to drones, boosting enemies and hijacking yours. Follow the glinting wires and the trails they leave; kill it with a direct strike.',warn:'something on the ground pulls the strings',
  spawn:{event:{from:12,p:.045}},
  introFn(C,t){C.Z.an?.say('THE PUPPETEER','somewhere on the ground · follow the wires','#e8e2d0',3);C.Z.an?.radio('OVERLORD','Some of the drones are moving like they are on strings. Look for wires.',2)},
- build:C=>model(C),
+ build:C=>model(C),warm:C=>{draw(C)},
  init(C,t){const B=t.bs,s=spot(C,null);t.p.set(s.x,C.api.gh(s.x,s.z)+.1,s.z);t.v.set(0,0,1);B.dis=C.pick(DIS.slice(1));show(t,B.dis);B.mv=null;B.next=C.rnd(35,50);B.wt=6;B.waves=0},
  save:(C,t)=>({waves:t.bs.waves|0,exposed:t.bs.exposed|0,hp:t.bs.hp,max:t.bs.max}),
  restore(C,t,st){const B=t.bs;B.waves=st.waves|0;B.exposed=st.exposed|0;B.hp=Math.max(1,st.hp|0);B.max=Math.max(B.hp,st.max|0);B.ph=B.exposed?1:0;show(t,B.exposed?'spider':B.dis)},

@@ -28,7 +28,7 @@ function model(C){if(!_pl)_pl=new C.V3();const T=C.THREE,M=mats(C),g=C.group(),h
  const plates=[],pl=(ang,z,cover,len=6)=>{const m=C.mesh(g,new T.BoxGeometry(3,.28,len),M.plate,Math.cos(ang)*3.15,Math.sin(ang)*3.15,z);m.rotation.z=ang-Math.PI/2;plates.push({m,cover,on:1});return m};
  pl(0,0,2);pl(Math.PI,0,3);pl(-Math.PI/2,5,4);const cap=C.mesh(g,new T.ConeGeometry(1.4,2.2,16).rotateX(Math.PI/2),M.plate,0,0,24.2);plates.push({m:cap,cover:5,on:1});
  for(const a of[.8,2.35,3.9,5.5])for(const z of[-6,8])pl(a,z,-1,5);
- g.userData={hull,wps,plates,applied:WP.map(()=>0),deb:[]};return g}
+ Object.assign(g.userData,{hull,wps,plates,applied:WP.map(()=>0),deb:[]});return g}
 const alive=t=>t.bs.wm??63;
 const stageOf=t=>{const m=alive(t);for(let s=0;s<3;s++)if(WP.some((w,i)=>w[3]===s&&m>>i&1))return s;return 3};
 const exposed=t=>{const s=stageOf(t),m=alive(t);return WP.map((w,i)=>i).filter(i=>WP[i][3]===s&&m>>i&1)};
