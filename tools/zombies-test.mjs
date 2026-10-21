@@ -901,18 +901,21 @@ if (want('bosses')) {
   const ends = await p.evaluate(() => { const {api, Z, G} = __z, out = {}, other = () => Z.make('shahed', 0, -2500), base = {lj: 0, rk: 0};
     __b.clear(); const o0 = other(); base.lj = Z.lockJam(o0); base.rk = Z.radarK(); o0.st = 'dead';
     G.hab = {n: 400, alt: 120000, spd: 36000, L: 300, R: 100, asp: {'LEVEL SIX': 9}, side: {LEFT: 6, RIGHT: 5}, dets: 0, yaw: null, t: 0}; G.fallen = {jet: 3, shahed: 6}; G.bkeep = {};
-    for (const id of [...Z.bosses.ROSTER, 'brood']) { if (G.state !== 'wave') { __z.cont(); } __b.clear(); if (id === 'undertaker') api.SITES[0].hp = 0;
-      const t = id === 'brood' ? (() => { const h = Z.bosses.spawn('hive'); __z.sim(.5); for (let i = 0; i < 4; i++) Z.bosses.hitAt(h, 'damage', h.p.clone()); return h; })() : Z.bosses.spawn(id, id === 'undertaker' ? {x: api.SITES[0].x, z: api.SITES[0].z - 60, set: {anchor: api.SITES[0]}} : {});
+    const wxNow = () => { const f = api.scene.fog; return {near: f.near, far: f.far, col: f.color.getHex(), sun: api.sun.intensity, hemi: api.hemi.intensity}; }, same = (a, b) => ['near', 'far', 'col', 'sun', 'hemi'].filter(k => a[k] !== b[k]);
+    for (const id of [...Z.bosses.ROSTER, 'brood', 'mothership']) { if (G.state !== 'wave') { __z.cont(); } __b.clear(); if (id === 'undertaker') api.SITES[0].hp = 0; const W0 = wxNow();
+      const t = id === 'mothership' ? (() => { const m = Z.make('boss', 0, -900); m.p.y = api.gh(0, -900) + 650; return m; })() : id === 'brood' ? (() => { const h = Z.bosses.spawn('hive'); __z.sim(.5); for (let i = 0; i < 4; i++) Z.bosses.hitAt(h, 'damage', h.p.clone()); return h; })() : Z.bosses.spawn(id, id === 'undertaker' ? {x: api.SITES[0].x, z: api.SITES[0].z - 60, set: {anchor: api.SITES[0]}} : {});
       if (id === 'puppet') { __z.sim(.1); for (let i = 0; i < 3; i++) Z.make('shahed', t.p.x + 300, t.p.z - 500 - i * 40); t.bs.wt = 0; }
       if (id === 'jammer') { const q = api.TH.find(u => u.k === 'jpod'); if (q) { q.by = 'p'; api.killThreat(q, true); } }
-      api.player.p.copy(t.p).add(__b.V(0, 40, 300)); __z.sim(4); __z.Z.fxTest?.endCine();
-      const during = Z.bosses.fx(), o1 = other(), jam = Z.lockJam(o1) / base.lj; o1.st = 'dead';
+      for (let i = 0; i < 8; i++) { api.player.p.copy(t.p).add(__b.V(0, 40, 300)); api.camera.position.copy(api.player.p); api.camera.updateMatrixWorld(); __z.sim(.5); }  /* the pilot 300 m off the boss, and the camera with it (a headless sim never moves the camera; the distance-based atmospheres read it) */
+      __z.Z.fxTest?.endCine();
+      const during = Z.bosses.fx(), o1 = other(), jam = Z.lockJam(o1) / base.lj; o1.st = 'dead'; const st = Z.atmos.state(), pr = Z.atmos.probe(), atm = st.on ? {fog: +(pr.fogFar / W0.far).toFixed(2), light: +(pr.sun / W0.sun).toFixed(2), grade: st.pass} : null;
       // the wave ends: what is still in the air (the boss included) goes, and the state moves on
-      G.wq.length = 0; for (const u of api.TH) if (!Z.bosses.BOSSES[u.k]?.persist) u.st = 'dead'; if (!Z.bosses.BOSSES[id].persist) { G.state = 'clear'; G.clearT = 3; } __z.sim(.5);  /* the two that outlive a wave end it themselves (they withdraw) */
+      G.wq.length = 0; for (const u of api.TH) if (!Z.bosses.BOSSES[u.k]?.persist) u.st = 'dead'; if (!Z.bosses.BOSSES[id]?.persist) { G.state = 'clear'; G.clearT = 3; } __z.sim(.5);  /* the two that outlive a wave end it themselves (they withdraw) */
       const after = Z.bosses.fx(), o2 = other(), lj = +(Z.lockJam(o2) / base.lj).toFixed(2), rk = +(Z.radarK() / base.rk).toFixed(2); o2.st = 'dead';
       const left = Object.entries(after).filter(([k, v]) => v && v !== 0).map(([k, v]) => k + '=' + v);
       if (lj !== 1) left.push('lockJam x' + lj); if (rk !== 1) left.push('radar x' + rk);
-      out[id] = {during: Object.entries(during).filter(([k, v]) => v).map(([k, v]) => k + '=' + (v === true ? 1 : v)).join(' '), jam: +jam.toFixed(2), left}; __z.sim(4); if (G.state === 'base') G.bkeep = {}; }
+      { const p = Z.atmos.probe(), d1 = same(W0, wxNow()), d2 = same(W0, {near: p.fogNear, far: p.fogFar, col: p.fogCol, sun: p.sun, hemi: p.hemi}); if (d1.length) left.push('scene ' + d1); if (d2.length) left.push('as drawn ' + d2); }  /* the weather's own fog, fog colour and light, exactly */
+      out[id] = {atm, during: Object.entries(during).filter(([k, v]) => v).map(([k, v]) => k + '=' + (v === true ? 1 : v)).join(' '), jam: +jam.toFixed(2), left}; __z.sim(4); if (G.state === 'base') G.bkeep = {}; }
     // game over and quit clear too
     __z.cont(); __b.clear(); Z.bosses.spawn('twins'); Z.bosses.spawn('jugg'); __z.sim(3); G.wq.length = 0; Z.gameOver(); __z.sim(.3); out.over = Z.bosses.fx();
     return out; });
@@ -921,6 +924,8 @@ if (want('bosses')) {
     Object.entries(ends).filter(([k, o]) => k !== 'over' && o.left.length).map(([k, o]) => `\n  ${k}: ${o.left.join(' ')}`).join(''));
   ok(ends.jammer.jam >= 2 && /loops=\d|smoke=\d|fx=\d/.test(ends.jugg.during + ends.ghost.during) && /wires=\d|trails=\d/.test(ends.puppet.during) && /tether/.test(ends.twins.during), 'Wave end: the effects were really running before it (jamming, smoke, wires, tether) ' + JSON.stringify([ends.jammer.jam, ends.puppet.during]));
   ok(Object.values(ends.over).every(v => !v), 'Game over: the bosses and their effects are cleared ' + JSON.stringify(ends.over));
+  { const A = ['gace', 'jammer', 'ghost', 'hive', 'jugg', 'undertaker'].map(k => [k, ends[k].atm]);
+    ok(A.every(([, a]) => a && a.grade && (a.fog < .9 || a.light < .9)) && /shadows=1/.test(ends.mothership.during), 'Atmosphere: while they live the battlefield changes (fog / light: ' + A.map(([k, a]) => k + ' ' + (a ? a.fog + ' / ' + a.light : 'off')).join(', ') + '; the grade on; the Mothership casts its shadow); after the wave the fog, its colour and the light are the weather\'s again, exactly'); }
   await p.evaluate(() => { document.getElementById('zover').hidden = true; __z.api.startDemo(); }); await play(p);
   await p.evaluate(() => { const {G} = __z; G.cash = 1e5; __z.jump(24); G.next = __z.plan(24); __z.cont(); __b.clear(); __z.sim(.3); });
   // bots know the roster; HUD boss bar; Classic untouched
