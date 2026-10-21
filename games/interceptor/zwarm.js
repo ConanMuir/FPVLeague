@@ -33,8 +33,9 @@ export function initWarm(api,G,Z){
  // the post-processing passes (the FPV camera feed is off until you fly): to the canvas when last, else into the next pass's target
  function passes(){for(const p of composer?.passes||[]){const m=p.fsQuad?._mesh;if(!m?.material)continue;for(const into of[true,false])compileLike(renderer,m,m,camera,into)}}
  // compile() only queues the work: the GPU process compiles in the background, and the first draw would wait for it (and for three.js's
- // error check). So the warm-up ends when every program made since it started reports done (polled), with its check run here
- let P0=null;
+ // error check). So the warm-up ends when every program reports done (polled), with its check run here (once each: on a program already
+ // drawn it is a no-op; engine/warm.js's menu warm-up made some before this started)
+ const P0=new WeakSet();
  function settle(end,t0=performance.now()){const live=renderer.info.programs||[];let wait=0;
   for(const q of live){if(P0.has(q))continue;if(!q.isReady()){wait++;continue}P0.add(q);st.progs++;later(()=>{if(renderer.info.programs.includes(q))q.getUniforms()})}
   if(wait&&performance.now()-t0<9e4)setTimeout(()=>settle(end,t0),50);else later(end,{heavy:true})}
@@ -43,7 +44,7 @@ export function initWarm(api,G,Z){
  function bossSamples(){const B=Z.bosses;if(!B)return;const C=B.ctx;
   for(const[id,D]of Object.entries(B.BOSSES))later(()=>{const t={k:id,id:-1,p:new THREE.Vector3(0,600,0),v:new THREE.Vector3(0,0,60),bs:{hp:1,max:1,ph:0,init:0,dead:0},bank:0,st:'cruise',spd:D.spd||60,cs:D.spd||60,
    mesh:null,shade:0,_seen:1};try{const m=D.build?.(C,t);if(m){m.parent?.remove(m);take(m)}take(D.warm?.(C,t))}catch(e){console.warn('boss warm-up',id,e)}st.samples++},{heavy:true})}
- function start(){if(st.started)return;st.started=true;const t0=performance.now();P0=new Set(renderer.info.programs);
+ function start(){if(st.started)return;st.started=true;const t0=performance.now();
   for(const w of warmers)later(()=>{take(w())},{heavy:true});
   bossSamples();
   later(()=>{compile(scene);passes()},{heavy:true});
