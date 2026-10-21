@@ -905,7 +905,8 @@ if (want('bosses')) {
       const t = id === 'mothership' ? (() => { const m = Z.make('boss', 0, -900); m.p.y = api.gh(0, -900) + 650; return m; })() : id === 'brood' ? (() => { const h = Z.bosses.spawn('hive'); __z.sim(.5); for (let i = 0; i < 4; i++) Z.bosses.hitAt(h, 'damage', h.p.clone()); return h; })() : Z.bosses.spawn(id, id === 'undertaker' ? {x: api.SITES[0].x, z: api.SITES[0].z - 60, set: {anchor: api.SITES[0]}} : {});
       if (id === 'puppet') { __z.sim(.1); for (let i = 0; i < 3; i++) Z.make('shahed', t.p.x + 300, t.p.z - 500 - i * 40); t.bs.wt = 0; }
       if (id === 'jammer') { const q = api.TH.find(u => u.k === 'jpod'); if (q) { q.by = 'p'; api.killThreat(q, true); } }
-      api.player.p.copy(t.p).add(__b.V(0, 40, 300)); __z.sim(4); __z.Z.fxTest?.endCine();
+      for (let i = 0; i < 8; i++) { api.player.p.copy(t.p).add(__b.V(0, 40, 300)); api.camera.position.copy(api.player.p); api.camera.updateMatrixWorld(); __z.sim(.5); }  /* the pilot 300 m off the boss, and the camera with it (a headless sim never moves the camera; the distance-based atmospheres read it) */
+      __z.Z.fxTest?.endCine();
       const during = Z.bosses.fx(), o1 = other(), jam = Z.lockJam(o1) / base.lj; o1.st = 'dead'; const st = Z.atmos.state(), pr = Z.atmos.probe(), atm = st.on ? {fog: +(pr.fogFar / W0.far).toFixed(2), light: +(pr.sun / W0.sun).toFixed(2), grade: st.pass} : null;
       // the wave ends: what is still in the air (the boss included) goes, and the state moves on
       G.wq.length = 0; for (const u of api.TH) if (!Z.bosses.BOSSES[u.k]?.persist) u.st = 'dead'; if (!Z.bosses.BOSSES[id]?.persist) { G.state = 'clear'; G.clearT = 3; } __z.sim(.5);  /* the two that outlive a wave end it themselves (they withdraw) */
