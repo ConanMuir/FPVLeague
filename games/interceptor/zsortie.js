@@ -275,7 +275,8 @@ export function initSortie(api,G,Z){
  if(window.__z)window.__z.so={S,W,fog,SO,TGT,launch,finish,strike,known,cut,apply,reveal,hurt,bombR,
   // fly the drone kinematically to (x, z) at height agl (m above ground) and speed v, stepping the sim; stop early when stop() says so
   fly(x,z,agl=60,v=100,stop){const d=me();if(!d||d.dead>0)return false;const h=1/30;for(let i=0;i<6000;i++){if(!S.on||d.dead>0)return false;const dx=x-d.p.x,dz=z-d.p.z,L=Math.hypot(dx,dz);if(L<v*h*1.5||stop?.())return true;
-    const y=gh(d.p.x+dx/L*20,d.p.z+dz/L*20)+agl;d.v.set(dx/L*v,(y-d.p.y)*2,dz/L*v);d.q.setFromAxisAngle(_c.set(0,1,0),Math.atan2(-dx,-dz));d.p.addScaledVector(d.v,h);d.mah=0;window.__z.sim(h)}return false},
+    const ux=dx/L,uz=dz/L,nx=d.p.x+ux*v*h,nz=d.p.z+uz*v*h;let g=gh(nx,nz);for(let k=1;k<=8;k++)g=Math.max(g,gh(nx+ux*k*25,nz+uz*k*25));  /* height over the highest ground in the next 200 m: it never meets a ridge */
+    const ny=Math.max(g+agl,d.p.y-v*h);d.v.set(ux*v,(ny-d.p.y)/h,uz*v);d.p.set(nx,ny,nz);  /* climbs at once, descends at no more than 45° (the sim's own step then follows that velocity) */d.q.setFromAxisAngle(_c.set(0,1,0),Math.atan2(-dx,-dz));d.mah=0;window.__z.sim(h)}return false},
   // keep the drone where it is for sec seconds of sim (the sim's physics would drop it)
   hold(sec,v){const d=me();if(!d)return false;const p=d.p.clone(),h=1/30;for(let i=0;i<sec/h;i++){if(d.dead>0)return false;d.p.copy(p);d.v.copy(v||_c.set(0,0,0));d.mah=0;window.__z.sim(h)}return true},
   // a bomb released now from (x, y, z) with velocity (vx, vy, vz)
