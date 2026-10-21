@@ -32,13 +32,13 @@ export function initBase(Z,api,G){
  Z.itemPrice=price;
  const locked=k=>G.wave+1<Z.itemFrom(k),maxed=k=>ITEMS[k].type==='perk'?Z.perkMaxed(k):ITEMS[k].type==='supply'?!!G.sup?.[k]:false;
  function buy(i){const c=G.cards[i];if(!c||locked(c.k)||maxed(c.k))return;const it=ITEMS[c.k],p=price(c.k);if(G.cash<p)return;
-  if(it.type==='helper'){if(!def.SLOTS.some((_,j)=>def.slotFree(j)))return;G.placing={i,k:c.k,p};focusSlot=def.SLOTS.findIndex((_,j)=>def.slotFree(j));render();focus('[data-slot]');return}
+  if(it.type==='helper'){if(!def.SLOTS.some((_,j)=>def.slotFree(j,c.k)))return;G.placing={i,k:c.k,p};focusSlot=def.SLOTS.findIndex((_,j)=>def.slotFree(j,c.k));render();focus('[data-slot]');return}
   if(it.type==='supply'){if(Z.req)Z.req(['y',c.k]);else act.supply(c.k)}
   else if(Z.req)Z.req(['p',c.k]);else{G.cash-=p;Z.buyPerk(c.k)}render();focus(`[data-buy="${i}"]`)}
  // Z.req (co-op): every purchase is a request to the host, which owns the shared purse; act.* are the purchases themselves (solo, and the host applying a request)
  const byId=id=>def.D.find(x=>x.id===id);
  const tally=Z.tally=(k,c)=>{if(c>0)(G.spend||(G.spend={}))[k]=(G.spend[k]|0)+c;return c};  // what went into each late-game sink this run (game-over stats, tools/zombies-balance.mjs)
- const act={place(k,j,by){const it=ITEMS[k];if(!it||it.type!=='helper'||!offered(k)||locked(k)||G.cash<it.price||!def.SLOTS[j]||!def.slotFree(j))return null;G.cash-=it.price;const d=def.add(k,j);d.spent=it.price;if(by)d.by=by;return d},
+ const act={place(k,j,by){const it=ITEMS[k];if(!it||it.type!=='helper'||!offered(k)||locked(k)||G.cash<it.price||!def.SLOTS[j]||!def.slotFree(j,k))return null;G.cash-=it.price;const d=def.add(k,j);d.spent=it.price;if(by)d.by=by;return d},
   sell(id){const d=byId(id);if(!d)return null;const r=refund(d);G.cash+=r;def.remove(d);return r},
   upgrade(id,what){const d=byId(id);if(!d)return 0;const c0=G.cash;
    if(def.isRack(d)){if(what==='tier'){const N=RACK_TIERS[d.tier+1],c=N&&upCost(N.cost);if(N&&!(d.type==='lrack'&&d.tier>=LRACK.maxTier)&&G.cash>=c){G.cash-=c;d.tier++}}
@@ -48,14 +48,14 @@ export function initBase(Z,api,G){
   refit(id,rid){const d=byId(id),R=d&&(REFIT[d.type]||[]).find(r=>r.id===rid);if(!R||d.refit===rid)return 0;const c=upCost(R.cost);if(G.cash<c)return 0;
    G.cash-=c;d.refit=rid;d.spent=(d.spent||ITEMS[d.type].price)+c;if(def.isRack(d))d.ready=Math.min(d.ready,def.capOf(d));return tally('refit',c)},
   // move a defence to another open position (it redeploys there when the wave starts)
-  move(id,j){const d=byId(id),c=d?moveCost(d):0;if(!d||G.cash<c||!def.slotFree(j))return-1;def.move(d,j);G.cash-=c;return tally('move',c)},
+  move(id,j){const d=byId(id),c=d?moveCost(d):0;if(!d||G.cash<c||!def.slotFree(j,d.type))return-1;def.move(d,j);G.cash-=c;return tally('move',c)},
   // open one more position; each costs more (zdata expCost); a doctrine can rule some out
   expand(j){const c=expCost(G.exp|0,dk('expK'));if(!def.canOpen(j,doc())||G.cash<c)return 0;G.cash-=c;G.open[j]=true;G.exp=(G.exp|0)+1;return tally('expand',c)},
   // rebuild a destroyed site at 40% of its hit points
   rebuild(i){const s=SITES[i],c=rebuildCost(G.rebuilds|0);if(!s||s.hp>0||G.cash<c)return 0;G.cash-=c;s.hp=Math.round(s.max*REBUILD_HP);G.rebuilds=(G.rebuilds|0)+1;return tally('rebuild',c)},
   supply(k){if(!SUPPLY[k]||locked(k)||G.sup?.[k])return 0;const c=supPrice(k);if(G.cash<c)return 0;G.cash-=c;(G.sup||(G.sup={}))[k]=1;return tally('supply',c)},
   repair(i,hp){const s=SITES[i],k=repairK();if(!s||s.hp<=0)return 0;hp=Math.min(hp|0,s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return 0;G.cash-=Math.ceil(hp*REPAIR_PER_HP*k);s.hp+=hp;Z.meta.onRepair();return hp}};
- function place(j){const P=G.placing;if(!P||!def.slotFree(j))return;
+ function place(j){const P=G.placing;if(!P||!def.slotFree(j,P.k))return;
   if(P.mv){if(Z.req)Z.req(['m',P.mv,j]);else act.move(P.mv,j);G.placing=null;tab='armory';render();focus(`[data-mv="${P.mv}"]`);return}
   if(Z.req)Z.req(['b',P.k,j]);else act.place(P.k,j);G.placing=null;tab='armory';render();focus('[data-up]')}
  function cancelPlace(){if(!G.placing)return false;const mv=G.placing.mv;G.placing=null;render();focus(mv?`[data-mv="${mv}"]`:'[data-buy]');return true}
@@ -69,7 +69,7 @@ export function initBase(Z,api,G){
   return`<div class="zitem ${L?'lock':''} ${sup&&M?'got':''}"><span class="zg">${it.glyph}</span><div class="zid"><b>${it.n}</b>${tag?`<em>${tag}</em>`:''}${it.kit?'<em>KIT</em>':''}
    <p>${txt}</p>${it.type==='helper'&&!L?`<div class="zvs">${vsChips(c.k)}</div>`:''}</div>
    <button class="sm" data-buy="${i}" ${L||M||G.cash<p?'disabled':''}>${L?`Wave ${Z.itemFrom(c.k)}`:M?(sup?'Loaded ✓':'Max'):`${it.type==='perk'&&lvl?'Upgrade':'Buy'} ${money(p)}`}</button></div>`}
- function shopHTML(){let h='',g='';G.cards.forEach((c,i)=>{if(c.g!==g){h+=`${g?'</div>':''}<h3>${c.g}</h3><div class="zitems">`;g=c.g}h+=rowHTML(c,i)});return h+'</div>'}
+ function shopHTML(){let h=Z.shopTop?.()||'',g='';G.cards.forEach((c,i)=>{if(c.g!==g){h+=`${g?'</div>':''}<h3>${c.g}</h3><div class="zitems">`;g=c.g}h+=rowHTML(c,i)});return h+'</div>'}  /* Z.shopTop: the pilot weapon loadout (zarsenal.js) */
  const upkeepOf=d=>Z.upkeep?Z.upkeep().per.get(d)|0:0;
  function defRow(d){const s=def.SLOTS[d.slot],it=ITEMS[d.type],up=upkeepOf(d);let ups='';
   if(def.isRack(d)){const T=RACK_TIERS[d.tier],top=d.type==='lrack'?LRACK.maxTier:RACK_TIERS.length-1,N=d.tier<top?RACK_TIERS[d.tier+1]:null,ci=RACK_CAP.indexOf(d.cap),nc=d.type==='rack'?RACK_CAP[ci+1]:null,cc=nc&&upCost(RACK_CAP_COST[ci+1]);
@@ -83,8 +83,8 @@ export function initBase(Z,api,G){
     ${H.lv.length>1?`<button class="sm" data-up="${d.id}:lvl" ${n&&G.cash>=upCost(n.cost)?'':'disabled'}>${n?`Level ${d.lvl+2} ${money(upCost(n.cost))}`:'Max level'}</button>`:''}`}
   const RF=REFIT[d.type]||[],cur=RF.find(r=>r.id===d.refit);
   if(RF.length)ups+=`<span class="zst zn">${cur?`Refit: <b>${cur.n}</b>. ${cur.txt}`:'Refit (one per defence, each a trade):'}</span>${RF.map(r=>`<button class="sm zfit ${d.refit===r.id?'on':''}" data-fit="${d.id}:${r.id}" title="${r.txt}" ${d.refit!==r.id&&G.cash>=upCost(r.cost)?'':'disabled'}>${d.refit===r.id?'✓ '+r.n:`${r.n} ${money(upCost(r.cost))}`}</button>`).join('')}`;
-  const mc=moveCost(d),armed=sellArm===d.id;
-  ups+=`<button class="sm" data-mv="${d.id}" ${G.cash>=mc&&def.SLOTS.some((_,j)=>def.slotFree(j))?'':'disabled'}>Move${mc?' '+money(mc):' (free)'}</button>`;
+  const mc=moveCost(d),armed=sellArm===d.id;ups+=Z.defExtra?.(d)||'';  // Z.defExtra: a defence's own controls (the carrier's parking, zarsenal.js)
+  ups+=`<button class="sm" data-mv="${d.id}" ${G.cash>=mc&&def.SLOTS.some((_,j)=>def.slotFree(j,d.type))?'':'disabled'}>Move${mc?' '+money(mc):' (free)'}</button>`;
   return`<div class="zarm"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}${d.by?' · '+d.by:''}${up?` · upkeep ${money(up)}`:''}${d.short?' · <span class="co">short of ammo</span>':''}</small></div><div class="zups">${ups}<button class="sm zsell ${armed?'arm':''}" data-sell="${d.id}">${armed?`Confirm: sell for ${money(refund(d))}`:`Sell ${money(refund(d))}`}</button></div></div>`}
  // selling frees the slot and refunds half of everything spent on it (a quarter under Quartermaster); it takes a second press to confirm
  let sellArm=0;
@@ -103,7 +103,7 @@ export function initBase(Z,api,G){
    return`<div class="zrow"><span>${s.n}</span><span class="zhp"><b><i style="width:${Math.max(0,s.hp)/s.max*100}%" class="${s.hp<s.max*.35?'lo':s.hp<s.max*.7?'mid':''}"></i></b>${Math.max(0,Math.ceil(s.hp))}/${s.max}</span>
    ${s.hp<=0?`<button class="sm" data-rb="${i}" ${G.cash>=rc?'':'disabled'}>Rebuild to ${Math.round(REBUILD_HP*100)}% ${money(rc)}</button>`:`<button class="sm" data-rep="${i}" ${c&&part>0?'':'disabled'}>${!c?'Intact':part<s.max-s.hp?`Repair ${part} hp ${money(Math.ceil(part*REPAIR_PER_HP*repairK()))}`:`Repair ${money(c)}`}</button>`}</div>`}).join('')}</div>
    <p class="zhint">Repairs cost $${(REPAIR_PER_HP*repairK()).toFixed(2)} per hit point${repairK()<1?' (discounted)':''}. A destroyed site can be rebuilt to ${Math.round(REBUILD_HP*100)}%; each rebuild costs more.</p>`;
-  const can=def.SLOTS.map((_,j)=>j).filter(j=>def.canOpen(j,doc())),nOpen=def.SLOTS.filter((_,j)=>def.slotOpen(j)).length,ec=expCost(G.exp|0,dk('expK'));
+  const can=def.SLOTS.map((_,j)=>j).filter(j=>def.canOpen(j,doc())),nOpen=def.SLOTS.filter((s,j)=>!s.park&&def.slotOpen(j)).length,ec=expCost(G.exp|0,dk('expK'));
   h+=`<h3 style="margin-top:12px">Positions · ${nOpen} open</h3>${can.length?`<p class="zhint">Open another position for <b>${money(ec)}</b> (each one costs more). Forward pads and outposts engage first but cost double upkeep.</p>
    <div class="zexp">${can.map(j=>`<button class="sm" data-ex="${j}" ${G.cash>=ec?'':'disabled'}>${def.SLOTS[j].n}${def.SLOTS[j].fwd?' ▲':''}</button>`).join('')}</div>`:`<p class="zhint">Every position your doctrine allows is open.</p>`}`;
   const U=Z.upkeep?.()||{total:0},nw=G.wave+1;
@@ -114,7 +114,7 @@ export function initBase(Z,api,G){
  function render(){const integ=SITES.reduce((a,s)=>(a.hp+=Math.max(0,s.hp),a.max+=s.max,a),{hp:0,max:0}),f=integ.hp/integ.max,P=G.placing;
   let body='';
   if(P)body=`<h3>${P.mv?`Move the ${ITEMS[P.k].n.toLowerCase()} to`:`Choose a position for the ${ITEMS[P.k].n.toLowerCase()}`}</h3><p class="zhint">Pick a slot here or click a free circle on the map. It deploys when the wave starts.</p>
-   <div class="zslots">${def.SLOTS.map((s,j)=>def.slotFree(j)?`<button class="sm" data-slot="${j}">${s.n}</button>`:'').join('')}</div><div class="mp"><button class="sm" id="zcancel">Cancel</button></div>`;
+   <div class="zslots">${def.SLOTS.map((s,j)=>def.slotFree(j,P.k)?`<button class="sm" data-slot="${j}">${s.n}</button>`:'').join('')}</div><div class="mp"><button class="sm" id="zcancel">Cancel</button></div>`;
   else if(tab==='shop')body=shopHTML();
   else if(tab==='armory'){const perks=Z.perkRows?.(money)||'';body=`${def.D.length?def.D.map(defRow).join(''):'<p class="zhint">No defences yet. Buy helpers from the shop cards.</p>'}${perks?`<h3 style="margin-top:14px">Perks</h3>${perks}`:''}`}
   else if(tab==='chain'&&Z.chainHTML)body=Z.chainHTML();  /* the kill chain against the fast missiles (zchain.js) */
@@ -142,9 +142,11 @@ export function initBase(Z,api,G){
   for(const b of el.querySelectorAll('[data-rb]'))b.onclick=()=>rebuild(+b.dataset.rb);
   for(const b of el.querySelectorAll('[data-kc]'))b.onclick=()=>{const k=b.dataset.kc,i=k.indexOf(':');Z.chain.req(k.slice(0,i),k.slice(i+1));render();focus(`[data-kc="${k}"]`)};
   if(xt())Z.xTab.wire(el);
+  Z.baseBind?.(el);  // the arsenal's buttons (zarsenal.js)
   for(const b of el.querySelectorAll('[data-rep]'))b.onclick=()=>{const i=+b.dataset.rep,s=SITES[i],k=repairK(),hp=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return;if(Z.req)Z.req(['r',i,hp]);else act.repair(i,hp);render();focus(`[data-rep="${b.dataset.rep}"]`)};
   const cv=$('zmap');cv.onclick=e=>{const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*MW,y=(e.clientY-r.top)/r.height*MH;let bj=-1,bd=24;if(xt()){Z.xTab.click(x,y,MW,MH);return}
-   const can=j=>G.placing?def.slotFree(j):tab==='sites'&&def.canOpen(j,doc());def.SLOTS.forEach((s,j)=>{const[sx,sy]=spx(j),d=Math.hypot(sx-x,sy-y);if(can(j)&&d<bd){bd=d;bj=j}});
+   if(Z.mapClick?.(MAPX[0]+x/MW*(MAPX[1]-MAPX[0]),MAPZ[0]+y/MH*(MAPZ[1]-MAPZ[0])))return;  // parking a carrier (zarsenal.js)
+   const can=j=>G.placing?def.slotFree(j,G.placing.k):tab==='sites'&&def.canOpen(j,doc());def.SLOTS.forEach((s,j)=>{const[sx,sy]=spx(j),d=Math.hypot(sx-x,sy-y);if(can(j)&&d<bd){bd=d;bj=j}});
    if(bj<0)return;if(G.placing)place(bj);else{focusSlot=bj;drawMap();el.querySelector(`[data-ex="${bj}"]`)?.focus()}};
   drawMap()}
  // next wave preview: counts per kind, new kinds flagged, approach bearings drawn on the map
@@ -171,21 +173,22 @@ export function initBase(Z,api,G){
   Z.chainMap?.(g,mx,mz,MW,MH);  // boost batteries at their launch edge, point defence at the sites (zchain.js)
   for(const f of FOBS){g.strokeStyle='#3ddc84';g.beginPath();g.moveTo(mx(f.x),mz(f.z)-7);g.lineTo(mx(f.x)+7,mz(f.z)+5);g.lineTo(mx(f.x)-7,mz(f.z)+5);g.closePath();g.stroke()}
   const ae=document.activeElement?.dataset,foc=ae?.up||ae?.fit||ae?.mv?byId(+String(ae.up||ae.fit||ae.mv).split(':')[0]):null;
-  def.SLOTS.forEach((s,j)=>{const d=def.D.find(q=>q.slot===j),[X,Y]=spx(j);
+  def.SLOTS.forEach((s,j)=>{const d=def.D.find(q=>q.slot===j),[X,Y]=spx(j);if(s.park&&!d)return;
    if(d){if(d===foc){const r=Math.min(def.rangeOf(d),20000)/(MAPX[1]-MAPX[0])*MW;g.strokeStyle='rgba(95,227,255,.5)';g.lineWidth=1.5;g.beginPath();g.arc(X,Y,r,0,7);g.stroke()}
     g.fillStyle='#5fe3ff';g.beginPath();g.arc(X,Y,8,0,7);g.fill();g.fillStyle='#04121a';g.font='700 10px "JetBrains Mono",monospace';g.fillText(ITEMS[d.type].glyph,X,Y+3.5)}
    else if(def.slotOpen(j)){const hot=G.placing&&j===focusSlot;g.strokeStyle=hot?'#ffe23c':G.placing?'rgba(255,226,60,.75)':'rgba(220,230,255,.4)';g.lineWidth=hot?3:1.5;g.setLineDash(hot?[]:[3,3]);g.beginPath();g.arc(X,Y,hot?9:7,0,7);g.stroke();g.setLineDash([])}
    else if(def.canOpen(j,doc())){const hot=!G.placing&&j===focusSlot;g.strokeStyle=hot?'#ffc640':'rgba(220,230,255,.22)';g.lineWidth=hot?2.5:1;g.strokeRect(X-5,Y-5,10,10);g.fillStyle=hot?'#ffc640':'rgba(220,230,255,.35)';g.fillText('+',X,Y+4)}});
+  Z.mapExtra?.(g,mx,mz);  // the arsenal's map marks (zarsenal.js)
   if(G.placing&&focusSlot>=0){const s=def.SLOTS[focusSlot],dd=G.placing.mv?byId(G.placing.mv):null,r=Math.min(dd?def.rangeOf(dd):HELP[G.placing.k]?.rng||(G.placing.k==='lrack'?LRACK.rng:RACK_RANGE),20000)/(MAPX[1]-MAPX[0])*MW;g.strokeStyle='rgba(255,226,60,.45)';g.beginPath();g.arc(mx(s.x),mz(s.z),r,0,7);g.stroke()}}
 
  // slots are drawn schematically around their site / pad / forward position (true scale would stack them on top of each other)
- function spx(j){const s=def.SLOTS[j];if(s.site){const dx=s.x-s.site.x,dz=s.z-s.site.z,l=Math.hypot(dx,dz)||1;return[mx(s.site.x)+dx/l*24,mz(s.site.z)+dz/l*24]}
+ function spx(j){const s=def.SLOTS[j];if(s.park)return[mx(s.x),mz(s.z)];if(s.site){const dx=s.x-s.site.x,dz=s.z-s.site.z,l=Math.hypot(dx,dz)||1;return[mx(s.site.x)+dx/l*24,mz(s.site.z)+dz/l*24]}
   if(/^Radar/.test(s.n))return[mx(PADP.x)+(s.x<PADP.x?-18:18),mz(PADP.z)-6];if(s.out)return[mx(s.x),mz(s.z)];return[mx(s.x)+(/pad 2$/.test(s.n)?14:-14),mz(s.z)+12]}
  const focus=q=>setTimeout(()=>{const b=el.querySelector(q+':not([disabled])');(b||$('zgo'))?.focus();drawMap()},0);
  function open(){document.body.classList.add('zb-open');G.state="base";G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
  function close(){el.hidden=true;G.placing=null;document.body.classList.remove('zb-open')}
  // redraw for a change made elsewhere (co-op: the purse, the defences, who is ready), keeping focus and the tab's scroll
- function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','so','tab'].find(x=>a.dataset[x]!=null):null,
+ function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','so','tab','ars'].find(x=>a.dataset[x]!=null):null,
    q=k?`[data-${k}="${a.dataset[k]}"]`:mine&&a.id?'#'+a.id:null,sc=el.querySelector('.ztab')?.scrollTop||0;
   render();const t=el.querySelector('.ztab');if(t)t.scrollTop=sc;if(q)el.querySelector(q)?.focus()}
  // spatial focus move between the visible buttons

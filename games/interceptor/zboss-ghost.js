@@ -22,7 +22,9 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group(),s=new T.Shape();s.moveTo
  for(const x of[-9,9]){const i=C.mesh(g,new T.PlaneGeometry(2.4,2.4),M.ins,x,1.12,1.2,false);i.rotation.x=-Math.PI/2}
  const sh=[];for(const x of[-3.4,3.4]){const p=new T.Sprite(new T.SpriteMaterial({map:dot,color:new T.Color(0xffffff),transparent:true,opacity:.08,depthWrite:false,blending:T.AdditiveBlending}));p.scale.set(6,3,1);p.position.set(x,1.4,-5);g.add(p);sh.push(p)}
  g.userData.sh=sh;return g}
-const BOMBS=[];
+const BOMBS=[];let _gv=null;
+const _hz={x:0,y:0,z:0};  // haze emit point (reused)
+
 const seenBy=(C,t)=>C.pilots().some(d=>d.p.distanceTo(t.p)<(C.api.thermLook?2500:1200));
 registerBoss({id:'ghost',n:'Ghost',tag:'GHOST',col:'#b8c4d0',spd:75,alt:[1050,1150],hitR:4,det:9000,cash:1200,bounty:5000,far:6500,
  resist:{gepard:.3,sam:.5,mpads:.2},hp:4,phases:['HIGH','WOUNDED','LAST PASS'],phaseAt:[.75,.26],
@@ -40,12 +42,15 @@ registerBoss({id:'ghost',n:'Ghost',tag:'GHOST',col:'#b8c4d0',spd:75,alt:[1050,11
   // bombs away a little before overhead, so the bomb falls onto the site
   const lead=Math.sqrt(2*Math.max(1,t.p.y-S.y)/9.8)*spd;if(dh<lead+20&&!B.drop){B.drop=1;BOMBS.push({p:t.p.clone(),v:t.v.clone(),s:S,t});C.Z.an?.say('BOMBS AWAY','the Ghost is over the '+S.n.toLowerCase(),'#ff4d4d',1)}
   if(B.drop&&dh>lead+300){B.drop=0;B.pass++;B.out=22}return true},
+ atmos(C,t,o){const d=C.api.camera.position.distanceTo(t.p);o.fog=.4;o.fogC.set(0x161b28);o.fogMix=.65;o.light=.42;o.dark=.48;o.desat=.3;o.vign=.45;o.shim=1;o.sp.copy(t.p);o.hasS=true;o.sr=.16;
+  return .35+.65*C.cl(1-d/3000,0,1)},
  seen:(C,t)=>seenBy(C,t),hid:(C,t)=>!seenBy(C,t),lockSelf:(C,t)=>t.bs.lcd>0?1e3:1.6,
  hit(C,t,h){return h.q==='kill'?2:1},
  phase(C,t,i){if(i===1)C.api.feed('<span class="co">The Ghost is leaking fuel: follow the dark trail. It is running low and fast.</span>');if(i===2)C.api.feed('<span class="cr">The Ghost is diving for your weakest site!</span>')},
  status(C,e){const B=e.main.bs;return`passes ${B.pass|0}/3 · ${B.ph?'<b>LEAK TRAIL</b>':'<b>CONTRAIL</b> high'} · not on radar · lock slips after 2 s${C.api.thermLook?' · <b>THERMAL</b>: you see it farther':' · thermal (H) sees it farther'}`},
  vis(C,t,dt){const B=t.bs,M=mats(C),{api,Z}=C;M.slot.emissiveIntensity=api.thermLook?2.5:0;const f=t.v.clone().normalize();
   for(const s of t.mesh.userData.sh){s.material.opacity=.06+.05*Math.sin(performance.now()/40+s.position.x);s.scale.set(6+Math.sin(performance.now()/70)*1.5,3,1)}
+  if((B.mk=(B.mk||0)-dt)<=0){B.mk=.35;const p=t.mesh.localToWorld((_gv||(_gv=new C.V3())).set(0,0,-14));C.haze(p,0x1c2028,.3,26,1)}  // murk left along its path
   if((B.ct=(B.ct||0)-dt)<=0){B.ct=.15;for(const x of[-3.4,3.4]){const p=t.mesh.localToWorld(new C.V3(x,1,-8));
    if(B.ph===0&&t.p.y-api.gh(t.p.x,t.p.z)>800)C.SMK.emit(p,0xf4f6f8,1,.3,14,null,1.1,.55);else if(B.ph>0)C.SMK.emit(p,0x24221f,1,.6,9,null,1,.7)}}
   // the lock slips: about 2 s held, then 3 s before it can be locked again (each screen runs its own lock)

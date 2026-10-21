@@ -43,6 +43,8 @@ registerBoss({id:'siren',n:'The Siren',tag:'FRIENDLY',col:'#5ff0e0',spd:70,alt:[
   // the song: everything near it reads friendly (refreshed every step; it fades a moment after the song stops)
   if(singing(t))for(const u of api.TH)if(api.live(u)&&!C.BOSSES[u.k]&&u.p.distanceTo(t.p)<R(t))u.iff=.6;
   return true},
+ atmos(C,t,o){const d=C.api.camera.position.distanceTo(t.p),r=R(t),on=singing(t),h=(performance.now()/4000)%1;o.tint.setHSL(h<.5?.48+h*.1:.88-(h-.5)*.1,.9,.6);o.tintA=on?.45:.15;o.desat=.12;o.vign=.32;
+  o.fog=.6;o.fogC.set(0x3a6070);o.fogMix=.45;o.shim=on?1:.25;o.dark=.12;o.sp.copy(t.p);o.hasS=true;o.sr=.3;return C.cl(1.25-d/(r*1.6),0,1)},
  g:{step(C,dt){for(const u of C.api.TH)if(u.iff>0&&!C.BOSSES[u.k])u.iff=Math.max(0,u.iff-dt)}},
  barName:(C,e)=>e.main.bs.ident?'The Siren':'IFF: friendly flight?',phaseName:(C,e)=>e.main.bs.ident?['SINGING','SHRIEKING','FALTERING'][e.main.bs.ph|0]:'???',
  label:(C,t)=>t.bs.ident?`SIREN <span class="cr">ENEMY · FALSE IFF</span> · ${t.bs.hp}/${t.bs.max}`:'IFF <span class="cg">FRIENDLY</span>',

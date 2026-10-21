@@ -16,6 +16,8 @@
 import {registerBoss} from './zbosses.js';
 import {dot} from '../../engine/render.js';
 const PER=12,JAM=8,PODR=1200,KINGR=1500;
+const _hz={x:0,y:0,z:0};  // haze emit point (reused)
+
 
 function kingSkin(C){return C.decal('jk-skin',512,512,(g,w,h)=>{const{D2,rnd}=C;g.fillStyle='#24202e';g.fillRect(0,0,w,h);
  g.strokeStyle='rgba(199,125,255,.55)';g.lineWidth=5;for(let k=0;k<6;k++){g.beginPath();const y=40+k*82;for(let x=0;x<=w;x+=8)g.lineTo(x,y+Math.sin(x/22+k)*12*(k%2?1:.5));g.stroke()}  // carrier waves
@@ -82,6 +84,10 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
   const des=tan.add(pull);des.y=C.cl((api.gh(t.p.x,t.p.z)+(B.surf>0?350:800)-t.p.y)/200,-.4,.4);C.steer(t,des.normalize(),B.surf>0?40:55,.45,dt,150);return true},
  seen(C,t){const B=t.bs;if(B.sil>0)return false;if(B.surf>0||B.exposed)return true;if(!winOf(B))return false;const d=C.api.player,pd=C.api.PADP;return t.p.distanceTo(d&&d.dead<=0?d.p:new C.V3(pd.x,t.p.y,pd.z))<6000},
  hid(C,t){return!C.Z.seen(t)&&t.p.distanceTo(C.api.camera.position)>900},
+ // atmosphere: the whole map while it lives; the haze, tint and static breathe with the jam cycle (a WINDOW clears them a lot), the static
+ // grows hot near it (the same signal as the meter)
+ atmos(C,t,o){const B=t.bs,w=winOf(B),s=signal(C,t),pulse=.5+.5*Math.sin(performance.now()/260);o.fog=w?.65:.28;o.fogC.set(0x55583a);o.fogMix=w?.25:.7;o.light=w?.8:.5;o.dark=w?.05:.22;
+  o.tint.set(0xb2c06a);o.tintA=w?.08:.3+.12*pulse;o.desat=w?.08:.28;o.vign=w?.2:.45;o.noise=w?.03:.16+.1*pulse+.35*s;return B.sil>0?.8:1},
  lockK:(C,u)=>jamOn(C,u)?(u.bs.ph>=2?3:2.5):1,radarK:(C,u)=>jamOn(C,u)?.55:1,jinkK:(C,u)=>jamOn(C,u)?.7:1,lockSelf:()=>1.5,
  hit(C,t,h){return h.q==='kill'?2:h.q==='helper'?1:1},
  hurt(C,t){if(!t.bs.exposed&&t.bs.ph<2){relocate(C,t);C.api.feed('<span style="color:#c77dff">The Jammer King took a hit and relocated.</span>')}},
@@ -92,11 +98,13 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
   return`${B.exposed?'<b>EXPOSED</b>':B.surf>0?`<b>SURFACED ${Math.ceil(B.surf)} s</b>`:'HIDDEN'} · ${w?'<b>WINDOW</b>':'JAM'} ${Math.ceil(left)} s · SIGNAL ${bars} <b>${lab}</b><br>relays ${pods} · lines ${B.lines?.length|0} · overload ${B.cnt|0}/${need(C)}`},
  vis(C,t,dt){const B=t.bs,U=t.mesh.userData,cam=C.api.camera.position,d=t.p.distanceTo(cam),M=mats(C),seen=C.Z.seen(t);
   for(const p of U.props)p.rotation.z+=dt*30;U.dome.rotation.y+=dt*.8;
+  if(!winOf(B)&&(B.hz=(B.hz||0)-dt)<=0){B.hz=.16;const c=cam,a=Math.random()*6.28,r=C.rnd(220,900);_hz.x=c.x+Math.cos(a)*r;_hz.z=c.z+Math.sin(a)*r;_hz.y=C.api.gh(_hz.x,_hz.z)+C.rnd(10,140);C.haze(_hz,0x5a5c3c,.32,14,2.5)}  // haze banks roll in
   const sil=B.sil>0;t.mesh.visible=sil||seen||d<1100;if(U.sw!==sil){U.sw=sil;for(const m of U.all)if(m!==U.em){m.userData.m0=m.userData.m0||m.material;m.material=sil?M.sil:m.userData.m0}}
   const w=winOf(B),hot=B.ph>=2||B.surf>0||B.exposed;U.st.visible=!sil&&(w||hot)&&Math.sin(performance.now()/(w?70:160))>-.2;U.em.visible=w||hot;
   if(hot&&(B.sm=(B.sm||0)-dt)<=0){B.sm=.12;C.FX.emit(t.p.clone().add(new C.V3(0,-1.6,0)),0xc77dff,3,4,.5,null,2.5)}},
  radar(C,rc,P,t){const B=t.bs,{api}=C,pd=P(api.PADP.x,api.PADP.z);
-  if(jamOn(C,t)){rc.fillStyle='rgba(199,125,255,.5)';for(let i=0;i<70;i++)rc.fillRect(C.rnd(0,500),C.rnd(0,500),C.rnd(1,4),1.5);rc.strokeStyle='rgba(199,125,255,.18)';rc.lineWidth=3;for(let i=0;i<4;i++){const y=C.rnd(0,500);rc.beginPath();rc.moveTo(0,y);rc.lineTo(500,y+C.rnd(-20,20));rc.stroke()}}
+  if(jamOn(C,t)){rc.fillStyle='rgba(150,160,80,.12)';rc.fillRect(0,0,500,500);rc.fillStyle='rgba(199,125,255,.6)';for(let i=0;i<240;i++)rc.fillRect(C.rnd(0,500),C.rnd(0,500),C.rnd(1,5),1.5);
+   rc.strokeStyle='rgba(199,125,255,.22)';rc.lineWidth=3;for(let i=0;i<9;i++){const y=C.rnd(0,500);rc.beginPath();rc.moveTo(0,y);rc.lineTo(500,y+C.rnd(-20,20));rc.stroke()}}
   rc.setLineDash([6,6]);rc.strokeStyle='rgba(199,125,255,.55)';rc.lineWidth=2;for(const u of api.TH)if(u.k==='jpod'&&api.live(u)){const a=Math.atan2(u.p.x-api.PADP.x,u.p.z-api.PADP.z),q=P(api.PADP.x+Math.sin(a)*9000,api.PADP.z+Math.cos(a)*9000);rc.beginPath();rc.moveTo(pd[0],pd[1]);rc.lineTo(q[0],q[1]);rc.stroke()}
   rc.setLineDash([]);rc.strokeStyle='#c77dff';rc.lineWidth=2.5;for(const l of B.lines||[]){const a=P(l.x,l.z),b=P(l.x+Math.sin(l.a)*8000,l.z+Math.cos(l.a)*8000);rc.beginPath();rc.moveTo(a[0],a[1]);rc.lineTo(b[0],b[1]);rc.stroke()}
   const F=fix(B);if(F){const c=P(F.x,F.z),e=P(F.x+F.r,F.z);rc.beginPath();rc.arc(c[0],c[1],Math.max(6,Math.hypot(e[0]-c[0],e[1]-c[1])),0,7);rc.stroke();rc.fillStyle='#c77dff';rc.font='700 15px "JetBrains Mono",monospace';rc.fillText('KING?',c[0]+10,c[1]-10)}},
