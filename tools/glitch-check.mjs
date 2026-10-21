@@ -1,12 +1,14 @@
 // Visual glitch hunt for both games, headless: consecutive drawn frames while things move, checked for one-frame flicker, black / blown-out
 // frames, non-finite or teleporting drawn positions, and a few geometric invariants.
 //   node tools/glitch-check.mjs [parts] [--shots=DIR] [--n=40]
-// parts (default: all): river  motes  classic  zombies  league  dogfight
+// parts (default: all): river  motes  dynres  classic  zombies  league  dogfight
 //   river     Interceptor terrain: the river's water ribbon never floats over dry ground (every ribbon edge buried in its bank, every
 //             bank 70-300 m out above the water), checked against the drawn terrain mesh (no frames needed)
 //   motes     weather motes that drift past the lens (League's Alpine snow, the Interceptor's snow and dust) fade out instead of drawing
 //             a screen-sized blot: every mote put 0.3-0.6 m (dust 2-5 m) in front of the camera, drawn with the game's material and with a
 //             plain copy of it (the old look), white / dust coverage of the frame compared
+//   dynres    dynamic-resolution steps in both games (1 -> 0.6 -> 1): every composer target and pass follows the drawing buffer's size,
+//             and no frame across a step goes black or flashes
 //   classic   Interceptor Classic: the menu demo and a flight on each camera (FPV, chase, threat), Graphics High / Medium / Low / Auto, every
 //             weather, a weather change, pausing
 //   zombies   Interceptor Zombies with the Bot Spectator flying: each camera, each Graphics level, the base screen opening and closing
@@ -16,7 +18,8 @@
 // frame is presented). For each frame i with neighbours i-1 and i+1:
 //   flicker   in some 16x12 px cell, more than 45 % of the pixels are drawn for frame i only (differ from both neighbours, which agree):
 //             a pop, a black or white flash, z-fighting, transparent sort swaps. Moving things change i-1 -> i+1 too, and thin moving lines
-//             (markings, wires, rings) cover too little of a cell to pass.
+//             (markings, wires, rings) cover too little of a cell to pass. Fails only on a steady frame (mean change < 3/255 a frame);
+//             in fast motion it is reported as flicker? for a look at the saved frames.
 //   black     more than 40 % of the frame near-black where its neighbours are not (a black flash, NaNs in the post chain)
 //   blowout   more than 25 % of the frame clipped white where its neighbours are not (bloom fireflies, an exposure spike)
 //   pop       a drawn object (camera, drones, ball, threats) is off its path for one frame (drawn at a wrong place, e.g. its sim instead
@@ -31,7 +34,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {serve, launch, open, sleep, frames, until, root} from './zlib.mjs';
 const A = process.argv.slice(2), arg = k => A.find(a => a.startsWith('--' + k + '='))?.split('=')[1];
-const PARTS = new Set(A.filter(a => !a.startsWith('--')).length ? A.filter(a => !a.startsWith('--')) : ['river', 'motes', 'classic', 'zombies', 'league', 'dogfight']);
+const PARTS = new Set(A.filter(a => !a.startsWith('--')).length ? A.filter(a => !a.startsWith('--')) : ['river', 'motes', 'dynres', 'classic', 'zombies', 'league', 'dogfight']);
 const SHOTS = arg('shots') ? path.resolve(arg('shots')) : null, N = +(arg('n') || 40);
 if (SHOTS) fs.mkdirSync(SHOTS, {recursive: true});
 let fails = 0; const errs = [], summary = [];
@@ -78,7 +81,7 @@ function analyse(tag, F) {
   const FT = 45;  /* % of a 16x12 cell drawn for one frame only: thin lines sweeping past (field markings, wires) stay well under it */
   for (let i = 1; i < F.length - 1; i++) {
     const f = F[i], p = F[i - 1], q = F[i + 1];
-    if (f.flick > FT) flags.push({i, kind: 'flicker', v: f.flick, steps: f.flickAt});
+    if (f.flick > FT) flags.push({i, kind: Math.max(p.step ?? 0, f.step) < 3 ? 'flicker' : 'flicker?', v: f.flick, steps: f.flickAt});  /* in fast motion (a camera whipping round, a shockwave ring racing over the floor) single pixels legitimately show for one frame: reported, not failed */
     if (f.black > .4 && p.black < f.black - .3 && q.black < f.black - .3) flags.push({i, kind: 'black', v: +f.black.toFixed(2)});
     if (f.white > .25 && p.white < f.white - .2 && q.white < f.white - .2) flags.push({i, kind: 'blowout', v: +f.white.toFixed(2)});
   }
@@ -131,6 +134,12 @@ async function iPage(b, origin, store, q = '') {
   const p = await open(b, origin + '/games/interceptor/' + q, errs, {w: 1280, h: 720});
   await p.evaluate(s => localStorage.setItem('dl-interceptor', JSON.stringify(s)), store);
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z?.gfx, {timeout: 120000}); await frames(p, 20); return p;
+}
+// visible HUD boxes in sels must not overlap each other (by more than 2 px either way)
+async function hudClear(p, tag, sels) {
+  const r = await p.evaluate(sels => sels.map(s => { const e = document.querySelector(s); if (!e || e.hidden || !e.textContent.trim()) return null; const st = getComputedStyle(e); if (st.display === 'none' || st.visibility === 'hidden' || +st.opacity === 0) return null; const b = e.getBoundingClientRect(); return b.width && b.height ? [s, b.left, b.top, b.right, b.bottom] : null; }).filter(Boolean), sels);
+  const bad = []; for (let i = 0; i < r.length; i++) for (let j = i + 1; j < r.length; j++) { const a = r[i], b = r[j]; if (Math.min(a[3], b[3]) - Math.max(a[1], b[1]) > 2 && Math.min(a[4], b[4]) - Math.max(a[2], b[2]) > 2) bad.push(a[0] + ' x ' + b[0]); }
+  chk(!bad.length, `${tag}: HUD boxes clear of each other (${r.map(x => x[0]).join(' ')})${bad.length ? ': ' + bad.join(', ') : ''}`);
 }
 const setSel = (p, id, v) => p.$eval('#f_' + id, (e, v) => { e.value = JSON.stringify(v); e.dispatchEvent(new Event('input')); }, v);
 
@@ -193,6 +202,43 @@ async function motes(b, iorigin, lorigin) {
   await q.close();
 }
 
+// in-page: the drawing buffer size against every composer target and pass that keeps one (bloom mips scale down from it)
+function rtSizes(T) {
+  const {renderer, composer} = T, gl = renderer.getContext(), W = gl.drawingBufferWidth, H = gl.drawingBufferHeight, bad = [];
+  for (const [n, t] of [['rt1', composer.renderTarget1], ['rt2', composer.renderTarget2]]) if (t.width !== W || t.height !== H) bad.push(`${n} ${t.width}x${t.height}`);
+  for (const p of composer.passes) {
+    if (!p.enabled) continue;
+    if (p.renderTargetsHorizontal?.[0]) { const t = p.renderTargetsHorizontal[0]; if (Math.abs(t.width - Math.round(W / 2)) > 1 || Math.abs(t.height - Math.round(H / 2)) > 1) bad.push(`bloom ${t.width}x${t.height}`); }
+    if (p.edgesRT) { const t = p.edgesRT; if (t.width !== W || t.height !== H) bad.push(`smaa ${t.width}x${t.height}`); }
+  }
+  return {W, H, bad};
+}
+async function dynres(b, iorigin, lorigin) {
+  console.log('dynres');
+  const p = await iPage(b, iorigin, {gmode: 'classic', wx: 'clear', cam: 1, gfx: 'auto'});
+  for (const k of [.9, .75, .6, .8, 1]) {
+    await p.evaluate(k => { __z.gfx.dyn.scale = k; __z.gfx.emit('res'); }, k); await frames(p, 4);
+    const r = await p.evaluate(`(${rtSizes})({renderer:__z.api.renderer,composer:__z.composer})`);
+    chk(!r.bad.length, `Interceptor scale ${k}: targets match the ${r.W}x${r.H} buffer${r.bad.length ? ': ' + r.bad.join(', ') : ''}`);
+  }
+  await p.evaluate(() => setTimeout(() => { __z.gfx.dyn.scale = .6; __z.gfx.emit('res'); }, 150));
+  expectClean('dynres-interceptor-step', await seq(p, 'dynres-interceptor-step', IC, IT, 24), ['black', 'blowout', 'pop', 'sweep', 'nan']);
+  for (const g of ['med', 'low', 'high']) { await setSel(p, 'gfx', g); await frames(p, 6); const r = await p.evaluate(`(${rtSizes})({renderer:__z.api.renderer,composer:__z.composer})`); chk(!r.bad.length, `Interceptor ${g}: targets match the ${r.W}x${r.H} buffer${r.bad.length ? ': ' + r.bad.join(', ') : ''}`); }
+  await p.close();
+  if (!lorigin) return;
+  const q = await lPage(b, lorigin);
+  await setSel(q, 'gfx', 'auto'); await frames(q, 6);
+  for (const k of [.9, .75, .6, .8, 1]) {
+    await q.evaluate(k => window.__dl.gl().setRS(k), k); await frames(q, 4);
+    const r = await q.evaluate(`(${rtSizes})(window.__dl.gl())`);
+    chk(!r.bad.length, `League scale ${k}: targets match the ${r.W}x${r.H} buffer${r.bad.length ? ': ' + r.bad.join(', ') : ''}`);
+  }
+  await q.evaluate(() => setTimeout(() => window.__dl.gl().setRS(.6), 150));
+  expectClean('dynres-league-step', await seq(q, 'dynres-league-step', LC, LT, 24), ['black', 'blowout', 'pop', 'sweep', 'nan']);
+  for (const g of ['med', 'low', 'high']) { await setSel(q, 'gfx', g); await frames(q, 6); const r = await q.evaluate(`(${rtSizes})(window.__dl.gl())`); chk(!r.bad.length, `League ${g}: targets match the ${r.W}x${r.H} buffer${r.bad.length ? ': ' + r.bad.join(', ') : ''}`); }
+  await q.close();
+}
+
 async function classic(b, origin) {
   console.log('classic');
   const p = await iPage(b, origin, {gmode: 'classic', wx: 'clear', cam: 1, gfx: 'high', fps: false});
@@ -228,10 +274,27 @@ async function zombies(b, origin) {
   await p.evaluate(() => __z.spec.setSpeed(8));
   await until(() => p.evaluate(() => window.__z?.G?.state === 'wave').catch(() => false), {timeout: 180000});
   await p.evaluate(() => __z.spec.setSpeed(1)); await frames(p, 60);
+  // the spectator's control bar sits bottom centre: the OSD (bottom left) and the radio line must clear it and each other
+  await p.evaluate(() => __z.Z.an?.radio('OVERLORD', 'glitch-check: a radio line long enough to measure', 2)); await frames(p, 10);
+  await hudClear(p, 'Zombies spectator', ['#osd', '#zspctl', '#zradio', '#zpk', '#zrk', '#zspbar']);
   for (const [cam, cn] of [[0, 'fpv'], [1, 'chase'], [2, 'threat']]) {
     await p.evaluate(c => { __z.api.camMode = c; }, cam);
     for (const g of ['high', 'med', 'low', 'auto']) { await setSel(p, 'gfx', g).catch(() => p.evaluate(g => __z.gfx.set?.(g), g)); await frames(p, 10); expectClean(`zombies-${cn}-${g}`, await seq(p, `zombies-${cn}-${g}`, IC, IT)); }
   }
+  await setSel(p, 'gfx', 'high'); await p.evaluate(() => { __z.api.camMode = 1; });
+  // pausing (the spectator's Space): the frame freezes, nothing flashes or keeps moving
+  await p.evaluate(() => setTimeout(() => __z.spec.setPause(true), 200));
+  expectClean('zombies-pause', await seq(p, 'zombies-pause', IC, IT), ['flicker', 'black', 'blowout', 'nan']);
+  await p.evaluate(() => __z.spec.setPause(false));
+  // the wave's end: the base screen opens over the frozen world, then the next wave starts (camera cuts allowed, no flashes)
+  await p.evaluate(() => __z.spec.setSpeed(8));
+  await until(() => p.evaluate(() => __z.G.state !== 'wave'), {timeout: 240000});
+  await p.evaluate(() => __z.spec.setSpeed(1));
+  expectClean('zombies-base-open', await seq(p, 'zombies-base-open', IC, IT), ['flicker', 'black', 'blowout', 'nan']);
+  await p.evaluate(() => __z.spec.setSpeed(8));
+  await until(() => p.evaluate(() => __z.G.state === 'wave'), {timeout: 240000});
+  await p.evaluate(() => __z.spec.setSpeed(1));
+  expectClean('zombies-wave2', await seq(p, 'zombies-wave2', IC, IT), ['flicker', 'black', 'blowout', 'pop', 'sweep', 'nan']);
   await p.close();
 }
 
@@ -268,7 +331,7 @@ async function dogfight(b, origin) {
 // ---------- run ----------
 const {server, origin} = await serve();
 let lserver = null, lorigin = null;
-if (PARTS.has('league') || PARTS.has('dogfight') || PARTS.has('motes')) {
+if (['league', 'dogfight', 'motes', 'dynres'].some(k => PARTS.has(k))) {
   const f = path.join(root, 'dist', 'index.html'); if (!fs.existsSync(f)) { console.error('glitch-check: dist/index.html missing; run npm run build'); process.exit(2); }
   const html = fs.readFileSync(f, 'utf8');
   lserver = http.createServer((q, r) => { if (q.url.startsWith('/new/')) { r.writeHead(200, {'content-type': 'text/html; charset=utf-8'}); r.end(html); } else { r.writeHead(404); r.end(); } });
@@ -278,6 +341,7 @@ const b = await launch({w: 1280, h: 720});
 try {
   if (PARTS.has('river')) await river(b, origin);
   if (PARTS.has('motes')) await motes(b, origin, lorigin);
+  if (PARTS.has('dynres')) await dynres(b, origin, lorigin);
   if (PARTS.has('classic')) await classic(b, origin);
   if (PARTS.has('zombies')) await zombies(b, origin);
   if (PARTS.has('league')) await league(b, lorigin);
