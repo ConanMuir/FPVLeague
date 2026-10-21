@@ -15,11 +15,15 @@
 import * as THREE from 'three';
 const Q=[],ric=typeof requestIdleCallback==='function'?(f)=>requestIdleCallback(f,{timeout:250}):f=>setTimeout(()=>f({timeRemaining:()=>8}),16);
 let quiet=()=>true,sched=false,rt1=null;
+// tasks draw from their own random stream: building a sample (decals, grime) must not shift the game's Math.random sequence (a seeded
+// run, a replay or a determinism test would diverge depending on when the idle slices ran)
+let seed=(typeof crypto!=='undefined'&&crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(1))[0]:Date.now())>>>0;
+const own=()=>(seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296;
 export const idleStats={tasks:0,ms:0,worst:0,left:0},warmers=[];
 export const setQuiet=f=>{quiet=f};
 function pump(dl){sched=false;const t0=performance.now();
  while(Q.length){const q=quiet();if(!q&&Q[0].heavy)break;const spent=performance.now()-t0;if(spent>(q?12:3)||!q&&(dl.timeRemaining?.()??0)<6)break;
-  const t=Q.shift(),a=performance.now();try{t.f()}catch(e){console.warn('idle task',e)}const d=performance.now()-a;idleStats.tasks++;idleStats.ms+=d;if(d>idleStats.worst)idleStats.worst=d}
+  const t=Q.shift(),a=performance.now(),r0=Math.random;Math.random=own;try{t.f()}catch(e){console.warn('idle task',e)}finally{Math.random=r0}const d=performance.now()-a;idleStats.tasks++;idleStats.ms+=d;if(d>idleStats.worst)idleStats.worst=d}
  idleStats.left=Q.length;if(Q.length){if(!quiet()&&Q[0].heavy)setTimeout(kick,250);else kick()}}
 function kick(){if(!sched){sched=true;ric(pump)}}
 export function later(f,{heavy=false}={}){Q.push({f,heavy});idleStats.left=Q.length;kick()}
