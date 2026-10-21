@@ -115,6 +115,10 @@ jobs:
           - check: zombies-test (bosses)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=bosses
+          # the PIP / lock-on intercept point against where you actually meet the track, and where it is drawn in each view
+          - check: intercept-check
+            area: interceptor
+            run: node tools/intercept-check.mjs
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor
