@@ -92,9 +92,13 @@ jobs:
           - check: training-check
             area: league
             run: node tools/training-check.mjs
-          - check: zombies-test (classic, saves, meta, campaign)
+          - check: zombies-test (classic, saves, meta)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=classic,saves,meta,campaign
+            run: node tools/zombies-test.mjs --sections=classic,saves,meta
+          # the campaign plays several sectors end to end and pushed the shared job past its 20 min timeout
+          - check: zombies-test (campaign)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=campaign
           # the grid section plays a seeded wave twice (grid vs brute force), so it gets its own job
           - check: zombies-test (grid)
             area: interceptor
