@@ -3,6 +3,7 @@
 // Outcomes are game rules: each helper has a kill chance per engagement (zdata HELP / RACK_TIERS) scaled by how well it works against the kind
 // (RESIST, or its Armory refit's own numbers: REFIT); Z.helperHit applies armor and Mark. Everything in flight is pooled and drawn instanced.
 import {dot,glow} from '../../engine/render.js';
+import {hyp} from '../../engine/hot.js';
 import {KIND,RESIST,RACK_TIERS,RACK_CAP,RACK_REARM,RACK_RANGE,DRONE_SPD,DRONE_FUEL,HELP,REFIT,LRACK} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initDefences(api,G,Z){
@@ -72,7 +73,7 @@ export function initDefences(api,G,Z){
  let did=0,fxBudget=0,sid=0;
  // per-defence numbers: drone racks (rack, and the kit's light rack) use RACK_* and their tier; the rest HELP levels; an Armory refit (d.refit) adjusts both
  const isRack=d=>d.type==='rack'||d.type==='lrack';
- const fit=d=>d&&(REFIT[d.type]||[]).find(r=>r.id===d.refit)||{};
+ const NOFIT=Object.freeze({}),fit=d=>{const L=d&&d.refit&&REFIT[d.type];if(L)for(const r of L)if(r.id===d.refit)return r;return NOFIT};  // per track per defence per step: no array or object made
  const effOf=(d,k)=>{const f=fit(d);return f.eff?.[k]??RESIST[d.type]?.[k]??0};
  const L=d=>isRack(d)?null:HELP[d.type].lv[d.lvl];
  const rangeOf=d=>{const f=fit(d);if(isRack(d))return d.type==='lrack'?LRACK.rng:f.rng||RACK_RANGE;const l=L(d);return f.rng||(l.rng||HELP[d.type].rng)*(f.rngK||1)};
@@ -95,15 +96,22 @@ export function initDefences(api,G,Z){
  function clear(){for(const d of D)free(d);D.length=0;for(const h of shots)release(h);shots.length=0;shells.length=0;tr.length=0;pend.length=0;for(const m of pMesh)m.count=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0)}
 
  // ---------- target choice: free, in range, engageable; most urgent first; marked tracks first; leave the player's terminal track alone ----------
- const tti=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
- const _g=new V3();
- function pickTarget(dd,x,z,range,o={}){let best=null,bs=-1e9;const me=api.player,sel=api.selT();
-  api.grid.near(_g.set(x,0,z),range,t=>{if(!api.live(t)||t.claim||t.dcy||t.iff>0||!Z.seen(t)&&t.k!=='swarm')return;  /* t.dcy: pulled to a decoy site (zwarn.js), not worth a shot */let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)return;
+ const tti=t=>hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd),NOOPT=Object.freeze({});
+ // the query's state lives in PT and its callback is made once, so a search makes no closure or object (it runs per idle defence per tick)
+ const _g=new V3(),PT={dd:null,x:0,z:0,range:0,o:NOOPT,me:null,sel:null,best:null,bs:-1e9};
+ const ptCb=t=>{const dd=PT.dd,o=PT.o,me=PT.me;if(!api.live(t)||t.claim||t.dcy||t.iff>0||!Z.seen(t)&&t.k!=='swarm')return;  /* t.dcy: pulled to a decoy site (zwarn.js), not worth a shot */let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)return;
    if(o.smart&&t.k==='decoy')return;if(o.only&&!o.only(t))return;
-   const d=Math.hypot(t.p.x-x,t.p.z-z);if(d>range)return;
-   if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)return;  // t.pc: a co-op pilot is on it
-   const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>bs){bs=sc;best=t}});
+   const d=hyp(t.p.x-PT.x,t.p.z-PT.z);if(d>PT.range)return;
+   if(t===PT.sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)return;  // t.pc: a co-op pilot is on it
+   const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>PT.bs){PT.bs=sc;PT.best=t}};
+ function pickTarget(dd,x,z,range,o=NOOPT){PT.dd=dd;PT.x=x;PT.z=z;PT.range=range;PT.o=o;PT.me=api.player;PT.sel=api.selT();PT.best=null;PT.bs=-1e9;
+  api.grid.near(_g.set(x,0,z),range,ptCb);const best=PT.best;PT.best=PT.dd=PT.sel=null;PT.o=NOOPT;
   return best}
+ // jammer: tracks entering the bubble get one roll (ew below); its state in EW and its callback made once, like pickTarget
+ const EW={d:null,s:null,l:null,f:null,r:0},ewCb=t=>{const d=EW.d,s=EW.s,l=EW.l,f=EW.f,r=EW.r;if(!api.live(t)||d.jam.has(t.id))return;const e=effOf(d,t.k);if(e<=0)return;
+   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)return;d.jam.add(t.id);  /* Math.hypot kept here: with hyp() the grid-vs-loop whole-wave test diverged (a borderline jam roll, see docs/PERF.md) */
+   if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
+    api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}};
  const claim=(t,h)=>{t.claim=h;h.tgt=t};
  const release=h=>{if(h.tgt&&h.tgt.claim===h)h.tgt.claim=null;h.tgt=null};
 
@@ -159,9 +167,7 @@ export function initDefences(api,G,Z){
    const p=l.p*effOf(d,t.k)*(1-.5*dist/rng)*jink(t);pend.push({t:tof,fn:()=>{if(!api.live(t)||!G.on)return;const o=Z.helperHit(t,p,f.armor?1:.5);if(o==='kill'){d.kills++;Z.helperKill(t);if(l.ahead&&t.k==='swarm')splash(d,t.p,14,.5,t);release(d)}else if(o==="damage"&&t.k!=="boss")api.damage(t)}})},
   sam(d,dt){launcher(d,dt,3.5,{smart:L(d).smart,prio:u=>u.k==='swarm'?-80:0})},
   // jammer: tracks entering the bubble get one roll; spoofed ones lose their aim and hit an empty field (no damage: zombies.js impact)
-  ew(d){if(!api.think(d.id))return;const s=sl(d),l=L(d),f=fit(d),r=rangeOf(d);api.grid.near(s,r,t=>{if(!api.live(t)||d.jam.has(t.id))return;const e=effOf(d,t.k);if(e<=0)return;
-   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)return;d.jam.add(t.id);if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
-    api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}})},
+  ew(d){if(!api.think(d.id))return;EW.d=d;EW.s=sl(d);EW.l=L(d);EW.f=fit(d);EW.r=rangeOf(d);api.grid.near(EW.s,EW.r,ewCb);EW.d=EW.s=null},
   idome(d,dt){if((d.cd-=dt)>0||d.ammo<=0||!api.think(d.id))return;const s=sl(d),l=L(d),f=fit(d),hard=u=>KIND[u.k].armor==='hard'||u.k==='cruise',over=(l.over||f.over)&&!f.never;
    const t=pickTarget(d,s.x,s.z,HELP.idome.rng,{over,only:u=>hard(u)?u.p.distanceTo(_c.set(s.x,s.y,s.z))<14000:(over&&u.p.distanceTo(_c.set(s.x,s.y,s.z))<5000),prio:u=>hard(u)?200:0});if(!t)return;
    const dv=new V3(),mz=mouth(d,d.ammo%2,rnd(-.8,.8),1.25,0,dv);fire(d,t,'tamir',mz||_a.set(s.x,s.y+3,s.z),{pk:l.p,direct:1,dome:true,v:mz?dv.multiplyScalar(160):new V3(rnd(-10,10),160,rnd(-10,10))});d.ammo--;d.cd=1.6*otK()},

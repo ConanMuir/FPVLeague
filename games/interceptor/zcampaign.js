@@ -15,6 +15,7 @@
 // met at a wave clear) and Z.cpOver (the end screen); zbase.js shows Z.cpHTML and asks Z.cpBan; znet.js carries Z.cpNet / Z.cpIn so a co-op
 // game plays the host's sector (the host's save is the one that moves). Other features can read the sector through Z.cp: Z.cp.has('raid'),
 // Z.cp.n('launchSites'). Modifiers that drive another branch's feature (need) only show up when that feature is there (Z.feat[need] or Z[need]).
+import {money} from '../../engine/hot.js';
 import {ZDIFF} from './zdata.js';
 import {DOCS,DOC_IDS,KIT,KIT_IDS,KIT_MAX} from './zmeta.js';
 
@@ -140,7 +141,7 @@ export function numbersOf(mods){const K={wave:1,cash:1,start:1,shift:0,tac:{},ra
 // ---------- the in-game side ----------
 export function initCampaign(api,G,Z){
  const {S,save,SITES,feed,banner}=api,$=id=>document.getElementById(id);
- const money=n=>'$'+Math.round(n).toLocaleString('en-US'),esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
+ const esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
  const feat=f=>!!(Z.feat?.[f]||Z[f]);
  const C=()=>cleanCamp(S.zcamp,S.zdiff|0),put=c=>{S.zcamp=c;save()};
  const client=()=>!!Z.isClient?.();
@@ -194,7 +195,7 @@ export function initCampaign(api,G,Z){
  // the hospital rule: it falls, the sector is lost
  const st0=Z.step;Z.step=dt=>{st0(dt);if(run?.fragile&&!Z.mirror&&G.state==='wave'&&!api.demo){const h=hospital();if(h&&h.hp<=0){G.cpRes='lost';G.cpWhy='The field hospital fell.';Z.gameOver()}}};
  // HUD: wave N / objective
- const h0=Z.hud;Z.hud=dt=>{h0(dt);if(!run)return;const e=$('zw'),t=G.state==='base'?`WAVE ${G.wave+1}/${run.obj} NEXT`:`WAVE ${G.wave}/${run.obj}`;if(e&&e.textContent!==t)e.textContent=t};
+ Z.waveTxt=()=>run?G.state==='base'?`WAVE ${G.wave+1}/${run.obj} NEXT`:`WAVE ${G.wave}/${run.obj}`:null;  // zombies.js writes it (once per change)
  // base screen strip: the sector, the objective, the modifiers, the relic, and the reserve (the field repair crew is a button)
  Z.cpHTML=()=>{if(!run)return'';const left=Math.max(0,run.obj-G.wave),r=R(),rs=run.res&&RESERVES[run.res];
   return`<div class="zcpbar"><b>${esc(run.sec.n.toUpperCase())}</b><span class="zcpo">Hold ${run.obj} waves · <em>${left?`${left} to go`:'objective met'}</em></span>

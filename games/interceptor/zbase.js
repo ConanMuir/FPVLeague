@@ -4,7 +4,7 @@
 // Keyboard: arrows move focus, Enter / Space activate, 1-4 tabs, C continue (Esc opens the menu; Cancel backs out of a placement). Gamepad: D-pad, A, B cancel, LB/RB tabs, Y continue.
 import {KIND,ITEMS,RESIST,REPAIR_PER_HP,PERK,RACK_TIERS,RACK_CAP,RACK_CAP_COST,RACK_RANGE,ORDER,HELP,REFIT,LRACK,SUPPLY,UPKEEP_FROM,expCost,rebuildCost,REBUILD_HP,moveCost} from './zdata.js';
 const $=id=>document.getElementById(id);
-const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+import {money} from '../../engine/hot.js';
 const MAPX=[-3200,3200],MAPZ=[-1900,2900],MW=640,MH=Math.round(MW*(MAPZ[1]-MAPZ[0])/(MAPX[1]-MAPX[0]));
 export function initBase(Z,api,G){
  const {SITES,PADP,FOBS}=api;

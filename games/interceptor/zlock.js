@@ -40,16 +40,18 @@ export function initLock(api,G,Z){
   if(!on){if(L.full&&L.tgt&&!api.live(L.tgt))L.n.gone++;if(L.full||L.prog||L.cand){L.full=false;L.tgt=null;L.cand=null;L.prog=0}L.st=0;return}
   // a track is in your sights when the reticle is on it, or when you are flying straight at it (the flight path): at 40-70 m/s the dart flies
   // 10-20 degrees nose-high to hold its height, so with the camera tilted up a track you are running straight down sits below the reticle
-  const cam=sights(),f=_f.set(0,0,-1).applyQuaternion(cam.quaternion),fp=me.v.lengthSq()>400?_v2.copy(me.v).normalize():null,
-   ang=t=>{const a=f.angleTo(_p.subVectors(t.p,cam.position));return fp?Math.min(a,fp.angleTo(_p.subVectors(t.p,me.p))):a};
+  const cam=LS.cam=sights();_f.set(0,0,-1).applyQuaternion(cam.quaternion);LS.fp=me.v.lengthSq()>400?_v2.copy(me.v).normalize():null;LS.me=me;LS.dt=dt;
   if(L.full){const t=L.tgt;if(!api.live(t)){L.n.gone++;drop(t&&t.st!=='dead'&&t.st!=='fall'?'LOCK LOST':'');return step0()}
    const d=t.p.distanceTo(me.p);L.lost=ang(t)>keepA(d)||d>LOCK.range*1.25?L.lost+dt:0;if(L.lost>LOCK.keepT){L.n.lost++;L.mem={t,until:L.clock+(LOCK.mem||0)};drop('LOCK LOST');return step0()}
    if(evasion(t,dt)){L.n.broken++;drop('LOCK BROKEN');return step0()}L.held+=dt;L.n.held+=dt;intercept(t,me);if(api.pickT!==t)api.pickT=t;L.st=2;return}
-  step0(dt);
-  function step0(){let best=null,ba=LOCK.cone*D2R;api.grid.near(me.p,LOCK.range,t=>{if(!lockable(t)||t.p.distanceTo(me.p)>LOCK.range)return;const a=ang(t);if(a<ba){ba=a;best=t}});
+  step0()}
+ // the per-tick search without closures: its state in LS, the angle test and the grid callback made once
+ const LS={cam:null,fp:null,me:null,dt:0,best:null,ba:0},ang=t=>{const a=_f.angleTo(_p.subVectors(t.p,LS.cam.position));return LS.fp?Math.min(a,LS.fp.angleTo(_p.subVectors(t.p,LS.me.p))):a},
+  lsCb=t=>{if(!lockable(t)||t.p.distanceTo(LS.me.p)>LOCK.range)return;const a=ang(t);if(a<LS.ba){LS.ba=a;LS.best=t}};
+ function step0(){const me=LS.me,dt=LS.dt;LS.best=null;LS.ba=LOCK.cone*D2R;api.grid.near(me.p,LOCK.range,lsCb);const best=LS.best;LS.best=null;
    if(best){if(best!==L.cand){if(L.cand&&L.prog>.05)L.n.faded++;L.cand=best;L.prog=0;L.n.start++;L.tried=0}if(!(best.brk>0&&Z.evades?.(best)))L.prog+=(dt||0)/lockTime(best,me)*(L.mem&&L.mem.t===best&&L.clock<L.mem.until?LOCK.memK||1:1);  /* re-locking a track you just lost is quicker */if(!L.tried&&L.prog>=.25){L.tried=1;L.n.try++}if(L.prog>=1)acquire(best)}
    else if(L.cand){L.prog=Math.max(0,L.prog-(dt||0)*LOCK.decay/LOCK.t);if(!L.prog||!api.live(L.cand)){if(L.cand)L.n.faded++;L.cand=null}}
-   L.st=L.full?2:L.cand?1:0}}
+   L.st=L.full?2:L.cand?1:0}
 
  // ---------- sound: beeps that speed up and rise while it builds, a steady warbling tone at lock ----------
  function snd(){const AC=api.AC;if(!AC)return null;if(L.snd)return L.snd;const o=AC.createOscillator(),f=AC.createBiquadFilter(),g=AC.createGain();o.type='square';o.frequency.value=600;f.type='lowpass';f.frequency.value=2400;g.gain.value=0;
