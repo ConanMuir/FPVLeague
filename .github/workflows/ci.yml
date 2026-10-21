@@ -92,9 +92,13 @@ jobs:
           - check: training-check
             area: league
             run: node tools/training-check.mjs
-          - check: zombies-test (classic, saves, meta, campaign, grid)
+          - check: zombies-test (classic, saves, meta, campaign)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=classic,saves,meta,campaign,grid
+            run: node tools/zombies-test.mjs --sections=classic,saves,meta,campaign
+          # the grid section plays a seeded wave twice (grid vs brute force), so it gets its own job
+          - check: zombies-test (grid)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=grid
           - check: zombies-test (swarm, spectator, reentry)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=swarm,spectator,reentry
