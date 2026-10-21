@@ -44,7 +44,7 @@ function kingModel(C){const T=C.THREE,M=mats(C),g=C.group(),m=(geo,mat,x,y,z)=>C
  m(new T.CylinderGeometry(.25,.25,2.6,8),M.dark,0,3.1,-2);m(new T.CylinderGeometry(.25,.25,2.6,8),M.dark,0,3.1,-6);const dome=m(new T.CylinderGeometry(5.5,5.5,1.1,32),M.dome,0,4.8,-4);
  for(let i=0;i<7;i++){m(new T.BoxGeometry(.12,2.2,.5),M.dark,1.1,-1.8,10-i*3.4);m(new T.BoxGeometry(.12,2.2,.5),M.dark,-1.1,-1.8,10-i*3.4)}  // antenna farms under the belly
  const em=m(new T.SphereGeometry(.9,12,8),M.emit,0,-1.6,-1,false),st=strobe(C,0xc77dff,6);st.position.set(0,-1.6,-1);g.add(st);
- g.userData={props,dome,em,st,all:g.children.filter(o=>o.isMesh)};g.userData.own=1;return g}
+ Object.assign(g.userData,{props,dome,em,st,all:g.children.filter(o=>o.isMesh)});g.userData.own=1;return g}
 function podModel(C){const T=C.THREE,M=mats(C),g=C.group();C.mesh(g,new T.CylinderGeometry(1.3,1.3,.9,6),M.pod,0,0,0);
  for(let k=0;k<4;k++){const a=k*Math.PI/2+Math.PI/4,x=Math.cos(a)*1.9,z=Math.sin(a)*1.9;C.mesh(g,new T.BoxGeometry(1.9,.12,.18),M.dark,x/2,.2,z/2).rotation.y=-a;C.mesh(g,new T.CircleGeometry(.75,14).rotateX(-Math.PI/2),M.prop,x,.3,z,false)}
  C.mesh(g,new T.CylinderGeometry(.06,.06,3,6),M.dark,0,1.9,0);for(const y of[1.2,2,2.8])C.mesh(g,new T.BoxGeometry(1.4,.06,.06),M.dark,0,y,0);

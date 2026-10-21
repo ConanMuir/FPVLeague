@@ -90,7 +90,7 @@ gl_Position=a;
 #include <logdepthbuf_pars_fragment>
 void main(){
 #include <logdepthbuf_fragment>
-float e=1.-vS*vS;float a=vA*e*sqrt(e);if(a<.004)discard;gl_FragColor=vec4(vC,a);}`;
+float e=max(1.-vS*vS,0.);/* max: with MSAA an edge pixel can be shaded just outside the strip (|vS|>1); sqrt of a negative was NaN, which the bloom spread into a black box */float a=vA*e*sqrt(e);if(a<.004)discard;gl_FragColor=vec4(vC,a);}`;
  function ribbon(cap,blend){const g=new THREE.BufferGeometry(),A=(n,k)=>{const b=new THREE.BufferAttribute(new Float32Array(cap*2*k),k);b.setUsage(THREE.DynamicDrawUsage);g.setAttribute(n,b);return b.array};
   const R={cap,pos:A('position',3),oth:A('oth',3),sd:A('sd',1),wa:A('wa',2),col:A('col',3),idx:new Uint32Array(cap*6),v:0,i:0};g.setIndex(new THREE.BufferAttribute(R.idx,1));g.setDrawRange(0,0);
   R.m=new THREE.ShaderMaterial({uniforms:{res:{value:new THREE.Vector2(1,1)}},vertexShader:RV,fragmentShader:RF,transparent:true,depthWrite:false,blending:blend,side:THREE.DoubleSide});

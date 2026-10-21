@@ -23,6 +23,7 @@ import {initBatt} from './zbatt.js';
 import {initArsenal} from './zarsenal.js';
 import {gfx} from '../../engine/gfx.js';
 import {initSpectate} from './zspectate.js';
+import {initWarm} from './zwarm.js';
 import {initThreatSfx} from './zthreatsfx.js';
 import {initReentry} from './zreentry.js';
 import {initStratRadar} from './zstratradar.js';
@@ -324,5 +325,6 @@ export function initZombies(api){
  initNet(api,G,Z);  // co-op (znet.js): wraps them again
  initArsenal(api,G,Z);  // pilot weapons and the extra defences (zarsenal.js): after co-op, so a client's weapon goes to the host its own way
  initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
+ initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
  return Z}
