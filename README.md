@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `one-league`   Owner: Jared   Last updated: 2026-10-19 by Claude (Opus 5.5)
-Based on: origin/main b58ac85 (Zombies meta, PR #58)
-Doing: Drone League (`src/`) becomes the one League: Riley's `games/league` retired, the launcher shows Drone League and the Interceptor, the build moves to `games/drone-league/` (with a redirect at `games/jared-league/`), and the shared pilot profile's button strings are fixed.
-Touches: index.html, games/drone-league/ (moved), games/jared-league/index.html (redirect), games/league/ (deleted), engine/ (code only games/league used, removed; settings.js button format), games/interceptor/index.html (back link only), serve.ps1, both bats, tools/postbuild, check-build, ci-scope, lint-comments, the flight / input goldens (Riley's League parts removed), test/pilot-profile.test.mjs, docs/SHARED-ENGINE.md, README.
-Open items / help wanted: Riley should look over the engine removals (docs/SHARED-ENGINE.md section 0).
-Overlaps: Zombies work in games/interceptor (only its back link changed here); the ball-spin / sound work in src/modes/step.js, src/audio, src/render/goalfx.js (not touched here).
+Branch: `cave-mouths`   Owner: Jared   Last updated: 2026-10-20 by Claude (Opus 5.5)
+Based on: origin/main d7cf82c (perf-hotpaths, PR #72)
+Doing: Dogfight cave entrances: each gold ring is now the real opening. The ground round each mouth is a plane (a terrain pad) that the entrance tunnel cuts in a clean ellipse, and the gold trim follows that rim flush with the ground. The trim has no collider and is not in the map SDF (the old rings floated half in the air, with capsule colliders). The canyon entrance bends down 60 m in, so it no longer breaks through the canyon floor a second time.
+Touches: src/world/terrain.js (MOUTHS pads), src/world/caves.js (mouth planes, rims, the canyon entrance route), src/world/highlands.js (gold trim; ring colliders and SDF removed), tools/physics-check.mjs (section h: mouth flights, trim collision, rim gaps, bots in at each mouth), rebuilt games/drone-league.
+Open items / help wanted: not flown by a pilot yet. The pads move some ground near the mouths (up to ~15 m fill on the hillside ramps, ~30 m cut into the canyon wall).
+Overlaps: none known on these files.
 
 ## How to play
 
@@ -65,7 +65,7 @@ League" card opens the built file, `games/drone-league/index.html`, so playing i
 To change it you need Node 20+:
 ```
 npm ci
-npm run dev      # live dev server, opens http://localhost:5173/app.html
+npm run dev      # live dev server at http://localhost:5173/app.html (DL_OPEN=1 opens it in the browser)
 npm run build    # dist/index.html: the whole game in one HTML file; also updates games/drone-league/index.html
                  # and writes dist/drone-league.artifact.html (the claude.ai artifact form)
 npm run smoke    # headless Microsoft Edge smoke test, plus a comparison run of the frozen v15 file (needs internet)
