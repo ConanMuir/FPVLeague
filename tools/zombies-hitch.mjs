@@ -18,14 +18,21 @@ await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gm
 await p.evaluateOnNewDocument(() => {
   const R = window.__fr = {d: [], c: [], last: 0, acc: 0}, raf = window.requestAnimationFrame.bind(window);
   let pend = [], sched = false;
-  const run = now => { sched = false; const L = pend; pend = []; const t0 = performance.now(); for (const f of L) { try { f(now); } catch (e) { setTimeout(() => { throw e; }); } } R.c.push(performance.now() - t0); if (R.last) R.d.push(now - R.last); R.last = now; };
+  /* every shader program's first use (three.js's lazy error check waits for the GPU process to finish compiling it): name, ms, when */
+  const FU = window.__fu = {list: [], seen: new WeakSet()};
+  const wrapProgs = () => { const P = window.__z?.api?.renderer?.info?.programs; if (!P) return; for (const q of P) { if (FU.seen.has(q)) continue; FU.seen.add(q); const g = q.getUniforms; let used = false;
+    q.getUniforms = function () { if (used) return g.call(this); used = true; const t0 = performance.now(), v = g.call(this), d = performance.now() - t0; if (d > 15) FU.list.push([q, d]); return v; }; } };
+  const run = now => { sched = false; wrapProgs(); const L = pend; pend = []; const t0 = performance.now(); for (const f of L) { try { f(now); } catch (e) { setTimeout(() => { throw e; }); } } R.c.push(performance.now() - t0); if (R.last) R.d.push(now - R.last); R.last = now; };
   window.requestAnimationFrame = f => { pend.push(f); if (!sched) { sched = true; raf(run); } return pend.length; };
   const G = window.__gl = {link: 0, wait: 0, tex: 0, px: 0, buf: 0};
   for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) if (C) { const P = C.prototype;
     const lp = P.linkProgram; P.linkProgram = function (...a) { G.link++; return lp.apply(this, a); };
     const gp = P.getProgramParameter; P.getProgramParameter = function (...a) { const t0 = performance.now(), v = gp.apply(this, a); G.wait += performance.now() - t0; return v; };
     for (const m of ['texImage2D', 'texSubImage2D', 'texStorage2D', 'texImage3D', 'compressedTexImage2D']) { const f = P[m]; if (!f) continue; P[m] = function (...a) { G.tex++; const im = a.find(x => x && typeof x === 'object' && 'width' in x); G.px += im ? im.width * im.height : (typeof a[3] === 'number' && typeof a[4] === 'number' ? a[3] * a[4] : 0); return f.apply(this, a); }; }
-    const bd = P.bufferData; P.bufferData = function (...a) { G.buf += a[1]?.byteLength || (typeof a[1] === 'number' ? a[1] : 0); return bd.apply(this, a); }; }
+    const bd = P.bufferData; P.bufferData = function (...a) { G.buf += a[1]?.byteLength || (typeof a[1] === 'number' ? a[1] : 0); return bd.apply(this, a); };
+    /* --glprof: time every GL call, to see which one a long frame waits in */
+    if (/glprof/.test(location.search)) { G.t = {}; for (const k of Object.getOwnPropertyNames(P)) { let f; try { f = P[k]; } catch (e) { continue; } if (typeof f !== 'function' || k === 'constructor') continue;
+      P[k] = function (...a) { const t0 = performance.now(), v = f.apply(this, a), d = performance.now() - t0; if (d > .5) G.t[k] = (G.t[k] || 0) + d; return v; }; } } }
 });
 await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
 const rows = [];
@@ -37,20 +44,28 @@ async function ev(name, js, {n = 40, settle = 25, arg = null, pre = ''} = {}) { 
   if (pre) await p.evaluate(new Function('arg', pre), arg);
   await frames(p, settle);
   const i0 = await info();
-  const r = await p.evaluate(async (js, arg) => { const d = __fr.d, c = __fr.c, base = c.slice(-20).sort((a, b) => a - b), bd = d.slice(-20).sort((a, b) => a - b); d.length = c.length = 0; window.__gl0 = {...__gl};
+  const r = await p.evaluate(async (js, arg) => { const d = __fr.d, c = __fr.c, base = c.slice(-20).sort((a, b) => a - b), bd = d.slice(-20).sort((a, b) => a - b); d.length = c.length = 0; window.__gl0 = {...__gl}; if (__gl.t) __gl.t = {}; window.__P0 = new Set(__z.api.renderer.info.programs); __fu.list.length = 0;
     const t0 = performance.now(); let v = new Function('arg', js)(arg); if (v?.then) v = await v;
     return {sync: performance.now() - t0, p50: base[base.length >> 1] || 0, d50: bd[bd.length >> 1] || 0, v: v ?? null}; }, js, arg);
   await frames(p, n);
-  const {c, d, gl} = await p.evaluate(() => ({c: __fr.c.slice(), d: __fr.d.slice(), gl: Object.fromEntries(Object.entries(__gl).map(([k, v]) => [k, Math.round(v - __gl0[k])]))})), i1 = await info();
+  const {c, d, gl} = await p.evaluate(() => ({c: __fr.c.slice(), d: __fr.d.slice(), gl: Object.fromEntries(Object.entries(__gl).filter(([k]) => k !== 't').map(([k, v]) => [k, Math.round(v - __gl0[k])]))})), i1 = await info();
   /* cpu = the event's own call plus the worst frame after it (they land in one frame in the game, where it runs inside the frame) */
   const cw = Math.max(0, ...c), row = {name, cpu: +(cw + r.sync).toFixed(1), frame: +cw.toFixed(1), sync: +r.sync.toFixed(1), worst: +Math.max(0, ...d).toFixed(1), p50: +r.p50.toFixed(1), d50: +r.d50.toFixed(1),
     prog: i1.prog - i0.prog, tex: i1.tex - i0.tex, geo: i1.geo - i0.geo, gl, note: r.v};
-  rows.push(row); console.log(`${name.padEnd(26)} cpu ${String(row.cpu).padStart(6)} ms (js ${row.sync} + frame ${row.frame}; frame p50 ${row.p50})  interval worst ${row.worst} (p50 ${row.d50})  link ${gl.link} wait ${gl.wait} ms tex ${gl.tex} ${Math.round(gl.px / 1e3)}kpx buf ${Math.round(gl.buf / 1e3)}kB${row.note != null ? '  ' + JSON.stringify(row.note).slice(0, 80) : ''}`);
+  const fu = await p.evaluate(() => { const R = __z.api.renderer, own = q => { const L = new Set(); __z.api.scene.traverse(o => { for (const m of [o.material].flat()) if (m && R.properties.get(m).currentProgram === q) L.add((o.name || o.type) + '/' + (m.name || m.type) + (m.map ? '+map' : '') + (o.isInstancedMesh ? '+inst' : '') + (o.parent && o.parent !== __z.api.scene ? '<' + (o.parent.name || o.parent.type) : '')); }); if (!L.size && /^depth/.test(q.cacheKey)) __z.api.scene.traverse(o => { if (o.isMesh && o.castShadow && o.visible) for (const m of [o.material].flat()) if (m && m.alphaTest > 0 && (m.map || m.alphaMap)) L.add('caster? ' + o.geometry.type + ' ' + m.type + ' map ' + m.map?.image?.width + 'x' + m.map?.image?.height + ' alphaTest ' + m.alphaTest + ' parent kids ' + o.parent?.children.length + ' pos ' + o.getWorldPosition(new __z.api.THREE.Vector3()).toArray().map(Math.round)); });
+    return [...L].slice(0, 4).join(' ') || 'not in the scene'; };
+    return [...__fu.list.map(([q, d]) => 'first use ' + Math.round(d) + ' ms ' + q.name + ' [' + own(q) + ']'), ...R.info.programs.filter(q => !__P0.has(q)).map(q => { const a = q.cacheKey.split(','), best = [...__P0].filter(o => o.name === q.name).map(o => { const b = o.cacheKey.split(','), d = []; for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) d.push(i + ':' + String(b[i]).slice(0, 20) + '>' + String(a[i]).slice(0, 20)); return d; }).sort((x, y) => x.length - y.length)[0];
+    return 'NEW ' + (q.name || '?') + ' [' + own(q) + '] ' + (best ? 'vs nearest: ' + best.slice(0, 5).join(' ') : a.slice(0, 8).join(',').slice(0, 90)); })]; });
+  const gt = await p.evaluate(() => __gl.t ? Object.entries(__gl.t).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => k + ' ' + Math.round(v)).join(', ') : '');
+  row.firstUse = fu; rows.push(row); console.log(`${name.padEnd(26)} cpu ${String(row.cpu).padStart(6)} ms (js ${row.sync} + frame ${row.frame}; frame p50 ${row.p50})  interval worst ${row.worst} (p50 ${row.d50})  link ${gl.link} wait ${gl.wait} ms tex ${gl.tex} ${Math.round(gl.px / 1e3)}kpx buf ${Math.round(gl.buf / 1e3)}kB${row.note != null ? '  ' + JSON.stringify(row.note).slice(0, 80) : ''}${gt ? '\n      gl: ' + gt : ''}${fu.length ? '\n      shaders: ' + fu.join(' | ') : ''}`);
 }
 // the menu itself (the frames while it is up, the shader warm-up if there is one)
-await frames(p, 120);
-const menu = await p.evaluate(() => { const c = __fr.c.slice(5); return {cpu: +Math.max(...c).toFixed(1), n: c.length, gl: {...__gl}}; });
-console.log(`menu (${menu.n} frames)`.padEnd(26), `cpu worst ${menu.cpu} ms`, JSON.stringify(menu.gl));
+// the menu with Zombies picked: its idle-time warm-up (zwarm.js) runs here; wait for it (a player reads the menu or the base screen first)
+await frames(p, 120); const W0 = Date.now();
+await p.waitForFunction(() => !__z.Z.warmSt || __z.Z.warmSt.done, {timeout: 180000, polling: 250}).catch(() => console.log('warm-up still running after 180 s'));
+const menu = await p.evaluate(() => { const c = __fr.c.slice(5); return {cpu: +Math.max(...c).toFixed(1), n: c.length, gl: {...__gl}, warm: __z.Z.warmSt ? {...__z.Z.warmSt, idle: {...__z.Z.warmSt.idle}} : null}; });
+console.log(`menu (${menu.n} frames)`.padEnd(26), `cpu worst ${menu.cpu} ms`, JSON.stringify(menu.gl), menu.warm ? `
+  warm-up: ${JSON.stringify(menu.warm)} (waited ${Date.now() - W0} ms)` : '');
 await ev('start zombies', `document.getElementById('play').click()`, {n: 60, settle: 2});
 await p.waitForFunction(() => !__z.api.demo && !!__z.api.player, {timeout: 30000});
 await ev('base close (first wave)', `__z.G.cash = 1e6; __z.jump(24); __z.G.next = __z.plan(24); __z.cont()`, {n: 60});
