@@ -15,7 +15,7 @@ import {camera, scene} from './renderer.js';
 const N = 12, Z = new THREE.Vector3(0, 0, 1), HIT_DV = 4, MIN_SCR = .045;
 const KIND = {hit: {c: 0xffffff, o: .75, t: .35, w: .78, g: .9}, earn: {c: 0xe8fbff, o: .9, t: .55, w: .7, g: .7}, pop: {c: 0xffc640, o: .95, t: .7, w: .66, g: 1.6}};
 const geo = {}; for (const k in KIND) geo[k] = new THREE.RingGeometry(KIND[k].w, 1, 64);
-const R = Array.from({length: N}, () => { const m = new THREE.Mesh(geo.hit, new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, depthTest: false, side: THREE.DoubleSide, toneMapped: false}));
+const R = Array.from({length: N}, () => { const m = new THREE.Mesh(geo.hit, new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, depthTest: false, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false}));
   m.visible = false; m.renderOrder = 10; m.frustumCulled = false; scene.add(m); return {m, t: 0, d: 0, k: null, r: 1, s: 1, q: new THREE.Quaternion(), off: new THREE.Vector3(), fol: false}; });
 let ri = 0;
 const _p = new THREE.Vector3(), _n = new THREE.Vector3(), _vb = new THREE.Vector3(), _lv = new THREE.Vector3(), lastHit = new WeakMap(), popWas = new WeakMap();

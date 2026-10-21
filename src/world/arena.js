@@ -35,7 +35,11 @@ export const NETM=[],GOALF=[],mouthM=[];export let floorM;
 export const outer=new THREE.Mesh(new THREE.PlaneGeometry(2000,2000),new THREE.MeshStandardMaterial({color:0x070a12,roughness:.95}));outer.rotation.x=-Math.PI/2;outer.position.y=-.03;outer.receiveShadow=true;scene.add(outer);
 export const gridTex=tex(128,128,(g,w,h)=>{g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=3;g.strokeRect(0,0,w,h);g.strokeStyle='rgba(255,255,255,.25)';g.lineWidth=1;g.strokeRect(w/4,h/4,w/2,h/2)},true);
 const netTex=tex(64,64,(g,w,h)=>{g.strokeStyle='#fff';g.lineWidth=3;g.strokeRect(0,0,w,h)},true);
-const wallMat=new THREE.MeshBasicMaterial({map:gridTex,color:0x3a5c9c,transparent:true,opacity:.3,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+// forceSinglePass (here and on the other see-through double-sided materials that are additive without depth writes, or flat): three
+// otherwise draws such a material twice, back faces then front, and flags it for a shader-program check before each pass, every frame
+// (a parameters object and a cache key string each time). Additive blending is order-free and a flat mesh never overlaps itself, so one
+// pass draws the same pixels. The goal nets switch to normal blending on the outdoor maps, where they keep the two passes (world/maps.js).
+const wallMat=new THREE.MeshBasicMaterial({map:gridTex,color:0x3a5c9c,transparent:true,opacity:.3,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true});
 export const rampM=mesh(AR.ramp,new THREE.MeshStandardMaterial({color:0x121a30,roughness:.3,metalness:.6,emissive:0x5c86d6,emissiveMap:gridTex,emissiveIntensity:.5,side:THREE.DoubleSide}));rampM.receiveShadow=true;
 export const wallM=mesh(AR.wall,wallMat);
 export const RIML=[];{const cB=new THREE.Color(COL[0]).multiplyScalar(1.1),cO=new THREE.Color(COL[1]).multiplyScalar(1.1),cW=new THREE.Color(0x9fc4ff).multiplyScalar(.9);  // just over the bloom threshold: thin far lines bead if they bloom hard
@@ -48,7 +52,7 @@ export const RIML=[];{const cB=new THREE.Color(COL[0]).multiplyScalar(1.1),cO=ne
 export const goalG=new THREE.Group(),_n0=scene.children.length;
 for(const t of[0,1]){const s=t?-1:1,c=COL[t],pm=glow(c,2);
  const rim=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(AR.rim[t].map(p=>new THREE.Vector3(...p))),AR.rim[t].length*2,.22,8),pm);scene.add(rim);
- const nm=new THREE.MeshBasicMaterial({map:netTex,color:c,transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});NETM.push(nm);mesh(AR.nets[t],nm);
+ const nm=new THREE.MeshBasicMaterial({map:netTex,color:c,transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true});NETM.push(nm);mesh(AR.nets[t],nm);
  const gf=mesh(AR.goalF[t],new THREE.MeshStandardMaterial({color:0x0a0f1e,emissive:c,emissiveIntensity:.35}));GOALF.push(gf);  // meets the mouth floor and the nets exactly (shared vertices), so no z-offset
  const gl=new THREE.PointLight(c,90,45);gl.position.set(0,GH*.6,s*(HL+GD*.6));scene.add(gl)}
 scene.children.slice(_n0).forEach(o=>goalG.add(o));scene.add(goalG);
@@ -89,8 +93,8 @@ const goalPanelTex=tex(256,128,(g,w,h)=>{g.fillStyle='#000';g.fillRect(0,0,w,h);
 for(const t of[0,1]){const s=t?-1:1,c=COL[t];
  const o=new THREE.Shape(),hw=GW/2+RM+5,top=GH+RM+4;o.moveTo(-hw,RF);o.lineTo(-hw,top-3);o.quadraticCurveTo(-hw,top,-hw+3,top);o.lineTo(hw-3,top);o.quadraticCurveTo(hw,top,hw,top-3);o.lineTo(hw,RF);o.lineTo(GW/2+RM+1.2,RF);
  o.lineTo(GW/2+RM+1.2,GH+RM-1);o.quadraticCurveTo(GW/2+RM+1.2,GH+RM+1.2,GW/2+RM-1,GH+RM+1.2);o.lineTo(-GW/2-RM+1,GH+RM+1.2);o.quadraticCurveTo(-GW/2-RM-1.2,GH+RM+1.2,-GW/2-RM-1.2,GH+RM-1);o.lineTo(-GW/2-RM-1.2,RF);o.closePath();
- const fr=new THREE.Mesh(new THREE.ShapeGeometry(o,8),new THREE.MeshBasicMaterial({color:new THREE.Color(c).multiplyScalar(.55),transparent:true,opacity:.55,side:THREE.DoubleSide,depthWrite:false}));
+ const fr=new THREE.Mesh(new THREE.ShapeGeometry(o,8),new THREE.MeshBasicMaterial({color:new THREE.Color(c).multiplyScalar(.55),transparent:true,opacity:.55,side:THREE.DoubleSide,depthWrite:false,forceSinglePass:true}));
  fr.position.set(0,0,s*(HL-.15));if(t)fr.rotation.y=Math.PI;goalG.add(fr);
- const bp=new THREE.Mesh(new THREE.PlaneGeometry(GW-4,GH-2),new THREE.MeshBasicMaterial({map:goalPanelTex,color:new THREE.Color(c).multiplyScalar(.9),transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+ const bp=new THREE.Mesh(new THREE.PlaneGeometry(GW-4,GH-2),new THREE.MeshBasicMaterial({map:goalPanelTex,color:new THREE.Color(c).multiplyScalar(.9),transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true}));
  bp.position.set(0,GH/2,s*(HL+GD-.3));if(!t)bp.rotation.y=Math.PI;goalG.add(bp)}
 export function arenaTick(dt){adTex.offset.x=(adTex.offset.x+dt*.012)%1}  // the LED boards scroll
