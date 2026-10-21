@@ -55,6 +55,8 @@ export function aceModel(C,ghost,charred){const T=C.THREE,g=C.group(),k=(ghost?'
 
 // ---------- the Ace's missiles and gun tracers (host): a homing missile you can out-turn, tracers you can see coming ----------
 const MS=[],TR=[];
+const _hz={x:0,y:0,z:0};  // haze emit point (reused)
+
 function msStep(C,dt){const{api}=C;for(let i=MS.length-1;i>=0;i--){const m=MS[i],d=m.tg;m.life-=dt;if(!d||d.dead>0||m.life<=0){MS.splice(i,1);C.FX.emit(m.p,0xffd080,12,6,.3,null,2);continue}
   const r=new C.V3().subVectors(d.p,m.p),dist=r.length();if(dist<8){MS.splice(i,1);api.boom(m.p,1.2);if(d===api.player)C.shoot(`${KN}'s missile`)&&C.recAdd('ace','kills');continue}
   const des=r.addScaledVector(d.v,Math.min(2,dist/m.spd)).normalize(),cur=m.v.clone().normalize(),a=Math.acos(C.cl(cur.dot(des),-1,1));if(a>1e-4)cur.lerp(des,Math.min(1,m.turn*dt/a)).normalize();
@@ -192,10 +194,13 @@ registerBoss({id:'gace',clear(){if(WK.snd){try{WK.snd.g.gain.value=0;WK.snd.stop
  hit(C,t,h){if(t.bs.intang){h.txt='INTANGIBLE';return 0}if(h.q==='helper')return Math.random()<.4?1:0;return h.q==='kill'?2:1},
  phase(C,t,i){if(i===1){const live=C.api.TH.filter(u=>u.k==='spectre'&&u.bs.lead===t&&u.st!=='dead').length;legionRaise(C,t,Math.max(0,t.bs.legion-live),C.G.fallen&&Object.keys(C.G.fallen).length?C.G.fallen:{shahed:1});C.Z.an?.radio('THE DEATHLESS','"Rise. All of you. Again."',2)}
   if(i===2)C.Z.an?.radio('THE DEATHLESS','"You cannot kill what is already dead."',2)},
+ atmos(C,t,o){const B=t.bs,pulse=.5+.5*Math.sin(performance.now()/(B.intang?160:700));o.fog=.28;o.fogC.set(0x081a14);o.fogMix=.8;o.light=.3+.06*pulse;o.dark=.55;o.desat=.5;
+  o.tint.set(0x58ffbc);o.tintA=.28+.1*pulse;o.vign=.7;return 1},
  lockSelf:()=>2.2,jinkK:(C,u,t)=>t===u?.4:1,
  status(C,e){const B=e.main.bs,n=C.api.TH.filter(u=>u.k==='spectre'&&u.bs.lead===e.main&&u.st!=='dead').length;return`LEGION <b>${n}</b> · ${['SCREEN','WEDGE'][B.form===1?1:0]}${B.ph===2?(B.intang?' · <b>INTANGIBLE</b>: wait':' · <b>SOLID</b>: strike now'):''}${B.fav?` · reading you: <b>${B.fav}</b>`:''}`},
  vis(C,t,dt){fxDraw(C);const B=t.bs,a=t.mesh.userData.aura,M=t.mesh.userData.M;if(a){a.material.opacity=B.intang?.15:.45+.15*Math.sin(performance.now()/180)}
-  if(M){M.skin.opacity=B.intang?.18:.58;M.dark.opacity=M.skin.opacity}if((B.sm=(B.sm||0)-dt)<=0){B.sm=.05;C.FX.emit(t.p,0x40ffc0,2,3,.9,null,2)}},
+  if(M){M.skin.opacity=B.intang?.18:.58;M.dark.opacity=M.skin.opacity}if((B.sm=(B.sm||0)-dt)<=0){B.sm=.05;C.FX.emit(t.p,0x40ffc0,2,3,.9,null,2)}
+  if((B.mi=(B.mi||0)-dt)<=0){B.mi=.12;const c=C.api.camera.position,a=Math.random()*6.28,r=C.rnd(120,700);_hz.x=c.x+Math.cos(a)*r;_hz.z=c.z+Math.sin(a)*r;_hz.y=C.api.gh(_hz.x,_hz.z)+C.rnd(4,40);C.haze(_hz,0x2e6650,.24,16,1)}},  // mist
  overlay:(C,oc,t,W,H)=>warn(C,oc,t,W,H),
  netOut:(C,t)=>[Math.round((t.bs.lock||0)*100),t.bs.intang?1:0,t.bs.form|0],netIn(C,t,a){t.bs.lock=(a[0]|0)/100;t.bs.intang=a[1]|0;t.bs.form=a[2]|0},
  aim(C,t,s){if(t.bs.intang)return null;return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s*.8?-.8:-7)}},
