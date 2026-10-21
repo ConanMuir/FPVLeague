@@ -85,7 +85,9 @@ export async function longSoak({origin, open, sleep, ok, heapMB, PLAY, SHOP, SKI
     ok(mx('progs') - mn('progs') < 15, `shader programs ${mn('progs')} -> ${mx('progs')}`);
     ok(mx('tex') - mn('tex') < 30, `GPU textures ${mn('tex')} -> ${mx('tex')}`);
     ok(mx('orphan') - mn('orphan') < 40, `orphaned GPU geometries ${mn('orphan')} -> ${mx('orphan')}`);
-    ok(mx('audioLive') - mn('audioLive') < 60, `audio sources playing ${mn('audioLive')} -> ${mx('audioLive')}`);
+    /* the voices playing follow the action (a late wave has more threats to hear), so medians: the last third against the first */
+    const third = Math.max(1, rows.length / 3 | 0), md = a => a.slice().sort((x, y) => x - y)[a.length >> 1], a0 = md(rows.slice(0, third).map(x => x.audioLive)), a1 = md(rows.slice(-third).map(x => x.audioLive));
+    ok(a1 <= a0 * 2 + 40, `audio sources playing (median) ${a0} in the first third -> ${a1} in the last`);
     const b0 = base.slice(1, 4), b1 = base.slice(-3), med = a => a.map(x => x.p50).sort((a, b) => a - b)[a.length >> 1] || 0;
     if (b0.length && b1.length) ok(med(b1) <= med(b0) * 1.3 + 1.5, `base-screen frame time (same view) p50 ${med(b0)} ms early -> ${med(b1)} ms late`);
   }
