@@ -319,11 +319,34 @@ async function league(b, origin) {
   }
   await p.close();
 }
+// in-page, Dogfight: each cave mouth's gold trim (a closed TubeGeometry) must cover the seam where the terrain's cut edge meets the
+// tunnel wall's top edge: every open edge of the terrain and of the walls near the mouth plane lies inside the tube's cross-section
+function mouthSeams(T) {
+  const tubes = [], meshes = []; T.scene.traverse(o => { if (!o.isMesh) return; if (o.geometry?.type === 'TubeGeometry' && o.geometry.parameters.closed) tubes.push(o); else if (o.geometry?.index && o.geometry.attributes.color && o.geometry.attributes.position.count > 2000 && o.material.side !== 2) meshes.push(o); });
+  const edges = meshes.map(m => { const I = m.geometry.index.array, ec = new Map(); for (let f = 0; f < I.length; f += 3) for (let s = 0; s < 3; s++) { const a = I[f + s], b = I[f + (s + 1) % 3], k = a < b ? a * 4194304 + b : b * 4194304 + a; ec.set(k, (ec.get(k) || 0) + 1); }
+    const V = new Set(); for (const [k, n] of ec) if (n === 1) { V.add(Math.floor(k / 4194304)); V.add(k % 4194304); } return {P: m.geometry.attributes.position.array, V: [...V]}; });
+  const out = [];
+  for (const t of tubes) {
+    const P = t.geometry.parameters.path.points, rad = t.geometry.parameters.radius, c = P.reduce((a, q) => [a[0] + q.x / P.length, a[1] + q.y / P.length, a[2] + q.z / P.length], [0, 0, 0]);
+    const u = [P[0].x - c[0], P[0].y - c[1], P[0].z - c[2]], v = [P[P.length >> 2].x - c[0], P[P.length >> 2].y - c[1], P[P.length >> 2].z - c[2]]; let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]; const l = Math.hypot(...n); n = n.map(x => x / l);
+    const e1 = u.map(x => x / Math.hypot(...u)), e2 = [n[1] * e1[2] - n[2] * e1[1], n[2] * e1[0] - n[0] * e1[2], n[0] * e1[1] - n[1] * e1[0]];
+    const pr = (x, y, z) => { const d = [x - c[0], y - c[1], z - c[2]]; return [d[0] * e1[0] + d[1] * e1[1] + d[2] * e1[2], d[0] * e2[0] + d[1] * e2[1] + d[2] * e2[2], d[0] * n[0] + d[1] * n[1] + d[2] * n[2]]; };
+    const L = P.map(q => pr(q.x, q.y, q.z)), R = Math.max(...L.map(q => Math.hypot(q[0], q[1])));
+    let worst = -1e9, cnt = 0;
+    for (const E of edges) for (const vi of E.V) { const q = pr(E.P[vi * 3], E.P[vi * 3 + 1], E.P[vi * 3 + 2]); if (Math.hypot(q[0], q[1]) > R + 4 || Math.abs(q[2]) > 1) continue; cnt++;
+      let best = 1e9; for (let i = 0; i < L.length; i++) { const a = L[i], b = L[(i + 1) % L.length], dx = b[0] - a[0], dy = b[1] - a[1], w = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy))); best = Math.min(best, Math.hypot(q[0] - a[0] - dx * w, q[1] - a[1] - dy * w, q[2] - a[2])); }
+      worst = Math.max(worst, best - rad); }
+    out.push({R: +R.toFixed(1), cnt, worst: +worst.toFixed(2)});
+  }
+  return out;
+}
 async function dogfight(b, origin) {
   console.log('dogfight');
   const p = await lPage(b, origin);
   await p.keyboard.press('Escape'); await frames(p, 5); await p.$eval('#m_df', e => e.click());
   await until(() => p.evaluate(() => { const s = window.__dl.snap(); return s.OBSON && s.state === 'play'; }), {timeout: 90000}); await frames(p, 30);
+  const ms = await p.evaluate(`(${mouthSeams})(window.__dl.gl())`);
+  chk(ms.length > 0 && ms.every(m => m.cnt > 50 && m.worst < 0), `cave mouths: the gold trim covers the terrain / tunnel-wall seam all round (${ms.map(m => `R ${m.R}: ${m.cnt} edge points, ${m.worst > 0 ? m.worst + ' m outside' : 'all inside'}`).join('; ')})`);
   for (let c = 0; c < 3; c++) { expectClean(`dogfight-cam${c}`, await seq(p, `dogfight-cam${c}`, LC, LT)); await p.keyboard.press('c'); await frames(p, 5); }
   await p.close();
 }
