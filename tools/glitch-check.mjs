@@ -1,7 +1,8 @@
 // Visual glitch hunt for both games, headless: consecutive drawn frames while things move, checked for one-frame flicker, black / blown-out
 // frames, non-finite or teleporting drawn positions, and a few geometric invariants.
 //   node tools/glitch-check.mjs [parts] [--shots=DIR] [--n=40]
-// parts (default: all): river  motes  dynres  classic  zombies  league  dogfight
+// parts (default: all): river  motes  dynres  mouths  classic  zombies  league  dogfight
+// --only=interceptor | league: motes and dynres check just that game (CI runs them per area)
 //   river     Interceptor terrain: the river's water ribbon never floats over dry ground (every ribbon edge buried in its bank, every
 //             bank 70-300 m out above the water), checked against the drawn terrain mesh (no frames needed)
 //   motes     weather motes that drift past the lens (League's Alpine snow, the Interceptor's snow and dust) fade out instead of drawing
@@ -9,11 +10,14 @@
 //             plain copy of it (the old look), white / dust coverage of the frame compared
 //   dynres    dynamic-resolution steps in both games (1 -> 0.6 -> 1): every composer target and pass follows the drawing buffer's size,
 //             and no frame across a step goes black or flashes
+//   mouths    Dogfight's cave mouths: the gold trim covers the seam where the terrain's cut edge meets the tunnel wall (geometry, no frames)
 //   classic   Interceptor Classic: the menu demo and a flight on each camera (FPV, chase, threat), Graphics High / Medium / Low / Auto, every
 //             weather, a weather change, pausing
 //   zombies   Interceptor Zombies with the Bot Spectator flying: each camera, each Graphics level, the base screen opening and closing
 //   league    Drone League (needs npm run build): the menu demo, League on each map and camera, kickoff, a goal, slow-mo, the replay
-//   dogfight  Drone League Dogfight (the Highlands): each camera, in and out of a cave
+//   dogfight  Drone League Dogfight (the Highlands): each camera
+// river, motes, dynres and mouths are exact and run in CI (DL_NORENDER: the frame sequences are skipped there, the motes test draws
+// its own frames); the frame-sequence parts are for a local GPU (DL_HIGHGPU=1) and --shots.
 // Frames are sampled at 192x108 straight after each drawn frame (requestAnimationFrame, after the game's own callback, before the
 // frame is presented). For each frame i with neighbours i-1 and i+1:
 //   flicker   in some 16x12 px cell, more than 45 % of the pixels are drawn for frame i only (differ from both neighbours, which agree):
@@ -33,9 +37,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import {serve, launch, open, sleep, frames, until, root} from './zlib.mjs';
+import {NO_RENDER} from './browser.mjs';
 const A = process.argv.slice(2), arg = k => A.find(a => a.startsWith('--' + k + '='))?.split('=')[1];
-const PARTS = new Set(A.filter(a => !a.startsWith('--')).length ? A.filter(a => !a.startsWith('--')) : ['river', 'motes', 'dynres', 'classic', 'zombies', 'league', 'dogfight']);
+const PARTS = new Set(A.filter(a => !a.startsWith('--')).length ? A.filter(a => !a.startsWith('--')) : ['river', 'motes', 'dynres', 'mouths', 'classic', 'zombies', 'league', 'dogfight']);
 const SHOTS = arg('shots') ? path.resolve(arg('shots')) : null, N = +(arg('n') || 40);
+const ONLY = arg('only') || '', IGAME = ONLY !== 'league', LGAME = ONLY !== 'interceptor';  /* --only=interceptor / league: the parts that cover both games check just that one */
 if (SHOTS) fs.mkdirSync(SHOTS, {recursive: true});
 let fails = 0; const errs = [], summary = [];
 const chk = (ok, msg) => { console.log((ok ? '  ok   ' : '  FAIL ') + msg); if (!ok) fails++; };
@@ -98,7 +104,7 @@ function analyse(tag, F) {
     const t1 = T(F[i]) - T(F[i - 1]), t2 = T(F[i + 1]) - T(F[i]); if (t1 <= 1e-5 || t2 <= 1e-5) continue;
     const s1 = D(a, b), s2 = D(b, c), k = t1 / (t1 + t2), m = [a[0] + (c[0] - a[0]) * k, a[1] + (c[1] - a[1]) * k, a[2] + (c[2] - a[2]) * k], o = D(m, b);
     const e = Math.hypot(c[0] - b[0] - (b[0] - a[0]) * t2 / t1, c[1] - b[1] - (b[1] - a[1]) * t2 / t1, c[2] - b[2] - (b[2] - a[2]) * t2 / t1);
-    if (o > 1 && o > .75 * D(a, c) + .5) flags.push({i, kind: 'pop', id, v: +o.toFixed(1), steps: [+s1.toFixed(2), +s2.toFixed(2)]});
+    if (o > 1 && o > .75 * D(a, c) + .5) flags.push({i, kind: id === 'cam' && o < 20 ? 'pop?' : 'pop', id, v: +o.toFixed(1), steps: [+s1.toFixed(2), +s2.toFixed(2)]});  /* the camera's shake (explosions, hits) throws it a metre or two for a frame on purpose */
     else if (e > 1.5 && e > .5 * (s1 + s2)) flags.push({i, kind: 'jump', id, v: +e.toFixed(1), steps: [+s1.toFixed(2), +s2.toFixed(2)]});
     const z = P(F[i - 2], id), w = P(F[i + 2], id);
     if (z && w && s1 > 3 && s2 > 3) { const q = Math.max(D(z, a), D(c, w)); if (Math.min(s1, s2) > 4 * q + 1 && Math.abs(s1 - s2) < .6 * Math.max(s1, s2)) flags.push({i, kind: 'sweep', id, v: +(s1 + s2).toFixed(1), steps: [+D(z, a).toFixed(2), +s1.toFixed(2), +s2.toFixed(2), +D(c, w).toFixed(2)]}); }
@@ -112,10 +118,11 @@ function analyse(tag, F) {
   const fl = F.slice(1, -1).map(f => f.flick), mx = Math.max(...fl), step = F.slice(1, -1).map(f => f.step).sort((x, y) => x - y)[(F.length - 2) >> 1];
   summary.push({tag, frames: F.length, maxFlick: mx, medStep: step, flags: flags.length});
   console.log(`  ${tag}: ${F.length} frames, motion ${step} /255 per frame, max flicker ${mx}${flags.length ? ', ' + flags.length + ' flag(s): ' + flags.slice(0, 6).map(f => `#${f.i} ${f.kind}${f.id ? ' ' + f.id : ''} ${f.v ?? ''}${f.steps ? ' [' + f.steps.join(' ') + ']' : ''}`).join('; ') : ''}`);
-  if (SHOTS) for (const f of flags.slice(0, 8)) for (const d of [-1, 0, 1]) { const fr = F[f.i + d]; if (fr) fs.writeFileSync(path.join(SHOTS, `${tag}-f${f.i}-${f.kind}${d < 0 ? '-a' : d > 0 ? '-c' : '-b'}.png`), Buffer.from(fr.png.split(',')[1], 'base64')); }
+  if (SHOTS) for (const f of flags.slice(0, 8)) for (const d of [-1, 0, 1]) { const fr = F[f.i + d]; if (fr) fs.writeFileSync(path.join(SHOTS, `${tag}-f${f.i}-${f.kind.replace("?", "Q")}${d < 0 ? '-a' : d > 0 ? '-c' : '-b'}.png`), Buffer.from(fr.png.split(',')[1], 'base64')); }
   return flags;
 }
 async function seq(p, tag, canvasExpr, trackExpr, n = N) {
+  if (NO_RENDER) { console.log(`  ${tag}: skipped (DL_NORENDER: no drawn frames)`); return []; }
   await p.evaluate(installProbe);
   const F = await p.evaluate((n, ce, te) => window.__gp.run(n, new Function('return ' + ce)(), te ? new Function('return ' + te)() : null), n, canvasExpr, trackExpr);
   const fl = analyse(tag, F);
@@ -131,9 +138,9 @@ const IT = `()=>{const {api}=__z,o={},c=api.camera;c.updateMatrixWorld();const E
  const me=api.player;if(me&&me.mesh&&me.mesh.visible&&me.dead<=0){const e=me.mesh.matrixWorld.elements;o.me=[e[12],e[13],e[14]]}
  for(const t of api.TH||[]){if(t.mesh&&t.mesh.visible&&t.mesh.parent){const e=t.mesh.matrixWorld.elements;o['t'+(t.id??api.TH.indexOf(t))]=[e[12],e[13],e[14]]}}return {o,ax,t:(api.tick-1+api.interp.alpha)/120}}`;
 async function iPage(b, origin, store, q = '') {
-  const p = await open(b, origin + '/games/interceptor/' + q, errs, {w: 1280, h: 720});
+  const p = await open(b, origin + '/engine/engine.css', errs, {w: 1280, h: 720});  /* a small file on the same origin: the save goes in before the game's first load */
   await p.evaluate(s => localStorage.setItem('dl-interceptor', JSON.stringify(s)), store);
-  await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z?.gfx, {timeout: 120000}); await frames(p, 20); return p;
+  await p.goto(origin + '/games/interceptor/' + q, {waitUntil: 'domcontentloaded', timeout: 240000}); await p.waitForFunction(() => window.__z?.gfx, {timeout: 240000}); await frames(p, 20); return p;
 }
 // visible HUD boxes in sels must not overlap each other (by more than 2 px either way)
 async function hudClear(p, tag, sels) {
@@ -172,6 +179,7 @@ async function river(b, origin) {
 // canvas with the points' own material and with a plain copy of it; returns the share of the frame (in %) that changed by > 40 against
 // the same frame without the points
 function lensTest(T, pts, d0, d1) {
+  const nr = window.__dlNoRender; window.__dlNoRender = false;  /* CI's draw-call stub off for these few draws */
   const {scene, camera, renderer} = T, g = pts.geometry, P = g.attributes.position, keep = P.array.slice(), vis = pts.visible, dr = [g.drawRange.start, g.drawRange.count];
   camera.updateMatrixWorld(); const e = camera.matrixWorld.elements, V = (k, s) => [e[k] * s, e[k + 1] * s, e[k + 2] * s];
   for (let i = 0; i < P.count; i++) { const d = d0 + (d1 - d0) * (i % 7) / 6, x = ((i * 7919) % 101 / 101 - .5) * d, y = ((i * 104729) % 97 / 97 - .5) * d * .6, f = V(8, -d), r = V(0, x), u = V(4, y);
@@ -183,18 +191,21 @@ function lensTest(T, pts, d0, d1) {
   const cover = d => { let n = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - base[i]) + Math.abs(d[i + 1] - base[i + 1]) + Math.abs(d[i + 2] - base[i + 2]) > 120) n++; return +(100 * n / (160 * 90)).toFixed(1); };
   const fixed = cover(grab()), after = renderer.domElement.toDataURL(), m = pts.material, plain = new m.constructor(); plain.copy(m); pts.material = plain; const old = cover(grab()), before = renderer.domElement.toDataURL(); pts.material = m; plain.dispose();
   P.array.set(keep); P.needsUpdate = true; pts.visible = vis; g.setDrawRange(dr[0], dr[1]);
+  window.__dlNoRender = nr;
   return {fixed, old, before, after};
 }
 const lensShots = (tag, r) => { if (SHOTS) for (const k of ['before', 'after']) fs.writeFileSync(path.join(SHOTS, `${tag}-${k}.png`), Buffer.from(r[k].split(',')[1], 'base64')); };
 async function motes(b, iorigin, lorigin) {
   console.log('motes');
+  if (IGAME) {
   const p = await iPage(b, iorigin, {gmode: 'classic', wx: 'clear', cam: 1, gfx: 'high'});
   for (const [n, sz, d0, d1] of [['snow', .3, .3, .6], ['dust', 3.4, 2, 5]]) {
     const r = await p.evaluate(`(${lensTest})({scene:__z.api.scene,camera:__z.api.camera,renderer:__z.api.renderer},__z.api.scene.children.find(o=>o.isPoints&&o.material.size===${sz}&&o.material.map),${d0},${d1})`);
     lensShots('motes-interceptor-' + n, r); chk(r.old > 5 && r.fixed < 1, `Interceptor ${n} at ${d0}-${d1} m from the lens: ${r.fixed} % of the frame covered (a plain material: ${r.old} %)`);
   }
   await p.close();
-  if (!lorigin) return;
+  }
+  if (!lorigin || !LGAME) return;
   const q = await lPage(b, lorigin);
   await setSel(q, 'map', 'alpine'); await frames(q, 20);
   const r = await q.evaluate(`(${lensTest})(window.__dl.gl(),window.__dl.gl().scene.children.find(o=>o.isPoints&&o.material.size===.45),.3,.6)`);
@@ -215,6 +226,7 @@ function rtSizes(T) {
 }
 async function dynres(b, iorigin, lorigin) {
   console.log('dynres');
+  if (IGAME) {
   const p = await iPage(b, iorigin, {gmode: 'classic', wx: 'clear', cam: 1, gfx: 'auto'});
   for (const k of [.9, .75, .6, .8, 1]) {
     await p.evaluate(k => { __z.gfx.dyn.scale = k; __z.gfx.emit('res'); }, k); await frames(p, 4);
@@ -225,7 +237,8 @@ async function dynres(b, iorigin, lorigin) {
   expectClean('dynres-interceptor-step', await seq(p, 'dynres-interceptor-step', IC, IT, 24), ['black', 'blowout', 'pop', 'sweep', 'nan']);
   for (const g of ['med', 'low', 'high']) { await setSel(p, 'gfx', g); await frames(p, 6); const r = await p.evaluate(`(${rtSizes})({renderer:__z.api.renderer,composer:__z.composer})`); chk(!r.bad.length, `Interceptor ${g}: targets match the ${r.W}x${r.H} buffer${r.bad.length ? ': ' + r.bad.join(', ') : ''}`); }
   await p.close();
-  if (!lorigin) return;
+  }
+  if (!lorigin || !LGAME) return;
   const q = await lPage(b, lorigin);
   await setSel(q, 'gfx', 'auto'); await frames(q, 6);
   for (const k of [.9, .75, .6, .8, 1]) {
@@ -282,6 +295,13 @@ async function zombies(b, origin) {
     for (const g of ['high', 'med', 'low', 'auto']) { await setSel(p, 'gfx', g).catch(() => p.evaluate(g => __z.gfx.set?.(g), g)); await frames(p, 10); expectClean(`zombies-${cn}-${g}`, await seq(p, `zombies-${cn}-${g}`, IC, IT)); }
   }
   await setSel(p, 'gfx', 'high'); await p.evaluate(() => { __z.api.camMode = 1; });
+  // a boss arrives (its atmosphere, shadow and effects come up) and is killed (they go again), the threat camera on it
+  await p.evaluate(() => setTimeout(() => { window.__gb = __z.Z.bosses.spawn('jugg'); }, 150));
+  expectClean('zombies-boss-arrive', await seq(p, 'zombies-boss-arrive', IC, IT, 60), ['black', 'blowout', 'pop', 'sweep', 'nan']);
+  await p.evaluate(() => { if (window.__gb) __z.api.selT?.(window.__gb); __z.api.camMode = 2; }); await frames(p, 30);
+  await p.evaluate(() => setTimeout(() => { if (window.__gb) __z.api.killThreat(window.__gb, 'det'); }, 150));
+  expectClean('zombies-boss-death', await seq(p, 'zombies-boss-death', IC, IT, 60), ['black', 'nan']);
+  await p.evaluate(() => { __z.api.camMode = 1; }); await frames(p, 30);
   // pausing (the spectator's Space): the frame freezes, nothing flashes or keeps moving
   await p.evaluate(() => setTimeout(() => __z.spec.setPause(true), 200));
   expectClean('zombies-pause', await seq(p, 'zombies-pause', IC, IT), ['flicker', 'black', 'blowout', 'nan']);
@@ -317,6 +337,18 @@ async function league(b, origin) {
     await setSel(p, 'map', map); await frames(p, 30);
     for (let c = 0; c < 3; c++) { expectClean(`league-${map}-cam${c}`, await seq(p, `league-${map}-cam${c}`, LC, LT)); await p.keyboard.press('c'); await frames(p, 5); }
   }
+  // transitions: a map switch mid-flight, a goal (slow motion, the replay and its cuts, the kickoff), the pause menu, a switch to Dogfight
+  const T4 = ['black', 'blowout', 'nan', 'sweep'];
+  await p.evaluate(() => setTimeout(() => { const e = document.getElementById('f_map'); e.value = JSON.stringify('arena'); e.dispatchEvent(new Event('input')); }, 150));
+  expectClean('league-map-switch', await seq(p, 'league-map-switch', LC, LT), T4);
+  const g0 = await p.evaluate(() => window.__dl.snap().score.join());
+  const scored = await until(() => p.evaluate(g0 => window.__dl.snap().score.join() !== g0, g0), {timeout: 240000});
+  if (scored) { expectClean('league-goal', await seq(p, 'league-goal', LC, LT, 90), T4); expectClean('league-goal-replay', await seq(p, 'league-goal-replay', LC, LT, 90), T4); }
+  else console.log('  (no goal in 4 minutes: goal sequence skipped)');
+  await p.evaluate(() => setTimeout(() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', code: 'Escape', bubbles: true})), 150));
+  expectClean('league-pause', await seq(p, 'league-pause', LC, LT), ['flicker', ...T4]);
+  await p.evaluate(() => setTimeout(() => document.getElementById('m_df').click(), 150));
+  expectClean('league-to-dogfight', await seq(p, 'league-to-dogfight', LC, LT, 60), T4);
   await p.close();
 }
 // in-page, Dogfight: each cave mouth's gold trim (a closed TubeGeometry) must cover the seam where the terrain's cut edge meets the
@@ -340,13 +372,21 @@ function mouthSeams(T) {
   }
   return out;
 }
-async function dogfight(b, origin) {
-  console.log('dogfight');
+async function dfPage(b, origin) {
   const p = await lPage(b, origin);
   await p.keyboard.press('Escape'); await frames(p, 5); await p.$eval('#m_df', e => e.click());
-  await until(() => p.evaluate(() => { const s = window.__dl.snap(); return s.OBSON && s.state === 'play'; }), {timeout: 90000}); await frames(p, 30);
+  await until(() => p.evaluate(() => { const s = window.__dl.snap(); return s.OBSON && s.state === 'play'; }), {timeout: 90000}); await frames(p, 30); return p;
+}
+async function mouths(b, origin) {
+  console.log('mouths');
+  const p = await dfPage(b, origin);
   const ms = await p.evaluate(`(${mouthSeams})(window.__dl.gl())`);
   chk(ms.length > 0 && ms.every(m => m.cnt > 50 && m.worst < 0), `cave mouths: the gold trim covers the terrain / tunnel-wall seam all round (${ms.map(m => `R ${m.R}: ${m.cnt} edge points, ${m.worst > 0 ? m.worst + ' m outside' : 'all inside'}`).join('; ')})`);
+  await p.close();
+}
+async function dogfight(b, origin) {
+  console.log('dogfight');
+  const p = await dfPage(b, origin);
   for (let c = 0; c < 3; c++) { expectClean(`dogfight-cam${c}`, await seq(p, `dogfight-cam${c}`, LC, LT)); await p.keyboard.press('c'); await frames(p, 5); }
   await p.close();
 }
@@ -354,7 +394,7 @@ async function dogfight(b, origin) {
 // ---------- run ----------
 const {server, origin} = await serve();
 let lserver = null, lorigin = null;
-if (['league', 'dogfight', 'motes', 'dynres'].some(k => PARTS.has(k))) {
+if (LGAME && ['league', 'dogfight', 'mouths', 'motes', 'dynres'].some(k => PARTS.has(k))) {
   const f = path.join(root, 'dist', 'index.html'); if (!fs.existsSync(f)) { console.error('glitch-check: dist/index.html missing; run npm run build'); process.exit(2); }
   const html = fs.readFileSync(f, 'utf8');
   lserver = http.createServer((q, r) => { if (q.url.startsWith('/new/')) { r.writeHead(200, {'content-type': 'text/html; charset=utf-8'}); r.end(html); } else { r.writeHead(404); r.end(); } });
@@ -368,6 +408,7 @@ try {
   if (PARTS.has('classic')) await classic(b, origin);
   if (PARTS.has('zombies')) await zombies(b, origin);
   if (PARTS.has('league')) await league(b, lorigin);
+  if (PARTS.has('mouths')) await mouths(b, lorigin);
   if (PARTS.has('dogfight')) await dogfight(b, lorigin);
 } catch (e) { errs.push('glitch-check: ' + (e.stack || e.message)); }
 await b.close(); server.close(); lserver?.close();

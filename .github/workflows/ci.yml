@@ -122,6 +122,15 @@ jobs:
           - check: zombies-test (arsenal)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=arsenal
+          # visual glitch guards (tools/glitch-check.mjs): the river below its banks, weather motes at the lens, dynamic-resolution target
+          # sizes, the Dogfight cave-mouth trim over its seam
+          - check: glitch-check (Interceptor)
+            area: interceptor
+            run: node tools/glitch-check.mjs river motes dynres --only=interceptor
+          - check: glitch-check (League)
+            area: league
+            build: true
+            run: node tools/glitch-check.mjs motes dynres mouths --only=league
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor
