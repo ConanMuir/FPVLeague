@@ -5,11 +5,12 @@
 // 1000 m/s: no pilot catches it, but you see it for a moment). Then the Golden Dome answers: the ground station's uplink fires, a kill vehicle
 // drops out of orbit high over you with a bright trail, crosses the sky and meets the warhead head-on: flash, burning debris, a late crack.
 // Everything big is drawn on a sky shell inside the camera's far plane (directions kept, sizes in pixels from the true distance), so it reads
-// from 100 km away. Trails, glows and debris are pooled and capped; the perf governor thins them.
+// from 100 km away. Trails, glows and debris are pooled and capped; Graphics quality thins them (lean: 0 on High, about 0.4 on Medium, 1.2 on Low; engine/gfx.js).
 // Hooks: Z.reMove (zenemy.js fast mover: the ICBM's profile), Z.gdLaunch (zdef.js: where a space interceptor comes out of orbit), Z.reTti
 // (time to impact), Z.re (state and event log for tools/zombies-test.mjs). Sounds in zthreatsfx.js (Z.tsfx). All numbers are game values.
 import {dot} from '../../engine/render.js';
 import {KIND} from './zdata.js';
+import {gfx} from '../../engine/gfx.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},lerp=(a,b,u)=>a+(b-a)*u;
 const D2R=Math.PI/180;
 // ICBM profile: midcourse at VMID to its entry point E (HE above its aim, XE back toward the launch and up to YE off to one side), then a curved
@@ -32,7 +33,7 @@ export function initReentry(api,G,Z){
  const _a=new V3(),_b=new V3(),_c=new V3(),_s=new V3(),_o=new V3();
  const SITE_C={x:0,z:1950};
  const root=new THREE.Group();root.visible=false;scene.add(root);
- const lean=()=>Z.perf?.off?1:0,cam=()=>api.camera.position;
+ const lean=()=>1/gfx.k.fx-1,cam=()=>api.camera.position;
  let simT=0;const LOG=[],log=e=>{e.at=+simT.toFixed(2);e.w=G.wave;LOG.push(e);if(LOG.length>120)LOG.shift()};
 
  // ---------- flight ----------

@@ -11,17 +11,18 @@
 // Pure maths (three is only used for earcut), so tools/physics-check.mjs can import it in node.
 import {ShapeUtils,Vector2} from 'three';
 import {GD,GH,GW,H,HL,HW,RC,RF} from '../config/constants.js';
+import {hyp2,hyp3} from '../core/hypot.js';
 export const RM=2.5,RG=3;  // mouth rim fillet radius, goal interior edge radius
 const P2=Math.PI/2,LAM=12,XW=GW/2+LAM,YT=GH+LAM,NF=32,NC=12,NM=10,NB=41,NK=8,CX=GW/2-RG,CY=GH-RG,GDR=GD-RG;
 // ---------- SDF ----------
 // v15's rounded arena: plan corners RC, floor/ceiling fillets RF (negative inside)
-function sdBand(x,y,z){const qx=Math.abs(x)-HW+RC,qz=Math.abs(z)-HL+RC,d2=Math.hypot(Math.max(qx,0),Math.max(qz,0))+Math.min(Math.max(qx,qz),0)-RC;
- const ax=d2+RF,ay=Math.abs(y-H/2)-H/2+RF;return Math.hypot(Math.max(ax,0),Math.max(ay,0))+Math.min(Math.max(ax,ay),0)-RF}
+function sdBand(x,y,z){const qx=Math.abs(x)-HW+RC,qz=Math.abs(z)-HL+RC,d2=hyp2(Math.max(qx,0),Math.max(qz,0))+Math.min(Math.max(qx,qz),0)-RC;
+ const ax=d2+RF,ay=Math.abs(y-H/2)-H/2+RF;return hyp2(Math.max(ax,0),Math.max(ay,0))+Math.min(Math.max(ax,ay),0)-RF}
 // goal pocket: rounded box (RG) from 20 m inside the field to the back of the goal, reaching below the floor (no floor of its own)
 function sdPocket(x,y,z){const qx=Math.abs(x)-GW/2+RG,qy=Math.abs(y-(GH-40)/2)-(GH+40)/2+RG,qz=Math.abs(Math.abs(z)-(HL+GD/2-10))-(GD/2+10)+RG;
- return Math.hypot(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0)-RG}
+ return hyp3(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0)-RG}
 // round union of the two free spaces (rounds the solid's convex edge where they meet), then the floor plane
-export function arenaSD(x,y,z){const a=sdBand(x,y,z),g=sdPocket(x,y,z);return Math.max(Math.max(RM,Math.min(a,g))-Math.hypot(Math.max(RM-a,0),Math.max(RM-g,0)),-y)}
+export function arenaSD(x,y,z){const a=sdBand(x,y,z),g=sdPocket(x,y,z);return Math.max(Math.max(RM,Math.min(a,g))-hyp2(Math.max(RM-a,0),Math.max(RM-g,0)),-y)}
 
 // ---------- profile ----------
 // rows across the band (floor -> ramp -> wall -> ceiling fillet): t 'r' ramp angle, 'w' wall height, 'c' ceiling-fillet angle

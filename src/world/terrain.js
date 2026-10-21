@@ -1,5 +1,6 @@
 // ---------- Highlands terrain: the height function and the map's size (pure maths; world/highlands.js builds the map from it) ----------
 import {cl} from '../config/constants.js';
+import {hyp2} from '../core/hypot.js';
 import {sm,vnoise,fbm} from './noise.js';
 export const DW=1100,DLEN=1400,DHW=DW/2,DHL=DLEN/2,DCEIL=520,DBASE=DHL-230,CANY=-40;
 // levelled yards under the buildings ({x, z, r: flat radius, b: blend width, y, k: how much of the slope goes (the plinths take the rest)}); world/highlands.js adds them (in mirror pairs) before the terrain grid is built
@@ -9,8 +10,8 @@ const dfH0=(x,z)=>(fbm(x/240+11,z/240-4)-.42)*185+Math.pow(1-Math.abs(2*vnoise(x
 export function dfH(x,z){let y=Math.max(-30,(dfH0(x,z)+dfH0(-x,-z))*.5);
  y=CANY+sm((Math.abs(x-cxR(z))-22)/50)*(y-CANY);  // carve the canyon
  const e=Math.max(Math.abs(x)-(DHW-170),Math.abs(z)-(DHL-170),0);y+=sm(e/170)*430*(.7+.15*(vnoise(x/60,z/60)+vnoise(-x/60,-z/60)));  // mountain walls at the edge
- const r=Math.hypot(x,Math.abs(z)-DBASE);y+=(8-y)*(1-sm((r-70)/60));  // flat team bases at z = ±DBASE
- for(const p of PADS){const d=Math.hypot(x-p.x,z-p.z)-p.r;if(d<p.b)y+=(p.y-y)*(1-sm(d/p.b))*p.k}return y}
+ const r=hyp2(x,Math.abs(z)-DBASE);y+=(8-y)*(1-sm((r-70)/60));  // flat team bases at z = ±DBASE
+ for(const p of PADS){const d=hyp2(x-p.x,z-p.z)-p.r;if(d<p.b)y+=(p.y-y)*(1-sm(d/p.b))*p.k}return y}
 // terrain heights on the mesh's grid (2 km x 2.3 km, ~7 m cells): the terrain mesh and Rapier's heightfield use these same samples
 let grid=null;export function dfGrid(){if(grid)return grid;const nx=280,nz=350,w=DW+900,l=DLEN+900,h=new Float32Array((nx+1)*(nz+1));
  for(let iz=0;iz<=nz;iz++)for(let ix=0;ix<=nx;ix++)h[iz*(nx+1)+ix]=dfH(-w/2+ix*w/nx,-l/2+iz*l/nz);return grid={nx,nz,w,l,h}}

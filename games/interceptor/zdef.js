@@ -68,6 +68,7 @@ export function initDefences(api,G,Z){
  const tr=[];const tracer=(p,v,life)=>{if(tr.length>=TN){tr.shift()}tr.push({p:p.clone(),v:v.clone(),life})};
 
  const D=[],shots=[],shells=[],pend=[];  // owned defences, guided shots in the air, mortar shells, cannon bursts on their way
+ api.interp?.add(shots);api.interp?.add(shells);api.interp?.add(tr);  /* drawn between their last two sim ticks (engine/interp.js) */
  let did=0,fxBudget=0,sid=0;
  // per-defence numbers: drone racks (rack, and the kit's light rack) use RACK_* and their tier; the rest HELP levels; an Armory refit (d.refit) adjusts both
  const isRack=d=>d.type==='rack'||d.type==='lrack';
@@ -95,12 +96,13 @@ export function initDefences(api,G,Z){
 
  // ---------- target choice: free, in range, engageable; most urgent first; marked tracks first; leave the player's terminal track alone ----------
  const tti=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
+ const _g=new V3();
  function pickTarget(dd,x,z,range,o={}){let best=null,bs=-1e9;const me=api.player,sel=api.selT();
-  for(const t of TH){if(!api.live(t)||t.claim||t.dcy||!Z.seen(t)&&t.k!=='swarm')continue;  /* t.dcy: pulled to a decoy site (zwarn.js), not worth a shot */let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)continue;
-   if(o.smart&&t.k==='decoy')continue;if(o.only&&!o.only(t))continue;
-   const d=Math.hypot(t.p.x-x,t.p.z-z);if(d>range)continue;
-   if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)continue;  // t.pc: a co-op pilot is on it
-   const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>bs){bs=sc;best=t}}
+  api.grid.near(_g.set(x,0,z),range,t=>{if(!api.live(t)||t.claim||t.dcy||t.iff>0||!Z.seen(t)&&t.k!=='swarm')return;  /* t.dcy: pulled to a decoy site (zwarn.js), not worth a shot */let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)return;
+   if(o.smart&&t.k==='decoy')return;if(o.only&&!o.only(t))return;
+   const d=Math.hypot(t.p.x-x,t.p.z-z);if(d>range)return;
+   if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)return;  // t.pc: a co-op pilot is on it
+   const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>bs){bs=sc;best=t}});
   return best}
  const claim=(t,h)=>{t.claim=h;h.tgt=t};
  const release=h=>{if(h.tgt&&h.tgt.claim===h)h.tgt.claim=null;h.tgt=null};
@@ -115,7 +117,7 @@ export function initDefences(api,G,Z){
  // time to a collision course with a target at r moving at v, flying at s (straight lines); the time of flight if there is none
  const icept=(r,v,s,d)=>{const a=v.lengthSq()-s*s,b=2*r.dot(v),c=d*d;if(Math.abs(a)<1e-6)return b<0?-c/b:d/s;const q=b*b-4*a*c;if(q<0)return d/s;const w=Math.sqrt(q),t1=(-b-w)/(2*a),t2=(-b+w)/(2*a),t=Math.min(t1>0?t1:1e9,t2>0?t2:1e9);return t<1e9?t:d/s};
  function shotStep(h,dt){h.fuel-=dt;const P=h.P,t=h.tgt;
-  if(!t||!api.live(t)){release(h);const n=h.kind==='drone'?pickTarget(h.d,h.p.x,h.p.z,1800,{smart:h.tier>=4}):null;if(n)claim(n,h);else if((h.lost+=dt)>(h.kind==='drone'?4:1.5)||h.fuel<=0)return end(h,null)}
+  if(!t||!api.live(t)){release(h);const n=h.kind==='drone'&&api.think(h.id)?pickTarget(h.d,h.p.x,h.p.z,1800,{smart:h.tier>=4}):null;  /* a drone that lost its track looks for another on its turn (api.think) */if(n)claim(n,h);else if((h.lost+=dt)>(h.kind==='drone'?4:1.5)||h.fuel<=0)return end(h,null)}
   if(h.fuel<=0)return end(h,null);
   const T=h.tgt,spd=h.v.length(),ns=P.acc?Math.min(P.spd,spd+P.acc*dt):P.spd;const dir=_a.copy(h.v).normalize();
   if(T){const r=_b.subVectors(T.p,h.p),dist=r.length(),tgo=h.kind==='space'?icept(r,T.v,ns,dist):dist/Math.max(40,ns+(-T.v.dot(r)/dist)),aim=r.addScaledVector(T.v,Math.min(tgo,30)).normalize();  /* space: an exact collision course (the warhead is faster than the kill vehicle) */
@@ -132,38 +134,39 @@ export function initDefences(api,G,Z){
   R[o]=(R[o]|0)+1;if(o==='kill'){h.d.kills++;Z.helperKill(t)}else if(o==='damage'&&t.k!=='boss')api.damage(t);
   if(h.kind==='drone'&&t.k==='swarm'){const sp=fit(h.d).splash||1;splash(h.d,h.p,9*sp,RACK_TIERS[h.tier].hit*.6*sp,t)}
   return o}
- function splash(d,p,r,pk,skip){for(const u of TH)if(u!==skip&&u.k==='swarm'&&api.live(u)&&u.p.distanceTo(p)<r&&Math.random()<pk){d.kills++;Z.helperKill(u)}}
+ function splash(d,p,r,pk,skip){api.grid.near(p,r,u=>{if(u!==skip&&u.k==='swarm'&&api.live(u)&&u.p.distanceTo(p)<r&&Math.random()<pk){d.kills++;Z.helperKill(u)}})}
 
  // ---------- each helper's logic ----------
+ // Searches for a target run on the helper's turn (api.think(d.id): every 4th tick, offset by id); timers, reloads, aiming and the shots' flight every tick.
  // launch point on a helper's mesh: the end of tube / cell i (local x, y, z), and its pointing direction in dir; null before the mesh is deployed
  const mouth=(d,i,x,y,z,dir)=>{const c=d.cells?.[i];if(!d.mesh||!c)return null;d.mesh.updateMatrixWorld(true);if(dir)dir.set(0,y?1:0,z?-1:0).transformDirection(c.matrixWorld);return c.localToWorld(new V3(x,y,z))};
  const sl=d=>SLOTS[d.slot],aimAt=(d,t)=>{if(!d.aim||!d.mesh)return;const s=sl(d);d.mesh.rotation.y=Math.atan2(t.p.x-s.x,t.p.z-s.z)+Math.PI};
  // mortar: aims a time-fused shell at where the track will be; the burst can catch others nearby (flak, and the kit's heavy flak)
- function mortar(d,dt){if((d.cd-=dt)>0)return;const s=sl(d),l=L(d),f=fit(d),alt=f.alt||HELP[d.type].alt||900,t=pickTarget(d,s.x,s.z,rangeOf(d),{only:u=>u.p.y-gh(u.p.x,u.p.z)<alt});if(!t)return;
+ function mortar(d,dt){if((d.cd-=dt)>0||!api.think(d.id))return;const s=sl(d),l=L(d),f=fit(d),alt=f.alt||HELP[d.type].alt||900,t=pickTarget(d,s.x,s.z,rangeOf(d),{only:u=>u.p.y-gh(u.p.x,u.p.z)<alt});if(!t)return;
   const tof=Math.hypot(t.p.x-s.x,t.p.z-s.z)/300+1.5,at=t.p.clone().addScaledVector(t.v,tof);const sh={d,t,at,time:tof,p:new V3(s.x,s.y+2,s.z),from:new V3(s.x,s.y+2,s.z),T:tof,claim:null};claim(t,sh);shells.push(sh);
   d.cd=l.rof*(f.rof||1)*otK();d.shots++;aimAt(d,t);api.FX.emit(sh.p,0xffc070,20,6,.25,null,2);api.SMK.emit(sh.p,0x9a948a,6,4,2,null,1,.6)}
  // missile launchers: SAM battery and the kit's MANPADS team
- function launcher(d,dt,cd0,o){if((d.cd-=dt)>0||d.ammo<=0)return;const s=sl(d),l=L(d),f=fit(d),t=pickTarget(d,s.x,s.z,rangeOf(d),o);if(!t)return;
+ function launcher(d,dt,cd0,o){if((d.cd-=dt)>0||d.ammo<=0||!api.think(d.id))return;const s=sl(d),l=L(d),f=fit(d),t=pickTarget(d,s.x,s.z,rangeOf(d),o);if(!t)return;
   aimAt(d,t);const dv=new V3(),n=d.cells?.length||1,mz=mouth(d,Math.min(d.ammo,n)-1,0,0,d.type==='sam'?-2.15:.85,dv);fire(d,t,'sam',mz||_a.set(s.x,s.y+3,s.z),{pk:f.p||l.p,direct:1,v:mz?dv.multiplyScalar(120):new V3(0,120,0)});d.ammo--;d.cd=(f.cd||cd0)*otK();d.cells?.forEach((c,i)=>c.visible=i<d.ammo)}
  const LOGIC={
   rack(d,dt){if(d.ready<capOf(d)&&(d.rearm+=dt)>=RACK_REARM*otK()){d.rearm=0;d.ready++}d.cells?.forEach((c,i)=>c.visible=i<d.ready);
-   if((d.cd-=dt)>0||d.ready<=0)return;const s=sl(d),t=pickTarget(d,s.x,s.z,rangeOf(d),{smart:d.tier>=4});if(t){fire(d,t,'drone',mouth(d,Math.min(d.ready,4)-1,0,.85,0)||_a.set(s.x,s.y+2.5,s.z));d.ready--;d.cd=1.2}},
+   if((d.cd-=dt)>0||d.ready<=0||!api.think(d.id))return;const s=sl(d),t=pickTarget(d,s.x,s.z,rangeOf(d),{smart:d.tier>=4});if(t){fire(d,t,'drone',mouth(d,Math.min(d.ready,4)-1,0,.85,0)||_a.set(s.x,s.y+2.5,s.z));d.ready--;d.cd=1.2}},
   flak:mortar,
   // cannon: bursts while it holds a track; tracers show where it is shooting
   gepard(d,dt){const s=sl(d),l=L(d),f=fit(d),rng=rangeOf(d);let t=d.tgt;if(t&&(!api.live(t)||t.p.distanceTo(_a.set(s.x,s.y,s.z))>rng*1.05)){release(d);t=null}
-   if(!t){t=pickTarget(d,s.x,s.z,rng);if(t)claim(t,d);else return}aimAt(d,t);if((d.cd-=dt)>0)return;
+   if(!t){if(!api.think(d.id))return;t=pickTarget(d,s.x,s.z,rng);if(t)claim(t,d);else return}aimAt(d,t);if((d.cd-=dt)>0)return;
    const{dist,tof}=burst(d,t);d.cd=(f.cd||1.1)*otK();d.shots++;Z.onGun?.(d,t);
    const p=l.p*effOf(d,t.k)*(1-.5*dist/rng)*jink(t);pend.push({t:tof,fn:()=>{if(!api.live(t)||!G.on)return;const o=Z.helperHit(t,p,f.armor?1:.5);if(o==='kill'){d.kills++;Z.helperKill(t);if(l.ahead&&t.k==='swarm')splash(d,t.p,14,.5,t);release(d)}else if(o==="damage"&&t.k!=="boss")api.damage(t)}})},
   sam(d,dt){launcher(d,dt,3.5,{smart:L(d).smart,prio:u=>u.k==='swarm'?-80:0})},
   // jammer: tracks entering the bubble get one roll; spoofed ones lose their aim and hit an empty field (no damage: zombies.js impact)
-  ew(d){const s=sl(d),l=L(d),f=fit(d),r=rangeOf(d);for(const t of TH){if(!api.live(t)||d.jam.has(t.id))continue;const e=effOf(d,t.k);if(e<=0)continue;
-   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)continue;d.jam.add(t.id);if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
-    api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}}},
-  idome(d,dt){if((d.cd-=dt)>0||d.ammo<=0)return;const s=sl(d),l=L(d),f=fit(d),hard=u=>KIND[u.k].armor==='hard'||u.k==='cruise',over=(l.over||f.over)&&!f.never;
+  ew(d){if(!api.think(d.id))return;const s=sl(d),l=L(d),f=fit(d),r=rangeOf(d);api.grid.near(s,r,t=>{if(!api.live(t)||d.jam.has(t.id))return;const e=effOf(d,t.k);if(e<=0)return;
+   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)return;d.jam.add(t.id);if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
+    api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}})},
+  idome(d,dt){if((d.cd-=dt)>0||d.ammo<=0||!api.think(d.id))return;const s=sl(d),l=L(d),f=fit(d),hard=u=>KIND[u.k].armor==='hard'||u.k==='cruise',over=(l.over||f.over)&&!f.never;
    const t=pickTarget(d,s.x,s.z,HELP.idome.rng,{over,only:u=>hard(u)?u.p.distanceTo(_c.set(s.x,s.y,s.z))<14000:(over&&u.p.distanceTo(_c.set(s.x,s.y,s.z))<5000),prio:u=>hard(u)?200:0});if(!t)return;
    const dv=new V3(),mz=mouth(d,d.ammo%2,rnd(-.8,.8),1.25,0,dv);fire(d,t,'tamir',mz||_a.set(s.x,s.y+3,s.z),{pk:l.p,direct:1,dome:true,v:mz?dv.multiplyScalar(160):new V3(rnd(-10,10),160,rnd(-10,10))});d.ammo--;d.cd=1.6*otK()},
   // space interceptors: come down from orbit onto the fast tracks anywhere on the map
-  gdome(d,dt){if((d.cd-=dt)>0||d.ammo<=0)return;const l=L(d),dome=D.some(e=>e.type==='idome'&&e.ammo>0);
+  gdome(d,dt){if((d.cd-=dt)>0||d.ammo<=0||!api.think(d.id))return;const l=L(d),dome=D.some(e=>e.type==='idome'&&e.ammo>0);
    // saves its magazine for what only it can stop; a ballistic track only as a last-ditch shot when no Iron Dome has interceptors left
    const t=pickTarget(d,0,0,9e9,{only:u=>u.k==='hyper'||u.k==='icbm'?u.p.distanceTo(u.aim)<90000:u.k==='ballistic'&&!dome&&u.p.distanceTo(u.aim)<15000,prio:u=>u.k==='ballistic'?-500:0});if(!t)return;
    const L0=Z.gdLaunch?.(t,PK.space.spd),p0=L0?L0.p:t.p.clone().addScaledVector(t.v,4).add(_c.set(rnd(-2000,2000),15000,rnd(-2000,2000)));fire(d,t,'space',p0,{pk:l.p,direct:1,dome:true,v:L0?L0.v:_b.subVectors(t.p,p0).setLength(PK.space.spd)});  /* Z.gdLaunch: where the kill vehicle comes out of orbit (zreentry.js) */d.ammo--;d.cd=2;

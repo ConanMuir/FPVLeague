@@ -2,7 +2,7 @@
 // - boost: a flame jet under every motor (one draw call per quad) + a ribbon trail + embers; motor-wash glow under the props at high throttle
 // - prop wash: dust kicked off the ground / walls under a low quad (thrust axis traced against the SDF), tinted per map
 // - ground scrapes: sparks + fading scuff decals where the frame skids or tumbles (the 'ground' event, core/events.js)
-// - ball: a speed-based ribbon trail, and a flash + shock ring + sparks on hard hits (the 'touch' event, with p and n from modes/step.js)
+// - ball: a speed-based ribbon trail, and a flash + sparks on hard hits (no ring: rings only mark pops) (the 'touch' event, with p and n from modes/step.js)
 // Everything scales with the graphics quality (renderer.js qId). Trail colour: d.trailCol (THREE.Color from the Trail cosmetic, render/cos-mat.js, or 0xRRGGBB), else the team colour,
 // fading to d.trailCol2 down the ribbon; d.trailStyle picks the ribbon's look and the boost embers (RSTY), d.trailCols the rainbow.
 import * as THREE from 'three';
@@ -112,7 +112,7 @@ class Ribbon{
   this.pos=new THREE.BufferAttribute(new Float32Array(M*6),3).setUsage(THREE.DynamicDrawUsage);this.al=new THREE.BufferAttribute(new Float32Array(M*2),1).setUsage(THREE.DynamicDrawUsage);this.au=new THREE.BufferAttribute(new Float32Array(M*2),1).setUsage(THREE.DynamicDrawUsage);
   g.setAttribute('position',this.pos);g.setAttribute('aA',this.al);g.setAttribute('aU',this.au);g.setAttribute('aS',new THREE.BufferAttribute(sd,1));g.setIndex(ix);g.setDrawRange(0,0);
   this.mat=new THREE.ShaderMaterial({uniforms:{...fogU(),uCol:{value:new THREE.Color()},uCol2:{value:new THREE.Color()},uHot:{value:new THREE.Color(1.6,1.5,1.3)},uR:{value:Array.from({length:7},()=>new THREE.Color())},uSt:{value:0},uT:{value:0}},vertexShader:RV,fragmentShader:RFS,
-   transparent:true,depthWrite:false,fog:true,toneMapped:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
+   transparent:true,depthWrite:false,fog:true,toneMapped:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,forceSinglePass:true});
   this.m=new THREE.Mesh(g,this.mat);this.m.frustumCulled=false;this.m.renderOrder=4;this.m.visible=false;scene.add(this.m)}
  reset(){this.n=0;this.last=-1;this.m.visible=false}
  // head p this frame with intensity k and width w; a new sample every 1/60 s; draws everything younger than life (s)
@@ -156,7 +156,7 @@ ${FOGF(true)}
 #include <colorspace_fragment>
 }`;
 function flameMat(){return new THREE.ShaderMaterial({uniforms:{...fogU(),uM:{value:Array.from({length:8},()=>new THREE.Vector4())},uR:{value:.1},uLen:{value:1},uB:{value:0},uG:{value:0},uTime:{value:0},
- uCol:{value:new THREE.Color()},uHot:{value:new THREE.Color(2.6,2.1,1.5)}},vertexShader:FV,fragmentShader:FF,transparent:true,depthWrite:false,fog:true,toneMapped:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending})}
+ uCol:{value:new THREE.Color()},uHot:{value:new THREE.Color(2.6,2.1,1.5)}},vertexShader:FV,fragmentShader:FF,transparent:true,depthWrite:false,fog:true,toneMapped:false,side:THREE.DoubleSide,forceSinglePass:true,blending:THREE.AdditiveBlending})}
 const PS=PARTS_SCALE;
 // per-drone state, made on first use; the flame mesh rides on the drone's mesh (hidden with it, e.g. your own quad in FPV)
 function fxOf(d){let f=d.fx;if(f)return f;f=d.fx={mat:flameMat(),mesh:null,props:null,hex:-1,col:new THREE.Color(),col2:new THREE.Color(),st:0,bk:0,gl:0,dA:0,eA:0,sA:0,
@@ -250,15 +250,14 @@ function scrape(d,f,dt){if(!f.g){f.scOk=false;return}f.g=0;const sl=f.gs,im=f.gi
 const ringTex=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),r=g.createRadialGradient(64,64,0,64,64,64);
  r.addColorStop(0,'rgba(255,255,255,0)');r.addColorStop(.76,'rgba(255,255,255,0)');r.addColorStop(.9,'rgba(255,255,255,1)');r.addColorStop(.95,'rgba(255,255,255,.3)');r.addColorStop(1,'rgba(255,255,255,0)');
  g.fillStyle=r;g.fillRect(0,0,128,128);return new THREE.CanvasTexture(c)})();
-const RINGS=Array.from({length:6},()=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:ringTex,color:0xffffff,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,toneMapped:false,fog:false}));
+const RINGS=Array.from({length:6},()=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:ringTex,color:0xffffff,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,toneMapped:false,fog:false,forceSinglePass:true}));
  m.visible=false;m.renderOrder=4;m.userData={t:0,d:.4,r0:1,r1:3,a:1};scene.add(m);return m});let ringI=0;
 function ballHit(e){const sp=e.speed;if(sp<7||!ballMesh.visible)return;const k=cl((sp-7)/50,0,1),p=e.p,n=e.n,c=_col.copy(ballLight.color),q=QQ.k;
  ADD.spawn(p.x,p.y,p.z,0,0,0,c.r*1.2+.3,c.g*1.2+.3,c.b*1.2+.3,.2+.3*k,.1+.08*k,BR*(.35+.3*k),BR*(.7+.7*k),0,0,0,0);  // flash
  ADD.spawn(p.x,p.y,p.z,0,0,0,2,2,2,.25+.35*k,.06+.04*k,BR*(.15+.15*k),BR*(.35+.35*k),0,0,0,0);  // white-hot core
  const N=Math.round((5+40*k)*q);for(let i=0;i<N;i++){_a.set(rnd()-.5,rnd()-.5,rnd()-.5).normalize();if(_a.dot(n)<0)_a.addScaledVector(n,-1.6*_a.dot(n));_a.addScaledVector(n,.3).normalize();
   const v=(12+rnd()*30)*(.5+k),h=rnd();SPK.spawn(p.x,p.y,p.z,_a.x*v+ball.v.x*.3,_a.y*v+ball.v.y*.3,_a.z*v+ball.v.z*.3,c.r*1.6+h,c.g*1.6+h,c.b*1.6+h,1,.2+rnd()*.3,.05*BR,.03*BR,2,G*.4,0,.3)}
- if(sp>16){const m=RINGS[ringI++%RINGS.length],u=m.userData;m.position.copy(p);m.quaternion.setFromUnitVectors(Z,n);u.t=0;u.d=.26+.12*k;u.r0=BR*.6;u.r1=BR*(1.4+1.2*k);u.a=.3+.45*k;
-  m.material.color.copy(c).multiplyScalar(1.3);m.scale.setScalar(u.r0);m.visible=true}}
+}  /* no shock ring on ordinary hits: rings only mark pops (render/popfx.js) */
 function ringTick(dt){for(const m of RINGS){if(!m.visible)continue;const u=m.userData;u.t+=dt;const x=u.t/u.d;if(x>=1){m.visible=false;continue}
  const e=1-(1-x)**3;m.scale.setScalar(u.r0+(u.r1-u.r0)*e);m.material.opacity=u.a*(1-x)**1.5}}
 

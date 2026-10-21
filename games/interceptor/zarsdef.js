@@ -10,9 +10,10 @@
 // Co-op: the host runs them (zdef.js); clients get events for what they can't see in the snapshot: the laser's target, a pulse, a snag, a volley,
 // where a carrier is parked.
 import {dot} from '../../engine/render.js';
+import {gfx} from '../../engine/gfx.js';
 import {HELP} from './zdata.js';
 import {DWELL,laserWx,MWAVE,BARRAGE,SMOKE,CARRIER,EMP} from './zarsdata.js';
-const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
+const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),fxn=n=>Math.max(1,Math.round(n*gfx.k.fx));  // Graphics quality thins the particles (engine/gfx.js)
 export function initArsDef(api,G,Z,A){
  const {THREE,scene,TH,gh}=api,V3=THREE.Vector3,X=Z.defx,def=Z.def,snd=A.snd,live=api.live,_a=new V3(),_b=new V3(),_c=new V3();
  const {M,kit,wheels}=X,LV=d=>HELP[d.type].lv[d.lvl],R=d=>def.rangeOf(d),sl=d=>def.SLOTS[d.slot];
@@ -55,16 +56,16 @@ export function initArsDef(api,G,Z,A){
    const t=z.t;X.aimAt(d,t);z.prog+=dt*burn(d,t,wx)/(DWELL[t.k]*l.dw);
    if(z.prog>=1){if(t.k==='boss'){Z.bossHit(t);z.prog=0;if(!live(t)){X.release(d);setLz(d,null)}}else{d.kills++;Z.helperKill(t);X.release(d);setLz(d,null);d.cd=1}}},
   mwave(d,dt){if((d.cd-=dt)>0)return;const s=sl(d),rg=R(d),P=_a.set(s.x,s.y,s.z),L=[];let n=0,close=false;
-   for(const t of TH){if(!live(t))continue;const pk=MWAVE.pk[t.k];if(!pk)continue;const r=t.p.distanceTo(P);if(r>rg)continue;L.push([t,pk]);if(t.k==='swarm')n++;if(r<MWAVE.close)close=true}
+   api.grid.near(P,rg,t=>{if(!live(t))return;const pk=MWAVE.pk[t.k];if(!pk)return;const r=t.p.distanceTo(P);if(r>rg)return;L.push([t,pk]);if(t.k==='swarm')n++;if(r<MWAVE.close)close=true});
    if(!(n>=MWAVE.trig||close&&L.length))return;for(const[t,pk]of L)if(Math.random()<pk*(t.emp>0?EMP.helperK:1)){d.kills++;Z.helperKill(t)}
    d.cd=LV(d).cd*X.otK();d.shots++;pulse(d);A.ev(['mw',d.id])},
   barrage(d){const s=sl(d),l=LV(d),rg=R(d);if((d.snag|0)>=l.snags)return;
-   for(const t of TH){if(!live(t)||d.jam.has(t.id))continue;const pk=BARRAGE.pk[t.k];if(!pk||Math.hypot(t.p.x-s.x,t.p.z-s.z)>rg||t.p.y-gh(t.p.x,t.p.z)>l.alt)continue;d.jam.add(t.id);
-    if(Math.random()<pk){d.snag=(d.snag|0)+1;d.kills++;snag(d,t);A.ev(['sn',d.id,t.id]);Z.helperKill(t);if(d.snag>=l.snags){api.feed(`<span class="co">${def.SLOTS[d.slot].n}: the barrage cables are all used up for this wave</span>`);break}}}},
+   api.grid.near(s,rg,t=>{if(!live(t)||d.jam.has(t.id))return;const pk=BARRAGE.pk[t.k];if(!pk||Math.hypot(t.p.x-s.x,t.p.z-s.z)>rg||t.p.y-gh(t.p.x,t.p.z)>l.alt)return;d.jam.add(t.id);
+    if(Math.random()<pk){d.snag=(d.snag|0)+1;d.kills++;snag(d,t);A.ev(['sn',d.id,t.id]);Z.helperKill(t);if(d.snag>=l.snags){api.feed(`<span class="co">${def.SLOTS[d.slot].n}: the barrage cables are all used up for this wave</span>`);return true}}})},
   smoke(d){const s=sl(d),l=LV(d),rg=R(d),wk=d.wk=api.WB.length()>SMOKE.wind?SMOKE.windK:1;
-   for(const t of TH){if(!live(t)||t.st!=='dive'||t.spoof||d.jam.has(t.id))continue;const e=SMOKE.pk[t.k];if(!e||Math.hypot(t.aim.x-s.x,t.aim.z-s.z)>rg)continue;d.jam.add(t.id);
+   api.grid.near(s,rg+400,t=>{if(!live(t)||t.st!=='dive'||t.spoof||d.jam.has(t.id))return;const e=SMOKE.pk[t.k];if(!e||Math.hypot(t.aim.x-s.x,t.aim.z-s.z)>rg)return;d.jam.add(t.id);  /* a diver is within a few hundred metres of its aim */
     if(Math.random()<l.p*e*wk){t.spoof=1;t.smk=1;const a=Math.random()*6.28,o=rnd(150,320);t.aim=new V3(t.aim.x+Math.cos(a)*o,0,t.aim.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
-     api.feed(`<span class="cb">${Z.tname(t)} lost its aim in the smoke</span>`)}}},
+     api.feed(`<span class="cb">${Z.tname(t)} lost its aim in the smoke</span>`)}})},
   carrier(d,dt){d.cells?.forEach((c,i)=>c.visible=i<d.ammo);if(d.ammo<=0||(d.cd-=dt)>0)return;const s=sl(d),l=LV(d);let n=0;d.tier=l.tier;
    for(let i=0;i<CARRIER.volley&&d.ammo>0;i++){const t=X.pickTarget(d,s.x,s.z,R(d),{smart:l.tier>=4});if(!t)break;X.fire(d,t,'drone',_a.set(s.x+rnd(-1.2,1.2),s.y+3.2,s.z+rnd(-3,3)));d.ammo--;n++}
    if(n){d.cd=CARRIER.iv;volley(d,n);A.ev(['cv',d.id,n])}}};
@@ -96,8 +97,8 @@ export function initArsDef(api,G,Z,A){
  const shells=[],SHM=new THREE.MeshBasicMaterial({color:new THREE.Color(0xff9ad8).multiplyScalar(1.4),transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
  const SHG=new THREE.SphereGeometry(1,28,12,0,Math.PI*2,0,Math.PI/2);
  function pulse(d){const s=sl(d);let m=shells.find(q=>!q.on);if(!m){m={o:new THREE.Mesh(SHG,SHM.clone()),on:false};m.o.frustumCulled=false;scene.add(m.o);shells.push(m)}m.on=true;m.t=0;m.r=R(d);m.o.position.set(s.x,s.y,s.z);m.o.visible=true;
-  snd.pulse(_a.set(s.x,s.y+3,s.z));api.FX.emit(_a,0xff9ad8,40,20,.4,null,2)}
- function snag(d,t){snd.twang(t.p);api.FX.emit(t.p,0xd8dde2,20,8,.4,null,1.6);Z.pop?.(t.p,'SNAGGED','#cfd6dc')}
+  snd.pulse(_a.set(s.x,s.y+3,s.z));api.FX.emit(_a,0xff9ad8,fxn(40),20,.4,null,2)}
+ function snag(d,t){snd.twang(t.p);api.FX.emit(t.p,0xd8dde2,fxn(20),8,.4,null,1.6);Z.pop?.(t.p,'SNAGGED','#cfd6dc')}
  function volley(d,n){const s=sl(d);snd.volley(_a.set(s.x,s.y+3,s.z),n)}
  A.on.lz=a=>{const d=def.D.find(q=>q.id===a[0]);if(!d)return;const t=a[1]?TH.find(u=>u.id===a[1]):null;d.lz=t?{t,prog:0}:null};
  A.on.mw=a=>{const d=def.D.find(q=>q.id===a[0]);if(d)pulse(d)};
@@ -111,12 +112,12 @@ export function initArsDef(api,G,Z,A){
     const s=sl(d),dx=t.p.x-s.x,dz=t.p.z-s.z,hd=Math.hypot(dx,dz);if(d.head)d.head.rotation.x=Math.atan2(t.p.y-(s.y+3.4),hd);d.lens.getWorldPosition(_a);
     b.position.copy(_a);b.lookAt(t.p);b.scale.set(1+_a.distanceTo(cam)/900,1+_a.distanceTo(cam)/900,_a.distanceTo(t.p));b.visible=true;b.material.opacity=.55+.3*Math.random();
     if(sp<SPN){spPos.set([t.p.x,t.p.y,t.p.z],sp*3);sp++}if(sp<SPN){spPos.set([_a.x,_a.y,_a.z],sp*3);sp++}
-    if((d.spk=(d.spk||0)-dt)<=0){d.spk=.07;api.FX.emit(t.p,0xffa0a0,3,5,.25,null,2.5)}
+    if((d.spk=(d.spk||0)-dt)<=0){d.spk=.07;api.FX.emit(t.p,0xffa0a0,fxn(3),5,.25,null,2.5)}
     const dc=Math.min(_a.distanceTo(cam),t.p.distanceTo(cam));if(dc<bd){bd=dc;best={d,t,dc}}}
    else if(d.type==='mwave'&&d.ring){const k=d.cd>0?1-Math.min(1,d.cd/LV(d).cd):1;d.ring.material.color.setRGB(1*(.4+1.4*k),.48*(.4+1.4*k),.82*(.4+1.4*k))}
    else if(d.type==='barrage'&&d.bw){const T=performance.now()/1000;d.bal.forEach(q=>{q.b.position.y+=Math.sin(T*.6+q.ph)*.012})}
    else if(d.type==='smoke'&&d.bubble){const sg=d.bubble,show=on&&G.state==='wave';d.so=cl((d.so||0)+(show?dt/3:-dt/3),0,1);sg.visible=d.so>0;const T=performance.now()/1000,W=api.WIND,rg=R(d);  /* the screen builds over 3 s and drifts with the wind */
-    if(sg.visible)for(const q of d.puffs){const u=q.userData,dx=((u.x+W.x*T*.0015/(rg/600))%1.2+1.8)%1.2-.6;q.position.set(dx,u.y+.01*Math.sin(T*.3+u.ph),u.z);q.material.opacity=.9*d.so*Math.min(1,1.6*(1-Math.abs(dx)/.7))*(.8+.2*Math.sin(T*.5+u.ph))}
+    if(sg.visible)for(const[i,q]of d.puffs.entries()){if(i>=Math.round(d.puffs.length*gfx.k.fx)){q.visible=false;continue}q.visible=true;const u=q.userData,dx=((u.x+W.x*T*.0015/(rg/600))%1.2+1.8)%1.2-.6;q.position.set(dx,u.y+.01*Math.sin(T*.3+u.ph),u.z);q.material.opacity=.9*d.so*Math.min(1,1.6*(1-Math.abs(dx)/.7))*(.8+.2*Math.sin(T*.5+u.ph))}
     if(!d.hissed){d.hissed=1;const s=sl(d);snd.hiss(_c.set(s.x,s.y+2,s.z))}}}
   spGeo.setDrawRange(0,sp);spGeo.attributes.position.needsUpdate=true;
   for(const m of shells)if(m.on){m.t+=dt;const u=m.t/.7;if(u>=1){m.on=false;m.o.visible=false;continue}m.o.scale.setScalar(Math.max(1,m.r*Math.sqrt(u)));m.o.material.opacity=.32*(1-u)}

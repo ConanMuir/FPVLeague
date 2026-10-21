@@ -9,10 +9,11 @@
 // engine / nav glow and the sites keep their lamps on, so you can still find things by eye.
 //
 // Cost: every particle set is a fixed, preallocated pool (rain 5000 streaks shared with Classic, snow 2400, dust 500, stars 900, glows 160,
-// two lightning bolts, four searchlight beams), and the per-frame counts halve when Zombies' performance governor sees slow frames.
+// two lightning bolts, four searchlight beams), and the per-frame counts halve when Zombies' performance governor sees slow frames and scale with Graphics quality (gfx.k.wx: Medium 60%, Low 30%; rain too, also in Classic).
 import {dot,tex} from '../../engine/render.js';
 import {NIGHT} from './buildings.js';
 import {SNOW} from '../../engine/render.js';
+import {gfx} from '../../engine/gfx.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initWeather(api,G,Z){
  const {THREE,scene,S,TH}=api,_c1=new THREE.Color(),_c2=new THREE.Color(),_a=new THREE.Vector3();
@@ -34,7 +35,7 @@ export function initWeather(api,G,Z){
  const POOL=[['clear',3,1],['scattered',3,1],['golden',2,1],['overcast',2,2],['dusk',1.5,3],['rain',2,3],['fog',1.2,4],['dust',1.2,4],['snow',1.2,5],['night',1.6,5],['storm',1.3,6]];
  const SHIFT={clear:[['scattered','clouding up']],scattered:[['clear','clearing up']],overcast:[['rain','rain moving in'],['snow','snow starting']],rain:[['storm','storm building'],['overcast','rain clearing']],
   storm:[['rain','storm easing']],fog:[['overcast','fog lifting']],golden:[['dusk','sun going down']],snow:[['overcast','snow easing']]};
- const on=()=>Z.on&&S.zwx!=='menu',q=()=>Z.perf&&Z.perf.ema>24?.5:1;  // q: the governor halves the particles while frames are slow
+ const on=()=>Z.on&&S.zwx!=='menu',q=()=>(Z.perf&&Z.perf.ema>24?.5:1)*gfx.k.wx;  // q: the governor halves the particles while frames are slow; Graphics quality scales them (engine/gfx.js)
  function plan(w){if(!on())return null;const prev=cur?(cur.B&&cur.done?cur.B.id:cur.A.id):null,L=POOL.filter(([k,,f])=>w>=f&&k!==prev);let tot=0;for(const q of L)tot+=q[1];
   let r=Math.random()*tot,id=L[0][0];for(const[k,wt]of L){r-=wt;if(r<=0){id=k;break}}const p={id},sh=SHIFT[id];
   if(w>=3&&sh&&Math.random()<.3){const[to,why]=sh[Math.random()*sh.length|0];Object.assign(p,{to,why,at:rnd(20,50),dur:35})}return p}
@@ -100,7 +101,7 @@ export function initWeather(api,G,Z){
  function hook(th){const W=api.WX,z=on()&&W&&W.z;
   stars.o.visible=!!(z&&!th&&W.stars);lamps.o.visible=!!(z&&!th&&W.lamps);glow.o.visible=!!(z&&!th&&W.glow);beamOn=!!(z&&!th&&W.beams);beams.forEach((b,i)=>b.visible=beamOn&&hpF(BS[i])>0);
   snow.o.visible=!!(z&&W.snow>.02);api.groundSnow=SNOW.value=z?cl(W.snow||0,0,1):0;dust.o.visible=!!(z&&!th&&W.dust);if(!z)for(const b of bolts)b.o.visible=false;
-  api.deck.material.opacity=.97*(z&&W.deckA!=null?W.deckA:1);api.rainL.material.opacity=z&&W.rain>1.5?.5:.35;api.rainL.visible=!!W?.rain&&W.rain>.02;api.rainN=api.RN*(z?cl(W.rain||0,0,1)*q():1);
+  api.deck.material.opacity=.97*(z&&W.deckA!=null?W.deckA:1);api.rainL.material.opacity=z&&W.rain>1.5?.5:.35;api.rainL.visible=!!W?.rain&&W.rain>.02;api.rainN=api.RN*(z?cl(W.rain||0,0,1)*q():gfx.k.wx);
   if(z&&th&&W.thermLift){api.sun.intensity=2.4;api.hemi.intensity=api.hemi.userData.base=1.1}  // thermal needs no light: the night picture comes out like the day one
   if(z&&W.mix&&cur&&W.deckA<1&&!th){const o=cur.A.deck?cur.B:cur.A;api.sky.visible=!o.nosky&&o.id!=='fog';scene.background=api.sky.visible?null:new THREE.Color(W.hz)}}  // while a cloud deck fades in or out, the sky of the deck-less side stays up behind it
  api.wxHook=hook;

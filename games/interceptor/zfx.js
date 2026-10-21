@@ -8,6 +8,7 @@ import {dot,tex} from '../../engine/render.js';
 import {KIND,CLUTCH_R} from './zdata.js';
 import {initAudio} from './zaudio.js';
 import {initAnnounce} from './zannounce.js';
+import {gfx} from '../../engine/gfx.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
 export function initFX(api,G,Z){
@@ -17,7 +18,7 @@ export function initFX(api,G,Z){
  const au=Z.au=initAudio(api),an=Z.an=initAnnounce(api,G,au);
  const SITE_C={x:0,z:1950};
  const live=api.live,cam=()=>api.camera.position;
- const lean=()=>Z.perf?.off?1.7:1;  // the perf governor has had to drop tree shadows: thin the smoke too
+ const lean=()=>1/gfx.k.fx;  // Graphics quality (engine/gfx.js) thins smoke, flames, debris and tracers (Low: 45%, which also covers what the old governor did)
 
  // ---------- time: hit-stop, then slow-mo, then ease back (real time, so it never sticks); the loop runs at Z.tsc ----------
  const TS={s:1,t0:-9,stop:0,hold:0,ease:0,lo:1};
@@ -95,9 +96,9 @@ export function initFX(api,G,Z){
  function fire(p,k=1,life=38){let f;if(FI.length>=FN){f=FI.reduce((a,b)=>b.age/b.life>a.age/a.life?b:a)}else{f={p:new V3()};FI.push(f)}
   f.p.copy(p);f.p.y=gh(p.x,p.z)+.5;Object.assign(f,{k,life,age:0,sT:0,fT:0,ph:Math.random()*9})}
  function fireTick(dt){const c=cam();for(let i=FI.length-1;i>=0;i--){const f=FI[i];f.age+=dt;const u=f.age/f.life;if(u>=1.5){FI.splice(i,1);continue}
-   const d=f.p.distanceTo(c),far=d>3500,fl=u<1?1-u*u:0,sk=u<1?1:1-(u-1)*2;
+   const d=f.p.distanceTo(c),far=d>3500*gfx.k.fxR,fl=u<1?1-u*u:0,sk=u<1?1:1-(u-1)*2;
    if((f.sT-=dt)<=0){const lit=u<1;f.sT=(far?.5:.25)*lean()/Math.max(.35,sk);const s=far?1.5:1;smoke(0,f.p,rnd(-.8,.8),9+5*f.k,rnd(-.8,.8),rnd(16,24)*(.8+.2*f.k),(5+5*f.k)*s,(2+2.2*f.k)*s,lit?.62:.3*sk,lit?.08:.28,lit?.34:.48)}
-   if(fl>0&&!far&&(f.fT-=dt)<=0){f.fT=.05;_a.set(0,2,0);FLM.emit(_b.copy(f.p).add(_a.set(rnd(-2,2)*f.k,.5,rnd(-2,2)*f.k)),Math.random()<.5?0xff7a20:0xffb040,2,2.2,.7,null,2.4)}
+   if(fl>0&&!far&&(f.fT-=dt)<=0){f.fT=.05*lean();_a.set(0,2,0);FLM.emit(_b.copy(f.p).add(_a.set(rnd(-2,2)*f.k,.5,rnd(-2,2)*f.k)),Math.random()<.5?0xff7a20:0xffb040,2,2.2,.7,null,2.4)}
    if(fl>0){const T=performance.now(),fk=.75+.25*Math.sin(T*.017+f.ph)*Math.sin(T*.011+f.ph*2);glowPt(_b.copy(f.p).setY(f.p.y+2),5*f.k,2.5,40,fl*fk*.9,1.9,.8,.3)}}}
 
  // ---------- the front: artillery flashing and rumbling on the horizon, AA tracer streams climbing far away ----------
@@ -109,7 +110,7 @@ export function initFX(api,G,Z){
   if((FR.art-=dt)<=0){FR.art=rnd(3,9);FR.salvo={p:edge(9000,15000),n:Math.random()<.35?rnd(3,6)|0:1,t:0}}
   const s=FR.salvo;if(s&&(s.t-=dt)<=0){s.t=rnd(.18,.5);_a.copy(s.p).add(_b.set(rnd(-250,250),rnd(0,30),rnd(-250,250)));fl0(_a,rnd(2.5,4));if(Math.random()<.6)au.rumble(rnd(.05,.11),rnd(1,3),rnd(1.8,3));if(--s.n<=0)FR.salvo=null}
   if((FR.aa-=dt)<=0){FR.aa=rnd(7,18);const p=edge(6000,10000),a=Math.random()*6.283;FR.aaS={p,t:rnd(1.5,3),dir:new V3(Math.sin(a)*.5,1,Math.cos(a)*.5),k:0}}
-  const q=FR.aaS;if(q){if((q.t-=dt)<=0)FR.aaS=null;else if((q.k-=dt)<=0){q.k=.07;q.dir.x+=rnd(-.05,.05);q.dir.z+=rnd(-.05,.05);if(TR.length<TN)TR.push({p:q.p.clone().setY(q.p.y+3),v:_a.copy(q.dir).normalize().multiplyScalar(rnd(600,760)).clone(),life:rnd(2.4,3.4)})}}
+  const q=FR.aaS;if(q){if((q.t-=dt)<=0)FR.aaS=null;else if((q.k-=dt)<=0){q.k=.07;q.dir.x+=rnd(-.05,.05);q.dir.z+=rnd(-.05,.05);if(TR.length<TN*gfx.k.fx)TR.push({p:q.p.clone().setY(q.p.y+3),v:_a.copy(q.dir).normalize().multiplyScalar(rnd(600,760)).clone(),life:rnd(2.4,3.4)})}}
   for(let i=TR.length-1;i>=0;i--){const t=TR[i];t.v.y-=9.81*dt;t.p.addScaledVector(t.v,dt);if((t.life-=dt)<=0)TR.splice(i,1)}
   let k=0;for(const t of TR){const o=k*6;tPos[o]=t.p.x;tPos[o+1]=t.p.y;tPos[o+2]=t.p.z;tPos[o+3]=t.p.x-t.v.x*.03;tPos[o+4]=t.p.y-t.v.y*.03;tPos[o+5]=t.p.z-t.v.z*.03;k++}
   tGeo.setDrawRange(0,k*2);tGeo.attributes.position.needsUpdate=true}
@@ -117,10 +118,10 @@ export function initFX(api,G,Z){
  // ---------- every explosion (Z.flash is called by Riley's boom and by the helpers' bursts) ----------
  const fl0=Z.flash;
  Z.flash=(p,k)=>{fl0(p,k);if(!G.on||api.demo)return;au.boom(p,k);const d=p.distanceTo(cam());
-  if(k>=.9&&d<7000)wave(0,p,9*Math.sqrt(k)+3,.32+.06*k,cl(.35+.2*k,.3,1.4));
-  if(k>=1.4&&p.y-gh(p.x,p.z)<25&&d<6000)wave(1,_a.copy(p).setY(gh(p.x,p.z)+.6),16*Math.sqrt(k)+8,1.6+.25*k,.7);
-  if(k>=1.2&&d<3000)debris(p,k,Math.min(9,Math.round(1+1.7*k)));
-  if(k>=.6&&d<9000&&p.y-gh(p.x,p.z)>25){const n=Math.round(Math.min(6,1+k*1.4)/lean());for(let i=0;i<n;i++)smoke(1,_a.copy(p).add(_b.set(rnd(-1,1),rnd(-1,1),rnd(-1,1)).multiplyScalar(1.5*k)),rnd(-1.5,1.5),rnd(0,1.2),rnd(-1.5,1.5),rnd(9,15),2+2*k,1.4+.9*k,.45,.1,.32,.4)}
+  const R=gfx.k.fxR;if(k>=.9&&d<7000*R)wave(0,p,9*Math.sqrt(k)+3,.32+.06*k,cl(.35+.2*k,.3,1.4));
+  if(k>=1.4&&p.y-gh(p.x,p.z)<25&&d<6000*R)wave(1,_a.copy(p).setY(gh(p.x,p.z)+.6),16*Math.sqrt(k)+8,1.6+.25*k,.7);
+  if(k>=1.2&&d<3000*R)debris(p,k,Math.max(1,Math.round(Math.min(9,1+1.7*k)*gfx.k.fx)));
+  if(k>=.6&&d<9000*R&&p.y-gh(p.x,p.z)>25){const n=Math.round(Math.min(6,1+k*1.4)/lean());for(let i=0;i<n;i++)smoke(1,_a.copy(p).add(_b.set(rnd(-1,1),rnd(-1,1),rnd(-1,1)).multiplyScalar(1.5*k)),rnd(-1.5,1.5),rnd(0,1.2),rnd(-1.5,1.5),rnd(9,15),2+2*k,1.4+.9*k,.45,.1,.32,.4)}
   if(k>=3&&d<2500)api.shake=Math.max(api.shake,(1-d/2500)*k*.12)};
 
  // ---------- per-wave record for the summary card ----------
@@ -199,8 +200,12 @@ export function initFX(api,G,Z){
    if(d.type==='flak'&&d.aim&&d.mesh){d.mesh.updateMatrixWorld(true);const p=d.aim.localToWorld(_b.set(0,1.25,0));muzzle(p,4,.12,2,1.4,.7);for(let i=0;i<3;i++)smoke(0,p,rnd(-1,1),rnd(1,3),rnd(-1,1),rnd(4,6),1.2,1.3,.4,.45,.6,.2)}}}
 
  // ---------- near misses: a whoosh when something flies past close ----------
- function nearTick(){const me=api.player;if(!me||me.dead>0)return;const c=cam();for(const t of TH){if(!live(t))continue;const d2=t.p.distanceToSquared(c);if(d2>6400){t._nd=undefined;continue}const d=Math.sqrt(d2);
-   if(t._nd!==undefined&&d>t._nd&&t._nd<32&&!t._wh){t._wh=1;const rv=_a.subVectors(t.v,me.v).length();if(rv>25){_b.subVectors(t.p,c).normalize();const side=_b.dot(_a.set(1,0,0).applyQuaternion(api.camera.quaternion));au.whoosh(cl(.35*(1-t._nd/32)+.08,0,.4),side)}}t._nd=d}}
+ // tracks within 80 m of the camera (grid), plus the ones measured last frame (NW: their _nd is cleared once they are past 80 m)
+ const NW=new Set(),NC=[];
+ function nearTick(){const me=api.player;if(!me||me.dead>0)return;const c=cam();NC.length=0;api.grid.near(c,80,t=>{if(live(t))NC.push(t)});let more=false;
+  for(const t of NW){if(!live(t)){NW.delete(t);continue}if(!NC.includes(t)&&TH.includes(t)){NC.push(t);more=true}}if(more)NC.sort((a,b)=>TH.indexOf(a)-TH.indexOf(b));
+  for(const t of NC){const d2=t.p.distanceToSquared(c);if(d2>6400){t._nd=undefined;NW.delete(t);continue}const d=Math.sqrt(d2);
+   if(t._nd!==undefined&&d>t._nd&&t._nd<32&&!t._wh){t._wh=1;const rv=_a.subVectors(t.v,me.v).length();if(rv>25){_b.subVectors(t.p,c).normalize();const side=_b.dot(_a.set(1,0,0).applyQuaternion(api.camera.quaternion));au.whoosh(cl(.35*(1-t._nd/32)+.08,0,.4),side)}}t._nd=d;NW.add(t)}}
 
  // ---------- intensity for the score: how many, how close to impact, a boss, a failing defence ----------
  function intensity(){let n=0,tmin=1e9,boss=false;for(const t of TH){if(!live(t))continue;n++;const K=KIND[t.k];if(t.k==='boss')boss=true;if(K&&K.dmg&&!(t.k==='decoy'&&t.ident)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);if(tt<tmin)tmin=tt}}
@@ -254,7 +259,7 @@ export function initFX(api,G,Z){
    if(after){after.after(l,i,o);after=o}else set?.append(l,i,o);sndRows.push({els:[l,i,o],show})}}
  function sndSync(){for(const q of sndRows){q.show();for(const e of q.els)e.style.display=S.gmode==='z'?'':'none'}}
  sndSync();document.getElementById('gmode')?.addEventListener('click',()=>setTimeout(sndSync));
- function wipe(){endCine();MZ.length=0;KB.length=0;FI.length=0;smokeClear();FLM.upd(1e3);TRL.upd(1e3);TR.length=0;for(const d of DB)d.on=false;for(const s of SW){s.L.length=0;s.m.count=0}gn=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0);KC.on=false;TS.s=1;TS.t0=-9;RQ.clear();FR.salvo=FR.aaS=null}
+ function wipe(){endCine();MZ.length=0;NW.clear();KB.length=0;FI.length=0;smokeClear();FLM.upd(1e3);TRL.upd(1e3);TR.length=0;for(const d of DB)d.on=false;for(const s of SW){s.L.length=0;s.m.count=0}gn=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0);KC.on=false;TS.s=1;TS.t0=-9;RQ.clear();FR.salvo=FR.aaS=null}
  const z0=Z.start;Z.start=()=>{wipe();z0();an.reset();newWave();W.st=G.state;root.visible=true};
  const z1=Z.stop;Z.stop=()=>{const was=G.on;z1();if(!was)return;wipe();an.reset();au.stopMusic();root.visible=false};
  // harness: what the FX layer is doing right now (tools/zombies-fx.mjs)

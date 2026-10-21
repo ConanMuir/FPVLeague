@@ -16,9 +16,9 @@ let cat='striker',seen=-1,lastPh='',prevB=[];
 const fmtT=t=>t==null?'—':t.toFixed(2)+' s',clock=t=>{t=Math.max(0,t);const s=Math.floor(t);return`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}.${Math.floor((t-s)*10)}`};
 const bestOf=P=>S.train?.[P.id]||null;
 // ---- 3D markers: the target ring (Pops targets) and the untouched ball's path while a shot waits
-const ringM=new THREE.MeshBasicMaterial({color:0xffc640,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}),
- discM=new THREE.MeshBasicMaterial({color:0xffc640,transparent:true,opacity:.12,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}),
- beamM=new THREE.MeshBasicMaterial({color:0xffc640,transparent:true,opacity:.07,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+const ringM=new THREE.MeshBasicMaterial({color:0xffc640,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true}),
+ discM=new THREE.MeshBasicMaterial({color:0xffc640,transparent:true,opacity:.12,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true}),
+ beamM=new THREE.MeshBasicMaterial({color:0xffc640,transparent:true,opacity:.07,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true});
 const zoneG=new THREE.Group();zoneG.visible=false;scene.add(zoneG);
 const ring=new THREE.Mesh(new THREE.RingGeometry(.88,1,96).rotateX(-Math.PI/2),ringM),ring2=new THREE.Mesh(new THREE.RingGeometry(.48,.53,64).rotateX(-Math.PI/2),ringM),disc=new THREE.Mesh(new THREE.CircleGeometry(1,64).rotateX(-Math.PI/2),discM),
  beam=new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,48,1,true),beamM);beam.position.y=.5;ring.position.y=ring2.position.y=.06;disc.position.y=.05;zoneG.add(disc,ring,ring2,beam);

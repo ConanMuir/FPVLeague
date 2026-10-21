@@ -37,6 +37,7 @@ const safe=h=>String(h).slice(0,400).replace(/<(?!\/?b>|br>|\/span>|span class="
 export function initNet(api,G,Z){
  const {THREE,TH,SITES,S,save,feed,banner,tone}=api,V3=THREE.Vector3,$=id=>document.getElementById(id),_t=new V3(),_a=new V3();
  let room=null,net=null,lobT=0;
+ for(const k of Object.keys(KIND))if(KIND[k].bossy&&!KI.includes(k))KI.push(k);  // the boss roster's kinds (zbosses.js) ride in the snapshot too
  const myName=()=>clean(S.zname);
  Object.defineProperty(Z,'online',{get:()=>!!net&&G.on,configurable:true});
  Object.defineProperty(Z,'mirror',{get:()=>!!net&&!net.host&&G.on,configurable:true});
@@ -44,6 +45,10 @@ export function initNet(api,G,Z){
  Z.idle=()=>!!net&&net.late&&G.on;
  Z.isClient=()=>!!net&&!net.host;  // in someone else's game (zcampaign.js: the host's sector is the one in play)
  Z.pilots=()=>net?[api.player,...[...net.pil.values()].filter(r=>r.seen).map(r=>r.d)]:null;
+ // for sorties (zsortie.js): every pilot's interceptor with its key, this pilot's key, the role, ready state, a host event, a pilot's name
+ Z.pilotsK=()=>net?[[net.me||'host',api.player],...[...net.pil].filter(([,r])=>r.seen).map(([k,r])=>[k,r.d])]:null;
+ Z.netMe=()=>net?net.me||'host':null;Z.netRole=()=>net?(net.host?'host':'client'):null;Z.isReady=()=>!!net&&net.rd===G.wave+1;
+ Z.netEv=e=>{if(net?.host)ev(e)};Z.netName=k=>nameOf(k);
 
  // ---------- lobby on the Zombies start menu: name, Host co-op, code + Join (and open games, in a claude.ai room) ----------
  const box=document.createElement('div');box.id='zmp';box.className='zmp';
@@ -74,7 +79,7 @@ export function initNet(api,G,Z){
    out:[],oseq:Date.now(),evSeen:-1,drSeen:0,ts:new Map(),tm:new Map(),pl:[],gid0:0,late:false,rd:0,pil:new Map(),sig:'',nx:null,nxJ:'',pkJ:''};
   r.onPeers(ch=>{if(net!==n)return;n.peers=ch.peers;const me=ch.peers.find(p=>p.sameTab);if(me)n.me=me.peer},
    e=>{if(net===n)ended(e.code==='host_left'?'The host left the game. Co-op game over.':`Lost connection to the game (${e.code}).`)});
-  r.presence({z:1,n:myName()}).catch(()=>{});lobby();document.body.classList.add('zcoop');
+  r.presence({z:1,n:myName(),kt:Z.meta.load().kit}).catch(()=>{});lobby();document.body.classList.add('zcoop');  // the kit goes with the first presence, so the host never lists this pilot without it
   if(isHost){if(S.gmode!=='z'){S.gmode='z';save();Z.syncMode?.()}G.dfo=undefined;api.startMatch();if(room.p2p){try{history.replaceState(null,'','#z'+code)}catch(e){}}
    msg(`Hosting co-op game ${code.toUpperCase()}. Friends open this page, pick Zombies, type ${code.toUpperCase()} and press Join${room.p2p?' (or open this page\'s link, it now ends in #z'+code+')':''}.`)}
   else msg(`Joining ${code.toUpperCase()}… waiting for the host.`)}
@@ -146,6 +151,7 @@ export function initNet(api,G,Z){
   if(T==='A')return Z.ars?.netReq?.(k,e.slice(1),nm);  // the arsenal (zarsenal.js): weapon purchases and detonations, carrier parking
   if(T==='d')return hostDet(k,seq,e[1],e[2]);
   if(T==='h'){const t=TH.find(u=>u.id===e[1]);if(t&&api.live(t)){who(t,k);G.burst={n:0};api.killThreat(t,true);G.burst=null}net.dr[k]={s:seq,o:t?[[e[1],'k',0]]:[],nr:0,dh:1};return}
+  if(T==='S')return Z.so?.netReq?.(k,e,nm);  // sorties (zsortie.js): bomb impacts, salvage, strike orders
   if(T==='u'){const r=net.pil.get(k);Z.pk.use(String(e[1]),{lv:e[2]|0,sel:e[3]|0,by:k,n:nm,p:r&&r.seen&&!r.dead?r.d.p:null});return}
   if(T==='W'){if(!Z.warn?.act(String(e[1]),e[2]|0,nm))tell(k,'That warning action is not available right now.');return}  /* harden / evacuate / decoy, mid-wave (zwarn.js) */
   if(G.state!=='base'){tell(k,'The shop is open between waves.');return}
@@ -182,14 +188,15 @@ export function initNet(api,G,Z){
  function snap(now){const n=net,T=[],TS=[],full=++n.sn%10===0;
   for(const t of TH){if(!api.live(t)&&t.st!=='fall')continue;const ki=KI.indexOf(t.k);if(ki<0)continue;const c=t.claim,ct=c?Z.def.HT.indexOf(c.type||c.d?.type)+1:0;
    const f=(t.dmg?1:0)|(t.ident?2:0)|(t.mark>0?4:0)|(t.frz>0?8:0)|(t.spoof?16:0)|(ct>0?ct<<5:0)|(t.lure>0?512:0),a=[t.id,ki,q10(t.p.x),q10(t.p.y),q10(t.p.z),Math.round(t.v.x),Math.round(t.v.y),Math.round(t.v.z),f,t.st==='fall'?2:t.st==='dive'?1:0];
-   if(t.k==='boss')a.push(t.stages|0);T.push(a);if(!t.nb)t.nb=now;
+   if(t.k==='boss')a.push(t.stages|0);else if(KIND[t.k].bossy)a.push(...(Z.bossOut?.(t)||[]));T.push(a);if(!t.nb)t.nb=now;
    if(full||now-t.nb<1500)TS.push([t.id,Math.max(0,SITES.indexOf(t.tgt)),Math.round(t.aim.x),Math.round(t.aim.y),Math.round(t.aim.z),t.grp|0,t.shade|0])}
   n.snapIv=cl(100+(T.length-60)*1.2,100,250);
-  const es=Object.keys(n.names).map(k=>n.esv[k]??-1),mn=es.length?Math.min(...es):n.eid,D=Z.def.netOut(),nx=G.state==='base'&&G.next?{list:G.next.list,brgs:G.next.brgs.map(b=>+b.toFixed(3)),wx:G.next.wx||null}:null;
+  const es=Object.keys(n.names).map(k=>n.esv[k]??-1),mn=es.length?Math.min(...es):n.eid,D=Z.def.netOut(),nx=G.state==='base'&&G.next?{list:G.next.list,brgs:G.next.brgs.map(b=>+b.toFixed(3)),wx:G.next.wx||null,ct:G.next.cuts||null}:null;
   return{v:1,gid:n.gid,st:G.state,w:G.wave,c:Math.round(G.cash),e:Math.round(G.earned),k:[G.kills.p,G.kills.h],df:cl(Z.dfi?.()??S.zdiff??1,0,3),cp:Z.cpNet?.()||null,wt:+(G.wt||0).toFixed(1),iq:G.wq.length,
    sh:SITES.map(s=>Math.ceil(s.hp)),sm:SITES.map(s=>s.max),bk:SITES.length>3?1:0,wb:[+api.WB.x.toFixed(1),+api.WB.z.toFixed(1)],T,TS,S:D.S,D:D.D,
    ev:n.evs.filter(e=>e[0]>mn).slice(-120),eid:n.eid,pk:n.perks,tp:{radar:G.perks.radar|0,aid:G.perks.aid|0},dr:n.dr,ak:n.ak,pl:rows(),nx,rj:n.rj,
-   sw:Z.swSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut()}}
+   sw:Z.swSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),
+    so:Z.so?.netOut?.(now)}}  // sorties: the enemy's side of the map (zsortie.js)
  // roster rows [key, name, kills, ready for the next wave, joined mid-wave]; a client shows its own ready state at once
  function rows(){const n=net;if(!n)return[];const nw=G.wave+1;
   if(n.host)return[[n.me||'host',myName(),n.kc[n.me||'host']|0,n.rd===nw?1:0,0],...n.order.filter(k=>n.names[k]).map(k=>[k,n.names[k],n.kc[k]|0,n.rdv[k]===nw?1:0,n.ltv[k]|0])];
@@ -225,14 +232,15 @@ export function initNet(api,G,Z){
   perksIn(g);Z.def.netIn(null,g.D,byId);Z.swHost?.(g.sw,n.me);
   n.tm=new Map(TH.map(t=>[t.id,t]));
   if(Array.isArray(g.ev)){if(n.evSeen<0)n.evSeen=g.eid|0;for(const e of g.ev)if(Array.isArray(e)&&e[0]>n.evSeen){n.evSeen=e[0];try{event(e)}catch(err){console.warn('co-op event',err)}}}
-  tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.chain?.netIn(g.kc);
+  tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.chain?.netIn(g.kc);Z.so?.netIn?.(g.so);
   stateIn(g);if(net!==n)return;
   G.wq=Array.from({length:cl(g.iq|0,0,400)},()=>({k:'',at:1e9}));
   if(g.ak&&+g.ak[n.me])n.out=n.out.filter(e=>e[0]>+g.ak[n.me]);
   const R=g.dr?.[n.me];if(R&&+R.s>n.drSeen){n.drSeen=+R.s;result(R)}
   baseSig()}
  function stateIn(g){const n=net,st=g.st,w=g.w|0;
-  if(g.nx&&typeof g.nx==='object'&&Array.isArray(g.nx.list)){const j=JSON.stringify(g.nx);if(j!==n.nxJ){n.nxJ=j;n.nx={list:g.nx.list.map(String).filter(q=>KIND[q.split(':')[0]]),brgs:(g.nx.brgs||[]).map(Number).filter(Number.isFinite),q:[],wx:g.nx.wx&&Z.wx.T[g.nx.wx.id]?g.nx.wx:null};if(G.state==='base')G.next=n.nx}}
+  if(g.nx&&typeof g.nx==='object'&&Array.isArray(g.nx.list)){const j=JSON.stringify(g.nx);if(j!==n.nxJ){n.nxJ=j;n.nx={list:g.nx.list.map(String).filter(q=>KIND[q.split(':')[0]]),brgs:(g.nx.brgs||[]).map(Number).filter(Number.isFinite),q:[],wx:g.nx.wx&&Z.wx.T[g.nx.wx.id]?g.nx.wx:null,
+   cuts:Array.isArray(g.nx.ct)?g.nx.ct.slice(0,12):null};if(G.state==='base')G.next=n.nx}}
   if(st==='base'){n.late=false;if(G.state!=='base'){$('zover').hidden=true;G.wave=w;api.wave=w;Z.rk.stop();G.next=n.nx||Z.plan(w+1);Z.base.open()}else G.wave=w}
   else if(st==='wave'){if(G.state==='base'&&!n.late){G.wave=w-1;G.next=n.nx||{list:[],brgs:[],q:[],wx:null};cont()}
    else if(G.state!=='wave'&&G.state!=='clear'){Z.base.close();G.state='wave';G.wave=w;api.wave=w;n.late=true;Z.def.deploy();banner(`WAVE ${w} IN PROGRESS`,'co',2.4);feed('You join at the next base screen. Watch the radar meanwhile.')}
@@ -251,10 +259,11 @@ export function initNet(api,G,Z){
   if(T==='f'){feed(safe(e[2]));return}
   if(T==='m'){if(e[2]===net.me)feed(`<span class="co">${String(e[3]).replace(/[<>&]/g,'').slice(0,200)}</span>`);return}
   if(T==='g'){const d=Z.def.D.find(x=>x.id===e[2]),t=byId(e[3]);if(d&&t&&d.mesh)Z.def.burst(d,t);return}
+  if(T==='S'){Z.so?.netEv?.(e.slice(2));return}  // sorties (zsortie.js): AA bursts, hits on this pilot, salvage carried, calls
   const t=byId(e[2]);if(!t||t.st==='dead')return;
   if(T==='k'){if(t.paid)return;const by=String(e[4]||'');t.by=by===net.me?'p':by?'o':'h';t.byN=by;if(e[3])t.st='dead';else{t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3)}
    Z.kill(t,!!e[3]);if(by&&by!==net.me)feed(`<b>${nameOf(by)}</b> · <span class="cg">${Z.tname(t)} down</span>`)}
-  else if(T==='i'){t.p.copy(t.aim);Z.impact(t)}}
+  else if(T==='i'){t.p.copy(t.aim);api.grid?.touch();Z.impact(t)}}
  function tracksIn(T,TS){if(!Array.isArray(T))return;const n=net,seen=new Set();
   if(Array.isArray(TS))for(const a of TS)if(okArr(a,5)){n.ts.set(a[0],a);const t=n.tm.get(a[0]);if(t){t.tgt=SITES[a[1]]||t.tgt;t.aim.set(a[2],a[3],a[4])}}
   for(const a of T){if(!okArr(a,10))continue;let t=n.tm.get(a[0]);if(t&&t.st==='dead')continue;if(!t){const s=n.ts.get(a[0]);if(!s)continue;t=mk(a,s);if(!t)continue;n.tm.set(t.id,t)}seen.add(t.id);upd(t,a)}
@@ -264,9 +273,10 @@ export function initNet(api,G,Z){
   const t={id:a[0],k,p:new V3(),v:new V3(),spd:1,cs:1,alt:0,wps:[],tgt:SITES[s[1]]||SITES[0],aim:new V3(s[2],s[3],s[4]),st:'cruise',jet:!!K.jet,mesh:null,prop:null,pd:1e9,dmin:1e9,cvm:0,bank:0,roll:0,spin:0,smoke:0,rb:null,claim:null,by:null,net:1,np:new V3(),nv:new V3()};
   if(s[5])t.grp=s[5];Z.en.dress(t);t.shade=cl(s[6]|0,0,2);t.st='cruise';t.p.set(a[2]/10,a[3]/10,a[4]/10);t.np.copy(t.p);t.v.set(a[5],a[6],a[7]);TH.push(t);return t}
  function upd(t,a){t.np.set(a[2]/10,a[3]/10,a[4]/10);t.nv.set(a[5],a[6],a[7]);t.v.copy(t.nv);const sp=t.v.length();if(sp>.1)t.spd=t.cs=sp;
-  if(t.p.distanceToSquared(t.np)>Math.max(3600,sp*sp*.25))t.p.copy(t.np);
+  if(t.p.distanceToSquared(t.np)>Math.max(3600,sp*sp*.25)){t.p.copy(t.np);api.grid?.touch()}  /* a snap while a frame is drawn: the grid rebuilds */
   const f=a[8]|0,c=(f>>5)&15;t.dmg=f&1?1:0;if(f&2)t.ident=1;t.mark=f&4?Math.max(t.mark||0,.3):0;t.frz=f&8?Math.max(t.frz||0,.3):0;t.spoof=f&16?1:0;t.lure=f&512?.5:0;t.claim=c?{type:Z.def.HT[c-1]}:null;
   const st=a[9]|0;if(st===2&&t.st!=='fall'){t.st='fall';t.spin=t.spin||(Math.random()<.5?-1:1)*(1+Math.random()*2)}else if(st<2&&t.st!=='fall')t.st=st?'dive':'cruise';
+  if(KIND[t.k]?.bossy)Z.bossIn?.(t,a.slice(10));
   if(t.k==='boss'&&Number.isFinite(a[10])&&a[10]<t.stages){for(let i=Math.max(0,a[10]);i<t.stages;i++){const p=t.pods?.[i];if(p){p.visible=false;if(p.userData.led)p.userData.led.visible=false}}t.stages=a[10];Z.an?.say('STAGE DOWN',`${t.stages} left`,'#ff9a3c',1)}}
  // mirrored tracks: dead-reckoned from the last snapshot, pulled onto it; wrecks fall with the host's numbers and smoke here
  const ts0=Z.tstep;Z.tstep=(t,dt)=>{if(!t.net)return ts0(t,dt);if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();

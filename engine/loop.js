@@ -1,11 +1,17 @@
-// Main loop: fixed 120 Hz physics steps (up to 12 per frame), then drawing. The menu's controller bars and the Rates graphs update here too.
+// Main loop: a fixed 120 Hz simulation tick (the 1/120 s step the flight model and its golden tests use) fed from an accumulator, then one
+// drawing pass per display frame. Up to 12 ticks run in a frame (o.cap() can raise it); past that the backlog is dropped, so a slow machine runs the game slower
+// instead of spiralling. Game speed and slow-mo scale the time fed in, never the tick. The draw gets alpha (0..1): how far real time has got
+// from the last tick toward the next, so a game can draw everything in between its previous and current tick (engine/interp.js) and stay
+// smooth whatever the frame rate. The menu's controller bars and the Rates graphs update here too.
 import {composer} from './render.js';
 import {menuPad} from './input.js';
 import {drawRates} from './rates.js';
 import {ratesOpen} from './modpanel.js';
-// o.cap() steps per frame at most (default 12); o.pre(now) before stepping; o.step(dt) physics; o.speed() time scale; o.slow() slow-mo on; o.paused(); o.draw(dt,realDt,now) visuals/camera/HUD; o.menu() menu open; o.post(now) before render
-export function startLoop(o){let last=performance.now(),acc=0;const DT=1/120;
- function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;o.pre?.(now);
-  if(!o.paused()){if(o.slow?.()){let r=dt*o.speed();while(r>1e-6){const h=Math.min(DT,r);o.step(h);r-=h}acc=0}else{acc+=dt*o.speed();let n=0;const cap=o.cap?.()||12;while(acc>=DT&&n++<cap){o.step(DT);acc-=DT}if(o.cap)acc=Math.min(acc,DT*cap)}}  // slow-mo (o.slow()) steps every frame by a smaller dt, so nothing stutters
-  o.draw(o.paused()?0:dt*o.speed(),dt,now);if(o.menu())menuPad();if(ratesOpen())drawRates();o.post?.(now);composer.render()}
+import {capSkip} from '../src/ui/fpsmeter.js';
+export const TICK=1/120,MAXTICKS=12;
+// capSkip(now): the frame cap (src/ui/fpsmeter.js) skips the whole frame. o.cap() ticks per frame at most (default MAXTICKS; a fast-forwarding spectator raises it); o.pre(now) before stepping; o.step(dt) one tick (dt is always TICK); o.speed() time scale; o.paused(); o.draw(dt,realDt,now,alpha) visuals/camera/HUD; o.menu() menu open; o.post(now) before render
+export function startLoop(o){let last=performance.now(),acc=0;
+ function frame(now){requestAnimationFrame(frame);if(capSkip(now))return;const dt=Math.min(.05,(now-last)/1000);last=now;o.pre?.(now);
+  if(!o.paused()){acc+=dt*o.speed();let n=0;const cap=o.cap?.()||MAXTICKS;while(acc>=TICK&&n<cap){o.step(TICK);acc-=TICK;n++}if(acc>=TICK)acc=TICK*.999}
+  o.draw(o.paused()?0:dt*o.speed(),dt,now,Math.min(1,acc/TICK));if(o.menu())menuPad();if(ratesOpen())drawRates();o.post?.(now);composer.render()}
  requestAnimationFrame(frame)}
