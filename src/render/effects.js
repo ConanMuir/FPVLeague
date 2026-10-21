@@ -2,7 +2,7 @@
 // - boost: a flame jet under every motor (one draw call per quad) + a ribbon trail + embers; motor-wash glow under the props at high throttle
 // - prop wash: dust kicked off the ground / walls under a low quad (thrust axis traced against the SDF), tinted per map
 // - ground scrapes: sparks + fading scuff decals where the frame skids or tumbles (the 'ground' event, core/events.js)
-// - ball: a speed-based ribbon trail, and a flash + shock ring + sparks on hard hits (the 'touch' event, with p and n from modes/step.js)
+// - ball: a speed-based ribbon trail, and a flash + sparks on hard hits (no ring: rings only mark pops) (the 'touch' event, with p and n from modes/step.js)
 // Everything scales with the graphics quality (renderer.js qId). Trail colour: d.trailCol (THREE.Color from the Trail cosmetic, render/cos-mat.js, or 0xRRGGBB), else the team colour,
 // fading to d.trailCol2 down the ribbon; d.trailStyle picks the ribbon's look and the boost embers (RSTY), d.trailCols the rainbow.
 import * as THREE from 'three';
@@ -257,8 +257,7 @@ function ballHit(e){const sp=e.speed;if(sp<7||!ballMesh.visible)return;const k=c
  ADD.spawn(p.x,p.y,p.z,0,0,0,2,2,2,.25+.35*k,.06+.04*k,BR*(.15+.15*k),BR*(.35+.35*k),0,0,0,0);  // white-hot core
  const N=Math.round((5+40*k)*q);for(let i=0;i<N;i++){_a.set(rnd()-.5,rnd()-.5,rnd()-.5).normalize();if(_a.dot(n)<0)_a.addScaledVector(n,-1.6*_a.dot(n));_a.addScaledVector(n,.3).normalize();
   const v=(12+rnd()*30)*(.5+k),h=rnd();SPK.spawn(p.x,p.y,p.z,_a.x*v+ball.v.x*.3,_a.y*v+ball.v.y*.3,_a.z*v+ball.v.z*.3,c.r*1.6+h,c.g*1.6+h,c.b*1.6+h,1,.2+rnd()*.3,.05*BR,.03*BR,2,G*.4,0,.3)}
- if(sp>16){const m=RINGS[ringI++%RINGS.length],u=m.userData;m.position.copy(p);m.quaternion.setFromUnitVectors(Z,n);u.t=0;u.d=.26+.12*k;u.r0=BR*.6;u.r1=BR*(1.4+1.2*k);u.a=.3+.45*k;
-  m.material.color.copy(c).multiplyScalar(1.3);m.scale.setScalar(u.r0);m.visible=true}}
+}  /* no shock ring on ordinary hits: rings only mark pops (render/popfx.js) */
 function ringTick(dt){for(const m of RINGS){if(!m.visible)continue;const u=m.userData;u.t+=dt;const x=u.t/u.d;if(x>=1){m.visible=false;continue}
  const e=1-(1-x)**3;m.scale.setScalar(u.r0+(u.r1-u.r0)*e);m.material.opacity=u.a*(1-x)**1.5}}
 

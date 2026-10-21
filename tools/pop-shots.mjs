@@ -1,4 +1,4 @@
-// Touch and pop rings (src/render/popfx.js): screenshots of a Dribbler bot's touches, earned pops and spent pops in a League 1v1,
+// Pop rings (src/render/popfx.js): screenshots of a Dribbler bot's earned pops and spent pops in a League 1v1 (plain touches get no ring),
 // from the chase cam and FPV of that bot, and from 70 m away (the rings keep a minimum on-screen size). The sim is stepped by hand.
 //   node tools/pop-shots.mjs [shots per view and kind]        writes shots/pop-<view>-<n>-<kind>.png (shots/ is gitignored)
 import fs from 'node:fs';
@@ -27,11 +27,11 @@ await p.evaluate(async () => {
       for (const o of [M.B.ball, ...GS.drones]) o._pp = null; now += 1000 / 60; M.V.visuals(1 / 60, now); M.C.updateCam(1 / 60, now);
       if (view === 'far') { const c = M.R.camera, t = M.B.ball.p; c.position.set(t.x + 50, t.y + 25, t.z + 45); c.lookAt(t); }
       M.R.renderer.render(M.R.scene, M.R.camera);
-      const r = rings(); for (const o of r) { const c = o.material.color.getHex(), k = c === 0xffc640 ? 'pop' : c === 0xffffff ? 'hit' : 'earn'; if (f > 2 && (!want || k === want)) return k; } }
+      const r = rings(); for (const o of r) { const c = o.material.color.getHex(), k = c === 0xffc640 ? 'pop' : 'earn'; if (f > 2 && (!want || k === want)) return k; } }
     return null; };
 });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-for (const view of ['chase', 'fpv', 'far']) for (const want of ['hit', 'earn', 'pop']) for (let n = 0; n < PER; n++) {
+for (const view of ['chase', 'fpv', 'far']) for (const want of ['earn', 'pop']) for (let n = 0; n < PER; n++) {
   const kind = await p.evaluate((v, w) => until(v, 7200, w), view, want); if (!kind) { console.log(view, want, n, 'none in 120 s'); continue; }
   await sleep(50); const f = `shots/pop-${view}-${n}-${kind}.png`; await p.screenshot({path: f}); console.log('shot', f);
   await p.evaluate(v => until(v, 20) && 0, view);  // let that ring fade before looking for the next
