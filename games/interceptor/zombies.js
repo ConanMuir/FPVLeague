@@ -22,6 +22,7 @@ import {initSwarm} from './zswarm.js';
 import {initBatt} from './zbatt.js';
 import {gfx} from '../../engine/gfx.js';
 import {initSpectate} from './zspectate.js';
+import {initWarm} from './zwarm.js';
 import {initThreatSfx} from './zthreatsfx.js';
 import {initReentry} from './zreentry.js';
 import {initStratRadar} from './zstratradar.js';
@@ -322,5 +323,6 @@ export function initZombies(api){
  initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
  initNet(api,G,Z);  // co-op (znet.js): wraps them again
  initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
+ initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
  return Z}
