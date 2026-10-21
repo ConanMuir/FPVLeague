@@ -20,7 +20,7 @@ function darken(C,m){let d=MC.get(m);if(d)return d;const T=C.THREE;if(m.map){d=n
 function model(C){const T=C.THREE,g=new T.Group(),dr=C.api.newDrone(),inner=dr.mesh;C.api.scene.remove(inner);inner.traverse(o=>{if(o.isMesh)o.material=darken(C,o.material)});inner.visible=true;dr.look();
  inner.rotation.x=Math.PI/2;inner.scale.setScalar(2.6);g.add(inner);const eye=new T.Sprite(new T.SpriteMaterial({map:dot,color:new T.Color(0xff1010).multiplyScalar(3),transparent:true,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false}));
  eye.scale.set(1.6,1.6,1);eye.position.set(0,0,1.05);g.add(eye);const au=new T.Sprite(new T.SpriteMaterial({map:dot,color:new T.Color(0x300000),transparent:true,opacity:.6,depthWrite:false}));au.scale.set(9,9,1);g.add(au);
- g.userData={dr,eye,au};return g}
+ Object.assign(g.userData,{dr,eye,au});return g}
 const lv=(C,k)=>C.Z.perkLevel?.(k)|0;
 registerBoss({id:'mirror',n:'The Mirror',tag:'MIRROR',col:'#ff2a2a',spd:90,alt:[200,600],hitR:2,det:9000,cash:1200,bounty:5500,far:5200,
  resist:{rack:.2,gepard:.25,sam:.4,mpads:.4,idome:.2},hp:5,phases:['REFLECTION','DISTORTION','SHATTERING'],

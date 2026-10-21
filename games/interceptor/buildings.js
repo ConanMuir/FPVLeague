@@ -2,11 +2,12 @@
 // Each site is built once per damage stage (0 intact, 1 about 75%, 2 about 50%, 3 about 25%, 4 destroyed) from the same seeded layout, so damage only
 // grows from one stage to the next: scorch, broken and burning windows, holes and fallen floors, burnt-out plant, rubble. A stage is one merged mesh
 // per material (plus its collision boxes and fire / smoke points), so changing stage is a visibility swap. Stage 0 is built at load (Classic shows only
-// that); stages 1-4 are built, and their shaders compiled, the first frame Zombies runs. step() follows each site's HP while Zombies is on.
+// that); stages 1-4 are built, and their shaders compiled, in Zombies' idle-time warm-up (zwarm.js), or else the first frame Zombies runs. step() follows each site's HP while Zombies is on.
 import * as THREE from 'three';
 import {tex,detail,snowy} from '../../engine/render.js';
 import {freeze,compileFor} from '../../engine/hot.js';
 import {hash2,vnoise} from '../../engine/util.js';
+import {warmers,ownRandom} from '../../engine/idle.js';
 import {gfx} from '../../engine/gfx.js';
 const V3=THREE.Vector3,PI=Math.PI,_m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new V3(),_s=new V3(),_v=new V3(),_n=new THREE.Matrix3();
 const D=[0,.12,.32,.58,1];  // damage amount per stage: thresholds for the seeded per-part rolls
@@ -289,11 +290,13 @@ export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const re
  function stage(s,d){const k=Kit();B[s.type](k,d,s.sd);const G=bake(k,s);G.visible=d===0;s.root.add(G);freeze(G);  /* static: matrices once (engine/hot.js) */
   return{G,sol:k.sol.map(o=>o.c?{...o,x:o.x+s.x,z:o.z+s.z,y0:o.y0+s.y,y1:o.y1+s.y}:{...o,x:o.x+s.x,y:o.y+s.y,z:o.z+s.z}),fx:k.fx.map(f=>({...f,x:f.x+s.x,y:f.y+s.y,z:f.z+s.z,tt:Math.random()}))}}
  function build(s,type){s.type=type;s.sd=reg.length+1.7;s.stg=0;s.root=new THREE.Group();scene.add(s.root);s.mesh=s.mesh||s.root;AIMS[type]?.(s);
-  s.st=[stage(s,0)];s.sol.length=0;s.sol.push(...s.st[0].sol);reg.push(s);return s.root}
- // all damage stages for every site, then compile their shaders once with everything briefly visible (Zombies' first frame, behind the base screen)
- function prepare(){ready=true;for(const s of reg)for(let d=1;d<5;d++)s.st[d]=stage(s,d);
-  const vis=[];for(const s of reg){vis.push([s.mesh,s.mesh.visible]);s.mesh.visible=true;for(const x of s.st)x.G.visible=true}try{compileFor(renderer,scene,camera)}catch(e){}  /* into a render target, like the composer draws (engine/hot.js) */
-  for(const[o,v]of vis)o.visible=v;for(const s of reg)s.st.forEach((x,d)=>x.G.visible=d===s.stg)}
+  s.st=[stage(s,0)];s.sol.length=0;s.sol.push(...s.st[0].sol);reg.push(s);if(ready)ownRandom(()=>stages(s));return s.root}
+ // all damage stages for every site, their shaders compiled as the frame draws them (engine/hot.js compileFor: into the composer's render
+ // target; a plain compile() made the canvas variant, which nothing drew). Zombies' warm-up runs it in idle time (zwarm.js: the menu with
+ // Zombies picked, or the first base screen); else the first frame Zombies runs
+ function stages(s){for(let d=1;d<5;d++)if(!s.st[d]){s.st[d]=stage(s,d);s.st[d].G.visible=d===s.stg;compileFor(renderer,s.st[d].G,camera,scene)}}
+ function prepare(){if(ready)return;ready=true;ownRandom(()=>{for(const s of reg)stages(s)})}  /* its own random stream: built in idle time or at first use, the game's sequence is the same */
+ warmers.push(prepare);
  function setStage(s,d){if(d===s.stg)return;s.st[s.stg].G.visible=false;s.st[d].G.visible=true;s.stg=d;if(!s.noSol){s.sol.length=0;s.sol.push(...s.st[d].sol)}}
  function step(dt,on,plume){const B=gfx.k.bld;t+=dt;if(on&&!ready)prepare();  /* B: Graphics quality thins the site smoke plumes (engine/gfx.js); the pooled fire and smoke particles thin through PFX.scale instead, so only bldFar's third applies to them (B/Bs); Bs: a third past bldFar */
   for(const s of reg){const Bs=Math.hypot(s.x-camera.position.x,s.z-camera.position.z)>gfx.k.bldFar?B/3:B,d=on&&s.max?stageOf(Math.max(0,s.hp)/s.max):0;if(d!==s.stg&&s.st[d])setStage(s,d);if(!s.stg||!s.mesh.visible||dt<=0)continue;
