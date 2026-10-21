@@ -27,6 +27,7 @@ import {AC,nbuf} from '../../engine/audio.js';
 import {gfx} from '../../engine/gfx.js';
 import {warm} from '../../engine/warm.js';
 import {initAtmos} from './zatmos.js';
+import {particlePool} from '../../engine/particles.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
 export const BOSSES={},ROSTER=[],REWARDS={};
@@ -87,10 +88,12 @@ export function initBosses(api,G,Z){
     VV[i3]=VV[i3]*dm+wx;VV[i3+1]=VV[i3+1]*dm-grav*dt;VV[i3+2]=VV[i3+2]*dm+wz;P[i3]+=VV[i3]*dt;P[i3+1]+=VV[i3+1]*dt;P[i3+2]+=VV[i3+2]*dt;const f=Math.min(1,LF[i]/L0[i]*2);C[i4]=B[i4];C[i4+1]=B[i4+1];C[i4+2]=B[i4+2];C[i4+3]=B[i4+3]*f}
     g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true},
    clear(){live=0;LF.fill(0);P.fill(-1e5);C.fill(0);g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true},get active(){let n=0;for(let i=0;i<N;i++)if(LF[i]>0)n++;return n}}}
- // the game's shared pools (engine/particles.js through api.psys: one draw per blend mode, idle emitters cost nothing); our own pool above
- // only if a shared one is full
- function shared(N,size,blend,grav,drag,scaled){try{const e=api.psys?.(N,size,blend,grav,drag,scaled);if(e&&e.clear&&'live' in e)return{pts:{visible:true},emit:e.emit,upd:e.upd,clear:e.clear,get active(){return e.live}}}
-  catch(x){console.warn('boss particles: the shared pool is full, using our own')}return pool(N,size,blend,grav,drag)}
+ // the bosses' own two pools on the engine's pooled particles (engine/particles.js: one draw per blend mode, only the live window of each
+ // emitter is walked and uploaded, so idle emitters cost nothing); their own budget, so the game's pools keep theirs (the pool above is the fallback
+ // for a build without engine/particles.js)
+ const PA=particlePool?particlePool(scene,{max:1500,blend:THREE.AdditiveBlending,map:dot,toneMapped:false,wind:api.WIND}):null,PN=particlePool?particlePool(scene,{max:2400,map:dot,wind:api.WIND}):null;
+ function shared(N,size,blend,grav,drag,scaled){const P=blend===THREE.AdditiveBlending?PA:PN;if(!P)return pool(N,size,blend,grav,drag);const e=P.emitter(N,size,grav,drag,scaled);
+  return{pts:P.pts,emit:e.emit,upd:e.upd,clear:e.clear,get active(){return e.live}}}
  const BFX=shared(1500,1.6,THREE.AdditiveBlending,3,1.8,true),BSMK=shared(1800,10,THREE.NormalBlending,-2.5,.6,true);
  // haze: big slow puffs (a smoke pall, fog banks, mist, a swarm cloud) for the bosses' atmosphere (zatmos.js); counts scale with gfx.k.fx
  const BHZ=shared(600,70,THREE.NormalBlending,-.25,.12,false);  // not scaled by the pool: haze() below thins it with gfx.k.fx itself
