@@ -5,6 +5,7 @@
 // Earning, for every arm set and a few chassis / power units: a centred rest earns; inside the sweet spot (0.8 x its edge, toward each
 // motor and along the four axes) earns; just past it (1.25 x) doesn't; an off-centre touch near one motor doesn't (the old rule, contact point inside the motors,
 // did: checked here so the case keeps meaning something); the ball below the quad doesn't. An off-centre touch fires no popEarn.
+// Rings: no ring for a hard plain hit or an off-centre touch; cyan for a pop earned, gold for a pop fired, also from replayed events (onFx).
 import {launchBrowser, gameReady} from './browser.mjs';
 const {createServer} = await import('vite');
 const server = await createServer({root: process.cwd(), logLevel: 'error', server: {port: 0, host: '127.0.0.1'}}); await server.listen();
@@ -62,6 +63,16 @@ const r = await p.evaluate(async () => {
   out.pops.centreYawed90 = {v: [ball.v.x, ball.v.y, ball.v.z].map(v => +v.toFixed(1))};
   place(0, 0); run(.05, hold); d.tryPop([.9, 0, 0]); run(D.POP_D + .1); out.pops.rollRight = {v: [ball.v.x, ball.v.y, ball.v.z].map(v => +v.toFixed(1))};
   { const had = earnThen(-.45 * motor, 0); d.tryPop([.9, 0, 0]); run(D.POP_D + .1); out.pops.rollRightFarSide = {had, v: [ball.v.x, ball.v.y, ball.v.z].map(v => +v.toFixed(1))}; }  // roll pop with the ball on the far side: more up
+  // rings (render/popfx.js): none for a plain hard hit, the cyan earn ring (plus its echo) for a pop earned, gold for a pop fired, and the
+  // replayed copies of popEarn / popFire (render/replay.js sends them to onFx listeners only) draw them too
+  const PF = await import('/src/render/popfx.js'), RR = await import('/src/render/renderer.js'), {replayEv} = await import('/src/core/events.js');
+  const rings = () => { PF.popTick(.3); return RR.scene.children.filter(o => o.renderOrder === 10 && o.geometry?.type === 'RingGeometry' && o.visible).map(o => o.material.color.getHex()); };
+  const clear = () => { for (let i = 0; i < 10; i++) PF.popTick(.3); };
+  clear(); place(0, 0); ball.p.set(motor + BR + .3, 30, 0); ball.v.set(-25, 0, 0); let hitV = 0; run(.1, () => { hold(); hitV = Math.max(hitV, ball.v.x); }); out.hardHitBack = +hitV.toFixed(1); out.ringsHardHit = rings();  // a hard side hit (the ball comes back off it)
+  clear(); place(motor * .7, motor * .7); ball.v.set(0, -12, 0); run(.05, hold); out.ringsOffCentre = rings();
+  clear(); place(0, 0); run(.02, hold); out.ringsEarn = rings(); clear(); d.tryPop([0, .9, 0]); out.ringsFire = rings(); run(D.POP_D + .1);
+  clear(); place(0, 0); replayEv('popEarn', {d, p: ball.p.clone().setY(ball.p.y - BR), n: new (ball.p.constructor)(0, 1, 0), r: BR * .75}); out.ringsReplayEarn = rings();
+  clear(); replayEv('popFire', {d, dur: D.POP_D}); out.ringsReplayFire = rings(); clear();
   return out;
 });
 r.errors = errs; const {loadouts, ...rest} = r; for (const [k, o] of Object.entries(loadouts)) console.log(k.padEnd(20), JSON.stringify(o)); console.log(JSON.stringify(rest));
@@ -70,5 +81,7 @@ const dirs = ['front', 'centre', 'back'].every(k => P[k].v[1] > 0 && P[k].v[2] <
 const place = P.front.had && P.back.had && P.rollRightFarSide.had && P.front.v[2] < P.back.v[2] && P.back.v[1] > P.front.v[1] && P.rollRightFarSide.v[1] > P.rollRight.v[1];  // ball at the front: flatter and further; at the back: higher (the lob); far side of a roll: higher
 const los = Object.entries(r.loadouts), losOk = los.every(([, o]) => o.ok);
 for (const [k, o] of los) if (!o.ok) console.log('loadout failed:', k, JSON.stringify(o));
-const ok = dirs && sym && place && losOk && r.earnCentre && !r.earnOutside && !r.earnBelow && r.keptOffCentre && r.noDirection && r.popped && Math.abs(r.turnRate) > .9 && r.backToStart < .5 && r.unlocked && r.spent && !errs.length;
+const GOLD = 0xffc640, ringsOk = r.hardHitBack > 4 && !r.ringsHardHit.length && !r.ringsOffCentre.length && r.ringsEarn.length >= 1 && !r.ringsEarn.includes(GOLD) && r.ringsFire.includes(GOLD)
+  && r.ringsReplayEarn.length >= 1 && !r.ringsReplayEarn.includes(GOLD) && r.ringsReplayFire.includes(GOLD);
+const ok = ringsOk && dirs && sym && place && losOk && r.earnCentre && !r.earnOutside && !r.earnBelow && r.keptOffCentre && r.noDirection && r.popped && Math.abs(r.turnRate) > .9 && r.backToStart < .5 && r.unlocked && r.spent && !errs.length;
 console.log(ok ? 'POP CHECK PASSED' : 'POP CHECK FAILED'); await b.close(); await server.close(); process.exit(ok ? 0 : 1);

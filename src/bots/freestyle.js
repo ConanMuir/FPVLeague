@@ -41,7 +41,7 @@ export function fsCarry(d,D,dt,a,g,gl){const ai=d.ai;if(!ai.mv)ai.mv=choose(d,gl
  const fx=_f.set(0,0,-1).applyQuaternion(d.q);fx.y=0;fx.normalize();const rx=_r.crossVectors(fx,UP).normalize();
  const ws=Math.sign(d.p.x)||1,wx=HW-Math.abs(d.p.x),ce=ai.roof=ai.fin==='ceil',wh=!ce&&wx<(D.wpN??18)&&d.p.y>(D.wpY??9),wp=ai.fin==='wall'||wh;
  if(wp){let best=-2;for(const[m,x,z]of[['hop',fx.x,fx.z],['hopB',-fx.x,-fx.z],['sideR',rx.x,rx.z],['sideL',-rx.x,-rx.z]]){const k2=(wh?-ws:ws)*x;if(k2>best){best=k2;ai.mv=m}}}  // high by a side wall: the pop that points off it, toward the middle (a wall pop); a wall feed: the pop that sends it to the wall
- const M=MOVES[ai.mv],pk=d.popC>0?k:0;  // a pop is only earned with the ball centred over all four motors (flight/drone.js popZone): hold it centred until then, then move it where the pop needs it
+ const M=MOVES[ai.mv],pk=d.popC>0?k:k*(D.pk0??.5);  // a pop is only earned with the ball centred over all four motors (flight/drone.js popZone): hold it centred until then, then move it where the pop needs it
  const off=_q.copy(rx).multiplyScalar(M.x*pk).addScaledVector(fx,-M.z*pk);  // where the ball should be relative to the quad
  const ex=ball.p.x-off.x-d.p.x,ez=ball.p.z-off.z-d.p.z,ke=D.ke??4,kv=D.kv??8;
  const tap=ai.fin==='tap',vc=tap?12:cl(gl/12,4,D.dv||10);const ox=((ce?0:g.x*vc)-ball.v.x)*.8,oz=((ce?0:g.z*vc)-ball.v.z)*.8;
