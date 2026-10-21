@@ -1,7 +1,8 @@
 // ---------- the Freestyler bot (DIFF[].fs): pop chains, air dribbles, double taps and spin shots, on repeat ----------
 // A show-off and a gauge for the mechanics, not a winner. It gets the ball the Dribbler's way (bots/dribble.js: scoop, catch, carry),
-// then on the carry it places the ball on its top where the pop it wants comes from (the pop table below, measured from the real
-// pop: the direction comes from the pop axis and where the ball sits inside the motors), and fires it on purpose:
+// then on the carry it holds the ball centred until it earns the pop (only a ball covering all four motors earns one), places it on
+// its top where the pop it wants comes from (the pop table below, measured from the real pop: the direction comes from the pop axis
+// and where the ball sits inside the motors), and fires it on purpose:
 //   lob   pitch-forward pop with the ball at the back: ~17 up, ~16 forward. A chain step: it chases, catches and pops again.
 //   up    roll pop with the ball on the far side: ~32 up, ~14 sideways. Sets up an air dribble.
 //   side  roll pop with the ball centred: ~22 sideways, ~16 up. Beats a defender in front.
@@ -40,8 +41,8 @@ export function fsCarry(d,D,dt,a,g,gl){const ai=d.ai;if(!ai.mv)ai.mv=choose(d,gl
  const fx=_f.set(0,0,-1).applyQuaternion(d.q);fx.y=0;fx.normalize();const rx=_r.crossVectors(fx,UP).normalize();
  const ws=Math.sign(d.p.x)||1,wx=HW-Math.abs(d.p.x),ce=ai.roof=ai.fin==='ceil',wh=!ce&&wx<(D.wpN??18)&&d.p.y>(D.wpY??9),wp=ai.fin==='wall'||wh;
  if(wp){let best=-2;for(const[m,x,z]of[['hop',fx.x,fx.z],['hopB',-fx.x,-fx.z],['sideR',rx.x,rx.z],['sideL',-rx.x,-rx.z]]){const k2=(wh?-ws:ws)*x;if(k2>best){best=k2;ai.mv=m}}}  // high by a side wall: the pop that points off it, toward the middle (a wall pop); a wall feed: the pop that sends it to the wall
- const M=MOVES[ai.mv];
- const off=_q.copy(rx).multiplyScalar(M.x*k).addScaledVector(fx,-M.z*k);  // where the ball should be relative to the quad
+ const M=MOVES[ai.mv],pk=d.popC>0?k:0;  // a pop is only earned with the ball centred over all four motors (flight/drone.js popZone): hold it centred until then, then move it where the pop needs it
+ const off=_q.copy(rx).multiplyScalar(M.x*pk).addScaledVector(fx,-M.z*pk);  // where the ball should be relative to the quad
  const ex=ball.p.x-off.x-d.p.x,ez=ball.p.z-off.z-d.p.z,ke=D.ke??4,kv=D.kv??8;
  const tap=ai.fin==='tap',vc=tap?12:cl(gl/12,4,D.dv||10);const ox=((ce?0:g.x*vc)-ball.v.x)*.8,oz=((ce?0:g.z*vc)-ball.v.z)*.8;
  a.x=kv*(ball.v.x+ke*ex-d.v.x)+ox;a.z=kv*(ball.v.z+ke*ez-d.v.z)+oz;const ah=Math.hypot(a.x,a.z);const am=D.am??40;if(ah>am){a.x*=am/ah;a.z*=am/ah}
@@ -73,7 +74,7 @@ function airDribble(d,D,dt){const ai=d.ai,top=topOf(d),H0=top+BR,r=_v.subVectors
  if(ai.tch)ai.at=(ai.at||0)+1;
  if(d.popC>0&&!(d.popT>0)&&gap<.6&&hd<1&&(gl<70||ai.at>=4)){d.tryPop(MOVES.drive.st);ai.ch=(ai.ch||0)+1;ai.fm=null}  // the finish: a drive pop out of the air dribble
  steer(d,D,a,g);return true}
-// flip reset. The pop is this game's flip: it is earned by the ball touching the top of the frame inside the motors, in any attitude,
+// flip reset. The pop is this game's flip: it is earned by the ball touching the top of the frame centred over all four motors, in any attitude,
 // and kept for 5 s (flight/drone.js, modes/step.js). So after spending its pop on an up pop it gets above the ball, turns upside down,
 // drops onto it top first (earning a new pop in mid-air: the reset), rights itself behind the ball and spends that pop as a dodge into it
 // toward the goal (a pitch-forward pop: a 12 m/s shove and the frame turning over through the ball). rs: 0 getting above it, 1 upside down
