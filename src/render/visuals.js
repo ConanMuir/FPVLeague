@@ -18,7 +18,7 @@ import {goalFxTick} from './goalfx.js';
 import {ORBS,orbOff,orbOn} from '../world/orbs.js';
 export function visuals(dt,now){for(const d of GS.drones){
   if(d.remote&&d.net&&!GS.rpOn){const k=1-Math.exp(-dt*18),age=Math.min((now-d.net.at)/1000,.25);d.p.lerp(_t.copy(d.net.p).addScaledVector(d.net.v,age),k);d.q.slerp(d.net.q,k);d.v.copy(d.net.v);d.mesh.visible=d.dead<=0}
-  d.mesh.position.copy(d.p);d.mesh.quaternion.copy(d.q);d.mesh.scale.setScalar(.68*DRAD/.8*(GS.OBSON&&GS.player&&d.team!==GS.player.team?1.6:1));const sp=(d.dead>0?0:25+d.thr*90)*dt;d.props.forEach((p,i)=>p.rotation.y+=i%3?sp:-sp);
+  d.mesh.position.copy(d.p);d.mesh.quaternion.copy(d.q);d.mesh.scale.setScalar(.68*DRAD/.8*(GS.OBSON&&GS.player&&d.team!==GS.player.team?1.6:1));const sp=(d.dead>0?0:25+d.thr*90)*dt;for(let i=0;i<d.props.length;i++)d.props[i].rotation.y+=i%3?sp:-sp;
   if(d.dead<=0){d.tp.copyWithin(3,0,(TN-1)*3);d.p.toArray(d.tp,0);d.trail.geometry.attributes.position.needsUpdate=true}
   d.trail.material.opacity=d.dead>0?0:cl((d.v.length()-45)/20,0,.85);}
  gameFx(dt,now);  // boost flames/trails, motor glow, prop-wash dust, ground sparks + scuffs, ball trail + hit flashes (render/effects.js)

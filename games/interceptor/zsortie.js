@@ -112,7 +112,7 @@ export function initSortie(api,G,Z){
  // what pilots (and the radar) see: fog cells, sites in them, convoys and guns in sight
  function reveal(radar){const R=radarR();if(radar&&auth()){fog.reveal(PADP.x,PADP.z,R);for(const t of W.list)if(t.t==='convoy'&&Math.hypot(t.x-PADP.x,t.z-PADP.z)<R){t.seen=true;t.ls={x:t.x,z:t.z}}}
   const L=auth()?pilots():pilots().filter(p=>p.key===myKey());
-  for(const p of L){const r=sight(p.d);fog.reveal(p.d.p.x,p.d.p.z,r);for(const t of W.list){if(t.t==='convoy'){if(!t.done&&Math.hypot(t.x-p.d.p.x,t.z-p.d.p.z)<r){if(!t.seen&&p.key===myKey())Z.an?.say('CONVOY SPOTTED',`${t.parts.filter(q=>q.main&&q.alive).length} trucks · ${PL[t.cargo.k]}`,'#ffc640',1);t.seen=true;t.ls={x:t.x,z:t.z}}}
+  for(const p of L){const r=sight(p.d);if(fog.reveal(p.d.p.x,p.d.p.z,r)&&!auth())S.fogNew=1;for(const t of W.list){if(t.t==='convoy'){if(!t.done&&Math.hypot(t.x-p.d.p.x,t.z-p.d.p.z)<r){if(!t.seen&&p.key===myKey())Z.an?.say('CONVOY SPOTTED',`${t.parts.filter(q=>q.main&&q.alive).length} trucks · ${PL[t.cargo.k]}`,'#ffc640',1);t.seen=true;t.ls={x:t.x,z:t.z}}}
     for(const q of t.parts)if(q.aa&&q.alive&&Math.hypot(q.x-p.d.p.x,q.z-p.d.p.z)<r)q.seen=true}}
   for(const t of W.list)if(t.t!=='convoy'&&!t.known&&fog.known(t.x,t.z)){t.known=true;W.ver++;if(S.on)Z.an?.say(t.t==='launch'?'LAUNCH SITE FOUND':'FACTORY FOUND',`${SEC(t.sec)} · ${TIER[t.tier]}`,'#ffc640',1)}}
 
@@ -152,6 +152,7 @@ export function initSortie(api,G,Z){
  // co-op host on the base screen (its sim holds there): the enemy side still runs, in real time, while another pilot is out on a sortie
  const vi0=Z.visuals;Z.visuals=dt=>{vi0(dt);W.root.visible=G.on;if(!G.on)return;const now=performance.now(),rdt=Math.min(.05,(now-(S.vt||now))/1000);S.vt=now;
   if(Z.netRole?.()==='host'&&G.state==='base'&&Z.hold()&&rdt>0){W.auth=true;const P=pilots();if(P.some(p=>!W.isHome(p.d.p.x,p.d.p.z)))W.step(rdt,P,true);if((S.revH=(S.revH||0)-rdt)<=0){S.revH=.25;reveal(false)}}
+  if(S.fogNew&&Z.netRole?.()==='client'&&now-(S.fogT||0)>1000){S.fogNew=0;S.fogT=now;Z.req?.(['S','fog',fog.pack()])}  /* a client shares what its own drone revealed (the host only samples where pilots are) */
   W.visuals(dt||rdt*(Z.hold()?1:0))};
  // the break starts when the base screen opens for a new wave number (also on a co-op client); a return from a sortie reopens it too
  const op0=Z.base.open;Z.base.open=()=>{if(G.on&&S.brk!==G.wave)onBreak();op0()};
@@ -265,6 +266,7 @@ export function initSortie(api,G,Z){
   else if(T==='k'&&G.state==='base'){if([e[2],e[3],e[4]].every(Number.isFinite))W.blast(p,SO.kamiR,SO.kamiDmg,k)}
   else if(T==='bank'){const c=CK[k]|0;CK[k]=0;if(c>0){G.cash+=c;G.earned+=c;team(`<span class="cg">Salvage banked: +${money(c)}</span> · <b>${nm}</b>`)}Z.netEv?.(['S','c',k,0])}
   else if(T==='lost'){CK[k]=0;Z.netEv?.(['S','c',k,0])}
+  else if(T==='fog'){if(typeof e[2]==='string'&&e[2].length<2000)fog.unpack(e[2])}  /* what a client's drone revealed (the next snapshot shares it) */
   else if(T==='st')strike(e[2]|0,nm)};
  Z.so.netEv=e=>{const T=e[0],mine=e[1]===myKey();
   if(T==='h'&&mine)hurt(+e[2]||0,String(e[3]));else if(T==='c'&&mine)S.carry=Math.max(0,+e[2]||0);else if(T==='a'&&mine)Z.an?.say(String(e[2]).slice(0,40),String(e[3]||'').slice(0,80),String(e[4]||'#ffc640').slice(0,9),2);
@@ -275,7 +277,8 @@ export function initSortie(api,G,Z){
  if(window.__z)window.__z.so={S,W,fog,SO,TGT,launch,finish,strike,known,cut,apply,reveal,hurt,bombR,
   // fly the drone kinematically to (x, z) at height agl (m above ground) and speed v, stepping the sim; stop early when stop() says so
   fly(x,z,agl=60,v=100,stop){const d=me();if(!d||d.dead>0)return false;const h=1/30;for(let i=0;i<6000;i++){if(!S.on||d.dead>0)return false;const dx=x-d.p.x,dz=z-d.p.z,L=Math.hypot(dx,dz);if(L<v*h*1.5||stop?.())return true;
-    const y=gh(d.p.x+dx/L*20,d.p.z+dz/L*20)+agl;d.v.set(dx/L*v,(y-d.p.y)*2,dz/L*v);d.q.setFromAxisAngle(_c.set(0,1,0),Math.atan2(-dx,-dz));d.p.addScaledVector(d.v,h);d.mah=0;window.__z.sim(h)}return false},
+    const ux=dx/L,uz=dz/L,nx=d.p.x+ux*v*h,nz=d.p.z+uz*v*h;let g=gh(nx,nz);for(let k=1;k<=8;k++)g=Math.max(g,gh(nx+ux*k*25,nz+uz*k*25));  /* height over the highest ground in the next 200 m: it never meets a ridge */
+    const ny=Math.max(g+agl,d.p.y-v*h);d.v.set(ux*v,(ny-d.p.y)/h,uz*v);d.p.set(nx,ny,nz);  /* climbs at once, descends at no more than 45° (the sim's own step then follows that velocity) */d.q.setFromAxisAngle(_c.set(0,1,0),Math.atan2(-dx,-dz));d.mah=0;window.__z.sim(h)}return false},
   // keep the drone where it is for sec seconds of sim (the sim's physics would drop it)
   hold(sec,v){const d=me();if(!d)return false;const p=d.p.clone(),h=1/30;for(let i=0;i<sec/h;i++){if(d.dead>0)return false;d.p.copy(p);d.v.copy(v||_c.set(0,0,0));d.mah=0;window.__z.sim(h)}return true},
   // a bomb released now from (x, y, z) with velocity (vx, vy, vz)

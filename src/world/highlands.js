@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {COL,QT,UP,V3,cl} from '../config/constants.js';
+import {hyp2,hyp3} from '../core/hypot.js';
 import {dot} from '../render/particles.js';
 import {glow,scene,sun} from '../render/renderer.js';
 import {LOOKS,skyTex} from './maps.js';
@@ -60,23 +61,23 @@ function tree(x,z,h,e,k){const y0=dfH(x,z)-.5;if(!k){const u=hash2(x*.71+3.1,z*.
  // spatial hash: each 40 m cell lists the obstacles within 10 m of it; sdObs is exact up to 10 m and capped there
  OBS.forEach(o=>{const r=(o.t==='hang'||o.t==='box'?Math.hypot(o.hx,o.hz):o.t==='ring'?o.R+o.r:o.t==='tree'?o.cr:o.t==='bld'?o.rb:o.r)+10;
   for(let ix=Math.floor((o.x-r+DHW)/OC);ix<=Math.floor((o.x+r+DHW)/OC);ix++)for(let iz=Math.floor((o.z-r+DHL)/OC);iz<=Math.floor((o.z+r+DHL)/OC);iz++){const k=ix*1000+iz;(OGRID.get(k)||OGRID.set(k,[]).get(k)).push(o)}})}
-const sdBox=(x,y,z,hx,hy,hz)=>{const qx=Math.abs(x)-hx,qy=Math.abs(y)-hy,qz=Math.abs(z)-hz;return Math.hypot(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0)};
-const sdCyl=(x,y,z,r,y0,y1)=>{const dx=Math.hypot(x,z)-r,dy=Math.abs(y-(y0+y1)/2)-(y1-y0)/2;return Math.min(Math.max(dx,dy),0)+Math.hypot(Math.max(dx,0),Math.max(dy,0))};
+const sdBox=(x,y,z,hx,hy,hz)=>{const qx=Math.abs(x)-hx,qy=Math.abs(y)-hy,qz=Math.abs(z)-hz;return hyp3(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0)};
+const sdCyl=(x,y,z,r,y0,y1)=>{const dx=hyp2(x,z)-r,dy=Math.abs(y-(y0+y1)/2)-(y1-y0)/2;return Math.min(Math.max(dx,dy),0)+hyp2(Math.max(dx,0),Math.max(dy,0))};
 // the glowing rings round the cave entrances: tori (axis n) that are solid too (they used to be drawn only, and half of each stands in the air)
 const ERING=CAVE.entrances.map(e=>({c:e.p,n:e.d,R:e.r+1.5,r:.035*(e.r+1.5)}));
-const sdRing=(x,y,z)=>{let m=10;for(const o of ERING){const dx=x-o.c[0],dy=y-o.c[1],dz=z-o.c[2];if(dx*dx+dy*dy+dz*dz>(o.R+12)**2)continue;const h=dx*o.n[0]+dy*o.n[1]+dz*o.n[2],q=Math.hypot(dx-o.n[0]*h,dy-o.n[1]*h,dz-o.n[2]*h);m=Math.min(m,Math.hypot(q-o.R,h)-o.r)}return m};
-export function sdObs(x,y,z){const L=OGRID.get(Math.floor((x+DHW)/OC)*1000+Math.floor((z+DHL)/OC));let m=sdRing(x,y,z);if(!L)return m;
+const sdRing=(x,y,z)=>{let m=10;for(const o of ERING){const dx=x-o.c[0],dy=y-o.c[1],dz=z-o.c[2];if(dx*dx+dy*dy+dz*dz>(o.R+12)**2)continue;const h=dx*o.n[0]+dy*o.n[1]+dz*o.n[2],q=hyp3(dx-o.n[0]*h,dy-o.n[1]*h,dz-o.n[2]*h);m=Math.min(m,hyp2(q-o.R,h)-o.r)}return m};
+export function sdObs(x,y,z){const L=OGRID.get((Math.floor((x+DHW)/OC)*1000+Math.floor((z+DHL)/OC))|0);  /* |0: the same whole-number key as a small integer, so the lookup doesn't box a double */let m=sdRing(x,y,z);if(!L)return m;
  for(const o of L){const lx=x-o.x,lz=z-o.z;let d;
   if(o.t==='cyl')d=sdCyl(lx,y,lz,o.r,o.y0,o.y1);
   else if(o.t==='box')d=sdBox(lx,y-o.y,lz,o.hx,o.hy,o.hz);
   else if(o.t==='hang')d=Math.max(sdBox(lx,y-o.y,lz,o.hx,o.hy,o.hz),-sdBox(lx,y-o.y,lz,o.ix,o.iy,o.iz));
-  else if(o.t==='ring'){const a=o.ax?lz:lx,b=o.ax?lx:lz;d=Math.hypot(Math.hypot(a,y-o.y)-o.R,b)-o.r}
+  else if(o.t==='ring'){const a=o.ax?lz:lx,b=o.ax?lx:lz;d=hyp2(hyp2(a,y-o.y)-o.R,b)-o.r}
   else if(o.t==='tree'){const T=TREE[o.k],h=o.h,s=o.s,yl=y-o.y0;let c;
-   if(T.cone){const a=T.cone[0]*h,b=T.cone[1]*h,r=T.cone[2]*s;c=Math.max(a-yl,(Math.hypot(lx,lz)*(b-a)+(yl-b)*r)/Math.hypot(b-a,r))}  // the cone's planes: never more than the true distance
-   else{const cy=T.cap[0]*h,hh=T.cap[1]*h;c=Math.hypot(lx,yl-cl(yl,cy-hh,cy+hh),lz)-T.cap[2]*s}
+   if(T.cone){const a=T.cone[0]*h,b=T.cone[1]*h,r=T.cone[2]*s;c=Math.max(a-yl,(hyp2(lx,lz)*(b-a)+(yl-b)*r)/hyp2(b-a,r))}  // the cone's planes: never more than the true distance
+   else{const cy=T.cap[0]*h,hh=T.cap[1]*h;c=hyp3(lx,yl-cl(yl,cy-hh,cy+hh),lz)-T.cap[2]*s}
    d=Math.min(sdCyl(lx,yl,lz,o.tr,0,T.th*h),c)}
   else if(o.t==='bld')d=sdBld(o,lx,y,lz);
-  else d=Math.hypot(lx,y-o.y,lz)-o.r;if(d<m)m=d}return m}
+  else d=hyp3(lx,y-o.y,lz)-o.r;if(d<m)m=d}return m}
 export const sdDFt=(x,y,z)=>Math.max(y-DCEIL,Math.abs(x)-DHW,Math.abs(z)-DHL,Math.min((dfHt(x,z)-y)*.75,sdCave(x,y,z))),sdDF=(x,y,z)=>Math.max(sdDFt(x,y,z),-sdObs(x,y,z));  // sdDFt: without obstacles
 export const dfSpawnCount=()=>spawnPoints().length,dfSpawns=()=>spawnPoints();  // checks: respawn points left in the open; Dogfight turrets keep away from them
 export const DSLOTS=[[0,12,DBASE],[-26,12,DBASE+16],[26,12,DBASE+16]];
@@ -147,7 +148,7 @@ export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC)
   else if(o.t==='bld'){DFOBS.push(...bldColliders(o));(BG.get(o.g)||BG.set(o.g,[]).get(o.g)).push(o)}
   else{I.rock.push(m4.compose(pv.set(o.x,o.y,o.z),q.setFromEuler(new THREE.Euler(o.x,o.z,o.r)),sv.set(o.r,o.r*.8,o.r)).clone());
    const R4=new THREE.Matrix4().compose(new V3(),q,sv),P=ROCK.attributes.position,pts=[];for(let i=0;i<P.count;i++)pts.push(...new V3().fromBufferAttribute(P,i).applyMatrix4(R4).toArray());DFOBS.push({s:'hull',pts,p:[o.x,o.y,o.z]})}}
- {const im=new THREE.InstancedMesh(ROCK,mRock,I.rock.length);I.rock.forEach((m,j)=>im.setMatrixAt(j,m));im.castShadow=im.receiveShadow=true;im.frustumCulled=false;dfG.add(im)}
+ {const im=new THREE.InstancedMesh(ROCK,mRock.clone(),I.rock.length);I.rock.forEach((m,j)=>im.setMatrixAt(j,m));im.castShadow=im.receiveShadow=true;im.frustumCulled=false;dfG.add(im)}  // its own copy of the rock material: one material on plain and instanced meshes made three re-check its shader program twice a frame
  // the static obstacles (mesas, spires, towers, hangars, bridges, arches) merged into one mesh per material and half of the map: they were ~130 draw calls, all drawn again in the shadow pass
  {dfG.updateMatrixWorld(true);const B=new Map(),dead=[];dfG.traverse(o=>{if(!o.isMesh||!o.userData.st)return;const k=o.material.uuid+(o.getWorldPosition(pv).z>0);(B.get(k)||B.set(k,[]).get(k)).push(o);dead.push(o)});
   for(const L of B.values()){const m=new THREE.Mesh(mergeGeometries(L.map(o=>o.geometry.clone().applyMatrix4(o.matrixWorld))),L[0].material);m.castShadow=m.receiveShadow=true;dfG.add(m)}
