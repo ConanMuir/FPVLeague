@@ -7,18 +7,17 @@
 //   the modules' own warmers (engine/idle.js warmers: the sites' damage stages, a Mothership, the far ring); a sample of every boss and
 //   minor kind (def.build, plus def.warm(ctx) for the effects and variants a fight makes later: wrecks, other hulls, tethers, spectres); the
 //   whole scene, which holds every pooled effect even when hidden; the post-processing passes. Each is compiled as the frame draws it (into
-//   the composer's render target), both ways the environment map can be (sky reflections on; off under a cloud deck, at night, in thermal),
-//   with the shadow-map depth variant of each shadow caster. Then the textures are uploaded, one per slice, and the warm-up waits until
+//   the composer's render target: engine/hot.js compileFor), with the shadow-map depth variant of each shadow caster. One environment state
+//   is enough: cloud decks, night and thermal swap in a black map of the same size (interceptor.js envOff), so the programs are the same. Then the textures are uploaded, one per slice, and the warm-up waits until
 //   the GPU process has finished every program (KHR_parallel_shader_compile) and runs three.js's first-use check on each, so no frame does.
 // Z.warmSt: progress (tools/zombies-hitch.mjs waits for done).
-import {later,setQuiet,warmers,compileLike,texturesOf,upload,idleStats} from '../../engine/idle.js';
+import {later,setQuiet,warmers,texturesOf,upload,idleStats} from '../../engine/idle.js';
+import {compileFor} from '../../engine/hot.js';
 import {composer} from '../../engine/render.js';
 export function initWarm(api,G,Z){
  const {THREE,scene,renderer,camera,S}=api;
  const st=Z.warmSt={started:false,done:false,ms:0,progs:0,tex:0,samples:0,idle:idleStats};
  setQuiet(()=>api.menuOpen||api.demo||!G.on||G.state!=='wave');
- // the environment map's other state: a stand-in cube map (PMREM, same size) when there is none at the moment, so both variants compile
- let envT=null;const other=()=>{if(scene.environment)return null;if(!envT){const pm=new THREE.PMREMGenerator(renderer);envT=pm.fromScene(new THREE.Scene());pm.dispose()}return envT.texture};
  // shadow casters: the shadow map draws each with three.js's depth material (or the caster's own customDepthMaterial), given the
  // material's map, alpha map, alpha test and displacement map and its side flipped (WebGLShadowMap getDepthMaterial), so each combination
  // is its own program. Twins of those (kept, so their programs stay cached) compile the same programs
@@ -27,14 +26,13 @@ export function initWarm(api,G,Z){
    const k=(o.customDepthMaterial?.type||'D')+(o.isInstancedMesh?(o.instanceColor?'ic':'i'):'')+(m.map?'m':'')+(m.alphaMap?'a':'')+(m.alphaTest>0?'t':'')+(m.displacementMap?'d':'')+side;if(DEPTH.has(k))continue;
    const d=o.customDepthMaterial?o.customDepthMaterial.clone():new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});Object.assign(d,{side,map:m.map,alphaMap:m.alphaMap,alphaTest:m.alphaTest,displacementMap:m.displacementMap});DEPTH.set(k,d);
    const q=o.isInstancedMesh?new THREE.InstancedMesh(o.geometry,d,1):new THREE.Mesh(o.geometry,d);if(o.isInstancedMesh)q.instanceColor=o.instanceColor;L.add(q)}});
-  if(!L.children.length)return;const f=scene.fog;scene.fog=null;try{compileLike(renderer,L,scene,camera,true)}finally{scene.fog=f}}  /* the shadow pass draws with the scene's lights but no fog */
+  if(!L.children.length)return;const f=scene.fog;scene.fog=null;try{compileFor(renderer,L,camera,scene)}finally{scene.fog=f}}  /* the shadow pass draws with the scene's lights but no fog */
  const TX=new Set();
- function compile(root){compileLike(renderer,root,scene,camera);const e0=scene.environment;scene.environment=other();try{compileLike(renderer,root,scene,camera)}finally{scene.environment=e0}
-  depthTwins(root);texturesOf(root,TX)}
+ function compile(root){compileFor(renderer,root,camera,scene);depthTwins(root);texturesOf(root,TX)}
  // the post-processing passes (the FPV camera feed is off until you fly): to the canvas when last, else into the next pass's target
  // (every material a pass holds: the bloom's blur and composite steps, the SMAA pass's three, swapped onto one full-screen quad as it draws)
  function passes(){for(const p of composer?.passes||[]){const q=p.fsQuad?._mesh;if(!q)continue;const M=new Set([q.material]);for(const v of Object.values(p))for(const x of[v].flat())if(x?.isMaterial)M.add(x);
-  for(const m of M){if(!m)continue;const o=new THREE.Mesh(q.geometry,m);for(const into of[true,false])compileLike(renderer,o,o,camera,into);texturesOf(m,TX)}}}
+  for(const m of M){if(!m)continue;const o=new THREE.Mesh(q.geometry,m);for(const into of[true,false])compileFor(renderer,o,camera,o,into);texturesOf(m,TX)}}}
  // compile() only queues the work: the GPU process compiles in the background, and the first draw would wait for it (and for three.js's
  // error check). So the warm-up ends when every program reports done (polled), with its check run here (once each: on a program already
  // drawn it is a no-op; engine/warm.js's menu warm-up made some before this started)
@@ -52,7 +50,7 @@ export function initWarm(api,G,Z){
   bossSamples();
   later(()=>{compile(scene);passes()},{heavy:true});
   later(()=>{for(const t of TX)later(()=>{if(upload(renderer,t))st.tex++},{heavy:true});
-   later(()=>settle(()=>{envT?.dispose();envT=null;st.done=true;st.ms=Math.round(performance.now()-t0)}),{heavy:true})},{heavy:true})}
+   later(()=>settle(()=>{st.done=true;st.ms=Math.round(performance.now()-t0)}),{heavy:true})},{heavy:true})}
  // start once Zombies is the chosen mode (menu) or running; Classic never starts it
  const poll=setInterval(()=>{if(S.gmode==='z'||Z.on){clearInterval(poll);start()}},500);
  Z.warmStart=start;return st}

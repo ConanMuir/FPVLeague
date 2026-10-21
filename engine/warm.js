@@ -9,9 +9,10 @@
 // the target scene). Textures are uploaded too (renderer.initTexture). Off with ?nowarm in the URL (for measuring the hitch it saves).
 import * as THREE from 'three';
 import {renderer,scene,camera} from './render.js';
+import {compileFor} from './hot.js';
 const REG=[],TEX=['map','emissiveMap','alphaMap','normalMap','bumpMap','roughnessMap','metalnessMap','aoMap','lightMap','envMap','specularMap','gradientMap'];
 const OFF=typeof location!=='undefined'&&/[?&]nowarm\b/.test(location.search);
-let done=false,box=null,pts=null,rt=null;
+let done=false,box=null,pts=null;
 export const warmStats={ms:0,programs:0,ran:false};
 function holder(list){const g=new THREE.Group();g.visible=false;
  for(const x of list){if(!x)continue;if(x.isMaterial){box||=new THREE.BoxGeometry(1,1,1);pts||=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute([0,0,0],3));g.add(x.isPointsMaterial?new THREE.Points(pts,x):x.isLineBasicMaterial?new THREE.LineSegments(box,x):new THREE.Mesh(box,x))}
@@ -19,8 +20,7 @@ function holder(list){const g=new THREE.Group();g.visible=false;
 function texOf(o,set){const ms=Array.isArray(o.material)?o.material:o.material?[o.material]:[];for(const m of ms){for(const k of TEX)if(m[k]?.isTexture)set.add(m[k]);
  if(m.uniforms)for(const u of Object.values(m.uniforms))if(u?.value?.isTexture)set.add(u.value)}}
 // the scene is drawn into the composer's render target (the program then has no tone mapping and a linear output), so it is compiled with one bound
-function compile(root,target){const t=new Set(),prev=renderer.getRenderTarget();root.traverse(o=>texOf(o,t));rt||=new THREE.WebGLRenderTarget(1,1);
- renderer.setRenderTarget(rt);try{renderer.compile(root,camera,target)}catch(e){console.warn('warm-up',e)}renderer.setRenderTarget(prev);
+function compile(root,target){const t=new Set();root.traverse(o=>texOf(o,t));try{compileFor(renderer,root,camera,target)}catch(e){console.warn('warm-up',e)}  /* engine/hot.js: bound to a render target */
  for(const x of t)if(!x.isRenderTargetTexture&&x.image)try{renderer.initTexture(x)}catch(e){}}
 export function warm(x){if(Array.isArray(x)){x.forEach(warm);return}if(!x)return;if(!done||OFF){REG.push(x);return}
  const g=holder([x]);scene.add(g);compile(g,scene);scene.remove(g);for(const c of[...g.children])g.remove(c)}

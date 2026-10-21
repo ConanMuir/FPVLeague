@@ -6,16 +6,12 @@
 //   setQuiet(fn)     the game's "nothing time-critical is on screen" test (default: always)
 //   warmers          setup a module registers for the game's warm-up to run (games/interceptor/zwarm.js runs them): functions that do
 //                    their own work and may return objects (Object3D / material / array) to compile and upload, then let go of
-//   compileLike(renderer,root,scene,camera) compile root's materials for scene the way the frame draws it. An EffectComposer draws the scene
-//                    into a render target (no tone mapping, linear output), a plain renderer.compile() targets the canvas: another variant,
-//                    so a warm-up that way compiled programs nothing used. The scene's last draw target is watched (scene.onBeforeRender);
-//                    into (true / false) forces a render target / the canvas: a shadow map is a render target, the last pass draws to the canvas
+//   (compiling goes through engine/hot.js compileFor: into a render target, as the composer draws)
 //   texturesOf(root) the textures root's materials use; upload(renderer,t) uploads one now, if it isn't already
 //   ownRandom(f)     f() drawing from the idle tasks' private random stream (see below)
 //   idleStats        tasks run, ms spent, the longest task (ms), tasks waiting
-import * as THREE from 'three';
 const Q=[],ric=typeof requestIdleCallback==='function'?(f)=>requestIdleCallback(f,{timeout:250}):f=>setTimeout(()=>f({timeRemaining:()=>8}),16);
-let quiet=()=>true,sched=false,rt1=null;
+let quiet=()=>true,sched=false;
 // tasks draw from their own random stream: building a sample (decals, grime) must not shift the game's Math.random sequence (a seeded
 // run, a replay or a determinism test would diverge depending on when the idle slices ran)
 let seed=(typeof crypto!=='undefined'&&crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(1))[0]:Date.now())>>>0;
@@ -31,10 +27,6 @@ function pump(dl){sched=false;const t0=performance.now();
  idleStats.left=Q.length;if(Q.length){if(!quiet()&&Q[0].heavy)setTimeout(kick,250);else kick()}}
 function kick(){if(!sched){sched=true;ric(pump)}}
 export function later(f,{heavy=false}={}){Q.push({f,heavy});idleStats.left=Q.length;kick()}
-const watched=new WeakSet();
-function watch(scene){if(!scene.isScene||watched.has(scene))return;watched.add(scene);const ob=scene.onBeforeRender;scene.onBeforeRender=function(r,s,c,rt){scene.userData.drawRT=rt?1:0;return ob.apply(this,arguments)}}
-export function compileLike(renderer,root,scene,camera,into=scene.userData.drawRT!==0){watch(scene);const prev=renderer.getRenderTarget();rt1||=new THREE.WebGLRenderTarget(1,1);
- renderer.setRenderTarget(into?rt1:null);try{renderer.compile(root,camera,scene)}catch(e){console.warn('warm-up compile',e)}finally{renderer.setRenderTarget(prev)}}
 const TEX=['map','emissiveMap','alphaMap','normalMap','bumpMap','roughnessMap','metalnessMap','aoMap','lightMap','specularMap','gradientMap','displacementMap'];
 export function texturesOf(root,set=new Set()){const add=m=>{if(!m)return;for(const k of TEX)if(m[k]?.isTexture)set.add(m[k]);if(m.uniforms)for(const u of Object.values(m.uniforms))if(u?.value?.isTexture)set.add(u.value)};
  const visit=o=>{if(o?.isMaterial)add(o);else if(o?.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(add)};

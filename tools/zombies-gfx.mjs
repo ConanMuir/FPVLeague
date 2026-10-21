@@ -64,8 +64,8 @@ if (SHOTS) {
 if (PROX) {
   const p = await page({gmode: 'classic', wx: 'clear', cam: 1, gfx: 'high'}); await sleep(2500);
   const grab = (mode) => p.evaluate(async mode => {
-    const {api, gfx} = __z, H = __z.gfxGK.high, keep = {lodD: H.lodD, gFar: H.gFar, detD: H.detD};
-    if (mode === 'off') Object.assign(H, {lodD: Infinity, gFar: 1e9, detD: 1e9});
+    const {api, gfx} = __z, H = __z.gfxGK.high, keep = {lodD: H.lodD, lodD2: H.lodD2, gFar: H.gFar, detD: H.detD};
+    if (mode === 'off') Object.assign(H, {lodD: Infinity, lodD2: Infinity, gFar: 1e9, detD: 1e9});
     gfx.haze = mode === 'haze'; gfx.set(mode === 'low' ? 'low' : 'high');
     const c = api.camera, r = api.renderer, out = [];
     for (const [x, y, z, tx, tz] of [[0, 500, 2600, 0, -2500], [-1800, 120, 400, 600, -3000]]) {
