@@ -22,7 +22,8 @@ const BSTR=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1).translate(0,0,-.
 export const BSPD=400,FIRE_HZ=12,BCOL=[0x7cc4ff,0xffa060,0xff4040].map(c=>new THREE.Color(c).multiplyScalar(4));
 export const gunDir=(d,tilt,out)=>out.set(0,Math.sin(tilt),-Math.cos(tilt)).applyQuaternion(d.q);  // the FPV camera axis (body forward tilted up by the camera uptilt)
 export function shoot(p,dir,v,team,real,by,dmg,spread,spd){const b=BUL[bi++%BN];b.p.copy(p);b.v.copy(dir);b.v.x+=(Math.random()-.5)*spread;b.v.y+=(Math.random()-.5)*spread;b.v.z+=(Math.random()-.5)*spread;
- b.v.setLength(spd);if(v)b.v.add(v);b.life=spd>200?.95:1.6;b.dist=0;b.team=team;b.real=real;b.by=by;b.dmg=dmg;b.col=by?.isTurret?2:team;if(BH.shot)BH.shot(b)}
+ b.v.setLength(spd);if(v)b.v.add(v);b.life=spd>200?.95:1.6;b.dist=0;b.team=team;b.real=real;b.by=by;b.dmg=dmg;b.col=by?.isTurret?2:team;if(BH.shot)BH.shot(b);
+ const o=(bi-1)%BN*4;BIP[o]=p.x;BIP[o+1]=p.y;BIP[o+2]=p.z;BIP[o+3]=0;BEP[(bi-1)%BN]=bE}  // drawn from the muzzle this tick (gunsLerp)
 export function droneFire(d,dt,real){d.fcd-=dt;if(!d.firing||d.dead>0||d.fcd>0)return;d.fcd=1/FIRE_HZ;const dir=gunDir(d,(d===GS.player?camTilt():d.tilt??30)*Math.PI/180,_gd);
  // twin guns under the frame, alternating left/right, converging on the crosshair 150 m out (keeps the muzzle out of the FPV view)
  d.gs=-(d.gs||1);const mz=_gp.set(d.gs*.4,-.55,-.3).applyQuaternion(d.q).add(d.p),aimP=_gq.copy(d.p).addScaledVector(dir,150);dir.subVectors(aimP,mz).normalize();
@@ -37,6 +38,18 @@ export function bullets(dt){for(const b of BUL){if(b.life<=0)continue;b.life-=dt
  const h=bulletCast(p0,_bd,b.team,b.by);let tt=h?h.t:2,tur=null;for(const t of TUR){if(t.re>0||t.t===b.team)continue;const s=segT(p0,b.p,t.p,2.6);if(s!=null&&s<tt){tt=s;tur=t}}
  if(tur){b.life=0;b.p.copy(p0).addScaledVector(_bd,tt);emit(b.p,0xffc640,10,8,.4);if(b.real)hitTurret(tur,b.dmg,b.by)}
  else if(h){b.life=0;b.p.copy(h.p);if(h.d){emit(b.p,COL[h.d.team],10,8,.4);E_BUL.d=h.d;E_BUL.tag=h.tag;E_BUL.other=b.by;emitEv('bullet',E_BUL);if(b.real)hitDrone(h.d,b.dmg,b.by)}else{emit(b.p,0xffd0a0,4,6,.3);bulletRock(b.p)}}if(b.life<=0&&BH.end)BH.end(b)}}
+// render interpolation (main.js, beside render/interp.js for the quads and the ball): rounds move 3-6 m a tick, so drawn as simulated they
+// stood still on every other frame at 240 Hz. gunsSnap() before every tick keeps each live round's position and travelled distance (and each
+// turret's aim) apart from BUL / TUR; gunsLerp(a) moves them a of the way from there to the sim values for the frame's draw, gunsBack() puts
+// the sim values back. A round fired this tick is drawn from its muzzle. No allocation per frame.
+const BIP=new Float64Array(BN*4),BSIM=new Float64Array(BN*4),BEP=new Int32Array(BN).fill(-1),BSW=new Int32Array(BN);let bE=0,bSN=0,tSW=false;
+export function gunsSnap(){bE++;for(let i=0;i<BN;i++){const b=BUL[i];if(b.life<=0)continue;const o=i*4;BIP[o]=b.p.x;BIP[o+1]=b.p.y;BIP[o+2]=b.p.z;BIP[o+3]=b.dist;BEP[i]=bE}
+ for(const t of TUR)(t.ipA||(t.ipA=new V3())).copy(t.aim)}
+export function gunsLerp(a){bSN=0;for(let i=0;i<BN;i++){const b=BUL[i];if(b.life<=0||BEP[i]!==bE)continue;const o=i*4,p=b.p;BSIM[o]=p.x;BSIM[o+1]=p.y;BSIM[o+2]=p.z;BSIM[o+3]=b.dist;
+  p.set(BIP[o]+(p.x-BIP[o])*a,BIP[o+1]+(p.y-BIP[o+1])*a,BIP[o+2]+(p.z-BIP[o+2])*a);b.dist=BIP[o+3]+(b.dist-BIP[o+3])*a;BSW[bSN++]=i}
+ tSW=true;for(const t of TUR){if(!t.ipA)continue;(t.simA||(t.simA=new V3())).copy(t.aim);t.aim.lerpVectors(t.ipA,t.simA,a);if(t.aim.lengthSq()>1e-8)t.aim.normalize();else t.aim.copy(t.simA)}}
+export function gunsBack(){for(let k=0;k<bSN;k++){const i=BSW[k],o=i*4,b=BUL[i];b.p.set(BSIM[o],BSIM[o+1],BSIM[o+2]);b.dist=BSIM[o+3]}bSN=0;
+ if(tSW)for(const t of TUR)if(t.simA)t.aim.copy(t.simA);tSW=false}
 const _bc=new THREE.Color(),_bm4=new THREE.Matrix4(),_bq=new QT(),_bz=new V3(0,0,1),_bs=new V3();
 export function dfDraw(now){for(const t of TUR){t.head.visible=t.re<=0;t.g.scale.y=t.re>0?.45:1;if(t.re<=0){t.head.rotation.y=Math.atan2(-t.aim.x,-t.aim.z);t.br.rotation.x=Math.asin(cl(t.aim.y,-1,1))}}
  let ns=0;const m4=_bm4,q=_bq;for(const b of BUL){if(b.life<=0)continue;_gd.copy(b.v).normalize();const w=Math.max(.06,b.p.distanceTo(camera.position)*.005),L2=Math.min(b.col===2?5:10,b.dist);

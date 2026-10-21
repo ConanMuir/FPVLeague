@@ -104,7 +104,7 @@ export function buildDroneBody(d,desc){freeDroneBody(d);desc=desc||(d.lo?loadout
  else{for(const e of d.cols)if(e.use.includes('world'))e.c.setDensity(desc.mass/Math.max(vol,1e-6));b.recomputeMassPropertiesFromColliders()}
  d.bound=bound;d.ph=0;d.bodyMode='dyn';d.ccdK=null;if(d.dead>0)b.setEnabled(false)}
 export function freeDroneBody(d){if(!d.rb)return;for(const e of d.cols)C2D.delete(e.c.handle);world.removeRigidBody(d.rb);d.rb=null;d.cols=[]}
-const vec4=q=>({x:q.x,y:q.y,z:q.z,w:q.w});
+const vec4=q=>({x:q.x,y:q.y,z:q.z,w:q.w});  // body creation only; the step hands Rapier the quaternions themselves (it reads x y z w at once)
 function setMode(b,o,m){if(o.bodyMode===m)return;if(m==='off'){b.setEnabled(false)}else{if(o.bodyMode==='off')b.setEnabled(true);
  b.setBodyType(m==='dyn'?R.RigidBodyType.Dynamic:R.RigidBodyType.KinematicPositionBased,true)}o.bodyMode=m}
 
@@ -114,11 +114,11 @@ function setMode(b,o,m){if(o.bodyMode===m)return;if(m==='off'){b.setEnabled(fals
 // the ball's velocity already has gravity/drag (ballPre). simBall: the ball moves this tick.
 export function physStep(dt,simBall){const t0=performance.now();world.timestep=dt;setMap(!!GS.OBSON);  // timestep: goal slow-mo steps by less than 1/120 s
  for(const d of GS.drones){const b=d.rb;if(!b)continue;const m=d.dead>0?'off':d.ph?'dyn':'kin';setMode(b,d,m);
-  if(m==='dyn'){if(PHYS.ccd==='soft'){const sp=d.v.length(),k=sp>3&&-sdf(d.p.x,d.p.y,d.p.z)<sp*dt*4+d.bound+3;if(d.ccdK==null)b.enableCcd(false);d.ccdK=k;b.setSoftCcdPrediction(k?Math.min(6,Math.max(.4,sp*dt*1.5)):0)}b.setTranslation(d.p,true);b.setRotation(vec4(d.q),true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
-  else if(m==='kin'){b.setNextKinematicTranslation(d.p);b.setNextKinematicRotation(vec4(d.q))}}
+  if(m==='dyn'){if(PHYS.ccd==='soft'){const sp=d.v.length(),k=sp>3&&-sdf(d.p.x,d.p.y,d.p.z)<sp*dt*4+d.bound+3;if(d.ccdK==null)b.enableCcd(false);d.ccdK=k;b.setSoftCcdPrediction(k?Math.min(6,Math.max(.4,sp*dt*1.5)):0)}b.setTranslation(d.p,true);b.setRotation(d.q,true);b.setLinvel(d.v,true);b.setAngvel(_v.copy(d.w).applyQuaternion(d.q),true);d.v0=(d.v0||new V3()).copy(d.v)}
+  else if(m==='kin'){b.setNextKinematicTranslation(d.p);b.setNextKinematicRotation(d.q)}}
  {const m=GS.OBSON?'off':simBall?'dyn':'kin';setMode(ballBody,ball,m);
-  if(m==='dyn'){ball.v0.copy(ball.v);ballBody.setTranslation(ball.p,true);ballBody.setRotation(vec4(ball.q),true);ballBody.setLinvel(ball.v,true);ballBody.setAngvel(ball.w,true)}
-  else if(m==='kin'){ballBody.setNextKinematicTranslation(ball.p);ballBody.setNextKinematicRotation(vec4(ball.q));ball.w.set(0,0,0);ball.c=false}}
+  if(m==='dyn'){ball.v0.copy(ball.v);ballBody.setTranslation(ball.p,true);ballBody.setRotation(ball.q,true);ballBody.setLinvel(ball.v,true);ballBody.setAngvel(ball.w,true)}
+  else if(m==='kin'){ballBody.setNextKinematicTranslation(ball.p);ballBody.setNextKinematicRotation(ball.q);ball.w.set(0,0,0);ball.c=false}}
  world.step();
  for(const d of GS.drones){if(!d.rb||d.bodyMode!=='dyn')continue;const b=d.rb,t=b.translation(),r=b.rotation(),lv=b.linvel(),av=b.angvel();
   d.p.set(t.x,t.y,t.z);d.q.set(r.x,r.y,r.z,r.w);d.v.set(lv.x,lv.y,lv.z);d.w.set(av.x,av.y,av.z).applyQuaternion(_q.copy(d.q).invert());d.hit=groundContacts(d,dt);
@@ -130,11 +130,16 @@ export function physStep(dt,simBall){const t0=performance.now();world.timestep=d
   else{ball.hit=ballContact(ball,dt);ballSpin(ball,dt)}}
  PHYS.stats.steps++;PHYS.stats.ms+=performance.now()-t0}
 // contacts of a stepped drone with the world: ground timer, impact speed, our ground friction (Rapier's solver friction is 0)
-function groundContacts(d,dt){let touch=false,jn=0,hit=0;d.slide=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0);let np=0;
- for(const e of d.cols){if(!e.use.includes('world'))continue;world.contactPairsWith(e.c,o=>{if(C2D.has(o.handle))return;world.contactPair(e.c,o,(m,fl)=>{const k=m.numSolverContacts();if(!k)return;touch=true;
-   const nn=m.normal(),s=fl?1:-1;let j=0;for(let i=0;i<m.numContacts();i++)j+=m.contactImpulse(i);jn+=j;n.x+=nn.x*s*Math.max(j,1e-3);n.y+=nn.y*s*Math.max(j,1e-3);n.z+=nn.z*s*Math.max(j,1e-3);
-   for(let i=0;i<k&&np<CP.length;i++){const p=m.solverContactPoint(i);CP[np++].set(p.x,p.y,p.z)}
-   hit=Math.max(hit,-(d.v0.x*nn.x+d.v0.y*nn.y+d.v0.z*nn.z)*s)})})}
+// the contact walk's callbacks are module functions over GC (not closures made per drone and collider every tick); same sums in the same order
+const GC={d:null,c:null,n:null,touch:false,jn:0,hit:0,np:0};
+function gcPair(m,fl){const k=m.numSolverContacts();if(!k)return;GC.touch=true;const d=GC.d,n=GC.n;
+ const nn=m.normal(),s=fl?1:-1;let j=0;for(let i=0;i<m.numContacts();i++)j+=m.contactImpulse(i);GC.jn+=j;n.x+=nn.x*s*Math.max(j,1e-3);n.y+=nn.y*s*Math.max(j,1e-3);n.z+=nn.z*s*Math.max(j,1e-3);
+ for(let i=0;i<k&&GC.np<CP.length;i++){const p=m.solverContactPoint(i);CP[GC.np++].set(p.x,p.y,p.z)}
+ GC.hit=Math.max(GC.hit,-(d.v0.x*nn.x+d.v0.y*nn.y+d.v0.z*nn.z)*s)}
+function gcWith(o){if(C2D.has(o.handle))return;world.contactPair(GC.c,o,gcPair)}
+function groundContacts(d,dt){d.slide=0;const DI=d.di||DI0,im=1/d.rb.mass();const n=_n.set(0,0,0);GC.d=d;GC.n=n;GC.touch=false;GC.jn=0;GC.hit=0;GC.np=0;
+ for(const e of d.cols){if(!e.use.includes('world'))continue;GC.c=e.c;world.contactPairsWith(e.c,gcWith)}
+ const touch=GC.touch,hit=GC.hit,np=GC.np;let jn=GC.jn;GC.d=GC.c=null;
  if(!touch)return 0;d.gt=.12;if(n.lengthSq()<1e-12||!np)return hit;n.normalize();(d.cn||(d.cn=new V3())).copy(n);jn*=im;  // d.cn: contact normal (floor up, wall sideways, ceiling down) for the self-righting pendulum; impulse -> velocity change
  if(hasEv('ground'))groundHit(d,n,np,hit);  // contact event for effects / sound (core/events.js 'ground')
  if(d.piv)return hit;  // pivoting over an edge (self-righting, turtle): pivot() already moves it as a roll about that edge
@@ -143,15 +148,17 @@ function groundContacts(d,dt){let touch=false,jn=0,hit=0;d.slide=0;const DI=d.di
  // (Ground grip), harder the faster it slides, and the friction below the centre of mass trips a hot landing. Wheels (parts/attach.js):
  // roll along the quad's forward axis, grip sideways, and barely spin the frame, so it stays planted.
  const wh=d.fl?.wheels,vt=d.slide=Math.sqrt(Math.max(0,d.v.lengthSq()-d.v.dot(n)**2)),sp=wh?.15:Math.min(1,.2+vt/8),jc=Math.min(jn,G*.05)/np,ww=_w.copy(d.w).applyQuaternion(d.q);  // sp: share of friction that spins the frame
+ FR.d=d;FR.jc=jc;FR.sp=sp;FR.DI=DI;FR.ww=ww;
  const fwd=wh?_f2.set(0,0,-1).applyQuaternion(d.q).addScaledVector(n,-_f2.dot(n)):null;if(fwd&&fwd.lengthSq()>1e-6)fwd.normalize();const side=fwd?_s2.crossVectors(n,fwd):null;
- const fric=(r,vp,dir,mu)=>{const sl=vp.dot(dir);if(Math.abs(sl)<1e-4)return;const rt=_t.crossVectors(r,dir),jt=Math.sign(sl)*Math.min(mu*jc,.7*Math.abs(sl)/(1+sp*rt.lengthSq()/DI));
-  d.v.addScaledVector(dir,-jt);ww.addScaledVector(rt,-jt*sp/DI)};  // at most 70% of the slip per step, so strong grip settles instead of ringing
  let slide=0;const sd=_d3.set(0,0,0);
  for(let i=0;i<np;i++){const r=_r.subVectors(CP[i],d.p),vp=_v.crossVectors(ww,r).add(d.v);vp.addScaledVector(n,-vp.dot(n));const tl=vp.length();if(tl<1e-4)continue;
   if(fwd&&fwd.lengthSq()>.5){fric(r,vp,fwd,.03);fric(r,vp,side,Math.max(GF,.9))}
   else{const dir=_d2.copy(vp).divideScalar(tl);fric(r,vp,dir,wh?GF:GF*Math.min(2.5,1+tl/20));if(tl>slide){slide=tl;sd.copy(dir)}}}  // a bare frame digs in harder the faster it scrapes
  if(!wh&&slide>12&&_s2.set(0,1,0).applyQuaternion(d.q).dot(n)<.97)ww.addScaledVector(_f2.crossVectors(n,sd).normalize(),Math.min(30,(slide-12)*1.8)*dt);  // tilted at speed: the leading edge catches and it tumbles over it
- d.w.copy(ww).applyQuaternion(_q.copy(d.q).invert());return hit}
+ FR.d=FR.ww=null;d.w.copy(ww).applyQuaternion(_q.copy(d.q).invert());return hit}
+const FR={d:null,jc:0,sp:0,DI:0,ww:null};
+function fric(r,vp,dir,mu){const sl=vp.dot(dir);if(Math.abs(sl)<1e-4)return;const rt=_t.crossVectors(r,dir),jt=Math.sign(sl)*Math.min(mu*FR.jc,.7*Math.abs(sl)/(1+FR.sp*rt.lengthSq()/FR.DI));
+ FR.d.v.addScaledVector(dir,-jt);FR.ww.addScaledVector(rt,-jt*FR.sp/FR.DI)}  // at most 70% of the slip per step, so strong grip settles instead of ringing
 const CP=Array.from({length:24},()=>new V3()),_d3=new V3();
 // event 'ground' (core/events.js) {type:'ground', d, tag:'chassis', speed: impact speed into the surface, slide: sliding speed at the contact, p: contact point (mean), n: surface normal}
 // sent every tick a stepped drone touches the map; the event object and its p/n are reused, so copy them to keep them
@@ -160,6 +167,8 @@ function groundHit(d,n,np,hit){const P=GEV.p.set(0,0,0);for(let i=0;i<np;i++)P.a
  const vp=_gv.crossVectors(_gw.copy(d.w).applyQuaternion(d.q),_gr.subVectors(P,d.p)).add(d.v);vp.addScaledVector(n,-vp.dot(n));
  GEV.d=d;GEV.speed=hit;GEV.slide=vp.length();GEV.n.copy(n);emitEv('ground',GEV)}
 // League arena or Highlands colliders, swapped with the mode (Highlands built on first use)
+/** render/warm.js: the Highlands colliders ahead of the first Dogfight, built switched off */
+export function warmDFPhys(){if(dfCols)return;buildDF();dfCols.forEach(c=>c.setEnabled(!!mapDF))}
 function setMap(df){if(df===mapDF)return;mapDF=df;if(df&&!dfCols)buildDF();arenaCol.forEach(c=>c.setEnabled(!df));dfCols?.forEach(c=>c.setEnabled(df))}
 function buildDF(){const D=dfCollision(),add=(cd,x,y,z,q)=>{cd.setTranslation(x,y,z).setCollisionGroups(grp(GW_,GHULL|GB_|QRY)).setFriction(1).setFrictionCombineRule(R.CoefficientCombineRule.Min).setRestitution(0).setRestitutionCombineRule(R.CoefficientCombineRule.Max);
   if(q)cd.setRotation(q);dfCols.push(world.createCollider(cd))};dfCols=[];
@@ -183,28 +192,32 @@ function obsMesh(L){const P=[],m=new THREE.Matrix4(),q=new QT(),v=new V3(),one=n
 // bullet sweep radius: aim forgiveness around a drone's parts. 1.4 m at the old 0.75 drone size; it shrinks as drones grow (their
 // parts already make them bigger targets), so a size-2 stock quad is hit out to ~3 m from its centre instead of ~3.4 m
 export const bulletR=()=>cl(1.4*.6/DRAD,.35,1.4);let bulShape=null;
-/** first thing a bullet hits moving from p0 by dv this tick: {t (0..1), d (drone)|null, tag, p (hit point)} or null. team/by are skipped. */
-export function bulletCast(p0,dv,team,by){const L=dv.length();if(L<1e-6)return null;const dir=_v.copy(dv).divideScalar(L);
- const rh=world.castRay(new R.Ray(p0,dir),L,true,undefined,grp(QRY,GW_));let best=rh?{t:rh.timeOfImpact/L,d:null,tag:'world'}:null;
- const br=bulletR();if(!bulShape||bulShape.radius!==br)bulShape=new R.Ball(br);
- const sh=world.castShape(p0,IDQ,dir,bulShape,0,best?best.t*L:L,true,undefined,grp(QRY,GBUL),undefined,undefined,c=>{const e=C2D.get(c.handle);return!!e&&e.d.team!==team&&e.d!==by&&e.d.dead<=0});
- if(sh){const e=C2D.get(sh.collider.handle);best={t:sh.time_of_impact/L,d:e.d,tag:e.tag}}
- if(best)best.p=new V3().copy(p0).addScaledVector(dv,best.t);return best}
+// the queries reuse their ray and result objects (Rapier reads a ray's origin and dir when the cast starts) and filter with a module function
+let RAYB=null,RAYL=null;const BC={t:0,d:null,tag:'',p:new V3()},BQ={team:0,by:null};
+const bulFilter=c=>{const e=C2D.get(c.handle);return!!e&&e.d.team!==BQ.team&&e.d!==BQ.by&&e.d.dead<=0};
+/** first thing a bullet hits moving from p0 by dv this tick: {t (0..1), d (drone)|null, tag, p (hit point)} or null. team/by are skipped. The result is reused: read it before the next call. */
+export function bulletCast(p0,dv,team,by){const L=dv.length();if(L<1e-6)return null;const dir=_v.copy(dv).divideScalar(L);const ray=RAYB||(RAYB=new R.Ray(p0,dir));ray.origin=p0;ray.dir=dir;
+ const rh=world.castRay(ray,L,true,undefined,grp(QRY,GW_));let best=null;if(rh){best=BC;BC.t=rh.timeOfImpact/L;BC.d=null;BC.tag='world'}
+ const br=bulletR();if(!bulShape||bulShape.radius!==br)bulShape=new R.Ball(br);BQ.team=team;BQ.by=by;
+ const sh=world.castShape(p0,IDQ,dir,bulShape,0,best?best.t*L:L,true,undefined,grp(QRY,GBUL),undefined,undefined,bulFilter);BQ.by=null;
+ if(sh){const e=C2D.get(sh.collider.handle);best=BC;BC.t=sh.time_of_impact/L;BC.d=e.d;BC.tag=e.tag}
+ if(best)best.p.copy(p0).addScaledVector(dv,best.t);return best}
 /** line of sight through the map (cover blocks it); the first and last 2 m are ignored, as v15 */
-export function los(a,b){const d=_v.subVectors(b,a),L=d.length();if(L<4)return true;d.divideScalar(L);_w.copy(a).addScaledVector(d,2);
- return!world.castRay(new R.Ray(_w,d),L-4,true,undefined,grp(QRY,GW_))}
+export function los(a,b){const d=_v.subVectors(b,a),L=d.length();if(L<4)return true;d.divideScalar(L);_w.copy(a).addScaledVector(d,2);const ray=RAYL||(RAYL=new R.Ray(_w,d));ray.origin=_w;ray.dir=d;
+ return!world.castRay(ray,L-4,true,undefined,grp(QRY,GW_))}
 let tbShape=null,tbR=0;
 /** ball vs drone d's 'ball' colliders: n (unit, drone -> ball) and pen like v15's ballBox, plus the tag touched */
-export function ballTouch(d,n){if(!d.rb||d.p.distanceToSquared(ball.p)>(BR+d.bound+.5)**2)return null;if(!tbShape||tbR!==BR){tbShape=new R.Ball(BR);tbR=BR}let best=null;
+const TB={pen:0,tag:''},DT2={pen:0,ta:'',tb:''};  // ballTouch / droneTouch results, reused: read them before the next call
+export function ballTouch(d,n){if(!d.rb||d.p.distanceToSquared(ball.p)>(BR+d.bound+.5)**2)return null;if(!tbShape||tbR!==BR){tbShape=new R.Ball(BR);tbR=BR}let bd=0,bt=null;
  let sx=0,sy=0,sz=0;for(const e of d.cols){if(!e.use.includes('ball'))continue;const c=e.c.contactShape(tbShape,ball.p,IDQ,0);if(!c||c.distance>=0)continue;const w=-c.distance;sx-=c.normal2.x*w;sy-=c.normal2.y*w;sz-=c.normal2.z*w;
-  if(!best||c.distance<best.distance)best={distance:c.distance,tag:e.tag}}
- if(!best)return null;n.set(sx,sy,sz);if(n.lengthSq()<1e-10)n.subVectors(ball.p,d.p);n.normalize();return{pen:-best.distance,tag:best.tag}}  // normal: every overlapping part, weighted by depth, so mirror-image parts don't pick a side
+  if(bt===null||c.distance<bd){bd=c.distance;bt=e.tag}}
+ if(bt===null)return null;n.set(sx,sy,sz);if(n.lengthSq()<1e-10)n.subVectors(ball.p,d.p);n.normalize();TB.pen=-bd;TB.tag=bt;return TB}  // normal: every overlapping part, weighted by depth, so mirror-image parts don't pick a side
 /** drone a vs drone b ('drone' colliders, with the BUMP skin): n (unit, a -> b), pen, tags */
 export const BUMP=.4;  // drone-drone contact skin (m): parts within this distance bump (v15's 1.2 m spheres were generous; thin frames need some)
-export function droneTouch(a,b,n){if(!a.rb||!b.rb||a.p.distanceToSquared(b.p)>(a.bound+b.bound+BUMP+.2)**2)return null;let best=null;
+export function droneTouch(a,b,n){if(!a.rb||!b.rb||a.p.distanceToSquared(b.p)>(a.bound+b.bound+BUMP+.2)**2)return null;let bd=0,bn=null,ta='',tb='';
  for(const ea of a.cols){if(!ea.use.includes('drone'))continue;for(const eb of b.cols){if(!eb.use.includes('drone'))continue;const c=ea.c.contactCollider(eb.c,BUMP);
-  if(c&&c.distance<BUMP&&(!best||c.distance<best.distance))best={distance:c.distance,n:c.normal1,ta:ea.tag,tb:eb.tag}}}
- if(!best)return null;n.set(best.n.x,best.n.y,best.n.z);if(n.lengthSq()<.5)n.subVectors(b.p,a.p).normalize();return{pen:BUMP-best.distance,ta:best.ta,tb:best.tb}}
+  if(c&&c.distance<BUMP&&(bn===null||c.distance<bd)){bd=c.distance;bn=c.normal1;ta=ea.tag;tb=eb.tag}}}
+ if(bn===null)return null;n.set(bn.x,bn.y,bn.z);if(n.lengthSq()<.5)n.subVectors(b.p,a.p).normalize();DT2.pen=BUMP-bd;DT2.ta=ta;DT2.tb=tb;return DT2}
 // the old contact-event API, now on the event bus (core/events.js): onHit(f) listens to touch, bump, bullet and ground (e.type 'ball', 'drone',
 // 'bullet', 'ground'); emitHit(e) sends e as the event its type maps to. tools/bot-match.mjs uses onHit.
 const HIT_EV={ball:'touch',drone:'bump',bullet:'bullet',ground:'ground'};export const onHit=f=>{for(const k in HIT_EV)onEv(HIT_EV[k],f)},emitHit=e=>emitEv(HIT_EV[e.type],e);

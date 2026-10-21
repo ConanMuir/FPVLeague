@@ -7,6 +7,7 @@
 //   DL_TIMING_WARN=1 / 0             timing (ms budget) checks only warn / fail (default: warn in CI, fail locally)
 //   DL_NORENDER=1 / 0                skip WebGL draw calls except where a check asks for drawn frames (default: on in CI, off locally)
 //   DL_HIGHGPU=1                     use the high-performance GPU on a dual-GPU laptop (headless otherwise picks the integrated one)
+//   DL_CPU_THROTTLE=N                slow every page's CPU N times (Chrome DevTools throttling), to reproduce a slow CI runner locally
 import fs from 'node:fs';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
@@ -77,7 +78,9 @@ function renderStub(on) {
     const g = function (...a) { if (window.__dlNoRender) return; return f.apply(this, a); }; g.__stub = true; C.prototype[m] = g;
   }
 }
-export const installRenderStub = p => NO_RENDER ? p.evaluateOnNewDocument(renderStub, true) : Promise.resolve();
+// force: stub this page even locally (a harness that needs no pixels and runs several game windows at once, tools/zombies-coop.mjs)
+export const installRenderStub = async (p, force = false) => { if (+E.DL_CPU_THROTTLE > 1) await (await p.createCDPSession()).send('Emulation.setCPUThrottlingRate', {rate: +E.DL_CPU_THROTTLE});
+  if (NO_RENDER || force) await p.evaluateOnNewDocument(renderStub, true); };
 // draw n real frames (no-op locally, where everything is drawn anyway)
 export async function drawFrames(page, n = 3) {
   if (!NO_RENDER) return;

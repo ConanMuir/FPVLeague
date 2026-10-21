@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
-// game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR]
-//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,bosses   run only those sections (CI shards them across jobs); default all
+// game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
+//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
 import {front as campFront} from '../games/interceptor/zcampaign.js';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
@@ -11,6 +11,9 @@ const ONLY = argv.includes('--only');  // with --balance or --tiers: run just th
 const SECTIONS = argv.find(a => a.startsWith('--sections='))?.slice(11).split(','), want = n => !ONLY && (!SECTIONS || SECTIONS.includes(n));
 const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fails++; };
 
+// --throttle N: CPU throttling on each game page (CDP), e.g. 4, to play a slow CI runner
+const THROTTLE = argv.includes('--throttle') ? +argv[argv.indexOf('--throttle') + 1] : 0;
+const throttle = async p => { if (THROTTLE > 1) { const s = await p.target().createCDPSession(); await s.send('Emulation.setCPUThrottlingRate', {rate: THROTTLE}); } return p; };
 async function page(mode) {
   const errs = [];
   const p = await open(browser, origin + '/games/interceptor/', errs);
@@ -19,6 +22,7 @@ async function page(mode) {
   await p.reload({waitUntil: 'load'});
   await p.waitForFunction(() => window.__z, {timeout: 60000});
   await frames(p, 5); await drawFrames(p);  // real frames of the menu scene (CI skips draw calls elsewhere: DL_NORENDER)
+  await throttle(p);  // after the page is up: a throttled boot only tests the machine
   return {p, errs};
 }
 // waits are state-driven (the game's own state, or frames drawn), not wall-clock, so a slow machine only makes the run longer
@@ -444,6 +448,71 @@ if (want('chain')) {
   await p.close();
 }
 
+// ---------- sorties and fog of war (zsortie.js, zsites.js, zfog.js): the Sortie tab, a launch, a convoy found and bombed (the next wave shrinks),
+// salvage banked inside the line, a launch site (the fast missiles of its sector, two waves) and a factory (three waves), a strike order,
+// a late return (the wave starts, drone and salvage lost), fog that reveals and stays ----------
+if (want('sorties')) {
+  const {p, errs} = await page('z');
+  await play(p);
+  const b0 = await p.evaluate(() => { const {G, Z} = __z, so = __z.so, W = so.W; Z.base.setTab('sortie');
+    const enemyFog = so.fog.frac((x, z) => W.enemy(x, z));
+    return {tab: !!document.querySelector('[data-tab="sortie"]'), go: document.querySelector('[data-so="go"]')?.disabled, launch: so.launch(), sites: W.list.filter(t => t.t !== 'convoy').map(t => t.t), known: so.known().length, enemyFog, routes: W.routes.length}; });
+  ok(b0.tab && b0.go === true && b0.launch === false, 'Sorties: a Sortie tab on the base screen; no sortie before wave 1 (button disabled)');
+  ok(b0.sites.filter(t => t === 'launch').length === 3 && b0.sites.includes('factory') && b0.routes === 3, `Sorties: the enemy side has a launch site per sector, a factory and three roads [${b0.sites}]`);
+  ok(b0.known === 0 && b0.enemyFog < .2, `Fog: the far ground starts unknown (${Math.round(b0.enemyFog * 100)}% of the enemy side revealed by the radar's ground circle), no site known`);
+  await p.evaluate(() => __z.cont());
+  await p.evaluate(() => { for (let i = 0; i < 400 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0 && Math.random() < .5) __z.botKill(.8); } __z.sim(4); });
+  const l1 = await p.evaluate(() => { const {G, Z} = __z, so = __z.so; Z.base.setTab('sortie'); const cv = so.W.list.find(t => t.t === 'convoy');
+    return {st: G.state, wave: G.wave, convoy: !!cv, go: document.querySelector('[data-so="go"]')?.disabled, launch: so.launch(), on: so.S.on, base: !document.getElementById('zbase').hidden, hold: Z.hold(), clock: so.S.t, fog0: so.fog.count()}; });
+  ok(l1.st === 'base' && l1.wave === 1 && l1.convoy && l1.go === false, 'Sorties: after wave 1 a convoy is on the roads and the Launch button is live');
+  ok(l1.launch && l1.on && !l1.base && !l1.hold && l1.clock === 120, `Sortie launched: the base screen closes, the game runs, ${l1.clock} s on the clock`);
+  if (SHOTS) { await frames(p, 3); await drawFrames(p, 2); await p.screenshot({path: SHOTS + '/sortie-launch.png'}); }
+  // fly to the convoy (it is seen), stop it and bomb every truck from above
+  // the clock and the defenders are parked here: this part checks fog, bombs, cuts and salvage; the clock and the guns have checks of their own
+  // (with them running, a far convoy on this run's random roads could use up the 2:00 on the way back and start the wave)
+  const c1 = await p.evaluate(() => { const {G} = __z, so = __z.so, t = so.W.list.find(u => u.t === 'convoy'); so.S.t = 1e4; so.W.calm = true;
+    so.fly(t.x, t.z + 250, 90, 100); const seen = t.seen, fog = so.fog.count(), out = so.S.home === false;
+    t.halt = 1e9; for (const u of so.W.list) for (const q of u.pats) q.st = 'dead'; for (const u of so.W.list) for (const q of u.parts) if (q.aa) q.lock = -1e9;
+    const k = t.cargo.k, n0 = G.next.list.reduce((a, s) => a + (s.split(':')[0] === k ? +(s.split(':')[1] || 1) : 0), 0), trucks = t.parts.filter(q => q.main).length;
+    for (const q of t.parts.filter(x => x.main)) { so.drop(q.x, q.y + 40, q.z); so.hold(3.5); }
+    const n1 = G.next.list.reduce((a, s) => a + (s.split(':')[0] === k ? +(s.split(':')[1] || 1) : 0), 0);
+    return {seen, fog, out, k, n0, n1, trucks, dead: t.dead, all: !!t.cargo.all, carry: so.S.carry, cuts: JSON.stringify(G.next.cuts), note: Z_note(), feed: document.getElementById('feed')?.innerText || ''};
+    function Z_note() { return __z.Z.cutNote(); } });
+  ok(c1.seen && c1.out && c1.fog > l1.fog0, `Fog: flying out reveals ground (${l1.fog0} → ${c1.fog} cells) and the convoy is spotted`);
+  ok(c1.dead && c1.n1 < c1.n0 && /Convoy destroyed/.test(c1.feed) && /Sorties/.test(c1.note), `Convoy bombed: all ${c1.trucks} trucks destroyed, next wave's ${c1.k} ${c1.n0} → ${c1.n1}${c1.all ? ' (first appearance delayed)' : ''}; forecast reads "${c1.note.replace(/<[^>]+>/g, '').slice(0, 60)}"`);
+  ok(c1.carry > 0, `Salvage carried: $${c1.carry} (not banked yet)`);
+  const h1 = await p.evaluate(() => { const {G, api} = __z, so = __z.so, f = api.FOBS[1], c0 = G.cash, carry = so.S.carry; so.S.t = 1e4; so.fly(f.x, f.z + 150, 60, 100); so.hold(.5); const banked = G.cash - c0, home = so.S.home;
+    const diag = {dead: api.player.dead > 0, st: G.state, hull: so.S.hull, d: Math.round(Math.hypot(api.player.p.x - f.x, api.player.p.z - f.z))};
+    so.finish(); return {carry, banked, home, diag, on: so.S.on, base: !document.getElementById('zbase').hidden, go: document.querySelector('[data-so="go"]')?.disabled}; });
+  ok(h1.home && h1.banked === h1.carry && h1.carry > 0, `Salvage banked inside the line: +$${h1.banked}` + (h1.banked === h1.carry ? '' : ' ' + JSON.stringify(h1.diag)));
+  ok(!h1.on && h1.base && h1.go === true, 'Sortie over: back on the base screen, one sortie a break (Launch disabled)');
+  if (SHOTS) { await frames(p, 3); await drawFrames(p, 2); await p.screenshot({path: SHOTS + '/sortie-tab.png'}); }
+  // a launch site: its sector's fast missiles next wave (the kill chain's count) and half the wave after; a factory: a third of its kind for 3 waves
+  const ls = await p.evaluate(() => { const {G, Z, api} = __z, so = __z.so, W = so.W, me = 'me'; if (G.state !== 'base') Z.openBase(); __z.jump(31, 1e5);  /* each part starts on a base screen, whatever the one before did */ G.next = __z.plan(31); so.S.used = -1;
+    const t = W.list.find(u => u.t === 'launch' && !u.dead), brg = [-1, 0, 1][t.sec];
+    for (let i = 0; i < 3; i++) G.next.q.push({k: 'ballistic', at: 60 + i, brg}); G.next.list = G.next.q.map(e => e.k);
+    const f0 = Z.fastPlan()[t.sec].total; for (const q of t.parts.filter(x => x.main)) W.blast(q, 3, 1, me);
+    const f1 = Z.fastPlan()[t.sec].total, c = G.cuts.find(x => x.src === 'launch'), pad = Array.from({length: 30}, (_, i) => ({k: 'shahed', at: 9 + i, brg})), P = {q: [0, 1, 2, 3].map(i => ({k: 'ballistic', at: i, brg})).concat(pad), list: [], brgs: [brg]}; Z.cutPlan(P, c.w0 + 1); const P3 = {q: [0, 1].map(i => ({k: 'ballistic', at: i, brg})), list: []}; Z.cutPlan(P3, c.w0 + 2);
+    const f = W.list.find(u => u.t === 'factory' && !u.dead); f.kind = 'shahed'; for (let i = 0; i < 10; i++) G.next.q.push({k: 'shahed', at: 70 + i, brg: 0}); G.next.list = G.next.q.map(e => e.k);
+    const s0 = G.next.list.filter(k => k === 'shahed').length, h = f.parts.find(q => q.t === 'hall'); for (let i = 0; i < 5; i++) W.blast(h, 3, 1, me); const alive5 = !f.dead; W.blast(h, 3, 1, me);
+    const s1 = G.next.list.filter(k => k === 'shahed').length, cf = G.cuts.find(x => x.src === 'factory');
+    return {f0, f1, w: [c.w0, c.w1], half: P.q.filter(e => e.k === 'ballistic').length, after: P3.q.length, sec: t.sec, dead: t.dead, rebuild: t.rebuild, alive5, fdead: f.dead, s0, s1, fw: cf && [cf.w0, cf.w1], carry: so.S.carry}; });
+  ok(ls.dead && ls.f0 >= 3 && ls.f1 === 0 && ls.w[1] === ls.w[0] + 1, `Launch site destroyed: ${['West', 'North', 'East'][ls.sec]} fast missiles next wave ${ls.f0} → ${ls.f1} (Z.fastPlan / Z.cutFast)`);
+  ok(ls.half === 2 && ls.after === 2 && ls.rebuild === 33, `Launch site: half its sector's fast missiles the wave after (4 → ${ls.half}), none cut later (${ls.after} left), rebuilt at break ${ls.rebuild}`);
+  ok(ls.alive5 && ls.fdead && ls.s1 < ls.s0 && ls.fw && ls.fw[1] === ls.fw[0] + 2, `Factory: holds 5 hits, the 6th destroys it; next wave's Shaheds ${ls.s0} → ${ls.s1}, cut for waves ${ls.fw}`);
+  // strike order on a known target: costs money, no salvage
+  const so1 = await p.evaluate(() => { const {G} = __z, so = __z.so, t = so.W.list.find(u => u.t === 'launch' && !u.dead); t.known = true; const c0 = G.cash, k0 = so.S.carry, hits = so.strike(t.id), again = so.strike(t.id);
+    return {hits, again, paid: c0 - G.cash, carry: so.S.carry - k0, cost: Math.round((300 + 35 * G.wave) / 50) * 50}; });
+  ok(so1.hits != null && so1.again === null && so1.paid === so1.cost && so1.carry === 0, `Strike order: $${so1.paid}, ${so1.hits} drones got through, no salvage; one strike per target a break`);
+  // late: out past the line with salvage when the clock runs out; the wave starts, the drone and the salvage are lost
+  const lt = await p.evaluate(() => { const {G, api} = __z, so = __z.so, fog0 = so.fog.count(); G.next = __z.plan(32); so.S.used = -1; const c0 = G.cash; so.launch(); so.fly(0, -2600, 80, 100);
+    so.S.carry = 500; so.S.t = .05; so.hold(.2); return {st: G.state, dead: api.player.dead > 0, carry: so.S.carry, on: so.S.on, cash: G.cash - c0, fog: so.fog.count() >= fog0}; });
+  ok(lt.st === 'wave' && lt.dead && lt.carry === 0 && !lt.on && lt.cash <= 0, 'Late return: the clock ran out outside the line; the wave started with the drone lost (relaunching) and the $500 salvage gone');
+  ok(lt.fog, 'Fog: revealed ground stays known');
+  ok(!errs.length, 'Sorties: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+}
+
 // ---------- campaign (zcampaign.js): the map, launching a sector, losing and winning it, the front moving, carry-over, save/load, corrupt saves ----------
 if (want('campaign')) {
   const {p, errs} = await page('z');
@@ -637,6 +706,57 @@ if (want('swarm')) {
   await p.close();
 }
 
+// ---------- spatial grid (grid.js): every query gives what a plain loop over TH gives (random scenes); a whole wave with the helpers, the
+// swarm, lock-on, the fuse and direct hits ends exactly the same with the grid and with plain loops (grid.brute), same seed and clock ----------
+if (want('grid')) {
+  const {p, errs} = await page('z');
+  await play(p);
+  const q = await p.evaluate(() => { const {api} = __z, g = api.grid, TH = api.TH, V = api.THREE.Vector3; let s = 99; const R = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+    const keep = TH.splice(0); let bad = 0, checks = 0, cells = 0; const ex = [];
+    for (let sc = 0; sc < 80; sc++) { TH.length = 0; const N = 1 + (R() * 320 | 0), spread = [300, 3000, 9000, 40000][sc % 4];
+      for (let i = 0; i < N; i++) TH.push({id: i + 1, st: R() < .15 ? 'dead' : R() < .1 ? 'fall' : 'cruise', p: new V((R() - .5) * spread * 2, R() * 3000, (R() - .5) * spread * 2 + (R() < .3 ? 1950 : 0)), v: new V()});
+      if (sc % 5 === 0) for (let i = 0; i < 12; i++) TH.push({id: 1000 + i, st: 'cruise', p: TH[0].p.clone(), v: new V()});  /* exact ties */
+      for (let k = 0; k < 50; k++) { const P = new V((R() - .5) * spread * 2.4, R() * 2000, (R() - .5) * spread * 2.4), r = [5, 30, 71, 350, 1800, 4500, 14000, 9e9][k % 8] * (.5 + R()), stop = 1 + (R() * 20 | 0);
+        const inR = (t, c, rr) => Math.hypot(t.p.x - c.x, t.p.z - c.z) <= rr;  /* the callers' own tests are like this one */
+        const run = brute => { g.brute = brute; g.open(); const a = []; let m = 0;
+          g.near(P, r, t => { if (!inR(t, P, r)) return; a.push(t.id); if (k % 3 === 0 && a.length === 2) g.near(t.p, 200, u => { if (inR(u, t.p, 200)) a.push(-u.id); }); return k % 4 === 0 && ++m >= stop; });  /* nested queries, early stop */
+          const nb = g.nearest(P, api.live); g.close(); return a.join(',') + '|' + (nb ? nb.id : 0); };
+        const A = run(false), B = run(true); checks++; if (A !== B) { bad++; if (ex.length < 2) ex.push({sc, k, r, A: A.slice(0, 80), B: B.slice(0, 80)}); } } }
+    g.brute = false; TH.length = 0; TH.push(...keep); return {bad, checks, ex}; });
+  ok(!q.bad, `Grid: ${q.checks} neighbour / nearest queries on random scenes match a plain loop over TH` + (q.bad ? ` (${q.bad} differ: ${JSON.stringify(q.ex)})` : ''));
+  ok(!errs.length, 'Grid queries: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+  // a whole wave 18 (helpers, a 6-drone swarm, a pilot chasing the most urgent track with the proximity fuse, lock-on): grid vs plain loops,
+  // each in a fresh page with Math.random seeded from the start and a fake clock (and audio clock), so the two runs are the same game
+  const RUN = brute => { const {api, G, Z} = __z, pn = performance.now; let T = 1e7, s = 777; performance.now = () => T; Math.random = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+    Object.defineProperty(BaseAudioContext.prototype, 'currentTime', {get: () => T / 1000, configurable: true});  /* the audio clock too: some sounds draw random numbers on its time */
+    try { api.grid.brute = brute; api.startMatch(); const cam = api.camera, V = api.THREE.Vector3;
+      G.perks.swarm = 2; G.perks.swarmk = 1; G.perks.fuse = 1; Z.pk.apply();
+      [['rack', 0, 3], ['gepard', 1], ['flak', 6], ['sam', 9], ['ew', 10], ['rack', 12, 2], ['gepard', 4], ['rack', 3, 1]].forEach(([t, sl, l]) => { const d = Z.def.add(t, sl); if (t === 'rack') { d.tier = l; d.cap = 3; } else d.lvl = 1; });
+      __z.jump(18, 40000); G.next = __z.plan(18); __z.cont(); api.WB.set(3, 0, -2); api.WIND.set(3, 0, -2);
+      const me = api.player, dir = new V(), h = 1 / 120; let shots = 0, dets = 0, was = true;
+      for (let i = 0; i < 120 * 80 && G.state === 'wave'; i++) {
+        if (me.dead <= 0) { const t = Z.urgent(); if (t) { dir.copy(t.v).normalize(); me.p.copy(t.p).addScaledVector(dir, -(4 + 26 * Math.sin(i / 40) ** 2)).add(new V(2, 1, 0)); me.v.copy(t.v); cam.position.copy(me.p); cam.lookAt(t.p); cam.updateMatrixWorld(); } }
+        else if (i % 120 === 0) api.launch();
+        if (i === 1800) Z.sw.command('screen'); if (i === 3000) Z.sw.command('strike');
+        api.step(h); T += 1000 / 120; shots = Math.max(shots, Z.def.shots.length); if (was && me.dead > 0) dets++; was = me.dead <= 0;
+        if (i % 12 === 11) api.visuals(h * 12, T); }
+      const r = x => Math.round(x * 1e6) / 1e6, P = v => [r(v.x), r(v.y), r(v.z)];
+      return JSON.stringify({st: G.state, w: G.wave, k: G.kills, cash: r(G.cash), earned: r(G.earned), sites: api.SITES.map(q => r(q.hp)), dets, shots, lock: Z.lk.t?.id || 0, sel: api.selT()?.id || 0,
+        th: api.TH.map(t => [t.id, t.st, ...P(t.p), t.claim ? 1 : 0]), sh: Z.def.shots.map(q => [q.id, ...P(q.p)]), sw: Z.sw.drones.map(d => [d.st, ...P(d.p)]), me: [...P(me.p), r(me.dead)], rnd: Math.random()});
+    } finally { performance.now = pn; api.grid.brute = false; } };
+  const game = async brute => { const errs = [], p = await open(browser, 'about:blank', errs);
+    await p.evaluateOnNewDocument(() => { let s = 4242; Math.random = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; });
+    await p.goto(origin + '/games/interceptor/', {waitUntil: 'load'}); await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', zmus: 0})));
+    await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
+    const o = await p.evaluate(RUN, brute); await p.close(); return {o, errs}; };
+  const A = await game(false), B = await game(true), a = JSON.parse(A.o), b = JSON.parse(B.o);
+  console.log(`  grid game: wave ${a.w} ${a.st}, ${a.k.p} pilot / ${a.k.h} helper kills, ${a.dets} bursts, ${a.th.length} tracks, up to ${a.shots} shots, ${a.sw.length} swarm drones`);
+  ok(a.k.p + a.k.h >= 10 && a.dets > 3 && a.sw.length, `Grid game: busy enough to mean something (${a.k.p + a.k.h} kills, ${a.dets} bursts)`);
+  ok(A.o === B.o, `Grid: a whole wave plays out identically with the grid and with plain loops (${A.o.length} chars of end state compared)` + (A.o === B.o ? '' : `\n  grid ${A.o.slice(0, 300)}\n  loop ${B.o.slice(0, 300)}`));
+  ok(!A.errs.length && !B.errs.length, 'Grid game: no errors' + (A.errs.length + B.errs.length ? '\n  ' + [...A.errs, ...B.errs].join('\n  ') : ''));
+}
+
 // ---------- boss roster (zbosses.js + zboss-*.js): the registry and spawn rules, then every boss through the debug trigger: its intro, its
 // code-built model with canvas decals, its sounds, its phases, beaten by the bot pilots' real burst path, its reward granted and recorded;
 // the special mechanics one by one (the Ace's learning, lock and record, the Ghost of the Ace chain, the Jammer King's reveal and hunt, the
@@ -719,14 +839,14 @@ if (want('bosses')) {
   // the Ghost of the Ace: the wreck only exists once the Ace has been beaten; find it and he returns next wave with spectres of what you killed
   const g0 = await p.evaluate(() => ({wreck: !!__z.G.wreck}));
   await p.evaluate(() => { document.getElementById('zover').hidden = true; __z.api.startDemo(); }); await play(p);
-  const ga = await p.evaluate(() => { const {api, Z, G} = __z, w = G.wreck, out = {wreck: !!w}; if (!w) return out; out.far = Math.round(Math.hypot(w.x - 0, w.z - 1950)); out.inAO = Math.abs(w.x) < 4000 && Math.abs(w.z) < 4000;
+  const ga = await p.evaluate(() => { const {api, Z, G} = __z, w = G.wreck, out = {wreck: !!w}; if (!w) return out; out.far = Math.round(Math.hypot(w.x - 0, w.z - 1950)); out.inAO = Math.abs(w.x) < 4300 && Math.abs(w.z) < 4300;
     G.cash = 1e5; __z.jump(20); G.next = __z.plan(20); __z.cont(); __b.clear(); out.before = G.gnext | 0; api.player.p.set(w.x, w.y + 12, w.z); api.player.v.set(0, 0, 0); __z.sim(.2); out.found = w.found; out.gnext = G.gnext; out.note = /stirs/.test(Z.tacNote());
     G.fallen = {jet: 4, heavy: 2, shahed: 6}; G.wq.length = 0; for (const t of api.TH) t.st = 'dead'; __z.sim(5); out.base = G.state; __z.cont(); __z.sim(1); const g = api.TH.find(t => t.k === 'gace');
     out.ghost = !!g; out.spec = [...new Set(api.TH.filter(t => t.k === 'spectre' && api.live(t)).map(t => t.src))]; out.nspec = api.TH.filter(t => t.k === 'spectre' && api.live(t)).length; if (!g) return out;
     G.wq.push({k: 'shahed', at: 1e9, brg: 0}); out.decals = __b.decals(g); out.beat = __b.beat(g, 400); out.reward = !!G.brw.deathless;
     if (api.player.dead > 0) api.launch(); __z.sim(.1); out.save1 = Z.bosses.ctx.shoot('test'); out.alive = api.player.dead <= 0; out.save2 = Z.bosses.ctx.shoot('test'); out.rec = api.S.zboss.ghost; return out; });
   console.log('  ghost of the ace:', JSON.stringify(ga));
-  ok(!g0.wreck && ga.wreck && ga.far > 1800 && ga.inAO, `Ghost of the Ace: no wreck before the Ace is beaten; after, a wreck lies ${ga.far} m out in the area (no sorties on this build)`);
+  ok(!g0.wreck && ga.wreck && ga.far > 1800 && ga.inAO, `Ghost of the Ace: no wreck before the Ace is beaten; after, a wreck lies ${ga.far} m out inside the area of operations (beyond the river line when sorties exist)`);
   ok(ga.before === 0 && ga.found && ga.gnext === 1 && ga.note, 'Ghost of the Ace: flying over the wreck finds it; the base screen warns that something stirs');
   ok(ga.ghost && ga.nspec >= 4 && ga.spec.every(k => ['jet', 'heavy', 'shahed'].includes(k)), `Ghost of the Ace: next wave he rises with ${ga.nspec} spectres of what you killed (${ga.spec})`);
   ok(ga.beat?.won && ga.beat.ph.length >= 2 && ga.reward && ga.rec?.beaten === 1, `Ghost of the Ace: beaten (phases ${ga.beat?.ph.join('→')}), Deathless granted, recorded`);
@@ -884,13 +1004,17 @@ if (want('spectator')) {
       api.step(1 / 120); if (Z.lk.t === t) { if (!s) s = i / 120; held++; } }
     api.camMode = api.S.cam | 0; return {s: +s.toFixed(2), held: +(held / 120).toFixed(1)}; });
   ok(hum.s > 0 && hum.s < 3 && hum.held > 4, `Lock-on in the chase view: pointing the interceptor at a track 90 m above locks it in ${hum.s} s and holds it (${hum.held} s)`);
-  // a bot coming up behind a track locks it and keeps the lock to the kill
+  // a bot coming up behind a track locks it and keeps the lock through its run-in: still locked when it first gets within 30 m. Only that is
+  // asserted: whether the first pass kills is down to dice (aim wander, gusts, detonate timing); after a miss it turns about, which rightly
+  // drops the lock, and the kill may come on a later pass (about 1 run in 12). Sim-stepped, so the machine's speed doesn't matter.
   const tail = await p.evaluate(() => { const {api, G, Z, spec} = __z; api.startDemo(); spec.bench.start('Legend', 1); __z.cont(); const me = api.player;
     for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); Z.lk.clear();
-    const f = me.home, t = __z.make('shahed', f.x, f.z + 500); t.p.y = api.gh(t.p.x, t.p.z) + 300; t.alt = 300; t.wps.length = 0; t.aim = new api.THREE.Vector3(f.x, 0, f.z + 7000);  /* a long straight leg south, no dive */ const n0 = {...Z.lk.L.n}; let s = 0, lockAtKill = false, i = 0;
-    for (; i < 120 * 90 && api.live(t); i++) { lockAtKill = Z.lk.t === t; api.step(1 / 120); if (Z.lk.t === t && !s) s = i / 120; }  /* the burst that kills it also ends the interceptor (and its lock) in the same step */
-    const out = {s: +s.toFixed(1), kill: !api.live(t) && t.by === 'p', lockAtKill, t: +(i / 120).toFixed(1), lost: Z.lk.L.n.lost - n0.lost}; spec.stop(); return out; });
-  ok(tail.s > 0 && tail.kill && tail.lockAtKill, `Lock-on, bot: coming up behind a Shahed, Legend locks it ${tail.s} s in and still holds the lock when it kills it ${tail.t} s in (lost ${tail.lost}×)`);
+    const f = me.home, t = __z.make('shahed', f.x, f.z + 500); t.p.y = api.gh(t.p.x, t.p.z) + 300; t.alt = 300; t.wps.length = 0; t.aim = new api.THREE.Vector3(f.x, 0, f.z + 7000);  /* a long straight leg south, no dive */ const n0 = {...Z.lk.L.n}; let s = 0, lockAtKill = false, close = null, run = 0, held = 0, i = 0;
+    for (; i < 120 * 150 && api.live(t); i++) { lockAtKill = Z.lk.t === t; api.step(1 / 120); const on = Z.lk.t === t; if (on && !s) s = i / 120; run = on ? run + 1 : 0; held = Math.max(held, run);  /* the burst that kills it also ends the interceptor (and its lock) in the same step */
+      if (close === null && me.dead <= 0 && api.live(t) && t.p.distanceTo(me.p) < 30) close = on; }
+    const out = {s: +s.toFixed(1), held: +(held / 120).toFixed(1), close, kill: !api.live(t) && t.by === 'p', lockAtKill, t: +(i / 120).toFixed(1), lost: Z.lk.L.n.lost - n0.lost}; spec.stop(); return out; });
+  ok(tail.s > 0 && tail.s < 6 && tail.held >= 3 && tail.close === true, `Lock-on, bot: coming up behind a Shahed, Legend locks it ${tail.s} s in, holds it ${tail.held} s and is still locked when it first closes within 30 m`
+    + ` (then: ${tail.kill ? `killed ${tail.t} s in${tail.lockAtKill ? ' with the lock' : ' on a later pass'}` : 'no kill in 150 s'}, lock lost ${tail.lost}×)`);
   ok(!errs.length, 'Spectator: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
