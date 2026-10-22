@@ -23,7 +23,7 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group();
  const ring=C.mesh(g,new T.TorusGeometry(2.4,.22,10,32),M.ring,0,1.6,-2.5,false);ring.rotation.x=Math.PI/2;C.mesh(g,new T.CylinderGeometry(.15,.15,1.4,6),M.dark,0,.9,-2.5);
  for(const s of[-1,1]){const f=C.mesh(g,new T.PlaneGeometry(2,2),M.face,s*1.12,0,0,false);f.rotation.y=s*Math.PI/2;C.mesh(g,new T.BoxGeometry(.12,2.2,2),M.skin,s*1.4,1,-5).rotation.z=-s*.4}
  const waves=[];for(let i=0;i<3;i++){const sp=new T.Sprite(new T.SpriteMaterial({map:ringTex(C),color:new T.Color(0x5ff0e0),transparent:true,opacity:0,depthWrite:false,blending:T.AdditiveBlending}));sp.position.set(0,1.6,-2.5);g.add(sp);waves.push(sp)}
- g.userData={ring,waves};return g}
+ Object.assign(g.userData,{ring,waves});return g}
 const ringTex=C=>C.decal('sr-ring',128,128,(g,w)=>{g.strokeStyle='#fff';g.lineWidth=6;g.beginPath();g.arc(w/2,w/2,w/2-6,0,7);g.stroke()});
 const R=t=>t.bs.ph>=1?1200:900,singing=t=>!(t.bs.ph>=2&&(t.bs.age||0)%7>4);
 const group=(C,t)=>{const L=C.api.TH.filter(u=>C.api.live(u)&&!C.BOSSES[u.k]);if(!L.length)return null;const c=new C.V3();let n=0;const near=L.filter(u=>u.p.distanceTo(t.p)<1500);
@@ -43,6 +43,8 @@ registerBoss({id:'siren',n:'The Siren',tag:'FRIENDLY',col:'#5ff0e0',spd:70,alt:[
   // the song: everything near it reads friendly (refreshed every step; it fades a moment after the song stops)
   if(singing(t))for(const u of api.TH)if(api.live(u)&&!C.BOSSES[u.k]&&u.p.distanceTo(t.p)<R(t))u.iff=.6;
   return true},
+ atmos(C,t,o){const d=C.api.camera.position.distanceTo(t.p),r=R(t),on=singing(t),h=(performance.now()/4000)%1;o.tint.setHSL(h<.5?.48+h*.1:.88-(h-.5)*.1,.9,.6);o.tintA=on?.45:.15;o.desat=.12;o.vign=.32;
+  o.fog=.6;o.fogC.set(0x3a6070);o.fogMix=.45;o.shim=on?1:.25;o.dark=.12;o.sp.copy(t.p);o.hasS=true;o.sr=.3;return C.cl(1.25-d/(r*1.6),0,1)},
  g:{step(C,dt){for(const u of C.api.TH)if(u.iff>0&&!C.BOSSES[u.k])u.iff=Math.max(0,u.iff-dt)}},
  barName:(C,e)=>e.main.bs.ident?'The Siren':'IFF: friendly flight?',phaseName:(C,e)=>e.main.bs.ident?['SINGING','SHRIEKING','FALTERING'][e.main.bs.ph|0]:'???',
  label:(C,t)=>t.bs.ident?`SIREN <span class="cr">ENEMY · FALSE IFF</span> · ${t.bs.hp}/${t.bs.max}`:'IFF <span class="cg">FRIENDLY</span>',

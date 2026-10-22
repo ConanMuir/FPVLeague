@@ -27,11 +27,12 @@
 // $9,000) need the whole team's money; with one purse nobody has to gift. Every purchase is announced with the buyer's name, defences show who
 // bought them, and the HUD and base screen show each pilot's kills.
 import {getRoom} from '../../engine/net.js';
+import {txt,money} from '../../engine/hot.js';
 import {KIND,ITEMS,PERK,ORDER} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,okArr=(a,n)=>Array.isArray(a)&&a.length>=n&&a.slice(0,n).every(Number.isFinite);
 const KI=[...ORDER,'boss'],TEAM=['radar','aid'],MAXP=4;
 const clean=n=>String(n??'').replace(/[<>&"'`]/g,'').trim().slice(0,16)||'Pilot';
-const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+
 // the host's feed lines are HTML; a client keeps only <b>, <br> and <span class="c?"> from them
 const safe=h=>String(h).slice(0,400).replace(/<(?!\/?b>|br>|\/span>|span class="c[a-z]">)[^>]*>?/g,'');
 export function initNet(api,G,Z){
@@ -148,6 +149,7 @@ export function initNet(api,G,Z){
  const who=(t,k)=>{t.by=k===net.me?'p':'o';t.byN=k;t.sk=net.skv[k]|0};
  // a request from pilot k (the host's own come through here too, so every purchase is announced the same way)
  function apply(k,e,seq){const nm=nameOf(k),T=e[0];
+  if(T==='A')return Z.ars?.netReq?.(k,e.slice(1),nm);  // the arsenal (zarsenal.js): weapon purchases and detonations, carrier parking
   if(T==='d')return hostDet(k,seq,e[1],e[2]);
   if(T==='h'){const t=TH.find(u=>u.id===e[1]);if(t&&api.live(t)){who(t,k);G.burst={n:0};api.killThreat(t,true);G.burst=null}net.dr[k]={s:seq,o:t?[[e[1],'k',0]]:[],nr:0,dh:1};return}
   if(T==='S')return Z.so?.netReq?.(k,e,nm);  // sorties (zsortie.js): bomb impacts, salvage, strike orders
@@ -253,6 +255,7 @@ export function initNet(api,G,Z){
   for(const k of['freeze','mark','air','lure'])if((P[k]|0)>(G.perks[k]|0))G.ch[k]=(G.ch[k]|0)+(P[k]|0)-(G.perks[k]|0);
   G.perks=P;Z.pk.apply()}
  function event(e){const T=e[1];
+  if(T==='A'){Z.ars?.netEv?.(e.slice(2));return}  // the arsenal's events (zarsenal.js): stuns, captures, laser beams, pulses, snags, chaff, results
   if(T==='b'){if(okArr(e.slice(2),4))api.boom(new V3(e[2],e[3],e[4]),cl(e[5]/10,.05,10));return}
   if(T==='f'){feed(safe(e[2]));return}
   if(T==='m'){if(e[2]===net.me)feed(`<span class="co">${String(e[3]).replace(/[<>&]/g,'').slice(0,200)}</span>`);return}
@@ -309,8 +312,10 @@ export function initNet(api,G,Z){
   for(const[k,r]of net.pil){if(!r.seen||r.dead)continue;const q=P(r.d.p.x,r.d.p.z);rc.beginPath();rc.moveTo(q[0],q[1]-8);rc.lineTo(q[0]+6,q[1]+6);rc.lineTo(q[0]-6,q[1]+6);rc.closePath();rc.fill();rc.fillText(nameOf(k).slice(0,8),q[0]+9,q[1]+5)}};
  const zco=document.createElement('div');zco.id='zco';$('zhud').append(zco);
  const h0=Z.hud;Z.hud=dt=>{h0(dt);if(!net){if(zco.textContent)zco.textContent='';return}const t=`CO-OP ${net.code.toUpperCase()} · `+rows().map(p=>`${p[1]} ${p[2]}`).join(' · ');if(t!==zco.textContent)zco.textContent=t;
-  if(net.late)$('zinb').textContent='WAVE IN PROGRESS · YOU JOIN AT THE NEXT BASE SCREEN'};
+  if(net.late)txt($('zinb'),'WAVE IN PROGRESS · YOU JOIN AT THE NEXT BASE SCREEN')};
 
  // ---------- harness (tools/zombies-coop.mjs) ----------
+ // for the arsenal (zarsenal.js): a host event, this pilot's key, every flying pilot [key, drone], names, notes and kill credit
+ Z.arsNet={ev:e=>{if(net?.host)ev(e)},me:()=>net?net.me||'host':null,pil:()=>net?[[net.me||'host',api.player],...[...net.pil].filter(([,r])=>r.seen&&!r.dead).map(([k,r])=>[k,r.d])]:null,name:k=>nameOf(k),tell:(k,t)=>tell(k,t),team:h=>team(h),who:(t,k)=>who(t,k),perk:(k,p)=>Z.pilotPerk(k,p)};
  if(window.__z)window.__z.net={get n(){return net},enter,leave,tick,rows,send:()=>net&&send(performance.now(),true)};
  return{}}

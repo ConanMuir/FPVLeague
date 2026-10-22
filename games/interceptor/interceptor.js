@@ -16,13 +16,15 @@ import {keys,pad,axv,thrFull,calib,fireBtnIn,initInput,padEdges,mountPad,mountSw
 import {initMenu,syncUI} from '../../engine/menu.js';
 import {mountMod,initModPanel,toggleMod,tab,modMsg} from '../../engine/modpanel.js';
 import {startLoop} from '../../engine/loop.js';
+import {txt,html,css,cls,hide,depthFix,hyp,hyp3,freeze} from '../../engine/hot.js';
+import {particlePool,PFX} from '../../engine/particles.js';
 import {makeInterp} from '../../engine/interp.js';
 import {initZombies} from './zombies.js';
 import {makeGrid} from './grid.js';
 import {strelaBody} from './strela.js';
 import {FA,CW,CH,CROPS,fieldLayout,partRects,fieldData,groundMaterial} from './ground.js';
 import {initBuildings,houseTex,houseWallGeo,houseRoofGeo,houseNight} from './buildings.js';
-import {cleanPref,NAMES as GFXN} from '../../engine/gfx.js';
+import {gfx,cleanPref,NAMES as GFXN} from '../../engine/gfx.js';
 import {initGfx} from './igfx.js';
 import {warmUp} from '../../engine/warm.js';
 mountMod();setFeedTime(5500);
@@ -78,6 +80,9 @@ Object.assign(sun.shadow.camera,{left:-220,right:220,top:220,bottom:-220,near:10
 // physically based sky (Preetham); also baked into the environment map so metal and water pick up the sky
 const sky=new Sky();sky.scale.setScalar(30000);scene.add(sky);
 const pmrem=new THREE.PMREMGenerator(renderer),envScene=new THREE.Scene(),envSky=new Sky();envSky.scale.setScalar(1000);envScene.add(envSky);let envRT=null;
+// no sky light (cloud deck, night, dust, thermal): a black environment of the same size instead of none. Lit materials then keep one shader;
+// switching scene.environment to null gave every one of them a second program, compiled on the spot (a 1-1.5 s freeze at the first weather change)
+const envOff=(()=>{const s=new THREE.Scene();s.background=new THREE.Color(0,0,0);return pmrem.fromScene(s)})();
 
 
 // ---------- terrain: steppe farmland, windbreak tree belts, villages and a river; the defended sites sit on flattened ground in the south ----------
@@ -152,13 +157,13 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
   tGeo=new THREE.CylinderGeometry(.2,.35,1,7).translate(0,.5,0),tMat=detail(new THREE.MeshStandardMaterial({color:0x4a3b2c,roughness:1}),.6,3,0,.25),
   cGeo=crownGeo(),cMat=detail(new THREE.MeshStandardMaterial({roughness:.9,vertexColors:true}),1.3,5,0,.6,2);
  for(const t of TREES){const k=Math.floor((t[0]+TW/2)/CK)+Math.floor((t[1]+TW/2)/CK)*64;let a=tiles.get(k);if(!a)tiles.set(k,a=[]);a.push(t)}
- const cLo=crownGeo(1),shuf=seeded(5);  /* Graphics quality (igfx.js): low-poly crowns, and a shuffled order so drawing the first n instances thins a tile evenly */
+ const cLo=[cGeo,crownGeo(1),crownGeo(0)],shuf=seeded(5);  /* Graphics quality (igfx.js): crown detail by distance (180 / 80 / 20 faces: gfx.k.lodD, lodD2), and a shuffled order so drawing the first n instances thins a tile evenly */
  for(const[key,L]of tiles){for(let i=L.length-1;i>0;i--){const j=shuf()*(i+1)|0;[L[i],L[j]]=[L[j],L[i]]}const trunk=new THREE.InstancedMesh(tGeo,tMat,L.length),crown=new THREE.InstancedMesh(cGeo,cMat,L.length*2);
-  const tx=(key%64)*CK-TW/2,tz=Math.floor(key/64)*CK-TW/2;trunk.userData.tile=crown.userData.tile=[tx,tz,tx+CK,tz+CK];trunk.userData.n=L.length;crown.userData.n=L.length*2;crown.userData.geo=[cGeo,cLo];
+  const tx=(key%64)*CK-TW/2,tz=Math.floor(key/64)*CK-TW/2;trunk.userData.tile=crown.userData.tile=[tx,tz,tx+CK,tz+CK];trunk.userData.n=L.length;crown.userData.n=L.length*2;crown.userData.geo=cLo;
   L.forEach(([x,z,h],i)=>{const y=gh(x,z)-.3,r=h*.26;m4.compose(_t.set(x,y,z),q.identity(),s.set(1+h*.03,h*.55,1+h*.03));trunk.setMatrixAt(i,m4);
    c.setHSL(.23+Math.random()*.08,.38+Math.random()*.15,.12+Math.random()*.08,THREE.SRGBColorSpace);
    for(let k=0;k<2;k++){q.setFromAxisAngle(UP,x*z+k);m4.compose(_t.set(x+(k?r*.4:-r*.3),y+h*(k?.72:.55),z+(k?-r*.3:r*.3)),q,s.set(r*(k?.8:1),r*(k?.9:1.15),r*(k?.8:1)));crown.setMatrixAt(i*2+k,m4);crown.setColorAt(i*2+k,c)}});
-  for(const o of[trunk,crown]){o.castShadow=o.receiveShadow=true;o.userData.forest=1;o.computeBoundingSphere();scene.add(o)}}}
+  for(const o of[trunk,crown]){o.castShadow=o.receiveShadow=true;o.userData.forest=1;o.computeBoundingSphere();o.matrixAutoUpdate=false;scene.add(o)}}}
 {const m4=new THREE.Matrix4(),q=new QT(),s=new V3(),c=new THREE.Color();
  // village houses: plastered walls with windows (one texture, tinted per house) and gable ends, a gable roof with a chimney (buildings.js)
  const W=['#e9e4d6','#d8d2c0','#c9d6dc','#e6dcc0','#d9c7a8'],RF=['#5a5f66','#7d3b2e','#4f6a4a','#6b6f74','#8a8f96'],walls=new THREE.InstancedMesh(houseWallGeo(),houseNight(new THREE.MeshStandardMaterial({map:houseTex(),roughness:.9})),HOUSES.length),
@@ -182,7 +187,7 @@ TREES.forEach(([x,z,h])=>{const r=h*.26;oAdd({t:1,x,z,y:gh(x,z)-.3,h,r},x,z,r*1.
 HOUSES.forEach(([x,z,a])=>oAdd({x,z,y:gh(x,z)-.3,c:Math.cos(a),s:Math.sin(a)},x,z,8));
 function sdObs(x,y,z){const L=OG.get(oc0(x)+oc0(z)*ON);let d=1e9;if(!L)return d;
  for(const o of L){const dx=x-o.x,dy=y-o.y,dz=z-o.z;
-  if(o.t){const r=o.r;if(dy>o.h+r)continue;d=Math.min(d,sdCyl(dx,dy,dz,.3,0,o.h*.5),Math.hypot(dx+.3*r,(dy-o.h*.55)/1.15,dz-.3*r)-r,Math.hypot(dx-.4*r,dy-o.h*.72,dz+.3*r)-.8*r)}
+  if(o.t){const r=o.r;if(dy>o.h+r)continue;d=Math.min(d,sdCyl(dx,dy,dz,.3,0,o.h*.5),hyp3(dx+.3*r,(dy-o.h*.55)/1.15,dz-.3*r)-r,hyp3(dx-.4*r,dy-o.h*.72,dz+.3*r)-.8*r)}
   else{if(dy>7)continue;const lx=dx*o.c+dz*o.s,lz=dz*o.c-dx*o.s;d=Math.min(d,sdBox(lx,dy-1.6,lz,4,1.6,5.5),sdBox(lx,dy-4.2,lz,3,1,4))}}return d}
 
 // ---------- weather: sky, sun, clouds, fog, wind, rain ----------
@@ -195,34 +200,72 @@ const WXS={clear:{n:'Clear',el:30,az:215,turb:2.2,ray:1.2,fog:[2500,14000],hz:0x
  dusk:{n:'Dusk',el:3.5,az:250,turb:6,ray:2.5,fog:[1500,10000],hz:0xc9a585,cov:.4,wind:5,dim:.1,warm:1,exp:.62}};
 let WX=null;const WB=new V3(),WIND=new V3();
 const cloudTex=tex(256,256,g=>{for(let i=0;i<46;i++){const x=128+(Math.random()-.5)*150,y=140+(Math.random()-.5)*70,r=26+Math.random()*44,gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(255,255,255,.75)');gr.addColorStop(.6,'rgba(255,255,255,.35)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,256,256)}});
-const cloudG=new THREE.Group();scene.add(cloudG);
-{const rnd=seeded(9);for(let i=0;i<150;i++){const c=new THREE.Group(),x=(rnd()-.5)*20000,z=(rnd()-.5)*20000,y=1100+rnd()*700,k=180+rnd()*320;c.position.set(x,y,z);
- for(let j=0;j<7;j++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:cloudTex,transparent:true,depthWrite:false,opacity:.9}));s.position.set((rnd()-.5)*k*1.6,(rnd()-.3)*k*.35,(rnd()-.5)*k*1.2);s.scale.set(k*(1+rnd()),k*(.55+rnd()*.4),1);c.add(s)}cloudG.add(c)}}
+// cumulus: 150 clouds of 7 billboards, drawn as one instanced mesh with three's sprite shader (it was 1050 sprites: a draw call, a material and a
+// matrix update each). Drawn before the other transparent things (renderOrder -1, the sun disc -2), as the distance sort put these high, far
+// billboards anyway; the visible ones are re-sorted back to front when the camera has moved. cloudG.n = how many clouds show (wxLook)
+const CLN=150*7,CLP=new Float32Array(CLN*3),CLS=new Float32Array(CLN*2);
+{const rnd=seeded(9);for(let i=0;i<150;i++){const x=(rnd()-.5)*20000,z=(rnd()-.5)*20000,y=1100+rnd()*700,k=180+rnd()*320;
+ for(let j=0;j<7;j++){const n=i*7+j;CLP[n*3]=x+(rnd()-.5)*k*1.6;CLP[n*3+1]=y+(rnd()-.3)*k*.35;CLP[n*3+2]=z+(rnd()-.5)*k*1.2;CLS[n*2]=k*(1+rnd());CLS[n*2+1]=k*(.55+rnd()*.4)}}}
+const cloudG=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),new THREE.ShaderMaterial({uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{diffuse:{value:new THREE.Color(1,1,1)},opacity:{value:.9},map:{value:null}}]),
+ fog:true,transparent:true,depthWrite:false,
+ vertexShader:`varying vec2 vUv;
+#include <common>
+#include <fog_pars_vertex>
+#include <logdepthbuf_pars_vertex>
+void main(){vUv=uv;vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
+ mvPosition.xy+=position.xy*vec2(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz));gl_Position=projectionMatrix*mvPosition;
+#include <logdepthbuf_vertex>
+#include <fog_vertex>
+}`,
+ fragmentShader:`uniform vec3 diffuse;uniform float opacity;uniform sampler2D map;varying vec2 vUv;
+#include <common>
+#include <fog_pars_fragment>
+#include <logdepthbuf_pars_fragment>
+void main(){
+#include <logdepthbuf_fragment>
+vec4 diffuseColor=vec4(diffuse,opacity)*texture2D(map,vUv);vec3 outgoingLight=diffuseColor.rgb;
+#include <opaque_fragment>
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+#include <fog_fragment>
+}`}),CLN);
+cloudG.material.uniforms.map.value=cloudTex;cloudG.frustumCulled=false;cloudG.matrixAutoUpdate=false;cloudG.renderOrder=-1;cloudG.count=0;cloudG.n=0;scene.add(cloudG);
+const CLI=[],CLD=new Float32Array(CLN),CLC=new V3(1e9,0,0);let cloudSet=-1;
+function cloudSort(cp){const n=cloudG.n*7;if(n===cloudSet&&CLC.distanceToSquared(cp)<150*150)return;cloudSet=n;CLC.copy(cp);CLI.length=n;
+ for(let i=0;i<n;i++){CLI[i]=i;const dx=CLP[i*3]-cp.x,dy=CLP[i*3+1]-cp.y,dz=CLP[i*3+2]-cp.z;CLD[i]=dx*dx+dy*dy+dz*dz}CLI.sort((a,b)=>CLD[b]-CLD[a]);
+ const M=cloudG.instanceMatrix.array;for(let k=0;k<n;k++){const i=CLI[k],o=k*16;M.fill(0,o,o+16);M[o]=CLS[i*2];M[o+5]=CLS[i*2+1];M[o+10]=1;M[o+12]=CLP[i*3];M[o+13]=CLP[i*3+1];M[o+14]=CLP[i*3+2];M[o+15]=1}
+ cloudG.count=n;cloudG.instanceMatrix.needsUpdate=true}
 const deckTex=tex(512,512,g=>{g.fillStyle='#fff';g.fillRect(0,0,512,512);for(let i=0;i<500;i++){const x=Math.random()*512,y=Math.random()*512,r=20+Math.random()*60,gr=g.createRadialGradient(x,y,0,x,y,r);const v=Math.random()<.5?'0,0,0':'255,255,255';gr.addColorStop(0,`rgba(${v},.12)`);gr.addColorStop(1,`rgba(${v},0)`);g.fillStyle=gr;g.fillRect(0,0,512,512)}},true);
 deckTex.repeat.set(24,24);
 const deck=new THREE.Mesh(new THREE.PlaneGeometry(40000,40000),new THREE.MeshLambertMaterial({map:deckTex,color:0x9aa0a6,side:THREE.DoubleSide,transparent:true,opacity:.97,depthWrite:false}));deck.rotation.x=-Math.PI/2;scene.add(deck);
-const _je=new THREE.Euler();const sunDisc=new THREE.Sprite(new THREE.SpriteMaterial({map:dot,color:new THREE.Color(0xfff2dc).multiplyScalar(4),fog:false,toneMapped:false,depthWrite:false}));sunDisc.scale.setScalar(900);scene.add(sunDisc);
+const _je=new THREE.Euler();const sunDisc=new THREE.Sprite(new THREE.SpriteMaterial({map:dot,color:new THREE.Color(0xfff2dc).multiplyScalar(4),fog:false,toneMapped:false,depthWrite:false}));sunDisc.scale.setScalar(900);sunDisc.renderOrder=-2;scene.add(sunDisc);
 // rain: streaks drawn in a box around the camera, stretched by the drop's velocity relative to the camera (so speed reads as slanted streaks)
 const RN=5000,rP=new Float32Array(RN*3),rL=new Float32Array(RN*6);
 for(let i=0;i<RN*3;i++)rP[i]=(Math.random()-.5)*120;
 const rGeo=new THREE.BufferGeometry();rGeo.setAttribute('position',new THREE.BufferAttribute(rL,3));
 const rainL=new THREE.LineSegments(rGeo,new THREE.LineBasicMaterial({color:0xc8d2dc,transparent:true,opacity:.35,depthWrite:false}));rainL.frustumCulled=false;scene.add(rainL);
 const camVel=new V3(),camPrev=new V3();let flashT=8,thunder=null,rainN=RN,wxHook=null;
+// the environment map's backdrop: PMREMGenerator.fromScene draws a solid-colour box with a material it makes and disposes on every call, which
+// freed its shader program, so every weather change linked it again (~150 ms on an integrated GPU). A kept twin (same variant: into a render
+// target, no tone mapping, no fog or lights) holds the program in three.js's cache. Built once, on the first weather.
+let pmK=null;function pmKeep(){if(pmK)return;pmK=new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshBasicMaterial({side:THREE.BackSide,depthWrite:false,depthTest:false}));
+ const rt=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType}),prev=renderer.getRenderTarget(),tm=renderer.toneMapping;renderer.toneMapping=THREE.NoToneMapping;renderer.setRenderTarget(rt);
+ try{renderer.compile(pmK,new THREE.PerspectiveCamera(90,1,.1,100))}finally{renderer.setRenderTarget(prev);renderer.toneMapping=tm;rt.dispose()}}
 // id: a WXS key ('random' or unknown = a random one), or a whole weather object (Zombies' own table, zwx.js); keep = keep the wind direction
 function setWeather(id,keep){const o=id&&typeof id==='object'?id:null;if(!o&&!WXS[id]){const k=Object.keys(WXS);id=k[Math.random()*k.length|0]}WX=o?{...o}:{id,...WXS[id]};
- wxSky();envRT?.dispose();envRT=pmrem.fromScene(envScene);wxLook(thermLook);
+ wxSky();pmKeep();envRT?.dispose();envRT=pmrem.fromScene(envScene);wxLook(thermLook);
  if(keep){WB.setLength(Math.max(.1,WX.wind*.95));return}
  const a=-Math.PI*.15+(Math.random()-.5)*1.2;WB.set(Math.sin(a),0,Math.cos(a)).multiplyScalar(WX.wind*(.7+Math.random()*.5))}  // wind mostly from the north
 function wxSky(){const el=WX.el*Math.PI/180,az=WX.az*Math.PI/180;SUND.set(Math.cos(el)*Math.sin(az),Math.sin(el),Math.cos(el)*Math.cos(az));
  for(const s of[sky,envSky]){const u=s.material.uniforms;u.sunPosition.value.copy(SUND);u.turbidity.value=WX.turb;u.rayleigh.value=WX.ray;u.mieCoefficient.value=.005;u.mieDirectionalG.value=.8}}
 // scene look for the weather; th = white-hot thermal: cold sky goes black, no sun or cloud, engines and vehicles emit heat (the sensor pass turns it to luminance)
 let thermLook=false;
-function wxLook(th){scene.environment=th||WX.deck||WX.nosky?null:envRT.texture;
+function wxLook(th){scene.environment=th||WX.deck||WX.nosky?envOff.texture:envRT.texture;
  scene.fog.color.set(th?0x404040:WX.hz);scene.fog.near=WX.fog[0]*(th?1.6:1);scene.fog.far=WX.fog[1]*(th?1.6:1);renderer.toneMappingExposure=WX.exp;
  const L=WX.dim;sun.intensity=WX.sunI??(WX.warm?2.2:3.4)*(1-L);sun.color.set(WX.sunC??(WX.warm?0xffb27a:0xfff0dc));hemi.intensity=hemi.userData.base=WX.hemiI??.75+.9*L;hemi.color.set(WX.hemiC??(L>.5?0xc7ccd2:0xdde9ff));hemi.groundColor.set(WX.gndC??(L>.5?0x4c5440:0x55663f));  // the optional overrides (sunI, sunC, hemiI, hemiC, gndC) are only used by Zombies' extra weathers
  deck.visible=!!WX.deck;sky.visible=!th&&!WX.deck&&WX.id!=='fog'&&!WX.nosky;scene.background=sky.visible?null:new THREE.Color(th?0x080808:WX.hz);if(WX.deck){deck.position.y=WX.deck;deck.material.color.setScalar(th?.25:.95-L*.55)}sunDisc.visible=!th&&!WX.deck&&WX.id!=='fog'&&!WX.nodisc;
  sunDisc.material.color.set(WX.discC??0xfff2dc).multiplyScalar(WX.discK??4);sunDisc.scale.setScalar(WX.discS??900);
- cloudG.children.forEach((c,i)=>{c.visible=!th&&i<WX.cov*cloudG.children.length;c.children.forEach(s=>s.material.color.set(WX.warm?0xffd2b0:L>.3?0xb8bec4:0xffffff).multiplyScalar(L>.3?1.3:2.3))});  // sunlit cumulus is brighter than the sky behind it
+ cloudG.n=th?0:Math.min(150,Math.ceil(WX.cov*150));cloudG.material.uniforms.diffuse.value.set(WX.warm?0xffd2b0:L>.3?0xb8bec4:0xffffff).multiplyScalar(L>.3?1.3:2.3);  // sunlit cumulus is brighter than the sky behind it
  for(const[m,k]of[[SHEN,7],[MS.hood,.7],[MS.met,.18],[SHJ,.22],...SHM.map(m=>[m,.16])]){m.emissive.setScalar(th?1:0);m.emissiveIntensity=k}
  bloom.strength=S.mod.bloom*(th?.7:.33);rainL.visible=!!WX.rain;wxHook?.(th)}
 function weather(dt,now){const t=now*.001;WIND.copy(WB).multiplyScalar(1+.35*Math.sin(t*.7)+.2*Math.sin(t*2.3+1));if(WX.wind>8)WIND.y=Math.sin(t*1.7)*WX.wind*.08;else WIND.y=0;  // gusts
@@ -236,8 +279,8 @@ function weather(dt,now){const t=now*.001;WIND.copy(WB).multiplyScalar(1+.35*Mat
   if(thunder!=null&&(thunder-=dt)<=0){thunder=null;noise(3.5,70,.7,.4);noise(1.2,160,.35,.6)}}}
 
 // ---------- defended sites (solid: the interceptor collides with them) ----------
-const sdBox=(x,y,z,hx,hy,hz)=>{const qx=Math.abs(x)-hx,qy=Math.abs(y)-hy,qz=Math.abs(z)-hz;return Math.hypot(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0)};
-const sdCyl=(x,y,z,r,y0,y1)=>{const dx=Math.hypot(x,z)-r,dy=Math.abs(y-(y0+y1)/2)-(y1-y0)/2;return Math.min(Math.max(dx,dy),0)+Math.hypot(Math.max(dx,0),Math.max(dy,0))};
+const sdBox=(x,y,z,hx,hy,hz)=>{const qx=Math.abs(x)-hx,qy=Math.abs(y)-hy,qz=Math.abs(z)-hz;return hyp3(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0)};
+const sdCyl=(x,y,z,r,y0,y1)=>{const dx=hyp(x,z)-r,dy=Math.abs(y-(y0+y1)/2)-(y1-y0)/2;return Math.min(Math.max(dx,dy),0)+hyp(Math.max(dx,0),Math.max(dy,0))};
 const MS={conc:detail(new THREE.MeshStandardMaterial({color:0x9b9d97,roughness:.9}),3,19),met:new THREE.MeshStandardMaterial({color:0x66705f,roughness:.5,metalness:.5}),steel:new THREE.MeshStandardMaterial({color:0xa7adb3,roughness:.4,metalness:.7}),
  brick:new THREE.MeshStandardMaterial({color:0x9a6a4d,roughness:.9}),tank:new THREE.MeshStandardMaterial({color:0xdfe1dc,roughness:.45,metalness:.3}),roof:new THREE.MeshStandardMaterial({color:0x55575a,roughness:.9}),
  dark:new THREE.MeshStandardMaterial({color:0x1d1f21,roughness:.6,metalness:.4})};
@@ -245,6 +288,8 @@ function part(s,geo,mat,x,y,z){const m=new THREE.Mesh(geo,mat);m.position.set(s.
 function boxS(s,w,h,d,mat,x,y0,z,solid=true){part(s,new THREE.BoxGeometry(w,h,d),mat,x,y0+h/2,z);if(solid)s.sol.push({x:s.x+x,y:s.y+y0+h/2,z:s.z+z,hx:w/2,hy:h/2,hz:d/2})}
 SITES.forEach(s=>{s.aims=[];s.max=3;s.hp=3});
 // substation, fuel depot and apartment blocks (buildings.js): stage 0 now; Zombies adds the damage stages and follows each site's HP (step in visuals)
+// particle pools (engine/particles.js): fire and sparks, then smoke, as two draws for every emitter (Riley's FX / SMK, the sites' fires, Zombies' flames and trails)
+const PADD=particlePool(scene,{max:4900,blend:THREE.AdditiveBlending,map:dot,toneMapped:false,wind:WIND}),PNRM=particlePool(scene,{max:4800,map:dot,wind:WIND});
 const BLD=initBuildings({scene,renderer,camera,psys,MS});BLD.build(SITES[0],'substation');BLD.build(SITES[1],'depot');BLD.build(SITES[2],'apartments');
 // radar site: a container and a mast with the ground radar (the old catapult pad)
 {const s=PADP;boxS(s,40,.3,30,MS.conc,0,0,0);boxS(s,6,2.6,2.4,MS.met,-14,0,8);boxS(s,.5,9,.5,MS.steel,12,0,8);part(s,new THREE.BoxGeometry(2.8,1.1,.2),MS.dark,12,9.5,8).userData.spin=1}
@@ -267,16 +312,8 @@ for(const s of FOBS){s.mat=new V3(s.x,s.y+.06,s.z-7);boxS(s,2.6,.06,2.6,MS.mat,0
 
 // ---------- particles (fire/sparks additive, smoke alpha-blended) ----------
 const _c=new THREE.Color();
-function psys(N,size,blend,grav,drag){const P=new Float32Array(N*3).fill(-9999),C=new Float32Array(N*4),B=new Float32Array(N*4),VV=new Float32Array(N*3),LF=new Float32Array(N),L0=new Float32Array(N);let i0=0;
- const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setAttribute('color',new THREE.BufferAttribute(C,4));
- const pts=new THREE.Points(g,new THREE.PointsMaterial({size,map:dot,vertexColors:true,transparent:true,blending:blend,depthWrite:false,toneMapped:blend!==THREE.AdditiveBlending}));pts.frustumCulled=false;scene.add(pts);
- return{emit(p,hex,n,spd,life=1,bv=null,k=1,a=1){_c.set(hex).multiplyScalar(k);for(let j=0;j<n;j++){const i=i0++%N,i3=i*3,i4=i*4;
-   let x=Math.random()*2-1,y=Math.random()*2-1,z=Math.random()*2-1;const m=spd*(.3+Math.random()*.7)/(Math.hypot(x,y,z)||1);
-   P[i3]=p.x;P[i3+1]=p.y;P[i3+2]=p.z;VV[i3]=x*m+(bv?bv.x:0);VV[i3+1]=y*m+(bv?bv.y:0);VV[i3+2]=z*m+(bv?bv.z:0);B[i4]=_c.r;B[i4+1]=_c.g;B[i4+2]=_c.b;B[i4+3]=a;LF[i]=L0[i]=life*(.5+Math.random()*.5)}},
-  upd(dt){const dm=Math.exp(-dt*drag),wx=WIND.x*(1-dm),wz=WIND.z*(1-dm);for(let i=0;i<N;i++){if(LF[i]<=0)continue;const i3=i*3,i4=i*4;if((LF[i]-=dt)<=0){P[i3+1]=-9999;C[i4+3]=0;continue}
-   VV[i3]=VV[i3]*dm+wx;VV[i3+1]=VV[i3+1]*dm-grav*dt;VV[i3+2]=VV[i3+2]*dm+wz;P[i3]+=VV[i3]*dt;P[i3+1]+=VV[i3+1]*dt;P[i3+2]+=VV[i3+2]*dt;
-   const f=Math.min(1,LF[i]/L0[i]*2);C[i4]=B[i4];C[i4+1]=B[i4+1];C[i4+2]=B[i4+2];C[i4+3]=B[i4+3]*f}
-   g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true}}}
+// (pooled: engine/particles.js; every psys() is an emitter in the additive or the alpha pool, one draw each)
+function psys(N,size,blend,grav,drag,scaled=true){return(blend===THREE.AdditiveBlending?PADD:PNRM).emitter(N,size,grav,drag,scaled)}  // scaled: thinned by PFX.scale (= the Graphics level's gfx.k.fx)
 const FX=psys(3000,1.6,THREE.AdditiveBlending,3,1.8),SMK=psys(2500,10,THREE.NormalBlending,-2.5,.6);
 const boomL=new THREE.PointLight(0xffa040,0,600,1.2);scene.add(boomL);
 
@@ -438,7 +475,7 @@ function threatStep(t,dt){if(t.st==='dead')return;if(t.k&&Z.tstep(t,dt))return;
   const w=t.wps[0]||t.aim;_td.set(w.x-t.p.x,0,w.z-t.p.z);if(t.wps.length&&_td.length()<Math.max(300,t.spd/.35*1.6))t.wps.shift();
   // jet Geran-3: full speed on the first leg, throttled back to piston speed on the middle leg (fuel), full speed again for the run-in
   if(t.jet){const tgt=(t.wps.length===1?.6:1)*t.cs;t.spd+=(tgt-t.spd)*Math.min(1,dt*.3)}
-  const ad=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z);
+  const ad=hyp(t.aim.x-t.p.x,t.aim.z-t.p.z);
   if(!t.wps.length&&ad<Math.max(350,(t.p.y-t.aim.y)*1.1)){t.st='dive';t.spd*=1.15}  // terminal dive, about 45°
   _tl.copy(t.p).addScaledVector(t.v,5);const gy=Math.max(gh(t.p.x,t.p.z),gh(_tl.x,_tl.z))+t.alt;  // holds altitude above the ground
   _td.setLength(t.spd);if(t.ev)_td.applyAxisAngle(UP,t.ev);_td.y=cl((gy-t.p.y)*.4,-7,7);turn(t,_td.normalize(),t.evr||.35,dt)}  // t.ev / t.evr: Zombies evasion (heading offset, turn rate); never set in Classic
@@ -454,7 +491,7 @@ function boom(p,k){if(Z.on)Z.flash(p,k);FX.emit(p,0xffb040,Math.round(150*k),30*
 function fires(dt){for(const f of FIRES)if((f.t-=dt)<=0){f.t=.06;FX.emit(f.p,0xff7a20,3,3,.8,_t.set(0,7,0),2.5);SMK.emit(f.p,0x2b2724,1,2,9,_t.set(0,8,0),1,.75)}}
 const nearestThreat=p=>GRID.nearest(p,live);
 // most urgent track: least time to reach its target
-const urgent=()=>{if(Z.on)return Z.urgent();let b=null,bt=1e18;for(const t of TH)if(live(t)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(tt<bt){bt=tt;b=t}}return b};
+const urgent=()=>{if(Z.on)return Z.urgent();let b=null,bt=1e18;for(const t of TH)if(live(t)){const tt=hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(tt<bt){bt=tt;b=t}}return b};
 // selected track: the most urgent unless you picked one with Next track (N); tracks cycle in order of urgency
 let pickT=null,gdNow=null;const selT=()=>pickT&&live(pickT)?pickT:urgent();
 function nextTrack(){const L=TH.filter(t=>live(t)&&!(Z.on&&Z.hid?.(t))).sort((a,b)=>Math.hypot(a.aim.x-a.p.x,a.aim.z-a.p.z)/a.spd-Math.hypot(b.aim.x-b.p.x,b.aim.z-b.p.z)/b.spd);if(!L.length)return;pickT=L[(L.indexOf(selT())+1)%L.length];if(!demo)banner('T'+String(pickT.id).padStart(2,'0'),'',.6)}
@@ -542,12 +579,11 @@ function updateCam(dt,now){const me=player;camPrev.copy(camera.position);
 
 // ---------- HUD ----------
 // radar scope: heading-up PPI around the interceptor; blips repaint as the sweep passes them (like a real ground radar picture relayed to the goggles)
-const rc=$('radar').getContext('2d');let sweep=0;
+const rc=$('radar').getContext('2d');let sweep=0;const RQ=[[0,0],[0,0],[0,0],[0,0]],RGB={};let rqi=0;
 function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:null,o=me?me.p:_ip.set(PADP.x,0,PADP.z),RR=RRS[S.rr],K=R/RR;
  const f=me?fwdH(me.q,_f):_f.set(0,0,-1);if(f.lengthSq()<1e-4)f.copy(me.v).setY(0);const hd=Math.atan2(f.x,-f.z);  // heading, 0 = north
- const P=(x,z)=>{const dx=x-o.x,dz=z-o.z,ca=Math.cos(-hd),sa=Math.sin(-hd);return[c+(dx*ca-dz*sa)*K,c+(dx*sa+dz*ca)*K]};
- rc.clearRect(0,0,W,W);rc.save();rc.beginPath();rc.arc(c,c,R+2,0,7);rc.fillStyle='rgba(4,14,8,.55)';rc.fill();rc.clip();
- rc.strokeStyle='rgba(90,255,150,.28)';rc.lineWidth=1.5;for(const k of[1/3,2/3,1]){rc.beginPath();rc.arc(c,c,R*k,0,7);rc.stroke()}rc.beginPath();rc.moveTo(c-R,c);rc.lineTo(c+R,c);rc.moveTo(c,c-R);rc.lineTo(c,c+R);rc.stroke();
+ const ca=Math.cos(-hd),sa=Math.sin(-hd),ox=o.x,oz=o.z,P=(x,z)=>{const dx=x-ox,dz=z-oz,q=RQ[rqi=(rqi+1)&3];q[0]=c+(dx*ca-dz*sa)*K;q[1]=c+(dx*sa+dz*ca)*K;return q};  // points come from a ring of four: callers hold at most two at once
+ rc.clearRect(0,0,W,W);rc.drawImage(RL.bg,0,0);rc.save();rc.beginPath();rc.arc(c,c,R+2,0,7);rc.clip();
  // AO boundary, river, sites, pad
  rc.strokeStyle='rgba(120,200,255,.35)';rc.beginPath();for(const[x,z]of[[-AW,-AW],[AW,-AW],[AW,AW],[-AW,AW],[-AW,-AW]]){const q=P(x,z);rc.lineTo(q[0],q[1])}rc.stroke();
  rc.strokeStyle='rgba(90,170,220,.45)';rc.lineWidth=3;rc.beginPath();for(let x=-AW-2000;x<=AW+2000;x+=100){const q=P(x,rivZ(x));rc.lineTo(q[0],q[1])}rc.stroke();
@@ -558,17 +594,23 @@ function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:nul
  if(g){g.addColorStop(0,'rgba(90,255,150,0)');g.addColorStop(.095,'rgba(90,255,150,.18)');g.addColorStop(.0955,'rgba(90,255,150,0)');rc.fillStyle=g;rc.beginPath();rc.arc(c,c,R,0,7);rc.fill()}
  const sel=selT();rc.font='700 17px "JetBrains Mono",monospace';rc.textAlign='left';
  for(const t of TH){if(t.st==='dead'||Z.on&&!Z.seen(t))continue;const q=P(t.p.x,t.p.z),b=(Math.atan2(q[0]-c,c-q[1])+Math.PI*2)%(Math.PI*2),crossed=s0<=sweep?b>s0&&b<=sweep:b>s0||b<=sweep;
-  if(crossed||!t.rb)t.rb={x:t.p.x,z:t.p.z,vx:t.v.x,vz:t.v.z,y:t.p.y,age:0};else t.rb.age+=dt;if(!live(t)&&t.rb.age>1.5)continue;
-  const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':Z.on?Z.rcol(t,sel):t===sel?'255,198,64':t.jet?'255,150,60':'255,77,77';
-  rc.globalAlpha=a;rc.strokeStyle=rc.fillStyle=`rgb(${col})`;rc.lineWidth=2.5;rc.beginPath();rc.moveTo(bq[0],bq[1]-7);rc.lineTo(bq[0]+7,bq[1]);rc.lineTo(bq[0],bq[1]+7);rc.lineTo(bq[0]-7,bq[1]);rc.closePath();live(t)?rc.fill():rc.stroke();
-  if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();rc.fillText(`T${String(t.id).padStart(2,'0')} ${Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100)}`,bq[0]+10,bq[1]-8)}}
+  if(crossed||!t.rb){const r=t.rb||(t.rb={});r.x=t.p.x;r.z=t.p.z;r.vx=t.v.x;r.vz=t.v.z;r.y=t.p.y;r.age=0}else t.rb.age+=dt;if(!live(t)&&t.rb.age>1.5)continue;
+  const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':Z.on?Z.rcol(t,sel):t===sel?'255,198,64':t.jet?'255,150,60':'255,77,77',rgb=RGB[col]||(RGB[col]=`rgb(${col})`);
+  rc.globalAlpha=a;rc.strokeStyle=rc.fillStyle=rgb;rc.lineWidth=2.5;rc.beginPath();rc.moveTo(bq[0],bq[1]-7);rc.lineTo(bq[0]+7,bq[1]);rc.lineTo(bq[0],bq[1]+7);rc.lineTo(bq[0]-7,bq[1]);rc.closePath();live(t)?rc.fill():rc.stroke();
+  if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();const al=Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100);if(t._rak!==al){t._rak=al;t._ras=`T${String(t.id).padStart(2,'0')} ${al}`}rc.fillText(t._ras,bq[0]+10,bq[1]-8)}}
  rc.globalAlpha=1;if(Z.on)Z.radar(rc,P,sel,K);rc.restore();
  if(gdNow&&gdNow.ph==='MIDCOURSE'){const q=P(GD.pip.x,GD.pip.z);rc.save();rc.setLineDash([10,8]);rc.strokeStyle='#5fe3ff';rc.lineWidth=2;rc.beginPath();rc.moveTo(c,c);rc.lineTo(q[0],q[1]);rc.stroke();rc.setLineDash([]);rc.beginPath();rc.moveTo(q[0],q[1]-8);rc.lineTo(q[0]+8,q[1]);rc.lineTo(q[0],q[1]+8);rc.lineTo(q[0]-8,q[1]);rc.closePath();rc.stroke();rc.restore()}  // guidance line to the PIP
  // own ship, ring labels, north marker
  rc.fillStyle='#3ddc84';rc.beginPath();rc.moveTo(c,c-10);rc.lineTo(c+7,c+8);rc.lineTo(c-7,c+8);rc.closePath();rc.fill();
- rc.fillStyle='rgba(150,255,190,.75)';rc.font='700 15px "JetBrains Mono",monospace';rc.textAlign='center';for(const k of[1/3,2/3,1])rc.fillText((RR*k/1000).toFixed(RR>3000?0:1),c+R*k*.707+10,c-R*k*.707+4);
+ if(RL.rr!==RR){RL.rr=RR;const g=RL.lab.getContext('2d');g.clearRect(0,0,W,W);g.fillStyle='rgba(150,255,190,.75)';g.font='700 15px "JetBrains Mono",monospace';g.textAlign='center';for(const k of[1/3,2/3,1])g.fillText((RR*k/1000).toFixed(RR>3000?0:1),c+R*k*.707+10,c-R*k*.707+4)}rc.drawImage(RL.lab,0,0);rc.textAlign='center';
  const nq=[c+Math.sin(-hd)*(R-2),c-Math.cos(-hd)*(R-2)];rc.fillStyle='#fff';rc.font='700 18px "JetBrains Mono",monospace';rc.fillText('N',nq[0],nq[1]+6);
- rc.strokeStyle='rgba(150,255,190,.5)';rc.lineWidth=2;rc.beginPath();rc.arc(c,c,R+2,0,7);rc.stroke()}
+ rc.drawImage(RL.ring,0,0)}
+// the radar's fixed parts, drawn once: the scope disc with its range rings and cross, the ring labels (per range setting) and the rim
+const RL=(()=>{const W=500,c=W/2,R=c-14,mk=f=>{const e=document.createElement('canvas');e.width=e.height=W;const g=e.getContext('2d');f&&f(g);return e};
+ return{rr:null,lab:mk(),bg:mk(g=>{g.beginPath();g.arc(c,c,R+2,0,7);g.fillStyle='rgba(4,14,8,.55)';g.fill();g.clip();g.strokeStyle='rgba(90,255,150,.28)';g.lineWidth=1.5;for(const k of[1/3,2/3,1]){g.beginPath();g.arc(c,c,R*k,0,7);g.stroke()}g.beginPath();g.moveTo(c-R,c);g.lineTo(c+R,c);g.moveTo(c,c-R);g.lineTo(c,c+R);g.stroke()}),
+  ring:mk(g=>{g.strokeStyle='rgba(150,255,190,.5)';g.lineWidth=2;g.beginPath();g.arc(c,c,R+2,0,7);g.stroke()})}})();
+// redrawn at up to 30 Hz (a sweep display; on a 240 Hz screen it was drawn 240 times a second), with the time since the last draw
+let radT=0,radDt=0;
 // video link quality from the position's ground-station antenna: falls off past ~1.8 km and drops hard when terrain blocks line of sight (fly higher to get it back)
 let lqS=1,lqT=0;
 function linkQ(me,dt){if((lqT-=dt)>0)return lqS;lqT=.1;const h=me.home,ax=h.x-3,ay=h.y+5.5,az=h.z+1,d=Math.hypot(me.p.x-ax,me.p.z-az);let q=1-.8*sm((d-1800)/3400);
@@ -576,29 +618,35 @@ function linkQ(me,dt){if((lqT-=dt)>0)return lqS;lqT=.1;const h=me.home,ax=h.x-3,
  if(Z.on&&Z.lq)q=Z.lq(me,q);  /* Zombies sorties: a relay holds the link out past the line (zsortie.js) */
  return lqS+=(q-lqS)*.35}
 const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';let siteHTML='';
+// the OSD and the track box are built once and their lines rewritten only when they change (a whole innerHTML every frame re-parsed and re-laid-out the HUD)
+const OSD=[0,1,2,3,4].map(()=>document.createElement('span'));$('osd').replaceChildren(...OSD);
+const TRK=[document.createElement('span'),document.createElement('br'),document.createElement('span'),document.createElement('br'),document.createElement('span')];$('trk').replaceChildren(...TRK);
 const hdg=v=>String(Math.round((Math.atan2(v.x,-v.z)*180/Math.PI+360)%360)).padStart(3,'0');
-function hud(dt){if(demo)return;if(Z.on)Z.hud(dt);const me=player;$('sw').textContent='WAVE '+wave;$('sv').textContent=saved+' DOWN';$('sl').textContent=lost+' HIT'+(lost===1?'':'S');
+function hud(dt){if(demo)return;if(Z.on)Z.hud(dt);const me=player;txt($('sw'),'WAVE '+wave);txt($('sv'),saved+' DOWN');txt($('sl'),lost+' HIT'+(lost===1?'':'S'));
  const sh=Z.on?'':SITES.map(s=>`<span class="${s.hp?'':'dead'}">${s.n} ${'■'.repeat(s.hp)}${'□'.repeat(s.max-s.hp)}</span>`).join('');if(sh!==siteHTML)$('sites').innerHTML=siteHTML=sh;
- const inb=TH.filter(live).length+(wstate==='wave'||wstate==='brief'?toSpawn:0),sel=selT(),alive=me.dead<=0;
+let nl=0;for(const t of TH)if(live(t))nl++;
+ const inb=nl+(wstate==='wave'||wstate==='brief'?toSpawn:0),sel=selT(),alive=me.dead<=0;
  const cv=cellV(me),fl=me.t|0,ws=WIND.length();
- $('osd').innerHTML=`<span><b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE','THREAT CAM'][camMode]} · ${DIFF[S.diff].n.toUpperCase()} · CAM ${camUp?S.tilt+'°':'LVL'}${therm?' · TI WHT':''} · ${WX.n.toUpperCase()} · WIND ${Math.round(ws*3.6)} km/h ${hdg(_t.copy(WIND).negate())}</span>`+
-  (alive?`<span>THR ${String(Math.round(me.thr*100)).padStart(3)}%  ${String(Math.round(me.v.length()*3.6)).padStart(3)} km/h  HDG ${hdg(fwdH(me.q,_f))}</span><span>ALT ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m AGL  ${Math.round(me.p.y)} m MSL  HOME ${me.home.n.slice(4)} ${rng(Math.hypot(me.p.x-me.home.x,me.p.z-me.home.z))}  LQ ${Math.round(lqS*100)}%</span>`+
-   `<span class="${cv<3.5?'r':''}">BAT ${(cv*12).toFixed(1)}V 12S  ${String(Math.round(me.amp||0)).padStart(3)}A  ${String(Math.round(me.mah)).padStart(5)} mAh  ${String(fl/60|0).padStart(2,'0')}:${String(fl%60).padStart(2,'0')}</span>`:`<span class="r">NEXT INTERCEPTOR ${me.dead.toFixed(1)}</span>`)+
-  `<span>FUSE ${(Z.on?Z.autoFuse():S.fuse==='auto')?'PROX':'MANUAL'} · INBOUND ${inb} · INTERCEPTORS USED ${spent}</span>`;
+ html(OSD[0],`<b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE','THREAT CAM'][camMode]} · ${DIFF[S.diff].n.toUpperCase()} · CAM ${camUp?S.tilt+'°':'LVL'}${therm?' · TI WHT':''} · ${WX.n.toUpperCase()} · WIND ${Math.round(ws*3.6)} km/h ${hdg(_t.copy(WIND).negate())}`);
+ if(alive){txt(OSD[1],`THR ${String(Math.round(me.thr*100)).padStart(3)}%  ${String(Math.round(me.v.length()*3.6)).padStart(3)} km/h  HDG ${hdg(fwdH(me.q,_f))}`);txt(OSD[2],`ALT ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m AGL  ${Math.round(me.p.y)} m MSL  HOME ${me.home.n.slice(4)} ${rng(Math.hypot(me.p.x-me.home.x,me.p.z-me.home.z))}  LQ ${Math.round(lqS*100)}%`);
+  cls(OSD[3],cv<3.5?'r':'');txt(OSD[3],`BAT ${(cv*12).toFixed(1)}V 12S  ${String(Math.round(me.amp||0)).padStart(3)}A  ${String(Math.round(me.mah)).padStart(5)} mAh  ${String(fl/60|0).padStart(2,'0')}:${String(fl%60).padStart(2,'0')}`)}
+ else{txt(OSD[1],'');txt(OSD[2],'');cls(OSD[3],'r');txt(OSD[3],`NEXT INTERCEPTOR ${me.dead.toFixed(1)}`)}hide(OSD[1],!alive);hide(OSD[2],!alive);
+ txt(OSD[4],`FUSE ${(Z.on?Z.autoFuse():S.fuse==='auto')?'PROX':'MANUAL'} · INBOUND ${inb} · INTERCEPTORS USED ${spent}`);
  if(sel){const r=_a.subVectors(sel.p,me.p),d=r.length(),c2=-_b.subVectors(sel.v,me.v).dot(r)/d,asp=aspect(sel,me.p),win=fuseR(Math.max(0,c2));
-  $('trk').innerHTML=`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${Z.on?Z.label(sel):sel.jet?'GERAN-3 JET':'SHAHED-136'}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}<br>${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}<br>${alive?`ASPECT <span class="${asp==='TAIL'?'cg':asp==='HEAD-ON'?'cr':''}">${asp}</span> · CLOSING ${Math.round(c2*3.6)} km/h · KILL R ${win.toFixed(1)} m`:''}`}else $('trk').textContent='NO TRACKS';
- const lq=alive?linkQ(me,dt):1;$('warn').textContent=!alive?'':lq<.45?'VIDEO LINK WEAK · CLIMB OR TURN BACK':Math.abs(me.p.x)>AW-300||Math.abs(me.p.z)>AW-300?'LEAVING THE AO · TURN BACK':cv<3.5?'BATTERY LOW · LAND':'';
- $('xh').hidden=camMode!==0||!alive;
- const a=$('arrow');if(!sel||!alive){a.hidden=true}else{_t.copy(sel.p).project(camera);let x=_t.x,y=_t.y;const behind=_t.z>1;if(behind){x=-x;y=-y}
-  if(!behind&&Math.abs(x)<.95&&Math.abs(y)<.9)a.hidden=true;else{a.hidden=false;const m=Math.max(Math.abs(x)/.9,Math.abs(y)/.82,1e-3);x/=m;y/=m;
-   a.style.transform=`translate(${(x*.5+.5)*innerWidth-13}px,${(-y*.5+.5)*innerHeight-12}px) rotate(${Math.atan2(x,y)}rad)`}}
+  html(TRK[0],`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${Z.on?Z.label(sel):sel.jet?'GERAN-3 JET':'SHAHED-136'}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}`);txt(TRK[2],`${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}`);
+  html(TRK[4],alive?`ASPECT <span class="${asp==='TAIL'?'cg':asp==='HEAD-ON'?'cr':''}">${asp}</span> · CLOSING ${Math.round(c2*3.6)} km/h · KILL R ${win.toFixed(1)} m`:'')}else{html(TRK[0],'NO TRACKS');txt(TRK[2],'');html(TRK[4],'')}hide(TRK[1],!sel);hide(TRK[3],!sel);
+ const lq=alive?linkQ(me,dt):1;txt($('warn'),!alive?'':lq<.45?'VIDEO LINK WEAK · CLIMB OR TURN BACK':Math.abs(me.p.x)>AW-300||Math.abs(me.p.z)>AW-300?'LEAVING THE AO · TURN BACK':cv<3.5?'BATTERY LOW · LAND':'');
+ hide($('xh'),camMode!==0||!alive);
+ const a=$('arrow');if(!sel||!alive){hide(a,true)}else{_t.copy(sel.p).project(camera);let x=_t.x,y=_t.y;const behind=_t.z>1;if(behind){x=-x;y=-y}
+  if(!behind&&Math.abs(x)<.95&&Math.abs(y)<.9)hide(a,true);else{hide(a,false);const m=Math.max(Math.abs(x)/.9,Math.abs(y)/.82,1e-3);x/=m;y/=m;
+   css(a,'transform',`translate(${(x*.5+.5)*innerWidth-13}px,${(-y*.5+.5)*innerHeight-12}px) rotate(${Math.atan2(x,y)}rad)`)}}
   {const g=gdNow=S.guide&&alive&&!Z.on?guidance(me):null;let h='';if(g){const id='T'+String(g.t.id).padStart(2,'0');
    h=g.ph==='MIDCOURSE'?`<b>MIDCOURSE</b> ${id} · PIP ${rng(GD.pip.distanceTo(me.p))} · TTG ${Math.round(g.ttg)} s · ${Math.abs(g.herr)<4?'ON COURSE':(g.herr>0?'► R ':'◄ L ')+Math.round(Math.abs(g.herr))+'°'} · ${Math.abs(g.dalt)<25?'LEVEL':(g.dalt>0?'CLIMB ':'DESCEND ')+Math.round(Math.abs(g.dalt))+' m'}`:`<b>TERMINAL</b> ${id} ${rng(g.rng)} · eyes on, get in its six`}
-   $('gd').innerHTML=h}
- radar(dt)}
+   html($('gd'),h)}
+ radDt+=dt;const rn=performance.now();if(rn-radT>=32||rn<radT){radT=rn;radar(radDt);radDt=0}}
 // FPV overlay: Betaflight-style artificial horizon, target brackets (red per track with range, amber on the most urgent with a pursuit cue behind it), site labels
 function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if(demo)return;
- const me=player&&player.dead<=0?player:null,ft=Math.tan(camera.fov*Math.PI/360),sel=selT(),scr=p=>{_t.copy(p).project(camera);return _t.z<1&&Math.abs(_t.x)<1.1&&Math.abs(_t.y)<1.1?[(_t.x*.5+.5)*W2,(-_t.y*.5+.5)*H2]:null};
+ const me=player&&player.dead<=0?player:null,ft=Math.tan(camera.fov*Math.PI/360),sel=selT(),scr=p=>{_t.copy(p).project(camera);if(!(_t.z<1&&Math.abs(_t.x)<1.1&&Math.abs(_t.y)<1.1))return null;const q=RQ[rqi=(rqi+1)&3];q[0]=(_t.x*.5+.5)*W2;q[1]=(-_t.y*.5+.5)*H2;return q};
  oc.lineWidth=1.6;oc.font='700 11px "JetBrains Mono",monospace';oc.textAlign='center';oc.shadowColor='#000';oc.shadowBlur=3;
  if(me&&camMode===0){const f=_f.set(0,0,-1).applyQuaternion(camera.quaternion).setY(0);if(f.lengthSq()>1e-4){f.normalize();const r=_r.crossVectors(f,UP),c=camera.position,q1=scr(_ip.copy(c).addScaledVector(f,5000).addScaledVector(r,-900)),q2=scr(_tl.copy(c).addScaledVector(f,5000).addScaledVector(r,900));
    if(q1&&q2){const mx=(q1[0]+q2[0])/2,my=(q1[1]+q2[1])/2,dx=q2[0]-q1[0],dy=q2[1]-q1[1],L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;oc.strokeStyle='rgba(255,255,255,.75)';oc.lineWidth=2;oc.beginPath();
@@ -609,7 +657,7 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
   if(Z.on&&Z.hid?.(t))continue;  /* Zombies: a hidden boss (stealth, jammer, disguise) gets no bracket */
   oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':Z.on?Z.ocol(t,sel):t===sel?'#ffc640':t.jet?'#ff9640':'#ff4d4d';if(Z.on&&Z.quiet(t)){oc.fillRect(x-2,y-2,4,4);continue}
   oc.beginPath();for(const[sx,sy]of[[-1,-1],[1,-1],[1,1],[-1,1]]){oc.moveTo(x+sx*s,y+sy*s-sy*k);oc.lineTo(x+sx*s,y+sy*s);oc.lineTo(x+sx*s-sx*k,y+sy*s)}oc.stroke();
-  if(L&&!(Z.on&&Z.quiet(t)))oc.fillText(`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`,x,y+s+13);
+  if(L&&!(Z.on&&Z.quiet(t))){const k=(d<1000?Math.round(d):1e6+Math.round(d/100))*(t.st==='dive'?-1:1);if(t._lbk!==k){t._lbk=k;t._lbs=`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`}oc.fillText(t._lbs,x,y+s+13)}
   // pursuit cue: a point 40 m behind the target along its track, led by your time to get there; fly through it to end up in its six
   if(L&&t===sel&&me&&!Z.on){const vh=_tv.copy(t.v).normalize(),r=_a.subVectors(t.p,me.p).length(),tg=cl(r/Math.max(me.v.length(),40),0,8),cue=_ip.copy(t.p).addScaledVector(t.v,tg*.5).addScaledVector(vh,-40),lp=scr(cue);
    if(lp){oc.beginPath();oc.arc(lp[0],lp[1],7,0,7);oc.moveTo(lp[0]-11,lp[1]);oc.lineTo(lp[0]-4,lp[1]);oc.moveTo(lp[0]+4,lp[1]);oc.lineTo(lp[0]+11,lp[1]);oc.stroke()}}}
@@ -620,7 +668,8 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
  oc.shadowBlur=0}
 
 // ---------- visuals ----------
-function visuals(dt,now){const me=player;
+let dfN=0;
+function visuals(dt,now){const me=player;if((dfN++&63)===0)depthFix(scene);  /* instanced shadow casters (forest, houses, helpers, swarms) keep a depth material of their own: engine/hot.js */
  if(me){me.mesh.position.copy(me.p);me.mesh.quaternion.copy(me.q);me.mesh.scale.setScalar(MSZ);const sp=(me.dead>0?0:25+me.thr*90)*dt;me.props.forEach((p,i)=>p.rotation.y+=i%3?sp:-sp)}
  for(const t of TH){t.mesh.position.copy(t.p);t.mesh.lookAt(_t.copy(t.p).add(t.v));t.mesh.rotateZ(t.st==='fall'?t.roll:t.bank);if(t.prop)t.prop.rotation.z+=dt*90}
  for(let i=TH.length-1;i>=0;i--)if(TH[i].st==='dead'){dropMesh(TH[i].mesh);TH.splice(i,1)}
@@ -667,20 +716,24 @@ function step(dt){const me=player;TK++;IP.snap();GRID.open();try{
  if(me&&!demo&&!(Z.on&&Z.idle())){if(me.dead>0){  /* Z.idle: a co-op pilot who joined mid-wave waits on the mat for the next base screen */if((me.dead-=dt)<=0&&wstate!=='over')launch()}else{humanControl(me,dt);if(me.mah>=BCAP)me.thr=0;const h=me.step(dt);if(h>CRASH)lose('crash');else if(me.mah>=BCAP&&me.gt>0)lose('bat');else fuse()}}
  GRID.close();for(const t of TH)threatStep(t,dt);GRID.open();waves(dt);fires(dt);if(Z.on)Z.step(dt)}finally{GRID.close()}}
 // Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
+// static scenery (terrain, river, houses, pylons and wires, the forest, the sites' props): matrices once, never walked again by updateMatrixWorld.
+// Moving things stay live: sky, sun, sun disc, cloud deck, rain, the radar's spinning antenna, the light, the sites' building roots (buildings.js freezes their stages)
+{const live=new Set([sky,deck,sunDisc,RADM,rainL,cloudG,sun,sun.target,boomL,hemi,...SITES.map(s=>s.root)]);for(const o of scene.children)if(!live.has(o)&&!o.isLight&&!o.isPoints&&(o.isMesh||o.isGroup||o.isLine))freeze(o)}
 const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
  interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
-// Graphics quality and the FPS meter (igfx.js); the shader warm-up (engine/warm.js) runs once the menu is up: the scene with and without the
-// sky's environment map (cloud decks, night and thermal drop it), and one frame through the camera-feed pass
+// Graphics quality and the FPS meter (igfx.js); the shader warm-up (engine/warm.js) runs once the menu is up, and one frame through the camera-feed
+// pass. No environment-map variant to warm: cloud decks, night and thermal swap in a black map of the same size (envOff), the same programs
+PFX.scale=gfx.k.fx;gfx.on(g=>{PFX.scale=g.k.fx});  /* shared particle pools (engine/particles.js) thin with the Graphics level */
 const IG=initGfx({renderer,composer,bloom,resize,scene,camera,sun,clouds:cloudG,S,feed,rain:()=>{if(WX)wxLook(thermLook)},active:()=>!menuOpen&&!demo&&!paused&&!(Z.on&&Z.hold()),steps:()=>Z.on&&Z.G.state==='wave'});
-setTimeout(()=>{let e=null;const se=sens.enabled;sens.enabled=true;try{composer.render()}catch(x){}sens.enabled=se;warmUp({variants:[[()=>{e=scene.environment;scene.environment=e?null:envRT?.texture||null},()=>scene.environment=e]]})},1200);
+setTimeout(()=>{let e=null;const se=sens.enabled;sens.enabled=true;try{composer.render()}catch(x){}sens.enabled=se;warmUp()},1200);
 startDemo();
 // each frame draws the moment alpha of the way from the previous tick to the last one (IP.begin), then puts the sim state back (IP.end)
 startLoop({pre:()=>padEdges(padKeys),step,cap:()=>Z.stepCap||12,speed:()=>GSPD*(Z.on?Z.tsc:1),paused:()=>paused||Z.hold(),menu:()=>menuOpen,draw:(vd,dt,now,alpha)=>{IP.begin(alpha);GRID.open();try{
  if(!menuOpen&&!demo)switches();
  const fpvOn=!demo&&camMode===0&&player&&player.dead<=0&&!Z.cine,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
  sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.04-.18*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
- weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);hud(vd);overlay();if(Z.on)Z.overlay(oc)}finally{GRID.close();IP.end()}}});
+ weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);cloudSort(camera.position);  /* after every camera (cinematic cams too) */hud(vd);overlay();if(Z.on)Z.overlay(oc)}finally{GRID.close();IP.end()}}});

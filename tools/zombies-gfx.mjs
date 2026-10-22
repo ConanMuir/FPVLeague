@@ -64,8 +64,8 @@ if (SHOTS) {
 if (PROX) {
   const p = await page({gmode: 'classic', wx: 'clear', cam: 1, gfx: 'high'}); await sleep(2500);
   const grab = (mode) => p.evaluate(async mode => {
-    const {api, gfx} = __z, H = __z.gfxGK.high, keep = {lodD: H.lodD, gFar: H.gFar, detD: H.detD};
-    if (mode === 'off') Object.assign(H, {lodD: Infinity, gFar: 1e9, detD: 1e9});
+    const {api, gfx} = __z, H = __z.gfxGK.high, keep = {lodD: H.lodD, lodD2: H.lodD2, gFar: H.gFar, detD: H.detD};
+    if (mode === 'off') Object.assign(H, {lodD: Infinity, lodD2: Infinity, gFar: 1e9, detD: 1e9});
     gfx.haze = mode === 'haze'; gfx.set(mode === 'low' ? 'low' : 'high');
     const c = api.camera, r = api.renderer, out = [];
     for (const [x, y, z, tx, tz] of [[0, 500, 2600, 0, -2500], [-1800, 120, 400, 600, -3000]]) {
@@ -115,6 +115,26 @@ if (HITCH) {
   cold.forEach((c, i) => { const w = warm[i]; console.log(`  ${c.name.padEnd(18)} ${String(c.programs).padStart(3)} / ${String(c.worst).padStart(5)} ms / ${String(c.typical).padStart(4)} ms` + ' '.repeat(22) + `${String(w.programs).padStart(3)} / ${String(w.worst).padStart(5)} ms / ${String(w.typical).padStart(4)} ms`); });
   const cp = cold.reduce((a, c) => a + c.programs, 0), wp = warm.reduce((a, c) => a + c.programs, 0);
   chk(wp < cp || cp === 0, `the warm-up leaves fewer shaders to compile in play: ${cp} without, ${wp} with`);
+}
+// ---------- the HDR picture stays finite: on High (4x MSAA scene targets + bloom) one NaN pixel in the scene target is spread by the bloom
+// into a black box over half the frame (it was the re-entry streaks: an edge pixel shaded outside the strip took sqrt of a negative; it
+// showed in the thermal view first). Wave 28 from a fixed view over the sites in clear weather, the FPV feed on, HUD hidden: a screenshot
+// every half second for 20 s; a clear day has no near-black pixels, so any frame with more than 5% of them fails ----------
+{
+  const p = await page({gmode: 'z', wx: 'clear', zwx: 'wave', cam: 0, gfx: 'high', fps: false});
+  await sleep(800); await p.click('#play'); await sleep(800);
+  await p.evaluate(() => { const {api, G, Z} = __z, V3 = api.THREE.Vector3; api.S.zwx = 'wave'; __z.jump(28, 20000); G.next = __z.plan(28); G.next.wx = {id: 'clear'}; __z.cont(); __z.sim(20);
+    setInterval(() => api.SITES.forEach(s => s.hp = s.max), 200); const c = api.camera; Z.cam = () => { c.position.set(-200, 60, 1500); c.up.set(0, 1, 0); c.lookAt(new V3(0, 60, 900)); };
+    window.__dlNoRender = false; });
+  for (let i = 0; i < 20; i++) { await p.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyH', key: 'h'}))); await sleep(300); }  /* the thermal switch, as the bug report did */
+  await p.evaluate(() => { for (const id of ['ov', 'hud']) document.getElementById(id).style.visibility = 'hidden'; });
+  let worst = 0, n = 0;
+  for (; n < 40; n++) { await sleep(500); const png = await p.screenshot({encoding: 'base64'});
+    const d = await p.evaluate(async b64 => { const im = new Image(); im.src = 'data:image/png;base64,' + b64; await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+      const D = g.getImageData(0, 0, c.width, c.height).data; let k = 0, m = 0; for (let i = 0; i < D.length; i += 32) { m++; if (D[i] + D[i + 1] + D[i + 2] < 15) k++; } return k / m; }, png);
+    worst = Math.max(worst, d); if (d > .05) break; }
+  chk(worst <= .05, `no black box on High with wave 28 in view (worst near-black share ${(worst * 100).toFixed(1)}% over ${n} screenshots)`);
+  await p.close();
 }
 chk(!errs.length, errs.length ? 'page errors:\n' + errs.join('\n') : 'no page errors');
 await b.close(); server.close(); process.exit(fails ? 1 : 0);

@@ -1,7 +1,7 @@
 // Interceptor side of the Graphics quality setting (engine/gfx.js, S.gfx: auto / high / med / low), the optional distance haze (S.haze)
 // and the FPS meter (S.fps).
 // Applies the level to what interceptor.js builds once: the renderer's pixel ratio (with Auto's dynamic resolution), the sun's shadow map
-// size and box, the glow pass, the forest tiles (draw distance, thinning, low-poly crowns past lodD, shadows), village house shadows, the
+// size and box, the glow pass, the forest tiles (draw distance, thinning, crown detail by distance (lodD, lodD2), shadows), village house shadows, the
 // detail and field shaders (LOD / DETD / GFAR uniforms: no recompiles) and the rain count. Zombies' systems read gfx.k where they spawn
 // things (zwx.js weather particles, zfx.js smoke / fire / debris / tracers, buildings.js site fires, zswarm.js swarm detail).
 // Distance haze (off by default: the weather's own fog is the look): the fog closes in to 60% of the weather's distances, and whatever the
@@ -13,6 +13,7 @@ import {LOD,DETD,GFAR} from '../../engine/render.js';
 import {mountFps,setCap} from '../../src/ui/fpsmeter.js';
 import {SMAAPass} from 'three/addons/postprocessing/SMAAPass.js';
 import {warmStats} from '../../engine/warm.js';
+import {warmers} from '../../engine/idle.js';
 const HAZE=.6;
 export function initGfx({renderer,composer,bloom,resize,scene,camera,sun,clouds,S,feed,rain,active,steps}){
  const forest=scene.children.filter(m=>m.userData.forest&&m.userData.tile),houses=scene.children.filter(m=>m.userData.house);
@@ -21,19 +22,21 @@ export function initGfx({renderer,composer,bloom,resize,scene,camera,sun,clouds,
  const fb={n:0,f:0,sn:-1,sf:-1,hz:false};  /* hz: the cloud sprites skip the fog under haze (fully fogged, they turned into grey blobs) */
  function haze(){const f=scene.fog;if(!f)return 1e9;if(fb.hz!==gfx.haze){fb.hz=gfx.haze;clouds?.traverse(o=>{if(o.material){o.material.fog=!fb.hz;o.material.needsUpdate=true}})}if(f.near!==fb.sn||f.far!==fb.sf){fb.n=f.near;fb.f=f.far}const h=gfx.haze?HAZE:1;f.near=fb.sn=fb.n*h;f.far=fb.sf=fb.f*h;return gfx.haze?f.far:1e9}
  // forest tiles: whole within k.near of the camera (so every tree you can hit is drawn), thinned to k.thin out to k.far, gone beyond (or
- // past the fog under haze); low-poly crowns past k.lodD
+ // past the fog under haze); crowns of 80 faces past k.lodD and of 20 past k.lodD2 (a few pixels there), the full 180 nearer
  function tiles(ff){const k=gfx.k,x=camera.position.x,z=camera.position.z;if(k===lk&&ff===lf&&Math.abs(x-lx)<40&&Math.abs(z-lz)<40)return;lk=k;lf=ff;lx=x;lz=z;
   const far=Math.min(k.far,ff);GFAR.value=Math.min(k.gFar,ff*.8);
   for(const m of forest){const u=m.userData,[x0,z0,x1,z1]=u.tile,d=Math.hypot(Math.max(x0-x,0,x-x1),Math.max(z0-z,0,z-z1)),mid=d>k.near,per=u.geo?2:1,trees=u.n/per;
-   m.visible=d<=far;m.count=(mid?Math.max(1,Math.round(trees*k.thin)):trees)*per;if(u.geo)m.geometry=u.geo[d>=k.lodD?1:0]}}
+   m.visible=d<=far;m.count=(mid?Math.max(1,Math.round(trees*k.thin)):trees)*per;if(u.geo)m.geometry=u.geo[d>=(k.lodD2??Infinity)?2:d>=k.lodD?1:0]}}
  const ob=scene.onBeforeRender;scene.onBeforeRender=function(...a){ob.apply(this,a);tiles(haze())};
  // antialiasing: the scene is drawn into the composer's targets, so the canvas's own AA never reached it. High: 4x MSAA on both targets
  // (the scene lands in either, depending on how many passes swapped that frame); Medium: SMAA after the tone-mapping pass; Low: none
  let smaa=null;
  function aa(m){const ms=m==='msaa'&&renderer.capabilities.isWebGL2?Math.min(4,renderer.capabilities.maxSamples):0;
   for(const t of[composer.renderTarget1,composer.renderTarget2])if(t.samples!==ms){t.samples=ms;t.dispose()}
-  if(m==='smaa'&&!smaa){const s=new THREE.Vector2();renderer.getDrawingBufferSize(s);smaa=new SMAAPass(s.x,s.y);const i=composer.passes.findIndex(p=>p.constructor.name==='OutputPass');composer.insertPass(smaa,i<0?composer.passes.length:i+1)}
+  if(m==='smaa'&&!smaa)mkSmaa();
   if(smaa)smaa.enabled=m==='smaa'}
+ function mkSmaa(){const s=new THREE.Vector2();renderer.getDrawingBufferSize(s);smaa=new SMAAPass(s.x,s.y);smaa.enabled=false;const i=composer.passes.findIndex(p=>p.constructor.name==='OutputPass');composer.insertPass(smaa,i<0?composer.passes.length:i+1)}
+ warmers.push(()=>{if(!smaa)mkSmaa()});  /* Zombies' warm-up (zwarm.js): the pass is made ahead, off, so Auto stepping down to Medium mid-wave doesn't build and compile it then */
  function apply(g,why){const k=g.k,p=g.pixelRatio();
   if(Math.abs(p-pr)>1e-3){pr=p;renderer.setPixelRatio(p);composer.setPixelRatio(p);resize()}
   if(why==='res')return;

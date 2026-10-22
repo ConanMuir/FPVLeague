@@ -3,6 +3,7 @@
 // Outcomes are game rules: each helper has a kill chance per engagement (zdata HELP / RACK_TIERS) scaled by how well it works against the kind
 // (RESIST, or its Armory refit's own numbers: REFIT); Z.helperHit applies armor and Mark. Everything in flight is pooled and drawn instanced.
 import {dot,glow} from '../../engine/render.js';
+import {hyp} from '../../engine/hot.js';
 import {KIND,RESIST,RACK_TIERS,RACK_CAP,RACK_REARM,RACK_RANGE,DRONE_SPD,DRONE_FUEL,HELP,REFIT,LRACK} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initDefences(api,G,Z){
@@ -19,11 +20,13 @@ export function initDefences(api,G,Z){
  for(const s of SITES){const d=s.r+22;SLOTS.push({n:`${s.n.toLowerCase()} south`,x:s.x,z:s.z+d,site:s,ex:1})}
  for(const f of FOBS)SLOTS.push({n:f.n.toLowerCase()+' pad 2',x:f.x+12,z:f.z+8,fwd:1,ex:1});
  for(const[n,x]of[['outpost west',-950],['outpost east',1050]])SLOTS.push({n,x,z:rivZ(x)-650,fwd:1,out:1,ex:1});
+ // park spots for the arsenal's drone carriers (zarsdef.js, 22-23): always open but only to a carrier, and they move to wherever it is parked
+ for(const i of[0,1])SLOTS.push({n:'carrier park '+(i+1),x:PADP.x+(i?70:-70),z:PADP.z+90,park:1});
  for(const s of SLOTS){s.y=gh(s.x,s.z);s.n=s.n.replace(/^./,c=>c.toUpperCase())}
  // which positions are open this run (G.open, set from the doctrine at the start; opened one by one on the base screen)
  const layout=doc=>{G.open=SLOTS.map((s,j)=>doc&&doc.open?doc.open.includes(j):!s.ex)};
- const slotOpen=j=>!!SLOTS[j]&&(G.open?!!G.open[j]:!SLOTS[j].ex);
- const canOpen=(j,doc)=>!!SLOTS[j]&&!slotOpen(j)&&!(doc?.never||[]).includes(j);
+ const slotOpen=j=>!!SLOTS[j]&&!SLOTS[j].park&&(G.open?!!G.open[j]:!SLOTS[j].ex);
+ const canOpen=(j,doc)=>!!SLOTS[j]&&!SLOTS[j].park&&!slotOpen(j)&&!(doc?.never||[]).includes(j);
 
  // ---------- ground meshes ----------
  const M={olive:new THREE.MeshStandardMaterial({color:0x4f5a35,roughness:.7,metalness:.2}),dark:new THREE.MeshStandardMaterial({color:0x22262a,roughness:.6,metalness:.4}),
@@ -70,7 +73,7 @@ export function initDefences(api,G,Z){
  let did=0,fxBudget=0,sid=0;
  // per-defence numbers: drone racks (rack, and the kit's light rack) use RACK_* and their tier; the rest HELP levels; an Armory refit (d.refit) adjusts both
  const isRack=d=>d.type==='rack'||d.type==='lrack';
- const fit=d=>d&&(REFIT[d.type]||[]).find(r=>r.id===d.refit)||{};
+ const NOFIT=Object.freeze({}),fit=d=>{const L=d&&d.refit&&REFIT[d.type];if(L)for(const r of L)if(r.id===d.refit)return r;return NOFIT};  // per track per defence per step: no array or object made
  const effOf=(d,k)=>{const f=fit(d);return f.eff?.[k]??RESIST[d.type]?.[k]??0};
  const L=d=>isRack(d)?null:HELP[d.type].lv[d.lvl];
  const rangeOf=d=>{const f=fit(d);if(isRack(d))return d.type==='lrack'?LRACK.rng:f.rng||RACK_RANGE;const l=L(d);return f.rng||(l.rng||HELP[d.type].rng)*(f.rngK||1)};
@@ -78,11 +81,11 @@ export function initDefences(api,G,Z){
  const otK=()=>G.sup?.overtime?.7:1;  // Overtime crews supply: everything reloads 30% faster this wave
  const jink=t=>Z.jink?Z.jink(t):1;  // Hard / Nightmare: evading kinds dodge helper drones and gun bursts more often (zombies.js)
  function add(type,slot){const d={id:++did,type,slot,tier:0,lvl:0,cap:0,ready:0,cd:0,rearm:0,mesh:null,kills:0,shots:0,ammo:0,jam:new Set(),refit:'',short:0};if(isRack(d)){d.cap=type==='lrack'?LRACK.cap:RACK_CAP[0];d.ready=d.cap}D.push(d);return d}
- const slotFree=i=>slotOpen(i)&&!D.some(d=>d.slot===i);
+ const slotFree=(i,k)=>(SLOTS[i]?.park?k==='carrier':k!=='carrier'&&slotOpen(i))&&!D.some(d=>d.slot===i);  // k: the helper being placed (a park spot takes only a carrier and is not a position)
  const free=d=>{for(const o of[d.mesh,d.bubble])if(o){scene.remove(o);o.traverse(q=>q.geometry?.dispose())}d.mesh=d.bubble=null};  // each defence builds its own geometries (shared materials): free them with it
  function remove(d){const i=D.indexOf(d);if(i<0)return;D.splice(i,1);free(d);for(const h of shots)if(h.d===d)h.fuel=0;if(d.tgt)release(d)}
  // moving a defence: its mesh is rebuilt on the new position when the next wave starts
- function move(d,j){if(!d||!slotFree(j))return false;d.slot=j;free(d);return true}
+ function move(d,j){if(!d||!slotFree(j,d.type))return false;d.slot=j;free(d);return true}
  // meshes appear (and magazines refill) when the next wave starts; supplies bought for this wave and an upkeep shortfall (half load) apply here
  function deploy(){for(const h of shots)release(h);shots.length=0;shells.length=0;tr.length=0;pend.length=0;
   for(const d of D){const s=SLOTS[d.slot];if(!d.mesh){d.mesh=MESH[d.type](d);d.mesh.position.set(s.x,s.y,s.z);d.mesh.rotation.y=Math.atan2(s.x,s.z+1500)+Math.PI;scene.add(d.mesh);
@@ -93,15 +96,22 @@ export function initDefences(api,G,Z){
  function clear(){for(const d of D)free(d);D.length=0;for(const h of shots)release(h);shots.length=0;shells.length=0;tr.length=0;pend.length=0;for(const m of pMesh)m.count=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0)}
 
  // ---------- target choice: free, in range, engageable; most urgent first; marked tracks first; leave the player's terminal track alone ----------
- const tti=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
- const _g=new V3();
- function pickTarget(dd,x,z,range,o={}){let best=null,bs=-1e9;const me=api.player,sel=api.selT();
-  api.grid.near(_g.set(x,0,z),range,t=>{if(!api.live(t)||t.claim||t.dcy||t.iff>0||!Z.seen(t)&&t.k!=='swarm')return;  /* t.dcy: pulled to a decoy site (zwarn.js), not worth a shot */let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)return;
+ const tti=t=>hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd),NOOPT=Object.freeze({});
+ // the query's state lives in PT and its callback is made once, so a search makes no closure or object (it runs per idle defence per tick)
+ const _g=new V3(),PT={dd:null,x:0,z:0,range:0,o:NOOPT,me:null,sel:null,best:null,bs:-1e9};
+ const ptCb=t=>{const dd=PT.dd,o=PT.o,me=PT.me;if(!api.live(t)||t.claim||t.dcy||t.iff>0||!Z.seen(t)&&t.k!=='swarm')return;  /* t.dcy: pulled to a decoy site (zwarn.js), not worth a shot */let e=dd?effOf(dd,t.k):(RESIST.rack[t.k]??1);if(o.over&&e<=0&&KIND[t.k].armor!=='hard')e=.3;if(e<=0)return;
    if(o.smart&&t.k==='decoy')return;if(o.only&&!o.only(t))return;
-   const d=Math.hypot(t.p.x-x,t.p.z-z);if(d>range)return;
-   if(t===sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)return;  // t.pc: a co-op pilot is on it
-   const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>bs){bs=sc;best=t}});
+   const d=hyp(t.p.x-PT.x,t.p.z-PT.z);if(d>PT.range)return;
+   if(t===PT.sel&&me&&me.dead<=0&&me.p.distanceTo(t.p)<1500||t.pc)return;  // t.pc: a co-op pilot is on it
+   const sc=-tti(t)+e*30+(t.mark?60:0)+(KIND[t.k].dmg>0?0:-40)+(o.prio?o.prio(t):0);if(sc>PT.bs){PT.bs=sc;PT.best=t}};
+ function pickTarget(dd,x,z,range,o=NOOPT){PT.dd=dd;PT.x=x;PT.z=z;PT.range=range;PT.o=o;PT.me=api.player;PT.sel=api.selT();PT.best=null;PT.bs=-1e9;
+  api.grid.near(_g.set(x,0,z),range,ptCb);const best=PT.best;PT.best=PT.dd=PT.sel=null;PT.o=NOOPT;
   return best}
+ // jammer: tracks entering the bubble get one roll (ew below); its state in EW and its callback made once, like pickTarget
+ const EW={d:null,s:null,l:null,f:null,r:0},ewCb=t=>{const d=EW.d,s=EW.s,l=EW.l,f=EW.f,r=EW.r;if(!api.live(t)||d.jam.has(t.id))return;const e=effOf(d,t.k);if(e<=0)return;
+   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)return;d.jam.add(t.id);  /* Math.hypot kept here: with hyp() the grid-vs-loop whole-wave test diverged (a borderline jam roll, see docs/PERF.md) */
+   if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
+    api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}};
  const claim=(t,h)=>{t.claim=h;h.tgt=t};
  const release=h=>{if(h.tgt&&h.tgt.claim===h)h.tgt.claim=null;h.tgt=null};
 
@@ -157,9 +167,7 @@ export function initDefences(api,G,Z){
    const p=l.p*effOf(d,t.k)*(1-.5*dist/rng)*jink(t);pend.push({t:tof,fn:()=>{if(!api.live(t)||!G.on)return;const o=Z.helperHit(t,p,f.armor?1:.5);if(o==='kill'){d.kills++;Z.helperKill(t);if(l.ahead&&t.k==='swarm')splash(d,t.p,14,.5,t);release(d)}else if(o==="damage"&&t.k!=="boss")api.damage(t)}})},
   sam(d,dt){launcher(d,dt,3.5,{smart:L(d).smart,prio:u=>u.k==='swarm'?-80:0})},
   // jammer: tracks entering the bubble get one roll; spoofed ones lose their aim and hit an empty field (no damage: zombies.js impact)
-  ew(d){if(!api.think(d.id))return;const s=sl(d),l=L(d),f=fit(d),r=rangeOf(d);api.grid.near(s,r,t=>{if(!api.live(t)||d.jam.has(t.id))return;const e=effOf(d,t.k);if(e<=0)return;
-   if(Math.hypot(t.p.x-s.x,t.p.z-s.z)>r)return;d.jam.add(t.id);if(Math.random()<l.p*(f.pk||1)*e){t.spoof=1;const a=Math.random()*6.28,o=rnd(450,800);t.aim=new V3(t.tgt.x+Math.cos(a)*o,0,t.tgt.z+Math.sin(a)*o);t.aim.y=gh(t.aim.x,t.aim.z);t.wps.length=0;d.kills++;
-    api.feed(`<span class="cb">${Z.tname(t)} spoofed by the jammer</span>`)}})},
+  ew(d){if(!api.think(d.id))return;EW.d=d;EW.s=sl(d);EW.l=L(d);EW.f=fit(d);EW.r=rangeOf(d);api.grid.near(EW.s,EW.r,ewCb);EW.d=EW.s=null},
   idome(d,dt){if((d.cd-=dt)>0||d.ammo<=0||!api.think(d.id))return;const s=sl(d),l=L(d),f=fit(d),hard=u=>KIND[u.k].armor==='hard'||u.k==='cruise',over=(l.over||f.over)&&!f.never;
    const t=pickTarget(d,s.x,s.z,HELP.idome.rng,{over,only:u=>hard(u)?u.p.distanceTo(_c.set(s.x,s.y,s.z))<14000:(over&&u.p.distanceTo(_c.set(s.x,s.y,s.z))<5000),prio:u=>hard(u)?200:0});if(!t)return;
    const dv=new V3(),mz=mouth(d,d.ammo%2,rnd(-.8,.8),1.25,0,dv);fire(d,t,'tamir',mz||_a.set(s.x,s.y+3,s.z),{pk:l.p,direct:1,dome:true,v:mz?dv.multiplyScalar(160):new V3(rnd(-10,10),160,rnd(-10,10))});d.ammo--;d.cd=1.6*otK()},
@@ -210,5 +218,6 @@ export function initDefences(api,G,Z){
  // radar: shots as cyan dots with a thin yellow line to their claimed track; your defences as cyan squares (EW bubble as a ring)
  function radar(rc,P,K){rc.lineWidth=1.5;for(const h of shots){const q=P(h.p.x,h.p.z);rc.fillStyle=h.kind==='drone'?'#5fe3ff':'#e8f4ff';rc.fillRect(q[0]-2.5,q[1]-2.5,5,5);if(h.tgt){const u=P(h.tgt.p.x,h.tgt.p.z);rc.strokeStyle='rgba(255,226,60,.55)';rc.beginPath();rc.moveTo(q[0],q[1]);rc.lineTo(u[0],u[1]);rc.stroke()}}
   for(const d of D){const s=sl(d),q=P(s.x,s.z);rc.strokeStyle='#5fe3ff';rc.lineWidth=2;rc.strokeRect(q[0]-4,q[1]-4,8,8);if(d.type==='ew'&&K){rc.strokeStyle='rgba(95,227,255,.3)';rc.beginPath();rc.arc(q[0],q[1],rangeOf(d)*K,0,7);rc.stroke()}}}
+ Z.defx={MESH,LOGIC,HT,M,PK,kit,wheels,fire,pickTarget,claim,release,splash,tracer,sl,mouth,aimAt,effOf,otK,reg(t,mesh,logic){MESH[t]=mesh;LOGIC[t]=logic;if(!HT.includes(t))HT.push(t)}};  // the arsenal's defences plug in here (zarsdef.js)
  return{SLOTS,D,shots,burst,netOut,netIn,get drones(){return shots.filter(h=>h.kind==='drone')},add,remove,move,slotFree,slotOpen,canOpen,layout,deploy,clear,step,visuals,radar,rangeOf,capOf,magOf,fit,effOf,isRack,L,HT,
   launchDrone:(d,t)=>{const s=sl(d);fire(d,t,'drone',_a.set(s.x,s.y+2.5,s.z))}}}

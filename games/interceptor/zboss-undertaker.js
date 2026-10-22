@@ -8,6 +8,8 @@
 // wreck, or leaves if there is none; kill it early while it is small (helpers reach it too). Beaten: the Undertaker's Ledger trophy.
 import {registerBoss} from './zbosses.js';
 const MAXA=10,STARVE=.35;
+const _hz={x:0,y:0,z:0};  // haze emit point (reused)
+
 function bodyTex(C){const n=C.rec().b.undertaker?.met|0;return C.decal('ut-body'+Math.min(20,n),512,256,(g,w,h)=>{const{D2}=C;g.fillStyle='#16151a';g.fillRect(0,0,w,h);D2.panels(g,w,h,'#000',10,.5);
  g.fillStyle='#d9d2bf';for(const x of[90,w-90]){g.fillRect(x-7,40,14,90);g.fillRect(x-30,66,60,14)}  // grave crosses
  D2.text(g,'UNDERTAKER',w/2,64,40,'#d9d2bf','900');D2.text(g,'SALVAGE · RECLAMATION · NO RETURNS',w/2,104,15,'#9a9385','700');
@@ -26,7 +28,7 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group();
  const claws=[];for(const s of[-1,1]){const a=new T.Group();a.position.set(s*1.6,-1.4,1.5);C.mesh(a,new T.CylinderGeometry(.18,.18,6,8),M.dark,0,-3,0);for(const k of[-1,1])C.mesh(a,new T.BoxGeometry(.25,2.2,.25),M.dark,k*.5,-6.6,0).rotation.z=k*.5;g.add(a);claws.push(a)}
  C.mesh(g,new T.SphereGeometry(.5,10,8),M.eye,0,0,6.2,false);
  const plates=[];for(let i=0;i<MAXA;i++){const a=(i%5)/5*Math.PI*2,y=i<5?1.5:-.5,p=C.mesh(g,new T.BoxGeometry(2.6,1.8,.35),M.rust,Math.cos(a)*3.6,y,Math.sin(a)*5.4);p.lookAt(Math.cos(a)*20,y,Math.sin(a)*30);p.visible=false;plates.push(p)}
- g.userData={fans,claws,plates};return g}
+ Object.assign(g.userData,{fans,claws,plates});return g}
 // tethers: a dark red line to each site it drains
 let TG=null;
 function tethers(C){if(TG)return TG;const T=C.THREE,geo=new T.BufferGeometry();geo.setAttribute('position',new T.BufferAttribute(new Float32Array(6*24*3),3));TG=new T.LineSegments(geo,new T.LineBasicMaterial({color:new T.Color(0xff2a20).multiplyScalar(2.5),transparent:true,opacity:.8,toneMapped:false,depthWrite:false}));TG.frustumCulled=false;TG.visible=false;C.api.scene.add(TG);return TG}
@@ -41,7 +43,7 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
  resist:{rack:.45,lrack:.45,gepard:.5,sam:.7,mpads:.4,flak:.35,hflak:.45,idome:.3},hp:C=>2/C.hpK(),
  note:'a salvage drone that strips a wrecked or neglected site and leeches the others, growing armour while you leave it. Repair the site it strips, or kill it early.',warn:'a scavenger over your wreck',
  introFn(C,t){C.Z.an?.say('THE UNDERTAKER','it feeds on what you neglect','#ff5a40',3);C.Z.an?.radio('OVERLORD','Something is stripping our wreck. It is draining the other sites!',2)},
- build:C=>model(C),
+ build:C=>model(C),warm:C=>tethers(C),
  init(C,t){const B=t.bs;B.anchor=B.anchor||victim(C);B.gt=0;B.waves=0;t.p.y=C.api.gh(t.p.x,t.p.z)+260},
  save:(C,t)=>{const A=t.bs.anchor;return{anchor:C.api.SITES.indexOf(A),hp:t.bs.hp,max:t.bs.max,waves:t.bs.waves|0,at:A?{x:A.x+8,z:A.z-6}:null}},
  restore(C,t,st){const B=t.bs,S=C.api.SITES;B.anchor=S[st.anchor]||victim(C);B.hp=Math.max(2,st.hp|0);B.max=Math.max(B.hp,st.max|0);B.waves=st.waves|0;if(B.anchor)t.p.set(B.anchor.x+8,B.anchor.y+30,B.anchor.z-6)},
@@ -61,11 +63,14 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
  phaseName:(C,e)=>{const a=armor(e.main);return a<3?'STRIPPING':a<7?'ENTRENCHED':'IRONCLAD'},
  status(C,e){const t=e.main,B=t.bs,L=drained(C,t);return`armour <b>${armor(t)}/${MAXA}</b> (+1 every 20 s, +2 a break) · ${B.anchor?`stripping the ${B.anchor.n.toLowerCase()}`:'looking'}${L.length?` · <b>draining ${L.length} site${L.length>1?'s':''} −${rate(t).toFixed(1)}/s</b>`:''}<br>repair the ${B.anchor?B.anchor.n.toLowerCase():'wreck'} above ${STARVE*100}% to starve it`},
  vis(C,t,dt){const U=t.mesh.userData,B=t.bs,a=armor(t);for(const f of U.fans)f.rotation.y+=dt*35;U.plates.forEach((p,i)=>{p.visible=i<a});for(const c of U.claws)c.rotation.x=B.on?Math.sin(performance.now()/300)*.4:0;
+  if(B.on&&B.anchor&&(B.ash=(B.ash||0)-dt)<=0){B.ash=.3;_hz.x=B.anchor.x+C.rnd(-60,60);_hz.z=B.anchor.z+C.rnd(-60,60);_hz.y=B.anchor.y+C.rnd(2,30);C.haze(_hz,0x6a6a68,.22,14,1.5)}  // ash
   if(B.on&&Math.random()<dt*6&&B.anchor)C.FX.emit(new C.V3(B.anchor.x+C.rnd(-12,12),B.anchor.y+2,B.anchor.z+C.rnd(-12,12)),0xfff0c0,10,8,.3,null,3);
   const L=drained(C,t),G=tethers(C);G.visible=L.length>0&&t.st!=='dead';if(!G.visible)return;const pa=G.geometry.attributes.position,T=performance.now()/1000;let n=0;
   for(const s of L)for(let i=0;i<24;i++){for(const k of[i,i+1]){const f=k/24,sag=Math.sin(f*Math.PI)*40;pa.setXYZ(n++,t.p.x+(s.x-t.p.x)*f,t.p.y+(s.y+25-t.p.y)*f+sag*(1-f)*.5+Math.sin(T*3+f*20)*1.5,t.p.z+(s.z-t.p.z)*f)}}
   for(let i=n;i<pa.count;i++)pa.setXYZ(i,0,-1e4,0);pa.needsUpdate=true;G.material.opacity=.5+.3*Math.sin(T*4);
   if(Math.random()<dt*10){const s=C.pick(L),f=(T*.5)%1;C.FX.emit(new C.V3(s.x+(t.p.x-s.x)*f,s.y+25+(t.p.y-s.y-25)*f,s.z+(t.p.z-s.z)*f),0xff3020,2,1,.4,null,2.5)}},
+ atmos(C,t,o){const A=t.bs.anchor||t.p,c=C.api.camera.position,d=Math.hypot(c.x-A.x,c.z-A.z),g=armor(t)/MAXA;o.desat=.78+.2*g;o.dark=.32+.28*g;o.light=.62-.25*g;o.fog=.62-.25*g;o.fogC.set(0x4c4d4f);o.fogMix=.5+.3*g;o.vign=.35+.25*g;
+  return (.35+.65*C.cl(1-d/2600,0,1))*(.72+.28*g)},
  netOut:(C,t)=>[C.api.SITES.indexOf(t.bs.anchor),t.bs.on|0],netIn(C,t,a){t.bs.anchor=C.api.SITES[a[0]]||null;t.bs.on=a[1]|0},
  aim:(C,t,s)=>({p:t.p.clone().add(new C.V3(0,Math.random()<s?1:8,0)),v:new C.V3()}),
  won(C,e){const a=armor(e.main);if(a)C.Z.earn?.(a*250,e.main.p,' PLATES')},winTxt:'The Undertaker is scrap. Bury it.',

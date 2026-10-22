@@ -2,7 +2,15 @@
 // watches for page errors, NaNs, stuck states (a wave that never ends, a base screen that never opens, a boss that never dies) and
 // leaks (tracks, scene objects, GPU geometries/textures, JS heap after GC), then checks that Classic still works and the modes switch.
 // Run: node tools/zombies-soak.mjs [--diff 0,1,2,3] [--waves 32] [--skill .05] [--god]   (--god keeps the sites topped up to reach late waves)
+// Long session: node tools/zombies-soak.mjs --minutes 60 [--diff 1] [--json out.json]: one run of that many game-minutes with everything on
+// (a boss forced into every wave and another spawned in it, the Mothership every other wave, the weather cycling through every Zombies
+// weather with mid-wave changes, the personal swarm deployed and striking, kill-chain mounts, a sortie every third break, the thermal
+// camera toggled), sampled every game-minute: JS heap after GC, DOM nodes and event listeners (CDP Performance metrics), renderer memory
+// (geometries, textures, shader programs), scene objects, pooled counts (tracks, pops, shots, drones), audio sources started and not yet
+// ended, orphaned GPU geometries, and the frame time (main-thread ms per frame: p50 / p95 / worst) in the wave and on the base screen (the
+// same view every time: the constant-load probe). Fails on growth from the first samples to the last.
 import {serve, launch, open, sleep} from './zlib.mjs';
+import {longSoak as LS} from './zsoaklong.mjs';
 const argv = process.argv.slice(2), arg = (k, d) => argv.includes(k) ? argv[argv.indexOf(k) + 1] : d;
 const DIFFS = String(arg('--diff', '0,1,2,3')).split(',').map(Number), WAVES = +arg('--waves', 32), SKILL = +arg('--skill', .05), GOD = argv.includes('--god');
 const {server, origin} = await serve();
@@ -54,8 +62,11 @@ const STATS = `(function(){
       for (const [g, at] of window.__geo || []) if (!live.has(g)) { n++; by[at] = (by[at] || 0) + 1; } return {n, top: Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => v + ' x ' + k.slice(0, 160))}; })()};
 })()`;
 
+const MINUTES = +arg('--minutes', 0), JSONOUT = arg('--json', '');
+const longSoak = (b, zd, errs) => LS({origin, open, sleep, ok, heapMB, PLAY, SHOP, SKILL, MINUTES, JSONOUT}, b, zd, errs);
 const summary = [];
-for (const zd of DIFFS) {  // a fresh browser per difficulty; a crash fails that difficulty and the soak goes on
+if (MINUTES) { const browser = await launch({w: 960, h: 540}), errs = []; try { await longSoak(browser, DIFFS.length === 4 ? 1 : DIFFS[0], errs); } catch (e) { ok(false, 'long soak: harness stopped: ' + String(e.stack || e).split('\n').slice(0, 3).join(' < ') + (errs.length ? '\n  ' + [...new Set(errs)].slice(0, 8).join('\n  ') : '')); } await browser.close().catch(() => {}); }
+else for (const zd of DIFFS) {  // a fresh browser per difficulty; a crash fails that difficulty and the soak goes on
   const browser = await launch({w: 960, h: 540}), errs = [];
   try { await soak(browser, zd, errs); } catch (e) { ok(false, `difficulty ${zd}: harness stopped: ${String(e.message || e).split('\n')[0]}` + (errs.length ? '\n  ' + [...new Set(errs)].slice(0, 8).join('\n  ') : '')); summary.push(`difficulty ${zd}: stopped (${String(e.message || e).split('\n')[0]})`); }
   await browser.close().catch(() => {});

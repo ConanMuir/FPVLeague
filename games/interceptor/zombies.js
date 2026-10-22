@@ -10,6 +10,7 @@ import {initEnemies} from './zenemy.js';
 import {initPerks} from './zperk.js';
 import {initFX} from './zfx.js';
 import {initWeather} from './zwx.js';
+import {txt,html,css,cls,hide,hyp,money} from '../../engine/hot.js';
 import {initRocket} from './zrocket.js';
 import {initNet} from './znet.js';
 import {initChain} from './zchain.js';
@@ -19,8 +20,10 @@ import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
 import {initBatt} from './zbatt.js';
+import {initArsenal} from './zarsenal.js';
 import {gfx} from '../../engine/gfx.js';
 import {initSpectate} from './zspectate.js';
+import {initWarm} from './zwarm.js';
 import {initThreatSfx} from './zthreatsfx.js';
 import {initReentry} from './zreentry.js';
 import {initStratRadar} from './zstratradar.js';
@@ -28,7 +31,7 @@ import {initBosses} from './zbosses.js';
 import './zboss-roster.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
-const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+
 export function initZombies(api){
  const {THREE,TH,SITES,S,save,feed,banner,tone,gh}=api,V3=THREE.Vector3;
  const _a=new V3(),_b=new V3();
@@ -60,12 +63,12 @@ export function initZombies(api){
  hudEl.innerHTML='<div class="zt"><span id="zw">WAVE 1</span><span id="zc">$0</span><span class="zi"><i id="zib"></i><em id="zit">100%</em></span><span id="zs"></span><span id="zinb"></span></div><div id="zsites"></div><div id="zwarn"></div>';
  $('hud').append(hudEl);
  let lastSites='';
- Z.hud=()=>{pk.hud();const integ=integrity();$('zw').textContent=G.state==='base'?`WAVE ${G.wave+1} NEXT`:`WAVE ${G.wave}`;$('zc').textContent=money(G.cash);
-  const f=integ.max?integ.hp/integ.max:0;$('zib').style.width=(f*100).toFixed(1)+'%';$('zib').className=f<.3?'lo':f<.6?'mid':'';$('zit').textContent=`INTEGRITY ${Math.round(f*100)}%`;
-  $('zs').textContent=G.streak>1?`STREAK ×${G.streak}`:'';$('zs').hidden=G.streak<2;
+ Z.hud=()=>{pk.hud();const integ=integrity();txt($('zw'),Z.waveTxt?.()||(G.state==='base'?`WAVE ${G.wave+1} NEXT`:`WAVE ${G.wave}`));if(!Z.cashRoll)txt($('zc'),money(G.cash));  /* zannounce.js rolls the cash counter (Z.cashRoll) */
+  const f=integ.max?integ.hp/integ.max:0;css($('zib'),'width',(f*100).toFixed(1)+'%');cls($('zib'),f<.3?'lo':f<.6?'mid':'');txt($('zit'),`INTEGRITY ${Math.round(f*100)}%`);
+  txt($('zs'),G.streak>1?`STREAK ×${G.streak}`:'');hide($('zs'),G.streak<2);
   const sh=SITES.map(s=>`<span class="${s.hp>0?(s.hp<s.max*.35?'lo':''):'dead'}">${s.n} ${Math.max(0,Math.ceil(s.hp))}/${s.max}</span>`).join('');if(sh!==lastSites)$('zsites').innerHTML=lastSites=sh;
-  if(!Z.warnHud){const hw=hardT().sort((a,b)=>ttImpact(a)-ttImpact(b)).slice(0,3).map(t=>`${KIND[t.k].tag} → ${t.tgt.n} ${Math.ceil(ttImpact(t))} s`).join(' · ');if(hw!==G.hw)$('zwarn').textContent=G.hw=hw}  /* zwarn.js draws the alert panel when loaded */
-  const live=TH.filter(api.live).length,queued=G.wq.length;$('zinb').textContent=G.state==='wave'?`INBOUND ${live+queued}`:''};
+  if(!Z.warnHud){const HT=hardT();const hw=HT.length?HT.sort((a,b)=>ttImpact(a)-ttImpact(b)).slice(0,3).map(t=>`${KIND[t.k].tag} → ${t.tgt.n} ${Math.ceil(ttImpact(t))} s`).join(' · '):'';if(hw!==G.hw)$('zwarn').textContent=G.hw=hw}  /* zwarn.js draws the alert panel when loaded */
+  let live=0;for(const t of TH)if(api.live(t))live++;txt($('zinb'),G.state==='wave'?`INBOUND ${live+G.wq.length}`:'')};
  const integrity=()=>{let hp=0,max=0;for(const s of SITES){hp+=Math.max(0,s.hp);max+=s.max}return{hp,max}};
 
  // ---------- start / stop ----------
@@ -165,14 +168,14 @@ export function initZombies(api){
    P.q.splice(i,1);const j=P.list.lastIndexOf(q.k);if(j>=0)P.list.splice(j,1);c++}return c};
  // movers for the kinds Riley's flight code doesn't cover (zenemy.js); true = handled there
  // Nightmare feints (tac.feint): a track marked at spawn switches to another site (the weakest) about 2.2 km out, straight in from there
- Z.tstep=(t,dt)=>{if(t.feint===1&&t.st==='cruise'&&api.think(t.id)&&Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)<2200){t.feint=2;const L=api.liveSites().filter(s=>s!==t.tgt);
+ Z.tstep=(t,dt)=>{if(t.feint===1&&t.st==='cruise'&&api.think(t.id)&&hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)<2200){t.feint=2;const L=api.liveSites().filter(s=>s!==t.tgt);
    if(L.length&&!t.spoof&&!(t.lure>0)){const s=weakest(L);t.tgt=s;t.aim=pick(s.aims);t.wps.length=0}}
   return en.tstep(t,dt)};
 
  // ---------- impacts, kills, money ----------
  // a track the jammer spoofed (t.spoof) or a lure beacon pulled (t.lure) comes down in a field: no damage. Sandbags (supply) take 25% off.
  Z.impact=t=>{t.st='dead';t.impacted=1;if(G.state==='trial')return;const K=KIND[t.k]||KIND.shahed;if(!Z.mirror)api.boom(t.aim,K.dmg>100?6:K.dmg>20?4:K.dmg?1.5:.8);if(api.demo||G.state==='over')return;const s=t.tgt;  /* a co-op client gets the host's explosion as an event */
-  if(K.dmg&&(t.spoof||t.lure>0||t.dcy)){feed(`<span class="cb">${K.n} came down in an empty field (${t.spoof?'jammed':t.dcy?'went for the decoy site':'lured'})</span>`);return}  /* t.dcy: a warning-action decoy pulled it (zwarn.js) */
+  if(K.dmg&&(t.spoof||t.lure>0||t.dcy)){feed(`<span class="cb">${K.n} came down in an empty field (${t.smk?'lost in the smoke':t.spoof?'jammed':t.dcy?'went for the decoy site':'lured'})</span>`);return}  /* t.dcy: a warning-action decoy pulled it (zwarn.js) */
   if(!K.dmg){feed(`<span class="co">${K.n} hit the ${s.n.toLowerCase()}: a decoy, no damage</span>`);return}
   const dmg=Math.round(K.dmg*(G.sup?.harden?.75:1)*(Z.dmgK?.(s,t)??1));  /* dmgK: a hardened or evacuated site (zwarn.js) */
   if(s.hp>0){const was=s.hp;s.hp=Math.max(0,s.hp-dmg);G.perfect=false;G.lastHit={k:t.k,site:s.n,dmg};
@@ -260,8 +263,8 @@ export function initZombies(api){
  // radar picture: each kind has a detection range from the radar site (the radar perk stretches it); the fast threats come from early warning.
  // An FPV swarm shows as one labelled track (its lead) plus small dots.
  const lead=new Map();
- Z.seen=t=>{const K=KIND[t.k]||KIND.shahed;if(t.k==='swarm'&&lead.get(t.grp)!==t)return false;return Math.hypot(t.p.x-api.PADP.x,t.p.z-api.PADP.z)<K.det*(Z.radarK?.()??1)};
- const inRange=t=>{const K=KIND[t.k]||KIND.shahed;return Math.hypot(t.p.x-api.PADP.x,t.p.z-api.PADP.z)<K.det*(Z.radarK?.()??1)};
+ Z.seen=t=>{const K=KIND[t.k]||KIND.shahed;if(t.k==='swarm'&&lead.get(t.grp)!==t)return false;return hyp(t.p.x-api.PADP.x,t.p.z-api.PADP.z)<K.det*(Z.radarK?.()??1)};
+ const inRange=t=>{const K=KIND[t.k]||KIND.shahed;return hyp(t.p.x-api.PADP.x,t.p.z-api.PADP.z)<K.det*(Z.radarK?.()??1)};
  // in the FPV overlay: swarm members and far tracks (over 4 km, unless selected) are dots, not labelled brackets
  Z.quiet=t=>t.k==='swarm'&&lead.get(t.grp)!==t||t!==G.selNow&&t.p.distanceToSquared(api.camera.position)>16e6;
  Z.rcol=t=>t.claim||t.pc?'255,226,60':'255,77,77';
@@ -271,8 +274,8 @@ export function initZombies(api){
  Z.label=t=>{const K=shown(t),n=t.k==='swarm'?TH.reduce((a,u)=>a+(u.grp===t.grp&&api.live(u)?1:0),0):0;return`${K.tag}${n>1?` ×${n}`:''}${t.k==='boss'?` STAGES ${t.stages}`:''}${K.armor===1?' <span class="co">ARMORED</span>':K.armor==='hard'?' <span class="cr">DIRECT HIT ONLY</span>':''}${t.mark?' <span style="color:#ff6bd6">MARKED</span>':''}${t.claim?' <span style="color:#ffe23c">CLAIMED</span>':''}${t.pc?` <span style="color:#ffe23c">${t.pc.toUpperCase()}'S</span>`:''}${Z.eta?.()?` · → ${t.tgt.n} ${Math.ceil(t.p.distanceTo(t.aim)/Math.max(1,t.spd))} s`:''}`};
  Z.slabel=s=>s.hp>0?`${s.n} ${Math.ceil(s.hp)}/${s.max}`:`${s.n} · DESTROYED`;
  // auto-selected track: the most urgent one nobody has claimed, preferring ones you can actually stop
- Z.urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(api.live(t)&&!Z.hid?.(t)){let tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(t.claim||t.pc)tt+=1e6;if(KIND[t.k]?.armor==='hard')tt+=1e5;if(t.k==='swarm'&&lead.get(t.grp)!==t)tt+=1e4;if(tt<bt){bt=tt;b=t}}return b};
- const hardT=()=>TH.filter(t=>api.live(t)&&KIND[t.k]?.armor==='hard'&&Z.seen(t));  // the fast tracks early warning has picked up (zwarn.js)
+ Z.urgent=()=>{let b=null,bt=1e18;for(const t of TH)if(api.live(t)&&!Z.hid?.(t)){let tt=hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(t.claim||t.pc)tt+=1e6;if(KIND[t.k]?.armor==='hard')tt+=1e5;if(t.k==='swarm'&&lead.get(t.grp)!==t)tt+=1e4;if(tt<bt){bt=tt;b=t}}return b};
+ const HTL=[],hardT=()=>{HTL.length=0;for(const t of TH)if(api.live(t)&&KIND[t.k]?.armor==='hard'&&Z.seen(t))HTL.push(t);return HTL};  // the fast tracks early warning has picked up (zwarn.js); one reused list, the callers use it at once
  Z.radar=(rc,P,sel)=>{def.radar(rc,P);
   for(const t of TH)if(t.k==='swarm'&&api.live(t)&&lead.get(t.grp)!==t&&inRange(t)){const q=P(t.p.x,t.p.z);rc.fillStyle=t.claim?'#ffe23c':'#ff4d4d';rc.fillRect(q[0]-1.5,q[1]-1.5,3,3)}
   for(const t of hardT()){const q=P(t.aim.x,t.aim.z);rc.strokeStyle='#ff4d4d';rc.lineWidth=2.5;rc.beginPath();rc.moveTo(q[0]-7,q[1]-7);rc.lineTo(q[0]+7,q[1]+7);rc.moveTo(q[0]+7,q[1]-7);rc.lineTo(q[0]-7,q[1]+7);rc.stroke()}  // predicted impact points
@@ -320,6 +323,8 @@ export function initZombies(api){
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
  initNet(api,G,Z);  // co-op (znet.js): wraps them again
+ initArsenal(api,G,Z);  // pilot weapons and the extra defences (zarsenal.js): after co-op, so a client's weapon goes to the host its own way
  initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
+ initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
  return Z}

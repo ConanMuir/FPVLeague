@@ -2,8 +2,8 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `riley-test-2`   Owner: Riley   Last updated: 2026-10-21 by Claude
-Based on: origin/main 204baec (Jared's PRs up to #78), which already contains this branch's long line, sling cam, Interceptor Zombies and earlier merges
+Branch: `riley-test-2`   Owner: Riley   Last updated: 2026-10-22 by Claude
+Based on: origin/main 7880d35 (Jared's PRs up to #86), which already contains this branch's long line, sling cam, Interceptor Zombies and earlier merges
 Doing: Riley's test build tracking Jared's main.
 Touches: merge only; `Drone League/standalone/index.html` kept as this branch's version (main has a different one).
 Open items / help wanted: long line with Jared's newer smoothing and pop changes is unverified by a pilot. Jared's one-league change retired Riley's `games/league` (see docs/SHARED-ENGINE.md section 0).
@@ -65,7 +65,7 @@ League" card opens the built file, `games/drone-league/index.html`, so playing i
 To change it you need Node 20+:
 ```
 npm ci
-npm run dev      # live dev server, opens http://localhost:5173/app.html
+npm run dev      # live dev server at http://localhost:5173/app.html (DL_OPEN=1 opens it in the browser)
 npm run build    # dist/index.html: the whole game in one HTML file; also updates games/drone-league/index.html
                  # and writes dist/drone-league.artifact.html (the claude.ai artifact form)
 npm run smoke    # headless Microsoft Edge smoke test, plus a comparison run of the frozen v15 file (needs internet)

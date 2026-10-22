@@ -55,6 +55,8 @@ export function aceModel(C,ghost,charred){const T=C.THREE,g=C.group(),k=(ghost?'
 
 // ---------- the Ace's missiles and gun tracers (host): a homing missile you can out-turn, tracers you can see coming ----------
 const MS=[],TR=[];
+const _hz={x:0,y:0,z:0};  // haze emit point (reused)
+
 function msStep(C,dt){const{api}=C;for(let i=MS.length-1;i>=0;i--){const m=MS[i],d=m.tg;m.life-=dt;if(!d||d.dead>0||m.life<=0){MS.splice(i,1);C.FX.emit(m.p,0xffd080,12,6,.3,null,2);continue}
   const r=new C.V3().subVectors(d.p,m.p),dist=r.length();if(dist<8){MS.splice(i,1);api.boom(m.p,1.2);if(d===api.player)C.shoot(`${KN}'s missile`)&&C.recAdd('ace','kills');continue}
   const des=r.addScaledVector(d.v,Math.min(2,dist/m.spd)).normalize(),cur=m.v.clone().normalize(),a=Math.acos(C.cl(cur.dot(des),-1,1));if(a>1e-4)cur.lerp(des,Math.min(1,m.turn*dt/a)).normalize();
@@ -104,13 +106,15 @@ function fxDraw(C){if(!MS.length&&!TR.length&&!FXP?.n)return;const F=fxPts(C);le
 
 // spectres: instanced copies of the kinds you killed (green, translucent) or of your own swarm drones (the Mirror's, black with red lights)
 const SPI={};
+// a spectre kind's instanced mesh (made on its first spectre; the warm-up makes the two materials ahead: zwarm.js)
+function spMake(C,key){const{THREE:T,api,Z}=C;let geo;if(key==='mirror')geo=new T.BoxGeometry(.9,.25,.9);else geo=Z.en.IM[key]?.[0]?.geometry||Z.en.IM.shahed[0].geometry;
+   const mat=key==='mirror'?new T.MeshStandardMaterial({color:0x050505,roughness:.3,metalness:.8,emissive:new T.Color(0x600000),emissiveIntensity:.6}):new T.MeshStandardMaterial({color:0x0a3a30,emissive:new T.Color(0x22ffaa),emissiveIntensity:.9,transparent:true,opacity:.55,depthWrite:false});
+   const I=SPI[key]=new T.InstancedMesh(geo,mat,24);I.frustumCulled=false;I.count=0;api.scene.add(I);return I}
 function spDraw(C){if(!Object.keys(SPI).length&&!C.api.TH.some(t=>t.k==='spectre'))return;const{THREE:T,api,Z}=C,cnt={};for(const k in SPI)cnt[k]=0;const _m=new T.Matrix4();
  for(const t of api.TH){if(t.k!=='spectre'||t.st==='dead')continue;const key=t.sv==='mirror'?'mirror':t.src;let I=SPI[key];
-  if(!I){let geo;if(key==='mirror')geo=new T.BoxGeometry(.9,.25,.9);else geo=Z.en.IM[key]?.[0]?.geometry||Z.en.IM.shahed[0].geometry;
-   const mat=key==='mirror'?new T.MeshStandardMaterial({color:0x050505,roughness:.3,metalness:.8,emissive:new T.Color(0x600000),emissiveIntensity:.6}):new T.MeshStandardMaterial({color:0x0a3a30,emissive:new T.Color(0x22ffaa),emissiveIntensity:.9,transparent:true,opacity:.55,depthWrite:false});
-   I=SPI[key]=new T.InstancedMesh(geo,mat,24);I.frustumCulled=false;I.count=0;api.scene.add(I);cnt[key]=0}
+  if(!I){I=spMake(C,key);cnt[key]=0}
   const i=cnt[key]++;if(i>=24)continue;t.mesh.updateMatrix();_m.copy(t.mesh.matrix).scale(new C.V3(1.4,1.4,1.4).multiplyScalar(key==='mirror'?1.6:key==='swarm'?2.2:1));I.setMatrixAt(i,_m)}
- for(const k in SPI){SPI[k].count=cnt[k]|0;SPI[k].instanceMatrix.needsUpdate=true}}
+ for(const k in SPI){const n=cnt[k]|0;if(n||SPI[k].count){SPI[k].count=n;SPI[k].instanceMatrix.needsUpdate=true}}}
 
 // ---------- the legion: spectres in formation around their leader (your swarm's formations, zswarm.js slot()) ----------
 export function legionRaise(C,lead,n,kinds,o={}){const L=[];const tot=Object.values(kinds).reduce((a,b)=>a+b,0)||1;
@@ -144,7 +148,7 @@ const ACE={id:'ace',n:'Ace of Aces',tag:KN,col:'#ff3b3b',spd:88,alt:[500,800],hi
  can:(C,w)=>!C.G.bseen?.ace||C.G.aceEsc&&w-C.G.aceEsc>=6,
  intro:{title:'ACE OF ACES',sub:(C)=>{const r=C.rec().ace;return`${KN} · ${r.kills|0} kills · ${r.hits|0} sites hit · beaten ${r.beaten|0}× · escaped ${r.escaped|0}×`},
   radio:(C)=>C.rec().ace.beaten?`${KN}: "You again. I remember how you fly."`:`${KN}: "Your little drones. Come and dance."`,who:KN},
- build:(C)=>aceModel(C,false),
+ build:(C)=>aceModel(C,false),warm:C=>{fxPts(C);spMake(C,'mirror');spMake(C,'shahed')},
  init(C,t){const B=t.bs;B.learn={};t.p.y=C.api.gh(t.p.x,t.p.z)+600;C.recAdd('ace','met')},
  tick(C,t,dt){const B=t.bs;if(B.ph>=2&&!B.p2)B.p2=B.age;if(!B.flee&&(B.age>200||B.p2&&B.age-B.p2>50)){B.flee=1;C.Z.an?.radio(KN,'"Another day, little drone."',2)}
   return duel(C,t,dt,{spd:88,missiles:true,bomb:45,who:KN,escape:(C,t)=>{C.vanish(t,'escaped');C.recAdd('ace','escaped');C.G.aceEsc=C.G.wave},
@@ -192,10 +196,13 @@ registerBoss({id:'gace',clear(){if(WK.snd){try{WK.snd.g.gain.value=0;WK.snd.stop
  hit(C,t,h){if(t.bs.intang){h.txt='INTANGIBLE';return 0}if(h.q==='helper')return Math.random()<.4?1:0;return h.q==='kill'?2:1},
  phase(C,t,i){if(i===1){const live=C.api.TH.filter(u=>u.k==='spectre'&&u.bs.lead===t&&u.st!=='dead').length;legionRaise(C,t,Math.max(0,t.bs.legion-live),C.G.fallen&&Object.keys(C.G.fallen).length?C.G.fallen:{shahed:1});C.Z.an?.radio('THE DEATHLESS','"Rise. All of you. Again."',2)}
   if(i===2)C.Z.an?.radio('THE DEATHLESS','"You cannot kill what is already dead."',2)},
+ atmos(C,t,o){const B=t.bs,pulse=.5+.5*Math.sin(performance.now()/(B.intang?160:700));o.fog=.28;o.fogC.set(0x081a14);o.fogMix=.8;o.light=.3+.06*pulse;o.dark=.55;o.desat=.5;
+  o.tint.set(0x58ffbc);o.tintA=.28+.1*pulse;o.vign=.7;return 1},
  lockSelf:()=>2.2,jinkK:(C,u,t)=>t===u?.4:1,
  status(C,e){const B=e.main.bs,n=C.api.TH.filter(u=>u.k==='spectre'&&u.bs.lead===e.main&&u.st!=='dead').length;return`LEGION <b>${n}</b> · ${['SCREEN','WEDGE'][B.form===1?1:0]}${B.ph===2?(B.intang?' · <b>INTANGIBLE</b>: wait':' · <b>SOLID</b>: strike now'):''}${B.fav?` · reading you: <b>${B.fav}</b>`:''}`},
  vis(C,t,dt){fxDraw(C);const B=t.bs,a=t.mesh.userData.aura,M=t.mesh.userData.M;if(a){a.material.opacity=B.intang?.15:.45+.15*Math.sin(performance.now()/180)}
-  if(M){M.skin.opacity=B.intang?.18:.58;M.dark.opacity=M.skin.opacity}if((B.sm=(B.sm||0)-dt)<=0){B.sm=.05;C.FX.emit(t.p,0x40ffc0,2,3,.9,null,2)}},
+  if(M){M.skin.opacity=B.intang?.18:.58;M.dark.opacity=M.skin.opacity}if((B.sm=(B.sm||0)-dt)<=0){B.sm=.05;C.FX.emit(t.p,0x40ffc0,2,3,.9,null,2)}
+  if((B.mi=(B.mi||0)-dt)<=0){B.mi=.12;const c=C.api.camera.position,a=Math.random()*6.28,r=C.rnd(120,700);_hz.x=c.x+Math.cos(a)*r;_hz.z=c.z+Math.sin(a)*r;_hz.y=C.api.gh(_hz.x,_hz.z)+C.rnd(4,40);C.haze(_hz,0x2e6650,.24,16,1)}},  // mist
  overlay:(C,oc,t,W,H)=>warn(C,oc,t,W,H),
  netOut:(C,t)=>[Math.round((t.bs.lock||0)*100),t.bs.intang?1:0,t.bs.form|0],netIn(C,t,a){t.bs.lock=(a[0]|0)/100;t.bs.intang=a[1]|0;t.bs.form=a[2]|0},
  aim(C,t,s){if(t.bs.intang)return null;return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s*.8?-.8:-7)}},

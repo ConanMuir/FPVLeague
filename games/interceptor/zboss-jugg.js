@@ -14,11 +14,11 @@ function hullTex(C){const n=C.rec().b.jugg?.lost|0;return C.decal('jg-hull'+Math
 function embTex(C){return C.decal('jg-emb',256,256,(g,w)=>{const c=w/2,{D2}=C;g.fillStyle='#151515';g.beginPath();g.arc(c,c,118,0,7);g.fill();g.strokeStyle='#f2c21b';g.lineWidth=10;g.stroke();
  g.fillStyle='#e8e2d0';g.beginPath();g.moveTo(c-90,c+14);g.lineTo(c+40,c+14);g.lineTo(c+90,c);g.lineTo(c+40,c-14);g.lineTo(c-90,c-14);g.closePath();g.fill();D2.skull(g,c-10,c-46,30,'#f2c21b','#151515');D2.text(g,'IRON WILL',c,c+60,26,'#f2c21b','900')})}
 function plateTex(C){return C.decal('jg-plate',128,128,(g,w,h)=>{g.fillStyle='#5a5a48';g.fillRect(0,0,w,h);g.fillStyle='#2a2a20';for(let x=8;x<w;x+=28)for(const y of[8,h-12])g.beginPath(),g.arc(x,y,3.5,0,7),g.fill();C.D2.grime(g,w,h,.2);g.strokeStyle='#22221a';g.lineWidth=4;g.strokeRect(2,2,w-4,h-4)})}
-const MT={};
+const MT={};let _pl=null;
 function mats(C){const T=C.THREE;if(!MT.emb)Object.assign(MT,{emb:new T.MeshBasicMaterial({map:embTex(C),transparent:true,alphaTest:.05,side:T.DoubleSide,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}),
  plate:new T.MeshStandardMaterial({map:plateTex(C),roughness:.7,metalness:.6}),dark:new T.MeshStandardMaterial({color:0x22241c,roughness:.6,metalness:.6}),
  wp:new T.MeshBasicMaterial({color:new T.Color(0xffa020).multiplyScalar(3.2),toneMapped:false}),wpX:new T.MeshStandardMaterial({color:0x111010,roughness:1}),hot:new T.MeshBasicMaterial({color:new T.Color(0xff6a20).multiplyScalar(3),toneMapped:false})});return MT}
-function model(C){const T=C.THREE,M=mats(C),g=C.group(),hull=new T.MeshStandardMaterial({map:hullTex(C),roughness:.6,metalness:.5});
+function model(C){if(!_pl)_pl=new C.V3();const T=C.THREE,M=mats(C),g=C.group(),hull=new T.MeshStandardMaterial({map:hullTex(C),roughness:.6,metalness:.5});
  C.mesh(g,new T.CylinderGeometry(3,3,34,32,1,true).rotateX(Math.PI/2),hull);C.mesh(g,new T.LatheGeometry([[3,0],[2.8,2.5],[2.2,4.8],[1.2,6.6],[0,7.4]].map(([r,y])=>new T.Vector2(r,y)),28).rotateX(Math.PI/2).translate(0,0,17),hull);
  C.mesh(g,new T.CylinderGeometry(3,1.8,3,28).rotateX(Math.PI/2),M.dark,0,0,-18.5);C.mesh(g,new T.CircleGeometry(1.6,20),M.hot,0,0,-20.05,false).rotation.y=Math.PI;
  for(let k=0;k<4;k++){const f=C.mesh(g,new T.BoxGeometry(.35,6,6),M.dark,0,0,-14);const a=k*Math.PI/2+Math.PI/4;f.position.set(Math.cos(a)*5,Math.sin(a)*5,-14);f.rotation.z=a+Math.PI/2}
@@ -28,12 +28,14 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group(),hull=new T.MeshStandardM
  const plates=[],pl=(ang,z,cover,len=6)=>{const m=C.mesh(g,new T.BoxGeometry(3,.28,len),M.plate,Math.cos(ang)*3.15,Math.sin(ang)*3.15,z);m.rotation.z=ang-Math.PI/2;plates.push({m,cover,on:1});return m};
  pl(0,0,2);pl(Math.PI,0,3);pl(-Math.PI/2,5,4);const cap=C.mesh(g,new T.ConeGeometry(1.4,2.2,16).rotateX(Math.PI/2),M.plate,0,0,24.2);plates.push({m:cap,cover:5,on:1});
  for(const a of[.8,2.35,3.9,5.5])for(const z of[-6,8])pl(a,z,-1,5);
- g.userData={hull,wps,plates,applied:WP.map(()=>0),deb:[]};return g}
+ Object.assign(g.userData,{hull,wps,plates,applied:WP.map(()=>0),deb:[]});return g}
 const alive=t=>t.bs.wm??63;
 const stageOf=t=>{const m=alive(t);for(let s=0;s<3;s++)if(WP.some((w,i)=>w[3]===s&&m>>i&1))return s;return 3};
 const exposed=t=>{const s=stageOf(t),m=alive(t);return WP.map((w,i)=>i).filter(i=>WP[i][3]===s&&m>>i&1)};
 const wpWorld=(C,t,i)=>{t.mesh.updateMatrixWorld();return new C.V3(WP[i][0],WP[i][1],WP[i][2]).applyMatrix4(t.mesh.matrixWorld)};
 const DEB=[];
+const _hz={x:0,y:0,z:0};  // haze emit point (reused)
+
 function blow(C,t,p){const g=t.mesh;p.m.updateMatrixWorld();const wp=new C.V3(),q=new C.THREE.Quaternion();p.m.getWorldPosition(wp);p.m.getWorldQuaternion(q);g.remove(p.m);p.on=0;
  p.m.position.copy(wp);p.m.quaternion.copy(q);C.api.scene.add(p.m);const out=wp.clone().sub(t.p).normalize();DEB.push({m:p.m,v:out.multiplyScalar(C.rnd(14,26)).add(t.v.clone().multiplyScalar(.6)),w:new C.V3(C.rnd(-4,4),C.rnd(-4,4),C.rnd(-4,4)),life:6});
  C.FX.emit(wp,0xfff0c0,40,18,.5,null,3);C.api.boom(wp,1.6)}
@@ -60,12 +62,14 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
    if(m>>i&1)w.scale.setScalar(WP[i][3]===st?1+.25*Math.sin(T*6+i):.001)}
   for(const p of U.plates)if(p.on&&p.cover>=0&&WP[p.cover][3]<=st)blow(C,t,p);
   U.hull.color.setScalar(1-.55*f);
+  if((B.pl=(B.pl||0)-dt)<=0){B.pl=.32-.22*f;const k=t.mesh.localToWorld(_pl.set(C.rnd(-3,3),C.rnd(0,4),-22));C.haze(k,f>.3?0x1e1c1a:0x4a4640,.3+.3*f,40,2)}  // the pall: lingers along the route
   if((B.sm=(B.sm||0)-dt)<=0){B.sm=Math.max(.025,.2-.18*f);C.SMK.emit(t.p.clone().addScaledVector(t.v.clone().normalize(),-20),f>.3?0x1c1a18:0x6a665e,1+Math.round(f*2),2,5+6*f,null,1,.75)}
   for(let i=0;i<WP.length;i++)if(U.applied[i]){const p=wpWorld(C,t,i);if(Math.random()<.5)C.FX.emit(p,Math.random()<.5?0xff7a20:0xffb040,2,3,.5,null,2.5);if(Math.random()<.15)C.SMK.emit(p,0x2a2622,1,1.5,4,null,1,.7)}
   if(f>0&&Math.random()<f*dt*6){const a=Math.random()*6.28,p=t.mesh.localToWorld(new C.V3(Math.cos(a)*3,Math.sin(a)*3,C.rnd(-15,15)));C.FX.emit(p,0xfff4d0,14,16,.25,null,3.5)}},
  overlay(C,oc,t,W,H){const{api}=C,cam=api.camera;if(t.p.distanceTo(cam.position)>2500)return;oc.strokeStyle=oc.fillStyle='#ffb020';oc.lineWidth=2;
   for(const i of exposed(t)){const q=wpWorld(C,t,i).project(cam);if(q.z>1||Math.abs(q.x)>1||Math.abs(q.y)>1)continue;const X=(q.x*.5+.5)*W,Y=(-q.y*.5+.5)*H,R=12+4*Math.sin(performance.now()/120);oc.beginPath();oc.arc(X,Y,R,0,7);oc.stroke();oc.fillText('WEAK POINT',X,Y-R-6)}
   const S=t.bs.site;if(S){const q=t.p.clone().project(cam);if(q.z<1)oc.fillText(`→ ${S.n} ${Math.ceil(Math.hypot(S.x-t.p.x,S.z-t.p.z)/Math.max(1,t.spd))} s`,(q.x*.5+.5)*W,(-q.y*.5+.5)*H+46)}},
+ atmos(C,t,o){const B=t.bs,f=1-(B.hp??6)/(B.max||6);o.fog=.5-.25*f;o.fogC.set(0x37322d);o.fogMix=.5+.3*f;o.light=.75-.25*f;o.dark=.15+.3*f;o.desat=.15+.2*f;o.vign=.2+.2*f;o.tint.set(0xd8b890);o.tintA=.08+.08*f;return .6+.4*f},
  status(C,e){const t=e.main,E=exposed(t),S=t.bs.site;return`weak points <b>${E.length}</b> glowing · ${Math.max(0,t.bs.hp)} left in all${S?` · → ${S.n} in <b>${Math.ceil(Math.hypot(S.x-t.p.x,S.z-t.p.z)/Math.max(1,t.spd))} s</b>`:''} · only weak-point hits count`},
  netOut:(C,t)=>[alive(t)],netIn(C,t,a){if(Number.isFinite(a[0]))t.bs.wm=a[0]},
  aim(C,t,s){const E=exposed(t);if(!E.length)return null;const p=wpWorld(C,t,C.pick(E));if(Math.random()>s)p.add(new C.V3(0,8,0));return{p,v:t.v}},
