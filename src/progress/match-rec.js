@@ -42,4 +42,4 @@ export function recCounts(r){const o={};for(const k of REC_KEYS)o[k]=r[k];return
 // returns the feats (match-level achievements) this match earned
 export function recFeats(r,e){const won=e.winner===r.ctx.team,lg=r.ctx.mode==='league',vsBots=e.oppBots&&!e.mateBots&&e.diffs.length>0;
  return{won,clean:won&&lg&&r.conceded===0?1:0,comeback:won&&r.maxDef>=2?1:0,ot:won&&e.overtime?1:0,
-  champ:won&&lg&&vsBots&&e.diffs.every(d=>d===4||d===5)?1:0,gc:won&&lg&&vsBots&&e.diffs.every(d=>d===5)?1:0}}
+  champ:won&&lg&&vsBots&&e.diffs.every(d=>d>=4)?1:0,gc:won&&lg&&vsBots&&e.diffs.every(d=>d>=5)?1:0}}  /* Champion (4) or harder; Grand Champion (5) or harder: the Dribbler, the Freestyler and the evolved levels above them count too (they only counted the two levels they were written for) */
