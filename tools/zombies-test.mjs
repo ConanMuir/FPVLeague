@@ -2740,9 +2740,11 @@ if (want('buddy')) {
     S('spot', () => { const a = __bd.hold('heavy', 600, gh(600, 1700) + 150, 1700), c = __bd.hold('heavy', 700, gh(700, 1700) + 150, 1700); api.pickT = a; });
     S('harass', () => { const t = __bd.hold('boss', 500, gh(500, 1300) + 300, 1300); });
     S('herd', () => { __bd.hold('heavy', 1500, gh(1500, 400) + 200, 400, 60); });
+    S('hidden', () => { __bd.hold('hush', 500, gh(500, 1300) + 300, 1300); });  /* a boss the pilot cannot see: the buddy must not circle it, its blip and its marks would give it away */
     S('recharge', () => { __bd.hold('decoy', 200, gh(200, 1450) + 60, 1450); }, () => { b.chg = 4; });
     __bd.clear(); api.pickT = null; return out; });
   console.log('  buddy job choice (60 looks each):', Object.entries(jobs).map(([k, v]) => `${k} ${JSON.stringify(v)}`).join('  '));
+  ok(!jobs.hidden.harass && jobs.hidden.perch >= 50, `Buddy: it leaves a boss the pilot cannot see alone (the Hush: ${JSON.stringify(jobs.hidden)})`);
   ok(jobs.bump.bump >= 50 && jobs.spot.spot >= 45 && jobs.harass.harass >= 50 && jobs.herd.herd >= 45 && jobs.recharge.recharge >= 55, 'Buddy: it picks its own job from what is going on: bump for small drones, spot the selected track, harass a boss, herd a straggler, recharge when low');
   // bump: it rams hovering decoys, loses health, slows them (and restores them), and with no kills yet in the run it is not allowed one
   { const r = await p.evaluate(() => { const {api, G, Z} = __z, gh = api.gh, b = Z.bd.mine; __bd.clear(); const D = []; for (let i = 0; i < 8; i++) D.push(__bd.hold('decoy', -160 + i * 45, gh(0, 1450) + 50 + (i % 3) * 8, 1450)); __bd.up(); Z.bd.think(b, b.src()); const j0 = b.job;
