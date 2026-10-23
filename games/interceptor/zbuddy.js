@@ -138,8 +138,10 @@ export function initBuddy(api,G,Z){
  function tickFx(dt){for(let i=SPOTS.length-1;i>=0;i--){const t=SPOTS[i];if((t.bdSp-=dt)<=0||t.st==='dead'){t.bdSp=0;SPOTS.splice(i,1)}}
   for(let i=SLOW.length-1;i>=0;i--){const t=SLOW[i];if((t.bdSl-=dt)<=0||t.st==='dead'){if(t.st!=='dead'){t.spd/=t.bdK;t.cs/=t.bdK}t.bdSl=0;SLOW.splice(i,1)}}}
  function clearFx(){for(const t of SPOTS)t.bdSp=0;SPOTS.length=0;for(const t of SLOW){if(t.st!=='dead'){t.spd/=t.bdK;t.cs/=t.bdK}t.bdSl=0}SLOW.length=0}
+ function stand(){if(live()||!wasLive)return;wasLive=false;clearFx();for(const b of BD.values()){b.state='off';b.job='perch';b.tgt=null}}
+ Z.stateHooks.push(stand);
  function step(dt){const on=live();
-  if(!on){if(wasLive){wasLive=false;clearFx();for(const b of BD.values()){b.state='off';b.job='perch';b.tgt=null}}return}
+  if(!on){stand();return}
   wasLive=true;tickFx(dt);
   for(const b of BD.values()){
    if(!auth()){if(b===mine&&G.state==='wave'&&b.w!==G.wave){b.w=G.wave;reread()}mirror(b,dt);continue}  /* a client reads its garage at each wave start too (it is sent to the host as its loadout) */

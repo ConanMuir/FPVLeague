@@ -204,9 +204,9 @@ export function initBosses(api,G,Z){
   const title=I.title||D.n.toUpperCase(),sub=typeof I.sub==='function'?I.sub(ctx,t):I.sub||'';Z.fxTest?.cine('boss',t,t.p,title,sub);
   Z.an?.say(title,sub,I.col||D.col||'#ff4d4d',3);if(I.radio)Z.an?.radio(I.who||'OVERLORD',typeof I.radio==='function'?I.radio(ctx,t):I.radio,2)}
  /* a wave ends (every effect goes), a wave starts, the base screen opens. Read on every step; a co-op client also calls it the moment its mirrored state changes
-    (znet.js), because the base and game-over screens pause the sim: a client that never got a step in the wave's clear state would not see the wave end at all */
+    (Z.stateSync, znet.js), because the base and game-over screens pause the sim: a client that never got a step in the wave's clear state would not see the wave end at all */
  function trans(){if(G.state===st0)return;const was=st0;st0=G.state;if(was==='wave'&&G.state!=='wave')clearAll('wave over');if(G.state==='wave'&&was!=='wave')waveStart();if(G.state==='base'&&was!=='base'){for(const D of Object.values(BOSSES))D.g?.base?.(ctx);for(const R of rew())R.base?.(ctx)}}
- Z.bossTrans=()=>{if(G.on)trans()};
+ Z.stateHooks.push(()=>{if(G.on)trans()});
  const s0=Z.step;Z.step=dt=>{s0(dt);if(!G.on)return;pctx=null;habits(dt);
   /* the fights are judged before the wave-end cleanup below closes them all unrecorded: the boss that was the last track down wins in this very step */
   if(auth())encTick();

@@ -206,10 +206,12 @@ export function initCodex(api,G,Z){
    const L=api.SITES.filter(s=>s.hp>0&&!s.zb&&!(run.fragile&&s.n==='HOSPITAL')).sort((a,b)=>b.hp/b.max-a.hp/a.max),s=L[0];
    if(s){const hp=Math.round(s.max*.22);if(s.hp>hp){s.hp=hp;feed(`<span class="cr">Saboteurs hit the ${s.n.toLowerCase()}</span>`)}
     B.spawn(S0.boss,{x:s.x,z:s.z-1600,set:{anchor:s}})}}}
+ const trans=()=>{if(G.state!==prev){const was=prev;prev=G.state;if(G.state==='wave'&&was!=='wave')onWave()}};  /* also from Z.stateSync: a co-op client that never stepped in the clear state would keep prev at 'wave' and miss the next wave's set piece */
+ Z.stateHooks.push(()=>{if(G.on&&!api.demo)trans()});
  const st0=Z.step;
  Z.step=dt=>{st0(dt);if(!G.on||api.demo)return;const X=G.cdx;
   if((X.pt-=dt)<=0){X.pt=.2;poll()}  /* the record is read five times a second */
-  if(G.state!==prev){const was=prev;prev=G.state;if(G.state==='wave'&&was!=='wave')onWave()}
+  trans();
   if(!X.m&&G.state==='wave'&&(X.sc-=dt)<=0){X.sc=.5;for(const t of TH)if(t.k==='boss'&&api.live(t)){X.m=1;note('boss','met');break}}};
  const zs=Z.start;Z.start=()=>{zs();prev='';hostPool=null;G.cdx={last:snap(),new:[],m:0,pt:0,sc:0}};
 

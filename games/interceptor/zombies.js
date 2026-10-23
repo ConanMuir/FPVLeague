@@ -95,6 +95,9 @@ export function initZombies(api){
  Z.stop=()=>{if(!G.on&&G.state==='off')return;G.on=false;G.state='off';rk.stop();Z.shadowsBack();bunker(false);for(const s of SITES){s.max=s.hp=3}api.AW=3000;api.applyTune();def.clear();en.hide();en.farRing().visible=false;
   api.RRS.length=3;S.rr=Math.min(S.rr|0,2);$('hud').classList.remove('z');hudEl.hidden=true;base.close();$('zover').hidden=true;G.wq.length=0;wx.stop()};
  Z.hold=()=>G.on&&!api.demo&&(G.state==='base'||G.state==='over');
+ /* the modules that watch the state change inside a sim step (the boss director, the codex's set piece, the buddy) register a check here; the base and game-over screens pause a co-op
+    client's sim, so znet.js calls Z.stateSync() when the mirrored state changes, and a client that never got a step in the clear window still sees the wave end */
+ Z.stateHooks=[];Z.stateSync=()=>{for(const f of Z.stateHooks)try{f()}catch(e){console.warn('state sync',e)}};
 
  // ---------- wave director ----------
  // a wave = a threat-point budget spent on unlocked kinds, split into raids from different edges; each raid spawns over a few seconds.

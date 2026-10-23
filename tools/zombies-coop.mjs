@@ -507,6 +507,17 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   await ev(H, () => __z.Z.cp.start('hosp', true));
   ok(await until(H, () => __z.G.state === 'base' && __z.Z.cp.run?.id === 'hosp'), 'Campaign co-op: the host launches Hospital Hill for the whole team');
   for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && __z.Z.cp.run?.id === 'hosp' && /HOSPITAL HILL/.test(document.querySelector('#zbase .zcpbar')?.textContent || '') && __z.api.SITES.some(s => s.n === 'HOSPITAL' && s.max === 360)), `${C.name}: in the host's sector (strip on the base screen, the field hospital at 360 hp)`);
+  /* a client that never saw a wave's clear state (the host runs the clear window out while it holds its snapshots) still gets the next wave's set piece: the codex watched the state in a step */
+  for (const C of [A, B]) await ev(C, () => { window.__rad = []; const r0 = __z.Z.an.radio; __z.Z.an.radio = (...a) => { __rad.push(String(a[1])); return r0(...a); }; });
+  await readyUp(1);
+  await ev(H, () => { __z.net.n.sendT = performance.now() + 1e5; });
+  await ev(H, () => { __z.G.wq.length = 0; for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; for (let i = 0; i < 40 && __z.G.state !== 'base'; i++) __z.sim(.5); __z.net.n.sendT = 0; });
+  for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && __z.G.wave === 1 && !document.getElementById('zbase').hidden), `${C.name}: wave 1 of the sector is over, and ${C.name} never saw its clear state`);
+  await ev(H, () => { __z.jump(8, 3000); __z.G.next = __z.plan(8); });  /* the next wave is the sector's set piece (Hospital Hill: the Siren, wave 8) */
+  for (const C of [A, B]) await until(C, () => __z.G.wave === 7 && __z.G.next?.list.includes('siren'));
+  for (const C of [A, B]) await ev(C, () => { __rad.length = 0; });
+  await readyUp(8);
+  for (const C of [A, B]) ok(await until(C, () => __rad.some(t => /Friendly transponders/.test(t))), `${C.name} hears the set piece's warning at wave 8 (the OVERLORD's "Friendly transponders inbound?")`);
   await ev(H, () => { const {G, api, Z} = __z; Z.base.close(); G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wave = Z.cp.run.obj; G.state = 'wave'; for (let i = 0; i < 40 && G.state !== 'over'; i++) __z.sim(.5); });
   ok(await until(H, () => __z.G.state === 'over' && document.querySelector('#zover h2')?.textContent === 'Sector held' && __z.api.S.zcamp.held.includes('hosp')), "Campaign co-op: the host holds the sector; the host's campaign save moves");
   for (const C of [A, B]) ok(await until(C, () => document.querySelector('#zover h2')?.textContent === 'Sector held' && /Waiting for the host/.test(document.getElementById('zover').textContent)), `${C.name}: sees "Sector held" and waits for the host`);

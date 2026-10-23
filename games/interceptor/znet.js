@@ -250,12 +250,12 @@ export function initNet(api,G,Z){
  function stateIn(g){const n=net,st=g.st,w=g.w|0;
   if(g.nx&&typeof g.nx==='object'&&Array.isArray(g.nx.list)){const j=JSON.stringify(g.nx);if(j!==n.nxJ){n.nxJ=j;n.nx={list:g.nx.list.map(String).filter(q=>KIND[q.split(':')[0]]),brgs:(g.nx.brgs||[]).map(Number).filter(Number.isFinite),q:[],wx:g.nx.wx&&Z.wx.T[g.nx.wx.id]?g.nx.wx:null,
    cuts:Array.isArray(g.nx.ct)?g.nx.ct.slice(0,12):null};if(G.state==='base')G.next=n.nx}}
-  if(st==='base'){n.late=false;if(G.state!=='base'){$('zover').hidden=true;G.wave=w;api.wave=w;Z.rk.stop();G.next=n.nx||Z.plan(w+1);Z.base.open();Z.bossTrans?.()}else G.wave=w}  /* bossTrans: the boss director sees the wave end now, not at a step the paused base screen will never run */
+  if(st==='base'){n.late=false;if(G.state!=='base'){$('zover').hidden=true;G.wave=w;api.wave=w;Z.rk.stop();G.next=n.nx||Z.plan(w+1);Z.base.open();Z.stateSync()}else G.wave=w}  /* stateSync: the modules that watch the state in a step see the wave end now, not at a step the paused base screen will never run */
   else if(st==='wave'){if(G.state==='base'&&!n.late){G.wave=w-1;G.next=n.nx||{list:[],brgs:[],q:[],wx:null};cont()}
    else if(G.state!=='wave'&&G.state!=='clear'){Z.base.close();G.state='wave';G.wave=w;api.wave=w;n.late=true;Z.def.deploy();banner(`WAVE ${w} IN PROGRESS`,'co',2.4);feed('You join at the next base screen. Watch the radar meanwhile.')}
    else{G.wave=w;if(G.state==='clear')G.state='wave'}}
   else if(st==='clear'){if(G.state==='wave'){G.state='clear';if(!n.late)banner(`WAVE ${G.wave} CLEAR`,'cg',2.6)}}
-  else if(st==='over'){if(G.state!=='over'){G.wave=w;Z.base.close();Z.gameOver();Z.bossTrans?.()}}}
+  else if(st==='over'){if(G.state!=='over'){G.wave=w;Z.base.close();Z.gameOver();Z.stateSync()}}}
  // perks: the host keeps each pilot's own levels; the team perks (radar, Foreign Aid) are the host's
  function perksIn(g){const mine=g.pk&&typeof g.pk==='object'&&g.pk[net.me]||{},tp=g.tp||{},P={};
   for(const k of Object.keys(PERK)){const v=cl((TEAM.includes(k)?tp[k]:mine[k])|0,0,PERK[k].cost.length);if(v)P[k]=v}
