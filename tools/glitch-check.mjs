@@ -352,9 +352,12 @@ async function league(b, origin) {
   await p.close();
 }
 // in-page, Dogfight: each cave mouth's gold trim (a closed TubeGeometry) must cover the seam where the terrain's cut edge meets the
-// tunnel wall's top edge: every open edge of the terrain and of the walls near the mouth plane lies inside the tube's cross-section
+// tunnel wall's top edge: every open edge of the terrain and of the walls near the mouth plane lies inside the tube's cross-section.
+// Only drawn meshes: a League map's terrain and stadium stay in the scene, hidden, after a switch to Dogfight (the motes part leaves
+// Alpine as the saved map), and their open edges fell in the canyon mouth's plane
 function mouthSeams(T) {
-  const tubes = [], meshes = []; T.scene.traverse(o => { if (!o.isMesh) return; if (o.geometry?.type === 'TubeGeometry' && o.geometry.parameters.closed) tubes.push(o); else if (o.geometry?.index && o.geometry.attributes.color && o.geometry.attributes.position.count > 2000 && o.material.side !== 2) meshes.push(o); });
+  const shown = m => { for (let o = m; o; o = o.parent) if (!o.visible) return false; return true; };
+  const tubes = [], meshes = []; T.scene.traverse(o => { if (!o.isMesh || !shown(o)) return; if (o.geometry?.type === 'TubeGeometry' && o.geometry.parameters.closed) tubes.push(o); else if (o.geometry?.index && o.geometry.attributes.color && o.geometry.attributes.position.count > 2000 && o.material.side !== 2) meshes.push(o); });
   const edges = meshes.map(m => { const I = m.geometry.index.array, ec = new Map(); for (let f = 0; f < I.length; f += 3) for (let s = 0; s < 3; s++) { const a = I[f + s], b = I[f + (s + 1) % 3], k = a < b ? a * 4194304 + b : b * 4194304 + a; ec.set(k, (ec.get(k) || 0) + 1); }
     const V = new Set(); for (const [k, n] of ec) if (n === 1) { V.add(Math.floor(k / 4194304)); V.add(k % 4194304); } return {P: m.geometry.attributes.position.array, V: [...V]}; });
   const out = [];
