@@ -131,8 +131,8 @@ registerBoss({id: 'hush', n: 'The Hush', tag: 'HUSH', col: COL, spd: 62, alt: [1
       if ((B.fx = (B.fx || 0) - dt) <= 0) { B.fx = lit ? .03 : .12; C.FX.emit(t.mesh.localToWorld(_t.set(0, 1.1, -5)), lit ? 0xffe2b8 : 0xff9a50, lit ? 2 : 1, lit ? 24 : 10, lit ? .35 : .5, null, lit ? 3.2 : 2.2); } } },
   /* the radar scope: static for it (no blip, no bearing); heavier as it closes, so it tells you "near" and nothing else */
   radar(C, rc, P, t) { const k = C.cl(1.15 - t.p.distanceTo(C.api.camera.position) / 3200, 0, 1), n = 24 + (90 * k | 0);
-    rc.fillStyle = 'rgba(170,230,200,.42)'; for (let i = 0; i < n; i++) rc.fillRect(C.rnd(20, 480), C.rnd(20, 480), C.rnd(1, 4), 1.5);
-    rc.strokeStyle = 'rgba(170,230,200,.12)'; rc.lineWidth = 2; for (let i = 0; i < 3; i++) { const y = C.rnd(0, 500); rc.beginPath(); rc.moveTo(0, y); rc.lineTo(500, y + C.rnd(-14, 14)); rc.stroke(); } },
+    rc.fillStyle = 'rgba(170,230,200,.42)'; for (let i = 0; i < n; i++) rc.fillRect(C.drnd(20, 480), C.drnd(20, 480), C.drnd(1, 4), 1.5);
+    rc.strokeStyle = 'rgba(170,230,200,.12)'; rc.lineWidth = 2; for (let i = 0; i < 3; i++) { const y = C.drnd(0, 500); rc.beginPath(); rc.moveTo(0, y); rc.lineTo(500, y + C.drnd(-14, 14)); rc.stroke(); } },
   /* audio assist (off by default): a faint ring where the sound is, nearer the edge the further off your view it is, a chevron when it is closing */
   overlay(C, oc, t, W, H) { if (!assistOn(C)) return; const c = heard(C, t, C.api.player, true); if (c.loud < .03) return;
     const X = Math.sin(c.az) * Math.cos(c.el), Y = Math.sin(c.el), Zf = Math.cos(c.az) * Math.cos(c.el), phi = Math.acos(C.cl(Zf, -1, 1)), q = Math.round(Math.atan2(X, Y) / .35) * .35, m = Math.min(W, H), r = m * .1 + m * .3 * C.cl(phi / 2.3, 0, 1);

@@ -971,6 +971,14 @@ if (want('bosses')) {
   ok(hs2.net && hs2.netCue, 'Hush: co-op: the pass state rides on the snapshot extras and a client computes the same sound picture from the synced position');
   ok(hs2.ear.open > .1 && hs2.ear.open > 3 * hs2.ear.idle && hs2.ear.creak > hs2.ear.idle && hs2.aim[0] > 60 && hs2.aim[1] < 75, `Hush: the bots hear what the speakers play: attention ${hs2.ear.open} on the flare, ${hs2.ear.creak} on the creak, ${hs2.ear.idle} idle; its aim finds it ${hs2.aim[0]}/300 open and ${hs2.aim[1]}/300 closed`);
   ok(hs2.hit[0] === 0 && hs2.hit[1] === 2 && hs2.hit[2] === 1 && hs2.hit[3] === 0 && hs2.txt && hs2.closedHp === 0 && hs2.openHp === -2 && hs2.shut && hs2.ph === 1, 'Hush: a burst outside the flare and the after-pass window finds nothing; inside, a direct hit does 2 and snaps the windows shut (and moves it to HUSH)');
+  // what is drawn and heard each frame (the Hush's and the Jammer King's radar static, the creak's pitch) is on its own stream: the frames drawn never move the game's Math.random
+  const hr = await p.evaluate(async () => { const {Z, api} = __z, C = Z.bosses.ctx, t = __hsT, snd = await import('./zhush-snd.js'), V = snd.live()[0], R0 = Math.random, rc = document.createElement('canvas').getContext('2d'), P = (x, z) => [250 + x / 40, 250 + z / 40];
+    const E = Z.ew.E, e0 = [E.on, E.neff]; let n = 0, calls = 0, ink = 0; Math.random = () => { n++; return R0(); };
+    try { for (let i = 0; i < 5; i++) { Z.bosses.BOSSES.hush.radar(C, rc, P, t); calls++; }
+      if (V) { const b = {p: t.p, v: t.v, yr: .5, md: 1, wf: .6, ph: 1}, me = {p: api.camera.position, v: api.player.v, f: new C.V3(0, 0, -1), u: new C.V3(0, 1, 0)}; for (let i = 0; i < 5; i++) { if (V.set(b, me)?.creak > 0) ink++; } }
+      E.on = true; E.neff = .9; for (let i = 0; i < 5; i++) { Z.bosses.BOSSES.jammer.radar(C, rc, P, {bs: {}, p: new C.V3()}); calls++; } } finally { Math.random = R0; E.on = e0[0]; E.neff = e0[1]; }
+    return {n, calls, ink, voice: !!V}; });
+  ok(hr.n === 0 && hr.calls === 10 && hr.voice && hr.ink === 5, `Boss draws: the Hush's radar static, its creak (${hr.ink} of 5 updates sounding) and the Jammer King's radar static used ${hr.n} Math.random calls over ${hr.calls} radar draws`);
   // the wave ends: darkness, radar, thermal, the voice, the listener all back exactly
   await until(() => p.evaluate(() => { const f = __z.api.scene.fog, W = window.__hsW0; return !__z.api.thermLook && f.near === W.near && f.far === W.far && f.color.getHex() === W.col; }), {timeout: 30000, every: 100});  /* the day look is back and the fog is the weather's again (the draw loop did it), only then compare */
   const hs3 = await p.evaluate(async () => { const {api, Z, G} = __z, snd = await import('./zhush-snd.js'), A = Z.atmos, out = {}, W0 = window.__hsW0, V = snd.live()[0];
