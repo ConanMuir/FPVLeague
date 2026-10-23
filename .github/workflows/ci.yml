@@ -204,13 +204,31 @@ jobs:
             area: interceptor
             run: node tools/arsenal-stats.mjs --quick
           # the QA sweep (tools/qa-sweep.mjs): every mode played with scripted inputs, then NaN scans, layout / keyboard, leak, save and hardware-oddity probes (fast pass)
-          - check: qa-sweep (League, fast)
+          - check: qa-sweep (League, fast 1/3)
             area: league
             build: true
-            run: node tools/qa-sweep.mjs --fast --area=league
-          - check: qa-sweep (Zombies, fast)
+            run: node tools/qa-sweep.mjs --fast --area=league --part=1
+          - check: qa-sweep (League, fast 2/3)
+            area: league
+            build: true
+            run: node tools/qa-sweep.mjs --fast --area=league --part=2
+          - check: qa-sweep (League, fast 3/3)
+            area: league
+            build: true
+            run: node tools/qa-sweep.mjs --fast --area=league --part=3
+          # each pass runs in parts (tools/qa-sweep.mjs --part=N): on a slow runner the Zombies pass as one job ran past the 20 minute limit
+          - check: qa-sweep (Zombies, fast 1/4)
             area: interceptor
-            run: node tools/qa-sweep.mjs --fast --area=interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor --part=1
+          - check: qa-sweep (Zombies, fast 2/4)
+            area: interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor --part=2
+          - check: qa-sweep (Zombies, fast 3/4)
+            area: interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor --part=3
+          - check: qa-sweep (Zombies, fast 4/4)
+            area: interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor --part=4
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
