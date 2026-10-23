@@ -27,8 +27,8 @@ await p.evaluate(async () => {
       if (!Number.isFinite(ball.p.x + ball.p.y + ball.p.z + ball.v.x + ball.v.y + ball.v.z)) A.nan++;
       if (!GS.OBSON) { const d = SD.sdf(ball.p.x, ball.p.y, ball.p.z) + C.BR; if (d > .3) { A.ballOut++; A.ballOutMax = Math.max(A.ballOutMax, d); } if (Math.abs(ball.p.x) > C.HW + 5 || Math.abs(ball.p.z) > C.HL + C.GD + 8 || ball.p.y < -2 || ball.p.y > C.H + 10) A.ballFar++; }
       if (i % 12) continue;  // drones: 10 Hz is plenty
-      // the chase cam (odd chunks) and the ball cam (even) on the first quad, as a player would see it: never inside the arena's walls (its corners and fillets are rounded, its end walls stand outside the goal mouth)
-      if (!GS.OBSON && GS.player) { GS.menuOpen = false; GS.camMode = 1 + (M.chunk & 1); M.CAM.updateCam(.1, performance.now()); GS.menuOpen = true; const c = M.R.camera.position, sc = SD.sdf(c.x, c.y, c.z);
+      // the FPV, chase and ball cams in turn (by chunk) on the first quad, as a player would see them: never inside the arena's walls (its corners and fillets are rounded, its end walls stand outside the goal mouth, the goal net stands behind a quad in the goal)
+      if (!GS.OBSON && GS.player) { GS.menuOpen = false; GS.camMode = M.chunk % 3; M.CAM.updateCam(.1, performance.now()); GS.menuOpen = true; const c = M.R.camera.position, sc = SD.sdf(c.x, c.y, c.z);
         if (sc > 0) { A.camIn++; A.camInMax = Math.max(A.camInMax, sc); if (A.camInAt.length < 3) A.camInAt.push(`cam${GS.camMode}@${c.toArray().map(v => Math.round(v))} sdf ${sc.toFixed(2)} quad@${GS.player.p.toArray().map(v => Math.round(v))}`); } }
       for (const d of GS.drones) { if (d.dead > 0) continue; if (!Number.isFinite(d.p.x + d.p.y + d.p.z + d.v.x + d.q.w)) { A.nan++; continue; }
         const s = SD.sdf(d.p.x, d.p.y, d.p.z); if (s > .25) { A.inWall++; A.inWallMax = Math.max(A.inWallMax, s); }
@@ -73,7 +73,7 @@ ok(rows.every(r => !r.nan), 'no NaN in ball or drones');
 ok(rows.every(r => r.mode === 'df' || (r.ballOut < 30 && !r.ballFar)), `League: the ball stays in the arena (${rows.filter(r => r.mode !== 'df').map(r => r.ballOut + '/' + r.ballFar).join(' ')})`);
 ok(rows.every(r => r.inWall < 50), `drones stay out of walls and rock (samples inside: ${rows.map(r => r.inWall).join(' ')})`);
 ok(rows.every(r => r.stuck < 5), `no drone stuck against a wall or in a cave (${rows.map(r => r.stuck).join(' ')})`);
-ok(rows.every(r => r.mode === 'df' || r.camIn === 0), `League: the chase and ball cams stay out of the arena walls (samples inside: ${rows.filter(r => r.mode !== 'df').map(r => r.camIn).join(' ')})`);
+ok(rows.every(r => r.mode === 'df' || r.camIn === 0), `League: the FPV, chase and ball cams stay out of the arena walls (samples inside: ${rows.filter(r => r.mode !== 'df').map(r => r.camIn).join(' ')})`);
 ok([...new Set(rows.map(r => r.mode))].every(m => rows.filter(r => r.mode === m).reduce((a, r) => a + r.goals, 0) > 0), `every mode scores (${rows.map(r => r.goals).join(" ")})`);
 // mode lifecycle through the real menu: in a match, open the pause menu and switch League -> Dogfight -> Freeplay -> League with the mode
 // buttons, then enter a training pack from its tile, play shots, leave with Leave game; 8 rounds. The mode, world, drones, physics
