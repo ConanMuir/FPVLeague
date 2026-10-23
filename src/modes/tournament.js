@@ -6,6 +6,7 @@
    Every result goes to the save, so a reload resumes the bracket; a tournament you win is a trophy in the profile (progress/tracker.js tournWon). */
 import {AC,BUS,audioInit,setVolumes} from '../audio/audio.js';
 import {$,DIFF} from '../config/constants.js';
+import {S} from '../config/settings.js';
 import {onEv} from '../core/events.js';
 import {setGame} from './dogfight.js';
 import {exitLab} from './lab.js';
@@ -30,7 +31,8 @@ export function tournInit(){let raw=null;try{raw=localStorage.getItem(TOURN_KEY)
  if(sv&&TN.T.results.length!==sv.results.length){sv.results=TN.T.results.map(r=>({...r}));write(sv)}TN.ver++}  /* results that did not fit the bracket are dropped from the save too */
 /** start a tournament from a clean setup (tournament/store.js cleanSetup) */
 export function tournNew(setup){tournStop();const T=B.createTournament(setup);TN.T=T;TN.save=newSave(B.setupOf(T));write(TN.save);TN.trophy=TN.last=null;TN.ver++;return T}
-export function tournAbandon(){tournStop();TN.T=TN.save=null;TN.trophy=TN.last=null;write(null);TN.ver++}
+export function tournAbandon(){const cut=!!TN.sim;tournStop();TN.T=TN.save=null;TN.trophy=TN.last=null;write(null);TN.ver++;
+ if(cut&&GS.GM==='tourn'&&GS.demo){setGame(S.game);startDemo()}}  /* abandoned under a simulation: the mode goes back to your own (it stayed tourn, with the simulated bots as the menu demo) */
 function record(id,score){const T=TN.T;if(!T||!B.report(T,id,score))return false;TN.save.results.push({id,score:[...score]});write(TN.save);TN.last={id,score:[...score]};TN.ver++;
  if(T.done&&T.entrants[T.champion].kind==='human'){const df=Math.max(1,...T.entrants.filter(e=>e.kind==='bot').map(e=>DIFF_F[e.skill]??1));TN.trophy=tournWon(T.size,df)}return true}
 const pl=id=>TN.T?B.playable(TN.T).find(m=>m.id===id)||null:null;
@@ -39,7 +41,7 @@ export const nextBots=()=>TN.T?B.playable(TN.T).find(m=>B.matchKind(TN.T,m)==='b
 /* the teams of a match: the drones rebuilt from its slots, each bot at its entrant's level (bots/league.js reads d.skill) */
 function build(m){const {keys,skill}=B.teamsOf(TN.T,m);GS.drones.forEach(d=>d.dispose());GS.drones=[];GS.player=null;GS.lseed=Math.random()*1e9|0;applySlots(keys);
  for(const d of GS.drones)if(d.key in skill)d.skill=skill[d.key];compileFor(GS.drones.flatMap(d=>d.trail?[d.mesh,d.trail]:[d.mesh]))}
-function begin(m,how){if(GS.net){mpMsg('Leave the online game to run a tournament.');return false}tournStop();exitTrain();exitLab();leaveGame();audioInit();AC?.resume();setGame('tourn');
+function begin(m,how){if(GS.net){mpMsg('Leave the online game to run a tournament.');return false}const q=TN.queue;tournStop();TN.queue=q;exitTrain();exitLab();leaveGame();audioInit();AC?.resume();setGame('tourn');  /* the queue (simulate all) outlives the stop of the match before it: it cleared the queue, so Simulate all ran one match */
  GS.demo=how==='sim';build(m);GS.score=[0,0];GS.clock=TN.T.len;GS.overtime=GS.endPending=false;GS.timeScale=1;GS.spect='';kickoff();TN.cur={id:m.id,how};TN.ver++;return true}
 /** play a match yourself (one human in it) */
 export function tournPlay(id){const m=pl(id);if(!m||B.matchKind(TN.T,m)!=='play'||!begin(m,'play'))return false;showMenu(false);$('hud').hidden=false;$('resume').hidden=false;return true}

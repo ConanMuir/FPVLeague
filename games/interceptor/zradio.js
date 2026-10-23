@@ -256,7 +256,7 @@ export function initRadio(api,G,Z){
  const z0=Z.start;Z.start=()=>{hush();R.calls.length=0;SH.length=SA.length=SN.length=0;CP.clear();SW.n=null;st0='off';Object.assign(SO,{on:false,carry:0,lock:0,hull:100});T=0;sc=0;z0()};
  const z1=Z.stop;Z.stop=()=>{z1();hush();st0='off';SH.length=0;CP.clear()};
 
- /* ---------- settings rows with the other sound sliders (shown with Zombies picked) ---------- */
+ /* ---------- settings rows with the other sound sliders ---------- */
  const rows=[];
  {let after=$('o_zsfxv')||$('o_zwx');const set=$('set');
   const row=(lab,inp,out,show)=>{const l=document.createElement('label');l.textContent=lab;l.htmlFor=inp.id;if(after)after.after(l,inp,out);else set?.append(l,inp,out);after=out;rows.push({els:[l,inp,out],show})};
@@ -265,7 +265,7 @@ export function initRadio(api,G,Z){
   sel('zradio','Zombies radio chatter',()=>{if(!on())hush()});sel('zrspeech','Radio speech (voice)',()=>{if(!S.zrspeech)stopSpeech()});
   {const i=document.createElement('input'),o=document.createElement('output');i.id='f_zradiov';o.id='o_zradiov';i.type='range';i.min=0;i.max=1;i.step=.05;
    i.addEventListener('input',()=>{S.zradiov=+i.value;api.save();rows.forEach(r=>r.show())});row('Radio volume',i,o,()=>{i.value=S.zradiov;o.textContent=Math.round(S.zradiov*100)+'%'})}}
- const sync=()=>{for(const r of rows)r.show()};  /* the rows used to hide unless S.gmode was 'z'; Classic is gone, the setting is dropped on load, and they never showed */
+ const sync=()=>{for(const r of rows)r.show()};  /* S.gmode went with Classic: the rows used to hide unless it was 'z', so they never showed */
  sync();const sm0=Z.syncMode;Z.syncMode=()=>{sm0?.();sync()};
 
  /* ---------- harness (tools/zombies-test.mjs): inject events, read the channel ---------- */

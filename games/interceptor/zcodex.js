@@ -84,7 +84,7 @@ export function heavyRaid(w,b,from,rnd=Math.random){const W={heavy:3,cruise:2,je
 // Quick defence / Endless wave w. out = the plan so far ('boss' in it on a boss wave). o: pool (allowed ids), info(id) -> {debut, event, can(w)} | null, seen (met this
 // run), shift (the difficulty's), dfi, bevW (the last event wave), heavy(w) -> kinds, isBoss(kind), rnd. Returns {out, bevW}.
 export function rotate(out,w,o){const{pool,info,seen={},shift=0,dfi=1,heavy,isBoss=()=>false}=o,rnd=o.rnd||Math.random;let bevW=o.bevW??-99;
- const can=id=>{const f=info(id);return!!f&&w>=f.debut-shift&&(!f.can||f.can(w))};
+ const can=id=>{const f=info(id);return!!f&&w>=f.debut-(f.fixed?0:shift)&&(!f.can||f.can(w))};  /* fixed: the Mothership is on its wave whatever the difficulty (Easy's negative shift would put it at wave 14, i.e. 20) */
  const pick=L=>{let tot=0;for(const id of L)tot+=seen[id]?1:3;let r=rnd()*tot;for(const id of L){r-=seen[id]?1:3;if(r<=0)return id}return L[L.length-1]};  /* the ones not met this run first */
  const bi=out.indexOf('boss');
  if(bi>=0){const el=pool.filter(can);
@@ -161,13 +161,13 @@ export function initCodex(api,G,Z){
  let _ids=null;const ids=()=>_ids||(_ids=[...KNOWN,...Object.keys(BOSSES).filter(k=>!KNOWN.includes(k)&&!BOSSES[k].minor&&!BOSSES[k].child)]);  /* the registry is complete once the roster is imported */
  const load=()=>cleanCodex(S.zcodex,ids()),put=c=>{S.zcodex=c;save();sync()};
  const writes=()=>B.roster!==false&&!all()&&!Z.mirror&&!api.demo&&G.on;  /* roster false: the harness's plain Zombies sections leave the save alone */
- const info=id=>{const D=BOSSES[id];if(id==='boss')return{debut:10};const sp=D?.spawn;if(!sp)return null;const ev=sp.event||null;
+ const info=id=>{const D=BOSSES[id];if(id==='boss')return{debut:10,fixed:1};const sp=D?.spawn;if(!sp)return null;const ev=sp.event||null;
   return{debut:Math.max(10,sp.boss??ev?.from??10),event:ev,can:D.can?w=>D.can(C,w):null}};
  const camp=()=>{const r=Z.cp?.run;return r&&!r.endless?r:null};  /* a campaign sector's run; an Endless run (zendless.js) is not one: it plays the Quick defence rotation and the pool, with no set piece */
  const poolIds=()=>['boss',...ROSTER.filter(id=>BOSSES[id].spawn)];
  const shift=()=>Z.diff?.().shift|0;
  /* the allowed bosses; with a wave, only those that may come on it (past their first boss wave, and the boss's own condition) */
- const pool=w=>{const c=load(),a=all();return poolIds().filter(id=>(a||isAllowed(c,id))&&(w==null||(f=>!!f&&w>=f.debut-shift()&&(!f.can||f.can(w)))(info(id))))};
+ const pool=w=>{const c=load(),a=all();return poolIds().filter(id=>(a||isAllowed(c,id))&&(w==null||(f=>!!f&&w>=f.debut-(f.fixed?0:shift())&&(!f.can||f.can(w)))(info(id))))};
  ST={pool};
  const isB=k=>k==='boss'||!!BOSSES[k],heavy=w=>heavyRaid(w,Math.round(budget(w,Z.diff?.().wave??1)*.4),k=>Z.kindFrom(k));
  const name=id=>BOSSES[id]?.n||KIND[id]?.n||id,col=id=>BOSSES[id]?.col||'#ff9a3c';
