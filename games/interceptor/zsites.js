@@ -210,7 +210,9 @@ export function initSites(api,G,Z,fog){
 
  // ---------- the world over a run: new each game; each break new convoys, rebuilt sites, reinforced guns, fresh patrols ----------
  W.reset=seed=>{kill0();W.seed=seed;W.nid=1;W.ver++;const R=seeded(seed);for(let s=0;s<3;s++)W.routes.push(mkRoute(R,s))};
- W.populate=w=>{for(let s=0;s<3;s++)if(!W.list.some(t=>t.t==='launch'&&t.sec===s&&(!t.dead||t.rebuild>w)))build('launch',s,w);
+ /* a launch site per sector; a campaign sector's "Enemy launch sites" (zcampaign.js raid, Z.cp.n('launchSites')) gives a second one to the North, then the West, then the East */
+ W.populate=w=>{const x=Z.cp?.n?.('launchSites')|0;
+  for(let s=0;s<3;s++){const need=1+([1,0,2].indexOf(s)<x?1:0);let have=W.list.filter(t=>t.t==='launch'&&t.sec===s&&(!t.dead||t.rebuild>w)).length;while(have<need&&build('launch',s,w))have++}
   const nf=1+(w>=12?1:0)+(w>=24?1:0);let have=W.list.filter(t=>t.t==='factory'&&(!t.dead||t.rebuild>w)).length;
   for(const s of[0,1,2].sort(()=>Math.random()-.5)){if(have>=nf)break;if(W.list.some(t=>t.t==='factory'&&t.sec===s&&(!t.dead||t.rebuild>w)))continue;if(build('factory',s,w))have++}};
  // a new break: wrecks of old convoys and long-dead sites go, dead guns at live sites are replaced, patrols refuel, convoys roll (cargo from zsortie.js)

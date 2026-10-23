@@ -35,6 +35,8 @@ import {initCodex} from './zcodex.js';
 import {initOnboard} from './zonboard.js';
 import {initRadio} from './zradio.js';
 import {initScars} from './zscars.js';
+import {initBrief} from './zbrief.js';
+import {initEndless} from './zendless.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 
@@ -335,5 +337,7 @@ export function initZombies(api){
  initSell(api,G,Z);  // selling anything you own with an Undo until the wave starts (zsell.js); the base screen reads Z.sell, so it only wraps the base open / close and start / stop
  initOnboard(api,G,Z);  /* first-wave guide (zonboard.js): a one-time walkthrough on a pilot's very first run; never for bots, co-op or automated browsers */
  initScars(api,G,Z);  // the living map (zscars.js): craters, burns and rubble that stay; saved with the campaign, carried to co-op clients
+ initBrief(api,G,Z);  /* the threat briefing on the base screen (zbrief.js): what the next wave brings, from the wave plan, and the radio line at its start */
+ initEndless(api,G,Z);  /* Endless (zendless.js): after the campaign, a sector with no objective whose waves keep climbing; wraps the campaign's hooks, so it goes last */
  initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
  return Z}

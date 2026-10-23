@@ -163,6 +163,7 @@ export function initCodex(api,G,Z){
  const writes=()=>B.roster!==false&&!all()&&!Z.mirror&&!api.demo&&G.on;  /* roster false: the harness's plain Zombies sections leave the save alone */
  const info=id=>{const D=BOSSES[id];if(id==='boss')return{debut:10};const sp=D?.spawn;if(!sp)return null;const ev=sp.event||null;
   return{debut:Math.max(10,sp.boss??ev?.from??10),event:ev,can:D.can?w=>D.can(C,w):null}};
+ const camp=()=>{const r=Z.cp?.run;return r&&!r.endless?r:null};  /* a campaign sector's run; an Endless run (zendless.js) is not one: it plays the Quick defence rotation and the pool, with no set piece */
  const poolIds=()=>['boss',...ROSTER.filter(id=>BOSSES[id].spawn)];
  const shift=()=>Z.diff?.().shift|0;
  /* the allowed bosses; with a wave, only those that may come on it (past their first boss wave, and the boss's own condition) */
@@ -175,7 +176,7 @@ export function initCodex(api,G,Z){
  // ---------- the rotation: the wave plan ----------
  const bc0=Z.bossCompose;
  Z.bossCompose=(out,w)=>{if(Z.mirror||G.state==='trial'||B.roster===false||G.bforce&&BOSSES[G.bforce])return bc0?bc0(out,w):out;  /* the same early outs as the roster's, and its debug trigger */
-  const run=Z.cp?.run;if(run)return scripted(out,w,SET[run.id],run.mods.some(m=>m.id==='boss5'),heavy,Math.random,isB);
+  const run=camp();if(run)return scripted(out,w,SET[run.id],run.mods.some(m=>m.id==='boss5'),heavy,Math.random,isB);
   if(all())return bc0?bc0(out,w):out;
   const r=plan(out,w);G.bevW=r.bevW;return r.out};
  /* the Quick defence rotation (the Endless mode can call it too): {out, bevW} */
@@ -184,7 +185,7 @@ export function initCodex(api,G,Z){
  // ---------- the gate: a boss's own trigger (the Undertaker's lost site) or a secret chain goes through ctx.spawn; it needs the codex's yes ----------
  const sp0=C.spawn;
  const gate=(id,o)=>{const D=BOSSES[id];if(!D||D.minor||D.child||o?.enc||o?.set?.keep||B.roster===false||all()||SECRET.includes(id))return true;
-  const run=Z.cp?.run;if(run)return SET[run.id]?.boss===id;return isAllowed(load(),id)};
+  const run=camp();if(run)return SET[run.id]?.boss===id;return isAllowed(load(),id)};
  C.spawn=(id,o)=>gate(id,o)?sp0(id,o):null;
 
  // ---------- the record: meeting and beating a boss ----------
@@ -199,7 +200,7 @@ export function initCodex(api,G,Z){
  const i0=Z.impact;Z.impact=t=>{if(t.k==='boss')note('boss','lost');i0(t)};
 
  // ---------- a set piece's wave: the radio warning, the Undertaker's saboteurs ----------
- function onWave(){const run=Z.cp?.run,S0=run&&SET[run.id];if(!S0||S0.wave!==G.wave||B.roster===false)return;
+ function onWave(){const run=camp(),S0=run&&SET[run.id];if(!S0||S0.wave!==G.wave||B.roster===false)return;
   Z.an?.radio('OVERLORD',S0.warn,2);
   if(S0.direct&&!Z.mirror){  /* the Undertaker comes for a site that is down: the saboteurs put one there */
    const L=api.SITES.filter(s=>s.hp>0&&!s.zb&&!(run.fragile&&s.n==='HOSPITAL')).sort((a,b)=>b.hp/b.max-a.hp/a.max),s=L[0];
@@ -269,8 +270,8 @@ export function initCodex(api,G,Z){
  function sync(){const c=count();mb.innerHTML=`<div><b>Enemies</b><span>${c.n} of ${c.of} bosses beaten · Quick defence boss pool: ${esc(poolTxt())}</span></div><button id="zcdxbtn" title="The campaign's bosses: silhouettes until you beat them; beaten ones can come to Quick defence">Enemies ▸</button>`;$('zcdxbtn').onclick=()=>open()}
  sync();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();sync()};
  const ch0=Z.cpHTML;
- Z.cpHTML=()=>{const h=ch0?.()||'',c=count(),run=Z.cp?.run,S0=run&&SET[run.id],cd=load();
-  const t=run?(S0?`This sector's boss event: wave ${S0.wave}${cd.b[S0.boss]?.beaten?`, ${esc(name(S0.boss))}`:' (unknown contact)'}`:''):`Quick defence boss pool: ${esc(poolTxt())}${pool().length?'':' (boss waves bring a heavy raid)'}`;
+ Z.cpHTML=()=>{const h=ch0?.()||'',c=count(),run=camp(),S0=run&&SET[run.id],cd=load();
+  const t=run?(S0?`This sector's boss event: wave ${S0.wave}${cd.b[S0.boss]?.beaten?`, ${esc(name(S0.boss))}`:' (unknown contact)'}`:''):`${Z.cp?.run?.endless?'Endless':'Quick defence'} boss pool: ${esc(poolTxt())}${pool().length?'':' (boss waves bring a heavy raid)'}`;
   return h+`<div class="zcdxbar"><span><b>Enemies</b> ${c.n} of ${c.of} bosses beaten${t?' · '+t:''}</span><button class="sm" id="zcdxb">Enemies ▸</button></div>`};
  Z.base.el.addEventListener('click',e=>{if(e.target.closest?.('#zcdxb'))open()});
  /* the campaign briefing's line (zcampaign.js asks) */

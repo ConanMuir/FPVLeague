@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars   run only those sections (CI shards them across jobs); default all
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
@@ -2358,6 +2358,255 @@ if (want('scars')) {
   ok(Lk.stats.craters + Lk.stats.burns + Lk.stats.rubble === 0 && Lk.dead === 0 && Lk.walls && Lk.col, 'Leaks: four full-to-the-caps runs and restarts later nothing is left (scars 0, houses all back, colliders back)');
   ok(Lk.vis.every(v => !v) && Lk.meshes === 3 && Lk.stop.craters === 0, 'Leaks: once the run is stopped no scar is drawn (the menu sees nothing), still three meshes in all');
   ok(!errs.length, 'Scars: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+}
+
+// ---------- threat briefing (zbrief.js): the card on the base screen says what the wave that then spawns holds (types, numbers, directions, timing); the boss
+// warning; what the intel level shows; it follows the plan when a strike cuts it; the collapse toggle (and its memory); the radio line; nothing leaks ----------
+if (want('briefing')) {
+  const {p, errs} = await page();
+  await p.evaluate(() => { const S = __z.api.S; S.zwx = 'wave'; delete S.zbrief; });  /* the weather plan on and the card open, whatever an earlier section left in the shared saved settings (the bosses section turns Zombies weather off) */
+  await play(p);
+  // inside the page: open the break of wave w at an intel level, read the card, spawn the wave (launch times squeezed under 1.5 s unless told otherwise) and measure what appeared
+  await p.evaluate(() => {
+    const {Z, G, api, KIND} = __z, sec = b => b < -.43 ? 0 : b > .43 ? 2 : 1;
+    window.__brk = (w, radar, ewr) => { G.perks.radar = radar; G.kc.ewr = ewr; __z.jump(w, 1e6); Z.openBase(); return Z.brief.data(); };
+    window.__card = () => { const c = document.getElementById('zbrief'); return {text: c ? c.innerText.replace(/\s+/g, ' ') : '', rows: c ? c.querySelectorAll('.zbrows li').length : 0, icons: c ? [...c.querySelectorAll('.zbrows .zbg')].every(e => e.textContent.trim()) : false,
+      foot: [...document.querySelectorAll('#zbase .zfk')].map(e => e.textContent.replace(/\s+/g, ' ').trim())}; };
+    window.__spawn = squeeze => { const seen = new Set(), rec = [], at = G.next.q.map(e => e.at).sort((a, b) => a - b); __z.cont(); if (squeeze) for (const q of G.wq) q.at = Math.min(q.at, 1.5);
+      const scan = () => { for (const t of api.TH) if (!seen.has(t.id)) { seen.add(t.id); rec.push({k: t.k, brg: Math.atan2(t.p.x, 1950 - t.p.z), t: G.wt}); } };
+      for (let i = 0; i < 20000 && G.state === 'wave' && G.wq.length; i++) { __z.sim(1 / 120); scan(); } scan();  /* one tick at a time: a track is read where it appeared, not a quarter second on (a bearing near a sector's edge could flip) */
+      for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; return {rec, at}; };
+    // the briefing against what spawned: kinds and numbers exactly, the share of threat by compass point and by launch sector, the launch times
+    window.__cmp = (D, R, timed) => { const cnt = {}, bk = Object.fromEntries(D.kinds.map(k => [k.k, k.n])); for (const r of R.rec) cnt[r.k] = (cnt[r.k] | 0) + 1;
+      const kinds = Object.keys(bk).length === Object.keys(cnt).length && Object.keys(bk).every(k => bk[k] === cnt[k]);
+      const wt = r => r.k === 'swarm' ? 2 : Math.max(4, KIND[r.k].pts || 0); let tot = 0; const dm = {}, sm = {};
+      for (const r of R.rec) { tot += wt(r); const d = Z.brief.dirOf(r.brg), s = sec(r.brg); dm[d] = (dm[d] || 0) + wt(r); sm[s] = (sm[s] || 0) + wt(r); }
+      const dev = (A, B) => { let m = 0; for (const k of new Set([...Object.keys(A), ...Object.keys(B)])) m = Math.max(m, Math.abs((A[k] || 0) - (B[k] || 0))); return m; };
+      const cd = Object.fromEntries(D.dirs.map(d => [d.id, d.share])), cs = Object.fromEntries(D.secs.map(s => [s.id, s.share])), act = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v / tot]));
+      const ts = R.rec.map(r => r.t).sort((a, b) => a - b); let tdev = 0; if (timed) ts.forEach((t, i) => { tdev = Math.max(tdev, Math.abs(t - R.at[i])); });
+      return {kinds, n: R.rec.length, dirDev: dev(cd, act(dm)), secDev: dev(cs, act(sm)), tdev, spawned: Object.keys(cnt).join()}; };
+  });
+  // ---- the card matches the wave that spawns, at every intel level ----
+  const cases = [{w: 1, radar: 0, ewr: 0, tier: 0, sq: false}, {w: 6, radar: 3, ewr: 0, tier: 1, sq: true}, {w: 15, radar: 3, ewr: 1, tier: 2, sq: true}, {w: 25, radar: 3, ewr: 2, tier: 3, sq: true}, {w: 10, radar: 0, ewr: 0, tier: 0, sq: true}];
+  const TN = ['BASIC', 'GOOD', 'HIGH', 'FULL'];
+  for (const c of cases) {
+    const r = await p.evaluate(c => { const D = __brk(c.w, c.radar, c.ewr), card = __card(), R = __spawn(c.sq); return {D, card, cmp: __cmp(D, R, !c.sq)}; }, c);
+    const foot = r.card.foot.reduce((a, t) => a + (+(t.match(/^(\d+)×/) || [0, 0])[1]), 0);
+    ok(r.cmp.kinds && r.cmp.n === r.D.n && r.D.n > 0 && foot === r.D.n && r.card.text.includes(`${r.D.n} tracks`), `Briefing wave ${c.w}: ${r.D.n} tracks of ${r.D.kinds.map(k => k.k).join('/')} on the card = the footer list = what spawned (${r.cmp.n}: ${r.cmp.spawned})`);
+    ok(r.cmp.dirDev <= .06 && r.cmp.secDev <= .06, `Briefing wave ${c.w}: the compass shares (${r.D.dirs.map(d => d.id + ' ' + Math.round(d.share * 100) + '%').join(' ')}) and launch sectors match where the tracks appeared (off by ${(r.cmp.dirDev * 100).toFixed(1)} / ${(r.cmp.secDev * 100).toFixed(1)} points)`);
+    if (!c.sq) ok(r.cmp.tdev <= .05 && r.D.t0 === 0 && Math.abs(r.D.t1 - 25) < .5,`Briefing wave ${c.w}: tracks launched when the plan said (launch window ${r.D.t0}-${r.D.t1} s, largest difference ${r.cmp.tdev.toFixed(2)} s)`);
+    ok(r.D.tier === c.tier && r.card.text.includes('INTEL ' + TN[c.tier]) && r.card.rows >= 3 && r.card.rows <= 5 && r.card.icons, `Briefing wave ${c.w}: INTEL ${TN[r.D.tier]} (${r.D.warn} s of warning), ${r.card.rows} lines with an icon each`);
+  }
+  // ---- what each intel level shows (one plan with a ballistic missile in it, read at all four levels), and that nothing is said that the plan does not hold ----
+  const IL = await p.evaluate(() => { const {Z, G} = __z, o = [], D0 = __brk(25, 0, 0);
+    for (const [radar, ewr] of [[0, 0], [3, 0], [3, 1], [3, 2]]) { G.perks.radar = radar; G.kc.ewr = ewr; Z.base.refresh(); const D = Z.brief.data(); o.push({tier: D.tier, text: __card().text, raids: D.raids, fast: D.fast.map(f => f.k + ':' + f.secs.join('/')), peak: D.peak != null, heavy: !!D.heavy}); }
+    return {o, kinds: D0.kinds.map(k => k.k).join()}; });
+  const T = IL.o.map(x => x.text);
+  ok(IL.o.map(x => x.tier).join() === '0,1,2,3', `Intel: warning time 20 s -> BASIC, Long-range radar x3 (44 s) -> GOOD, + early-warning radar 1 / 2 (59 / 74 s) -> HIGH / FULL`);
+  ok(!/raid|%/.test(T[0]) && /From [A-Z][a-z]+/.test(T[0]) && /raids?/.test(T[1]) && /\d+%/.test(T[1]) && /launching \d:\d\d–\d:\d\d/.test(T[1]) && !/peak|heaviest/.test(T[1] + T[2]), `Intel: BASIC says the launch sector only; GOOD adds compass bearings with shares, the raids and the launch window (BASIC: "${T[0].match(/From[^⚠]*/)?.[0].trim()}")`);
+  ok(/fast missiles: \d+ ballistics?\b(?! \()/.test(T[1]) && /fast missiles: [^⚠☁]*\((West|North|East)/.test(T[2]) && IL.o[2].fast.length > 0, `Intel: the fast missiles by launch sector from HIGH up (GOOD: "${T[1].match(/fast missiles: [^⚠☁]*/)?.[0].trim()}", HIGH: "${T[2].match(/fast missiles: [^⚠☁]*/)?.[0].trim()}")`);
+  ok(IL.o[3].peak && IL.o[3].heavy && /peak ~\d:\d\d/.test(T[3]) && /heaviest raid [A-Z]+ \(\d+\)/.test(T[3]) && !/peak|heaviest/.test(T[2]), 'Intel: FULL adds the moment of peak pressure and the heaviest raid');
+  // ---- boss warning when one is due, a look-ahead when not ----
+  const BW = await p.evaluate(() => [1, 9, 10, 11, 19, 20].map(w => { const D = __brk(w, 0, 0), t = __card().text; return {w, boss: D.boss.map(b => b.k).join(), due: D.due, next: D.next, warn: /BOSS WAVE: Mothership/.test(t), look: (t.match(/next boss: wave \d+ \(\d+ waves? on\)/) || [''])[0]}; }));
+  ok(BW.filter(b => b.warn).map(b => b.w).join() === '10,20' && BW.filter(b => b.boss).map(b => b.w).join() === '10,20' && BW.filter(b => b.due).map(b => b.w).join() === '10,20', `Boss: the warning is on the card for waves 10 and 20 and no other (${BW.map(b => b.w + (b.warn ? ' BOSS' : '')).join(', ')})`);
+  ok(BW[0].look === 'next boss: wave 10 (9 waves on)' && BW[1].look === 'next boss: wave 10 (1 wave on)' && BW[3].look === 'next boss: wave 20 (9 waves on)', `Boss: otherwise the card says how far the next one is ("${BW[0].look}", "${BW[1].look}", "${BW[3].look}")`);
+  // ---- it follows the plan: a strike that cuts the fast missiles out of the wave changes the card ----
+  const CU = await p.evaluate(() => { const {Z, G} = __z, D = __brk(25, 3, 0), a = D.fast.map(f => f.n).reduce((x, y) => x + y, 0);
+    let cut = 0; for (let si = 0; si < 3; si++) cut += Z.cutFast(si, 99, 'ballistic'); Z.base.refresh(); const D2 = Z.brief.data(), t = __card().text; return {n0: D.n, n1: D2.n, a, cut, fast1: D2.fast.length, shown: /ballistic/.test(t), says: t.includes(`${D2.n} tracks`)}; });
+  ok(CU.cut > 0 && CU.n1 === CU.n0 - CU.cut && CU.fast1 === 0 && !CU.shown && CU.says, `Plan cut: a strike took ${CU.cut} ballistic missile${CU.cut > 1 ? 's' : ''} out of the next wave, the card went from ${CU.n0} to ${CU.n1} tracks and lost its fast-missile line`);
+  // ---- a co-op client has no timed queue (only the list and the bearings): the card still reads, and the pure analysis agrees ----
+  const CO = await p.evaluate(() => { const {Z, G} = __z, D = __brk(25, 3, 0), P = G.next, keep = P.q; const A = Z.brief.analyse({list: P.list, brgs: P.brgs, wx: null}, {w: 25, tier: 1}); G.next = {list: P.list, brgs: P.brgs, wx: null}; Z.base.refresh(); const h = Z.brief.html(), t = __card().text;
+    G.next = {list: [], brgs: [], q: [], wx: null}; let empty = ''; try { empty = Z.brief.html(); } catch (e) { empty = 'ERR ' + e; } G.next = P; Z.base.refresh();
+    return {n: A.n, nFull: D.n, t0: A.t0, kinds: A.kinds.map(k => k.k + k.n).join() === D.kinds.map(k => k.k + k.n).join(), html: h.includes(`${D.n} tracks`), card: t.includes(`${D.n} tracks`), empty: typeof empty === 'string' && !/^ERR/.test(empty), nul: Z.brief.analyse(null) === null}; });
+  ok(CO.n === CO.nFull && CO.kinds && CO.t0 === null && CO.html && CO.card && CO.empty && CO.nul, 'Briefing from a plan without the timed queue (a co-op client), an empty plan and no plan: the same counts, no timing, nothing thrown');
+  // ---- the radio line when the wave starts, through the announcer's radio (Z.an.radio) ----
+  const RD = await p.evaluate(() => { const {Z, G, api} = __z, calls = [], r0 = Z.an.radio; Z.an.radio = (who, txt, pri) => { calls.push([who, txt, pri]); }; __brk(7, 0, 0); const line = Z.brief.line(); __z.cont();
+    Z.an.radio = r0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; const mine = calls.filter(c => c[0] === 'OVERLORD' && /^(Wave 7|Intel): /.test(c[1]));
+    return {line, calls: mine.length, text: mine[0]?.[1] || '', radioOn: !!Z.radio && api.S.zradio !== false}; });
+  /* with the radio chatter on (zradio.js) it calls the wave itself, so this one reads "Intel: ..."; without it, "Wave 7: ..." */
+  ok(/^Wave 7: \d+ tracks?, .+, from the [a-z -]+\.$/.test(RD.line) && RD.calls === 1 && RD.text === (RD.radioOn ? RD.line.replace(/^Wave 7: /, 'Intel: ') : RD.line), `Radio: one line at the start of the wave, through the announcer's radio (${RD.radioOn ? 'the radio chatter is on, so "Intel: ..."' : 'plain'}: "${RD.text}")`);
+  // ---- collapse: one line instead of the rows, kept in the settings ----
+  const CL = await p.evaluate(() => { const {Z, G, api} = __z, S = api.S; __brk(12, 3, 0); const q = () => { const c = document.getElementById('zbrief'); return {col: c.classList.contains('col'), rows: c.querySelectorAll('.zbrows').length, line: c.querySelector('.zbl')?.textContent || '', exp: c.querySelector('#zbtog').getAttribute('aria-expanded'), btn: c.querySelector('#zbtog').textContent, s: S.zbrief | 0}; };
+    const a = q(); document.getElementById('zbtog').click(); const b = q(); document.getElementById('zbtog').click(); const c = q(); document.getElementById('zbtog').click(); return {a, b, c, d: q()}; });
+  ok(!CL.a.col && CL.a.rows === 1 && CL.a.exp === 'true' && CL.b.col && CL.b.rows === 0 && /^Wave 12: \d+ tracks/.test(CL.b.line) && /wind \d+–\d+ km\/h/.test(CL.b.line) && CL.b.exp === 'false' && CL.b.s === 1 && !CL.c.col && CL.c.s === 0 && CL.d.col && CL.d.s === 1, `Collapse: the button folds the card to one line ("${CL.b.line.trim().slice(0, 90)}") and back, the choice goes to the settings`);
+  // ---- nothing leaks: many redraws, toggles and restarts add no nodes, listeners, GPU objects or wrappers ----
+  const LK = await p.evaluate(() => { const {Z, G, api} = __z, S = api.S, m = () => { const i = api.renderer.info.memory; return [i.geometries, i.textures, api.renderer.info.programs.length].join(); }, nodes = () => document.querySelectorAll('#zbase *').length;
+    if (Z.brief.collapsed()) Z.brief.toggle(); __brk(12, 3, 0); const o = {m0: m(), n0: nodes(), c0: Z.continue, h0: Z.briefHTML};
+    for (let i = 0; i < 60; i++) { Z.base.refresh(); if (i % 3 === 0) Z.brief.toggle(); } if (Z.brief.collapsed()) Z.brief.toggle(); o.n1 = nodes(); o.m1 = m(); o.cards = document.querySelectorAll('#zbrief').length;
+    for (let i = 0; i < 3; i++) api.startMatch(); o.same = Z.continue === o.c0 && Z.briefHTML === o.h0; o.cards2 = document.querySelectorAll('#zbrief').length; document.getElementById('zbtog').click(); o.once = (S.zbrief | 0) === 1; document.getElementById('zbtog').click();
+    __brk(12, 3, 0); o.m2 = m(); return o; });
+  ok(LK.n0 === LK.n1 && LK.m0 === LK.m1 && LK.m1 === LK.m2 && LK.cards === 1 && LK.cards2 === 1, `Leaks: 60 redraws, 20 toggles and 3 restarts leave the base screen at ${LK.n0} nodes, one card, the GPU objects at ${LK.m0}`);
+  ok(LK.same && LK.once, 'Leaks: the hooks are wrapped once (Continue, the base screen hook) and the toggle fires once per click after restarts');
+  // ---- the choice survives a reload ----
+  await p.evaluate(() => { __z.api.S.zbrief = 1; __z.api.save(); });
+  await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 5); await play(p);
+  const RL = await p.evaluate(() => { const c = document.getElementById('zbrief'); return {col: c?.classList.contains('col'), line: c?.querySelector('.zbl')?.textContent || ''}; });
+  ok(RL.col && /^Wave 1: 2 tracks/.test(RL.line), `Collapse: after a reload the card is still folded ("${RL.line.trim().slice(0, 70)}")`);
+  ok(!errs.length, 'Briefing: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.evaluate(() => localStorage.removeItem('dl-interceptor'));  /* the folded card is a saved setting: the next section starts clean */
+  await p.close();
+}
+
+// ---------- Endless (zendless.js): opens only once the Launch Complex is held; a sector with no objective whose waves climb past the caps (tracks, speed, armour, damage, bosses);
+// milestones; the sector's scars carry forward, grow and are saved (and survive a reload); the run goes on the Endless table and costs the campaign nothing; nothing leaks ----------
+if (want('endless')) {
+  const {p, errs} = await page();
+  const reload = async () => { await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3); };
+  const boot = async (camp, zend) => { await p.evaluate((c, z) => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); if (c === undefined) delete s.zcamp; else s.zcamp = c; if (z === undefined) delete s.zend; else s.zend = z;
+    Object.assign(s, {zdiff: 1, gmode: 'z', zload: null}); delete s.zbrief; localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, camp, zend); await reload(); };
+  const begun = () => p.waitForFunction(() => __z.G.state === 'base' && !!__z.Z.cp.run, {timeout: 30000}).then(() => true, () => false);
+  const nosc = c => JSON.stringify({...c, sc: 0});  /* the campaign without the scars: what an Endless run must not change */
+
+  // ---- locked until the capstone is held ----
+  await boot(undefined, undefined);
+  const L0 = await p.evaluate(() => { const {Z} = __z, r = {un: Z.endless.unlocked(), go: !!document.getElementById('zendgo'), hidden: document.getElementById('zendboard').hidden, a: Z.endless.start('gate'), b: Z.endless.start('mill')};
+    Z.cp.openMap(); Z.cp.select('mill'); const b = document.getElementById('zcpend'); r.btn = b ? {dis: b.disabled, title: b.title} : null; Z.cp.closeMap(); return r; });
+  ok(!L0.un && !L0.go && L0.hidden && !L0.a && !L0.b && L0.btn?.dis && /Launch Complex/.test(L0.btn.title), `Endless is locked on a fresh campaign: no menu button, no table, start() refuses, the briefing's button is greyed ("${L0.btn?.title}")`);
+  const L1 = await p.evaluate(() => { const {Z} = __z, ids = ['mill', 'river', 'silo', 'rail', 'hosp', 'power', 'air'], c = Z.cp.C(); c.held = ids; c.done = 1; Z.cp.put(c);  /* seven sectors and a hand-set "done" */
+    const r = {done: Z.cp.C().done, un: Z.endless.unlocked(), a: Z.endless.start('mill'), gate: Z.cp.status('gate'), go0: !!document.getElementById('zendgo')};
+    const w = Z.cp.result(Z.cp.C(), 'gate', true, null); Z.cp.put(w.c); Z.syncMode(); r.done2 = Z.cp.C().done; r.un2 = Z.endless.unlocked(); r.go = !!document.getElementById('zendgo'); r.hidden = document.getElementById('zendboard').hidden;
+    r.txt = document.getElementById('zcpm').textContent.replace(/\s+/g, ' '); return r; });
+  ok(L1.done === 0 && !L1.un && !L1.a && L1.gate === 'front' && !L1.go0 && L1.done2 === 1 && L1.un2 && L1.go && !L1.hidden, `Endless: seven sectors held (and a forged "done") still locked; holding the Launch Complex opens it (menu card: "${L1.txt}")`);
+  const DONE = await p.evaluate(() => { const {Z} = __z, c = Z.cp.C(); c.res.repair = 2; c.relics = ['warchest']; c.eq = 'warchest'; Z.cp.put(c); return Z.cp.C(); });
+
+  // ---- start from the menu button: no objective, the strip, the HUD, the briefing, the reserve left alone ----
+  const before = nosc(DONE);
+  await p.evaluate(() => document.getElementById('zendgo').click());
+  const B0 = await begun() ? await p.evaluate(() => { const {Z, G} = __z, run = Z.cp.run; Z.hud(0); return {en: Z.endless.on(), id: run.id, endless: run.endless, obj: run.obj, res: run.res, relic: run.relic, hud: document.getElementById('zw').textContent, strip: document.querySelector('#zbase .zcpbar')?.textContent.replace(/\s+/g, ' ') || '',
+    brief: document.getElementById('zbrief')?.innerText.replace(/\s+/g, ' ') || '', pr: run.pr, wave: G.wave}; }) : null;
+  ok(B0 && B0.en && B0.id === 'gate' && B0.endless && B0.obj > 1e6 && B0.res === '' && B0.relic === 'warchest' && B0.hud === 'WAVE 1 NEXT ∞' && /ENDLESS/.test(B0.strip) && !/Hold \d/.test(B0.strip) && /Endless: the climb starts after wave 20/.test(B0.brief), `Endless starts from the menu on the Launch Complex: no objective, the relic stays, the reserve is left alone, HUD "${B0?.hud}", strip "${B0?.strip.slice(0, 50)}", briefing "Endless: the climb starts after wave 20"`);
+  if (SHOTS) await p.screenshot({path: SHOTS + '/z-endless-base.png'});
+
+  // ---- the sector's scars carry from wave to wave, are saved at every clear and at the end ----
+  const defs = async () => { await p.waitForFunction(() => __z.Z.sc.ready, {timeout: 120000});  /* helpers inside the page (they go with a reload): scars on ground where they may stand, an emptied wave, the scars as a sorted list */
+    await p.evaluate(() => { const {Z, G, api} = __z, S = Z.sc, R = (a, b) => a + Math.random() * (b - a);
+      window.__pos = r => { for (;;) { const x = R(-2500, 2500), z = R(-2500, 500); if (![[0, 0], [1.3, 1.3], [-1.3, 1.3], [1.3, -1.3], [-1.3, -1.3]].some(([a, b]) => S.bad(x + a, z + b, r * 1.1 + 1))) return [x, z]; } };
+      window.__add = n => { S.ensure(); for (let i = 0; i < n; i++) { const [x, z] = __pos(6); S.add(0, x, z, 4 + i % 4, {fade: 1}); } };
+      window.__clear = () => { G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; };
+      window.__keys = () => S.recs().map(r => r[0] + ':' + r[1] + ':' + r[2]).sort(); }); };
+  await defs();
+  const SC = await p.evaluate(() => { const {Z, G, api} = __z, o = {}, saved = () => { const s = api.S.zcamp.sc?.gate; return s ? Z.sc.unpack(s).map(r => r[0] + ':' + r[1] + ':' + r[2]).sort() : []; };
+    o.start = Z.sc.stats().craters; __z.cont(); __add(6); __clear(); __z.sim(.5); o.k1 = __keys(); o.s1 = saved(); o.st1 = G.state; __z.sim(3.5); o.base2 = G.state;
+    __z.cont(); o.carry = Z.sc.stats().craters; __add(4); __clear(); __z.sim(.5); o.k2 = __keys(); o.s2 = saved(); o.others = Object.keys(api.S.zcamp.sc || {}).join(); __z.sim(3.5); return o; });
+  ok(SC.start === 0 && SC.k1.length === 6 && SC.s1.join() === SC.k1.join() && SC.st1 === 'clear', `Scars: six craters made in wave 1 are saved into the sector (S.zcamp.sc.gate) when the wave is cleared (${SC.s1.length} saved)`);
+  ok(SC.carry === 6 && SC.k2.length === 10 && SC.k1.every(k => SC.k2.includes(k)) && SC.s2.join() === SC.k2.join() && SC.others === 'gate', `Scars: wave 2 starts on the same ground (${SC.carry} craters), four more make ${SC.k2.length}, all ten are saved; no other sector gets any (${SC.others})`);
+  const KEYS = SC.k2;
+
+  // ---- milestones: wave 10 pays and repairs, wave 9 does not ----
+  const MS = await p.evaluate(() => { const {Z, G, api} = __z, out = {}; for (const w of [9, 10]) { __z.jump(w, 3000); Z.openBase(); const s = api.SITES[0]; s.hp = Math.round(s.max * .4); const c0 = G.cash, hp0 = s.hp;
+      __z.cont(); __clear(); __z.sim(.5); out[w] = {state: G.state, ms: [...G.end.ms], dc: G.cash - c0, hp: s.hp, hp0, max: s.max, zms: api.S.zend.ms}; __z.sim(3.5); } return out; });
+  ok(MS[9].state === 'clear' && !MS[9].ms.length && MS[9].hp === MS[9].hp0, 'Milestone: clearing wave 9 is an ordinary clear (no milestone, no repair)');
+  ok(MS[10].ms.join() === '10' && MS[10].dc >= 800 && MS[10].hp === Math.min(MS[10].max, MS[10].hp0 + Math.round(MS[10].max * .25)) && MS[10].zms === 10, `Milestone: wave 10 paid $${Math.round(MS[10].dc)} (at least the $800 purse), repaired a damaged site from ${MS[10].hp0} to ${MS[10].hp} of ${MS[10].max}, and is on the record (${MS[10].zms})`);
+
+  // ---- the briefing of a climbing wave ----
+  const BR = await p.evaluate(() => { const {Z} = __z; __z.jump(33, 1e6); Z.openBase(); const t = document.getElementById('zbrief').innerText.replace(/\s+/g, ' '); return {t, line: Z.brief.data().extra.join(' | ')}; });
+  ok(/Endless \+\d+% tracks · \+\d+% speed · \d+% of the Shaheds armored · sites take \+\d+%/.test(BR.t) && /boss every 5 waves · milestone wave 40: \+\$3,200 and a repair/.test(BR.t), `Briefing in Endless at wave 33: "${BR.line}"`);
+
+  // ---- the end: the Endless screen, the Endless table, the campaign untouched, the scars saved ----
+  const GO = await p.evaluate(() => { const {Z, G, api} = __z, S = api.S; __z.jump(13, 0); Z.openBase(); G.wave = 12; Z.gameOver();
+    return {st: G.state, h2: document.querySelector('#zover h2')?.textContent, txt: document.getElementById('zover').textContent.replace(/\s+/g, ' '), hidden: document.getElementById('zover').hidden, runs: S.zend.runs, zms: S.zend.ms, camp: S.zcamp, zruns: S.zruns || null, zbests: S.zbests || null,
+      board: document.getElementById('zendboard').textContent.replace(/\s+/g, ' '), saved: Z.sc.unpack(S.zcamp.sc.gate).length, btns: [...document.querySelectorAll('#zover button')].map(b => b.id).join()}; });
+  ok(GO.st === 'over' && !GO.hidden && GO.h2 === 'Endless run over' && /WAVE 12/.test(GO.txt) && GO.runs.length === 1 && GO.runs[0].w === 12 && GO.runs[0].sec === 'gate' && GO.runs[0].d === 1 && GO.runs[0].ms === 10 && GO.btns === 'zendagain,zcpmap,zmenu', `Endless over: "${GO.h2}", wave ${GO.runs[0]?.w}, recorded {${JSON.stringify(GO.runs[0])}}, buttons ${GO.btns}`);
+  ok(/Endless, wave 12 · Launch Complex · Normal/.test(GO.txt) && /Endless, wave 12 · Launch Complex · Normal/.test(GO.board) && GO.zruns === null && GO.zbests === null, 'Leaderboard: "Endless, wave 12 · Launch Complex · Normal" is on the end screen and in the menu table; the Quick defence table and bests are untouched');
+  ok(nosc(GO.camp) === before && GO.saved === 10, `Campaign: an Endless loss changes nothing (held, pressure, losses, relics, reserves, done), and the ten scars are saved at the end (${GO.saved})`);
+  if (SHOTS) await p.screenshot({path: SHOTS + '/z-endless-over.png'});
+  // again: the same sector, the same ground
+  await p.evaluate(() => document.getElementById('zendagain').click()); await begun();
+  const AG = await p.evaluate(() => ({run: __z.Z.cp.run?.id, endless: __z.Z.cp.run?.endless, craters: __z.Z.sc.stats().craters, wave: __z.G.wave, hidden: document.getElementById('zover').hidden, keys: __keys()}));
+  ok(AG.run === 'gate' && AG.endless && AG.wave === 0 && AG.hidden && AG.craters === 10 && AG.keys.join() === KEYS.join(), 'Endless again: a fresh run on the same sector begins on the ten scars of the last one');
+
+  // ---- a reload keeps the scars, the table and the unlock ----
+  await reload();
+  const RL = await p.evaluate(() => { const S = __z.api.S, c = __z.Z.cp.C(); return {done: c.done, held: c.held.length, sc: Object.keys(c.sc).join(), runs: S.zend.runs.map(r => r.w).join(), board: document.getElementById('zendboard').textContent.replace(/\s+/g, ' '), go: document.getElementById('zendgo')?.textContent.replace(/\s+/g, ' ')}; });
+  ok(RL.done === 1 && RL.sc === 'gate' && RL.runs === '12' && /Endless, wave 12/.test(RL.board) && /Launch Complex/.test(RL.go), `Reload: the unlock, the table (wave ${RL.runs}) and the sector's scars are still there; the menu button says "${RL.go}"`);
+  await p.evaluate(() => document.getElementById('zendgo').click()); await begun(); await defs();
+  const RS = await p.evaluate(() => ({keys: __keys(), n: __z.Z.sc.stats().craters}));
+  ok(RS.n === 10 && RS.keys.join() === KEYS.join(), 'Reload: an Endless run started after it stands on the same ten craters');
+
+  // ---- a chosen held sector, and the climb itself (River Crossing has no Mothership escort of its own) ----
+  const RV = await p.evaluate(() => { const {Z, G, api, KIND} = __z, o = {no: Z.endless.start('dam'), ok: Z.endless.start('river')}; o.run = Z.cp.run?.id; o.endless = Z.cp.run?.endless; o.sec = api.S.zend.sec; o.state = G.state; return o; });
+  ok(!RV.no && RV.ok && RV.run === 'river' && RV.endless && RV.sec === 'river' && RV.state === 'base', 'Endless on a chosen held sector: River Crossing starts (an unheld one, the Dam, is refused), and it is the sector the menu button remembers');
+  const CL = await p.evaluate(() => { const {Z, G, api, KIND} = __z, R = Z.cp.run, o = {};
+    const units = L => L.reduce((a, s) => { const [k, c] = s.split(':'); return a + (KIND[k].armor === 'boss' ? 0 : +c || 1); }, 0), pts = L => L.reduce((a, s) => { const [k, c] = s.split(':'); return a + (+c || 1) * (KIND[k].pts || 0); }, 0);
+    const meas = (w, n) => { let u = 0, pp = 0, h = 0, mu = 0; for (let i = 0; i < n; i++) { const L = __z.plan(w).list, uu = units(L); u += uu; mu = Math.max(mu, uu); pp += pts(L); h += L.filter(k => k === 'heavy').length; } return {u: u / n, pts: pp / n, heavy: h / n, maxU: mu}; };
+    const both = (w, n) => { R.endless = true; const e = meas(w, n); R.endless = false; const b = meas(w, n); R.endless = true; return {e, b}; };
+    o.w20 = both(20, 150); o.w30 = both(30, 150); o.w40 = both(40, 150); o.w70 = both(70, 15);
+    const sp = w => { G.wave = w; let s = 0; for (let i = 0; i < 40; i++) { const t = __z.make('shahed', 0, -3000); s += t.spd; api.scene.remove(t.mesh); api.TH.pop(); } return s / 40; };
+    o.sp = [20, 60, 100, 140].map(sp); R.endless = false; o.spOff = sp(60); R.endless = true;
+    const dk = w => { G.wave = w; return Z.dmgK(api.SITES[0], {id: -1, k: 'shahed'}); }; o.dk = [20, 40, 60].map(dk); G.wave = 0;
+    const nb = w => __z.plan(w).list.filter(k => KIND[k.split(':')[0]].armor === 'boss').length; o.b = Object.fromEntries([23, 25, 30, 51, 52, 60, 80].map(w => [w, nb(w)])); R.endless = false; o.b25off = nb(25); o.b51off = nb(51); R.endless = true; return o; });
+  const rat = w => CL['w' + w].e.pts / CL['w' + w].b.pts;
+  ok(rat(20) > .85 && rat(20) < 1.2 && rat(30) > 1.1 && rat(40) > 1.25 && rat(40) < 1.85 && rat(40) > rat(30) * .98, `Climb, tracks: threat per wave against the same wave without the climb x${rat(20).toFixed(2)} at 20, x${rat(30).toFixed(2)} at 30 (+2.5% a wave: 1.25), x${rat(40).toFixed(2)} at 40 (1.50)`);
+  ok(CL.w70.e.maxU <= 620 && CL.w70.e.u > CL.w70.b.u, `Climb, tracks: past the cap the plan stops at 600 tracks (wave 70: at most ${CL.w70.e.maxU} in one plan, ${Math.round(CL.w70.e.u)} on average against ${Math.round(CL.w70.b.u)} without the climb)`);
+  ok(CL.w40.e.heavy > CL.w40.b.heavy * 1.3 && CL.w30.e.heavy > CL.w30.b.heavy, `Climb, armour: armored heavies per wave ${CL.w40.b.heavy.toFixed(1)} -> ${CL.w40.e.heavy.toFixed(1)} at wave 40 (and ${CL.w30.b.heavy.toFixed(1)} -> ${CL.w30.e.heavy.toFixed(1)} at 30)`);
+  ok(CL.sp[1] / CL.sp[0] > 1.3 && CL.sp[2] > CL.sp[1] * 1.08 && Math.abs(CL.sp[3] / CL.sp[2] - 1) < .05 && CL.spOff < CL.sp[1] * .8, `Climb, speed: a Shahed flies ${CL.sp.map(v => v.toFixed(1)).join(' / ')} m/s at waves 20 / 60 / 100 / 140 (+40% at 60, capped at +60%; ${CL.spOff.toFixed(1)} at 60 without the climb)`);
+  ok(CL.dk[0] === 1 && Math.abs(CL.dk[1] - 1.2) < 1e-9 && Math.abs(CL.dk[2] - 1.4) < 1e-9, `Climb, damage: a hit on a site is x${CL.dk.join(' / ')} at waves 20 / 40 / 60`);
+  ok(CL.b[23] === 0 && CL.b[25] === 1 && CL.b[30] === 1 && CL.b[51] === 2 && CL.b[52] === 0 && CL.b[60] === 2 && CL.b[80] === 3 && CL.b25off === 0 && CL.b51off === 0, `Climb, bosses: ${JSON.stringify(CL.b)} (waves 23 / 25 / 30 / 51 / 52 / 60 / 80: every 5 waves past 20, every 3 past 50, two at a time from wave 50, three from 80); wave 25 without the climb has ${CL.b25off}`);
+  // the boss codex (zcodex.js): an Endless run's bosses come from its pool (unlocked and allowed), never from the sector's set piece; the Launch Complex's own Mothership escort does not double the boss
+  const CX = await p.evaluate(() => { const {Z, G, api, KIND} = __z, S = api.S, X = Z.codex, o = {}, R0 = Z.bosses.roster;
+    const bs = L => L.filter(k => { const K = KIND[k.split(':')[0]]; return K.armor === 'boss' || !!K.bossy; }), seen = (w, n) => { const m = {}; for (let i = 0; i < n; i++) for (const k of bs(__z.plan(w).list)) m[k] = (m[k] | 0) + 1; return m; };
+    const dex = (ids, off = []) => ({v: 1, b: Object.fromEntries([...ids, ...off].map(id => [id, {seen: true, beaten: true, allowed: !off.includes(id)}]))});
+    o.real = !!X && typeof X.pool === 'function' && typeof X.plan === 'function';
+    S.zcodex = dex([]); o.p0 = X.pool(25).join(); o.m0 = Object.keys(seen(25, 20)).join(); o.m23 = Object.keys(seen(23, 20)).join();
+    S.zcodex = dex(['jammer', 'hive']); o.p1 = X.pool(54); o.m1 = Object.keys(seen(54, 80)).sort(); o.dup = 0; o.n54 = new Set();  /* wave 54: two bosses a wave (climb 34) */
+    for (let i = 0; i < 40; i++) { const L = bs(__z.plan(54).list); o.n54.add(L.length); if (new Set(L).size !== L.length) o.dup++; } o.n54 = [...o.n54].join();
+    S.zcodex = dex(['hive'], ['jammer']); o.p2 = X.pool(54); o.m2 = Object.keys(seen(54, 80)).sort();
+    S.zcodex = dex([], ['boss', 'jammer', 'hive']); o.p3 = X.pool(25).length; const l3 = __z.plan(25).list; o.m3 = bs(l3).length; o.l3 = l3.length;  /* every boss switched off: the codex's heavy raid instead */
+    S.zcodex = dex(['jammer']); Z.bosses.roster = true;  /* the real rotation, as a player has it: an Endless run is planned by the codex's Quick defence rotation, a campaign sector by its set piece (the every-10 Mothership goes) */
+    o.endless10 = bs(Z.bossCompose(['boss', 'shahed'], 10)).length;
+    Z.cp.start('river', true); o.camp = !Z.endless.on(); o.camp10 = bs(Z.bossCompose(['boss', 'shahed'], 10)).length;
+    Z.bosses.roster = R0; delete S.zcodex; Z.endless.start('gate');
+    o.g = bs(__z.plan(25).list).length; o.g2 = bs(__z.plan(30).list).length; return o; });
+  ok(CX.real && CX.p0 === 'boss' && CX.m0 === 'boss' && CX.m23 === '', 'Boss codex: with nothing beaten the pool is the Mothership alone, and the extra boss of Endless wave 25 is that; wave 23 has none (' + CX.p0 + ' / ' + CX.m0 + ')');
+  ok(CX.p1.includes('jammer') && CX.m1.includes('jammer') && CX.m1.every(k => CX.p1.includes(k)) && CX.m1.length >= 2 && CX.n54 === '2' && CX.dup === 0, 'Boss codex: with the Jammer King and the Hive beaten, wave 54\'s two Endless bosses come from the pool (' + CX.p1 + ') and from nowhere else (' + CX.m1 + '), never the same twice in a wave');
+  ok(CX.p2.length > 0 && !CX.p2.includes('jammer') && !CX.m2.includes('jammer') && CX.m2.every(k => CX.p2.includes(k)), 'Boss codex: with the Jammer King switched off (Allowed) it never comes (' + CX.m2 + ' of ' + CX.p2 + ')');
+  ok(CX.p3 === 0 && CX.m3 === 0 && CX.l3 > 0, 'Boss codex: with every boss switched off Endless wave 25 brings the codex\'s heavy raid, no boss (' + CX.l3 + ' tracks)');
+  ok(CX.endless10 === 1 && CX.camp && CX.camp10 === 0, 'Boss codex: an Endless run keeps its every-10 boss through the Quick defence rotation (' + CX.endless10 + '), a campaign sector\'s set piece takes the Mothership out (' + CX.camp10 + ')');
+  ok(CX.g === 1 && CX.g2 === 1, 'Launch Complex Endless: its own Mothership escort is not doubled by the climb (' + CX.g + ' boss on wave 25, ' + CX.g2 + ' on 30)');
+  // the Launch Complex's "Enemy launch sites": the sorties feature flag is set, so the modifier is real (not the second Heavy pressure it fell back to) and the world has the extra sites
+  const LS = await p.evaluate(() => { const {Z, G} = __z, W = Z.so.W, o = {feat: Z.feat?.sorties, n: Z.cp.n('launchSites'), ids: Z.cp.run.mods.map(m => m.id).join()}, count = s => W.list.filter(t => t.t === 'launch' && t.sec === s).length;
+    o.per = [0, 1, 2].map(count).join(); const two = W.list.filter(t => t.t === 'launch' && t.sec === 1), cuts = () => (G.cuts || []).filter(c => c.src === 'launch' && c.sec === 1).length; o.eff = '';
+    two[0].dead = true; W.onDead(two[0], null); o.afterOne = cuts(); two[1].dead = true; W.onDead(two[1], null); o.afterBoth = cuts();
+    Z.cp.openMap(); Z.cp.select('gate'); const names = [...document.querySelectorAll('#zcamp .zcpmods li b')].map(b => b.textContent); Z.cp.closeMap(); o.names = names.join(' | '); return o; });
+  ok(LS.feat === 1 && LS.n === 2 && LS.ids === 'missile,tot,boss5,raid,big' && LS.per === '2,2,1' && LS.afterOne === 0 && LS.afterBoth === 1, `Enemy launch sites (Launch Complex): the sorties flag is set, the sector's modifiers are ${LS.ids} (one Heavy pressure, no fallback), launch sites per sector ${LS.per}; the first site of a doubled sector cuts nothing (${LS.afterOne}), the second does (${LS.afterBoth})`);
+  ok((LS.names.match(/Heavy pressure/g) || []).length === 1 && /Enemy launch sites/.test(LS.names), `Enemy launch sites: the briefing lists it once, and Heavy pressure once ("${LS.names}")`);
+
+  // ---- a campaign sector after it is a plain campaign sector ----
+  const PL = await p.evaluate(() => { const {Z, G, api, KIND} = __z; Z.cp.start('mill', true); const r = {en: Z.endless.on(), obj: Z.cp.run?.obj, hud: (Z.hud(0), document.getElementById('zw').textContent), strip: document.querySelector('#zbase .zcpbar')?.textContent || '', b: __z.plan(60).list.filter(k => KIND[k.split(':')[0]].armor === 'boss').length};
+    G.wave = 59; r.dk = Z.dmgK(api.SITES[0], {id: -1, k: 'shahed'}); G.wave = 0; api.startDemo(); r.after = Z.endless.on(); return r; });
+  ok(!PL.en && PL.obj === 8 && PL.hud === 'WAVE 1/8 NEXT' && /Hold 8 waves/.test(PL.strip) && PL.b === 1 && PL.dk === 1 && !PL.after, 'Old Mill afterwards is the plain campaign sector: 8 waves, no climb (one boss on wave 60, a hit counts x1), and leaving it turns Endless off');
+
+  // ---- the bots can play it (the bench hook), and it is off by default ----
+  const BH = (await import('node:fs')).readFileSync(new URL('./zombies-bench.mjs', import.meta.url), 'utf8');
+  ok(/'--endless'/.test(BH) && /!ENDLESS/.test(BH) && /Z\.endless\.start\(id\)/.test(BH) && /ENDLESS \? campDone/.test(BH), 'Bench hook: tools/zombies-bench.mjs --endless [sector] plays Endless on a finished campaign, never writes zbench.json, and is off unless asked for');
+
+  // ---- nothing leaks: restarts, redraws and the menu button add no objects, nodes, listeners or wrappers ----
+  await defs();
+  const LK = await p.evaluate(() => { const {Z, G, api} = __z, m = () => { const i = api.renderer.info.memory; return [i.geometries, i.textures, api.renderer.info.programs.length].join(); }, o = {}, hooks = () => [Z.cpCompose, Z.en.dress, Z.dmgK, Z.step, Z.cpOver, Z.cpHTML, Z.waveTxt, Z.syncMode, Z.continue];
+    Z.endless.start('gate'); __z.cont(); __add(3); __clear(); __z.sim(.5); __z.sim(3.5); const fns = hooks(); o.m0 = m();
+    for (let i = 0; i < 4; i++) { Z.endless.start(i % 2 ? 'gate' : 'river'); __z.cont(); __add(3); __clear(); __z.sim(.5); __z.sim(3.5); } for (let i = 0; i < 20; i++) Z.syncMode();
+    o.same = hooks().every((f, i) => f === fns[i]); o.m1 = m(); o.th = api.TH.length; api.startDemo(); o.boards = document.querySelectorAll('#zendboard').length; o.btns = document.querySelectorAll('#zendgo').length;
+    let n = 0; const sm = api.startMatch; api.startMatch = () => { n++; return sm(); }; document.getElementById('zendgo').click(); api.startMatch = sm; o.starts = n; o.run = Z.cp.run?.endless; return o; });
+  ok(LK.same && LK.boards === 1 && LK.btns === 1 && LK.starts === 1 && LK.run, `Leaks: the hooks are wrapped once, the menu has one Endless table and one button after 20 redraws, and one click starts one run (${LK.starts})`);
+  ok(LK.m0 === LK.m1 && LK.th === 0, `Leaks: five Endless starts, wave clears and quits add no GPU geometries, textures or programs (${LK.m0} -> ${LK.m1}) and leave no tracks behind (${LK.th})`);
+
+  // ---- corrupt Endless records: every one loads, shows the table and plays ----
+  const bad = [];
+  for (const junk of ['x', 7, {v: 1, runs: [{d: 9, w: -1}, {d: 1, w: 5, sec: '__proto__'}, null, 3, {d: 1, w: 7, sec: 'gate', ms: 'a', t: 'b'}], ms: 'a', sec: 'nope'}]) {
+    const n0 = errs.length; await boot(DONE, junk);
+    const r = await p.evaluate(() => { try { const Z = __z.Z, e = Z.endless.state(); const b = document.getElementById('zendboard').textContent; const st = Z.endless.start('gate'); if (__z.G.on) { __z.cont(); __z.sim(2); } return {e, st, b}; } catch (e) { return {err: String(e)}; } });
+    if (errs.length > n0 || !r || r.err || !r.st || r.e.v !== 1 || !Array.isArray(r.e.runs) || r.e.runs.length > 10 || !r.e.runs.every(x => Number.isInteger(x.w) && x.w > 0 && x.d >= 0 && x.d < 4 && typeof x.sec === 'string')) bad.push(JSON.stringify(junk).slice(0, 80) + ' ' + (r?.err || ''));
+  }
+  ok(!bad.length, 'Corrupt Endless records: every one loads, the menu shows the table and a run plays' + (bad.length ? '\n  ' + bad.join('\n  ') + '\n  ' + errs.slice(0, 3).join('\n  ') : ''));
+  const fz = await p.evaluate(() => { const {Z} = __z, E = Z.endless, ids = ['gate', 'mill', 'x', '', null, 3, 'toString', '__proto__'], fv = () => { const a = [...ids, 1, 4, -1, 0, 1.5, 1e9, true, {}, [], 'a']; return Math.random() < .1 ? undefined : a[Math.random() * a.length | 0]; },
+      pv = () => { const r = Math.random(); return r < .5 ? fv() : r < .85 ? Array.from({length: Math.random() * 14 | 0}, () => Math.random() < .1 ? fv() : ({d: fv(), w: fv(), sec: fv(), ms: fv(), t: fv()})) : undefined; };
+    let badN = 0; for (let i = 0; i < 400; i++) { const j = {v: Math.random() < .85 ? 1 : pv(), runs: pv(), ms: pv(), sec: pv()}; try { const c = E.cleanEnd(j);
+        const okc = c.v === 1 && c.runs.length <= 10 && c.runs.every((r, k) => Number.isInteger(r.d) && r.d >= 0 && r.d < 4 && Number.isInteger(r.w) && r.w >= 1 && r.w <= 9999 && ids.includes(r.sec) && r.sec && Number.isInteger(r.ms) && (!k || c.runs[k - 1].w >= r.w)) && Number.isInteger(c.ms) && typeof c.sec === 'string' && c.sec;
+        if (!okc) badN++; } catch (e) { badN++; } } return badN; });
+  ok(fz === 0, `Endless validator: 400 random records all clean to a well-formed one (${fz} bad)`);
+  ok(!errs.length, 'Endless: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.evaluate(() => localStorage.removeItem('dl-interceptor'));
   await p.close();
 }
 
