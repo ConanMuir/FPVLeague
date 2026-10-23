@@ -1,19 +1,26 @@
 // QA sweep: plays every mode of both games headless with scripted inputs and checks what no single feature test looks at.
-//   node tools/qa-sweep.mjs [--fast] [--sections=league-tour,league-resize,...] [--shots DIR] [--list]
+//   node tools/qa-sweep.mjs [--fast] [--area=league|interceptor] [--sections=league-tour,zombies-cycles,...] [--shots DIR] [--list]
+//                           [--cycle=text] [--settle=ms]   (cycle: run only the leak tests whose name has the text, 12 cycles; settle: wait after each cycle)
+// Sections (--list): league-* and zombies-* (tour, resize, saves, flow / content, cycles, monkey, input, display, ...); each belongs to a CI area
+// (tools/ci-scope.mjs: league = Drone League, interceptor = Zombies), and is in the fast pass or only in the full run.
 // Probes (the same ones for both games, each against the games' own test hooks: window.__dl.dbg() in Drone League, window.__z in Zombies):
 //   errors   page errors, console errors AND warnings, failed requests, crashes: anything the console says counts
 //   NaN      a deep scan of the live game state (every number reachable from the hooks) and of the DOM text (NaN / Infinity / undefined / [object Object])
 //   stuck    the sim must make progress: positions move, the clock runs, a kickoff or a goal wait ends, a pause really freezes it
 //   layout   per screen and viewport: [hidden] elements still shown, controls outside the viewport, covered by another element, overlapping,
 //            clipped text; keyboard: Tab never leaves the open screen, Escape closes it and focus lands on something visible
-//   leaks    start / stop cycles: scene children, live WebGL objects, audio nodes, event listeners, DOM nodes and the JS heap must not grow
-//   saves    older and broken settings / saves load, migrate and play
-// --fast runs a short pass of every probe (CI); without it the sections run longer and at more viewports / cycles.
+//   leaks    start / stop cycles: scene children, geometries, textures, live WebGL objects, event listeners, DOM nodes and the JS heap must not grow
+//            (a cycle's timers get a settle time first: the HUD feed keeps a removed message 4.5 s, and a detached node is not a leaked one)
+//   saves    older and broken settings / saves load, migrate and play (every key set to junk, delta-debugged to the keys that break it)
+//   hardware gamepads that report NaN / nothing, tiny windows, 2x and 3x pixel ratios, no network; and a seeded random player (the monkey)
+// --fast runs a short pass of the probes (CI: the last two matrix entries, one per area); without it the sections run longer, with more
+// viewports, cycles, junk values and monkey seeds. The viewports include a portrait phone for the League; the Zombies HUD is landscape only.
 // A probe that finds something prints "FAIL ..." and the tool exits 1; "note" lines are things worth a look that are not wrong by themselves.
 // Needs `npm run build` first for the League sections (they load games/drone-league/index.html). Headless only, like every tool here.
+// Not judged here: the GPU buffer / VAO counts (they follow the League's 24-loadout parts cache) and "still playing" audio (a headless audio clock barely moves).
 import fs from 'node:fs';
 import path from 'node:path';
-import {serve, launch, open, sleep, frames, until, drawFrames, newWindow, root} from './zlib.mjs';
+import {serve, launch, open, sleep, frames, until, drawFrames, newWindow} from './zlib.mjs';
 
 const argv = process.argv.slice(2), FAST = argv.includes('--fast'), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
 const SECTIONS = argv.find(a => a.startsWith('--sections='))?.slice(11).split(','), AREA = argv.find(a => a.startsWith('--area='))?.slice(7);  /* league | interceptor */
@@ -141,7 +148,6 @@ const counters = async (S, extra) => {  /* the leak metrics of one page; extra: 
   const d = await S.cdp.send('Memory.getDOMCounters'), m = await S.cdp.send('Runtime.getHeapUsage'), c = await S.p.evaluate(() => JSON.parse(JSON.stringify(window.__qa.c)));
   return {listeners: d.jsEventListeners, nodes: d.nodes, heapMB: +(m.usedSize / 1048576).toFixed(1), ...Object.fromEntries(Object.entries(c.gl).map(([k, v]) => ['gl' + k, v])), actx: c.au.ctx, anodes: c.au.nodes, started: c.au.started, ...(extra ? await S.p.evaluate(extra) : {})};
 };
-const sleepFrames = (p, n) => frames(p, n);
 
 const R = {};  /* sections, in run order */
 const section = (name, f, {fast = true} = {}) => { R[name] = {f, fast, area: name.startsWith('zombies-') ? 'interceptor' : 'league'}; };  /* area: the CI areas of tools/ci-scope.mjs */
@@ -845,7 +851,7 @@ section('zombies-saves', async browser => {
 /* ---------- monkey: a seeded random player (clicks on what is visible, keys, select / slider changes, resizes), then everything is checked ---------- */
 const rng = seed => () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const MKEYS = ['Escape', 'Enter', 'Tab', 'Space', 'KeyP', 'KeyT', 'KeyC', 'KeyM', 'KeyR', 'KeyO', 'KeyF', 'KeyG', 'KeyH', 'KeyL', 'KeyN', 'KeyV', 'KeyE', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Backspace', 'Digit1', 'Digit2', 'Digit3', 'BracketRight', 'BracketLeft', 'ShiftLeft'];
-const NAV = '#icClassic, #icZombies, #dlback, #f_arena, a[href], [onclick*="location"]';  /* these leave or reload the page (the arena size reloads it by design: the geometry is built at load) */
+const NAV = '#m_intercept, #icClassic, #icZombies, #dlback, #f_arena, a[href], [onclick*="location"]';  /* these leave or reload the page (the arena size reloads it by design: the geometry is built at load) */
 /* n random actions on page S.p; ok() findings are made by the caller (errors drain, NaN scan, a still-answering page) */
 async function monkey(S, seed, n, {views = VIEWS, quit = []} = {}) {
   const {p} = S, R = rng(seed), pick = a => a[R() * a.length | 0], log2 = []; let acts = 0;
