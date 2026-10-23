@@ -1,5 +1,6 @@
 // QA sweep: plays every mode of both games headless with scripted inputs and checks what no single feature test looks at.
-//   node tools/qa-sweep.mjs [--fast] [--area=league|interceptor] [--sections=league-tour,zombies-cycles,...] [--shots DIR] [--list]
+//   node tools/qa-sweep.mjs [--fast] [--area=league|interceptor] [--part=N] [--sections=league-tour,zombies-cycles,...] [--shots DIR] [--list]
+//                           (--part: CI runs the League fast pass as two parts and the Zombies one as four, so each job fits its time limit on a slow runner)
 //                           [--cycle=text] [--settle=ms]   (cycle: run only the leak tests whose name has the text, 12 cycles; settle: wait after each cycle)
 // Sections (--list): league-* and zombies-* (tour, resize, saves, flow / content, cycles, monkey, input, display, ...); each belongs to a CI area
 // (tools/ci-scope.mjs: league = Drone League, interceptor = Zombies), and is in the fast pass or only in the full run.
@@ -13,7 +14,7 @@
 //            (a cycle's timers get a settle time first: the HUD feed keeps a removed message 4.5 s, and a detached node is not a leaked one)
 //   saves    older and broken settings / saves load, migrate and play (every key set to junk, delta-debugged to the keys that break it)
 //   hardware gamepads that report NaN / nothing, tiny windows, 2x and 3x pixel ratios, no network; and a seeded random player (the monkey)
-// --fast runs a short pass of the probes (CI: the last two matrix entries, one per area); without it the sections run longer, with more
+// --fast runs a short pass of the probes (CI: the last matrix entries, the League pass in two parts and the Zombies pass in four); without it the sections run longer, with more
 // viewports, cycles, junk values and monkey seeds. The viewports include a portrait phone for the League; the Zombies HUD is landscape only.
 // A probe that finds something prints "FAIL ..." and the tool exits 1; "note" lines are things worth a look that are not wrong by themselves.
 // Needs `npm run build` first for the League sections (they load games/drone-league/index.html). Headless only, like every tool here.
@@ -21,12 +22,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {serve, launch, open, sleep, frames, until, drawFrames, newWindow} from './zlib.mjs';
+import {NO_RENDER, SOFTWARE_GL} from './browser.mjs';
 
 const argv = process.argv.slice(2), FAST = argv.includes('--fast'), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
 const SECTIONS = argv.find(a => a.startsWith('--sections='))?.slice(11).split(','), AREA = argv.find(a => a.startsWith('--area='))?.slice(7);  /* league | interceptor */
 const VIEWS = FAST ? [[1280, 720], [900, 420]] : [[1280, 720], [1920, 1080], [3440, 1440], [900, 420], [800, 450], [390, 844]];
 const ZVIEWS = VIEWS.filter(v => v[0] >= v[1]);  /* the arcade game's HUD is laid out for landscape; a portrait phone is outside what it was made for (see the report) */
 let fails = 0;
+const LEAN = FAST && (NO_RENDER || SOFTWARE_GL);  /* a slow runner (CI: software GL, draw calls skipped) gets a leaner fast pass: fewer cycles, junk values and boots, so each job fits its time limit */
 const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fails++; return c; };
 const note = msg => console.log('note ' + msg);
 const T0 = Date.now(), log = m => console.log(`[${((Date.now() - T0) / 1000).toFixed(0).padStart(4)} s] ${m}`);
@@ -379,7 +382,7 @@ section('league-saves', async browser => {
   const keys = await S0.p.evaluate(() => Object.keys(window.__dl.dbg().S)); await S0.p.close();
   log(`league-saves: ${keys.length} settings keys`);
   /* a hostile save: every key set to the same odd value at once; on a failure, delta-debug down to the keys that matter */
-  for (const j of FAST ? [null, 'x', -1, [], {}] : JUNK) {
+  for (const j of FAST ? (LEAN ? ['x', []] : [null, 'x', -1, [], {}]) : JUNK) {
     const save = ks => JSON.stringify(Object.fromEntries(ks.map(k => [k, j])));
     const r = await boot(save(keys));
     if (!bad(r)) { ok(true, `save with every key = ${JSON.stringify(j)}: boots and plays`); continue; }
@@ -394,7 +397,7 @@ section('league-saves', async browser => {
   }
   /* the settings that cannot be read or written at all (private browsing, blocked storage, a full quota) */
   for (const [name, pre] of [['getItem throws', () => { Storage.prototype.getItem = () => { throw new Error('blocked'); }; }], ['setItem throws', () => { Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); }; }],
-    ['localStorage is gone', () => { Object.defineProperty(window, 'localStorage', {get() { throw new DOMException('denied', 'SecurityError'); }}); }]]) {
+    ['localStorage is gone', () => { Object.defineProperty(window, 'localStorage', {get() { throw new DOMException('denied', 'SecurityError'); }}); }]].slice(LEAN ? 1 : 0, LEAN ? 2 : 3)) {
     const S = await session(await B(), SAVE_URL(), {pre}).catch(e => ({fail: e}));
     if (S.fail) { ok(false, `storage ${name}: page did not load`); continue; }
     await S.p.goto(origin + LEAGUE, {waitUntil: 'load'}); const up = await dlReady(S.p).then(() => true, () => false);
@@ -403,7 +406,7 @@ section('league-saves', async browser => {
   }
   /* the version history: a save from every physics version (old defaults that must move, values the pilot changed that must stay) */
   const OLD = [{}, {thr: 124, maxv: 111, dl: .14, dq: .0065, spool: 30}, {dbounce: .2, wash: 1, boost: 140, bgrav: 5}, {bgrav: 19.5, bbounce: .68, bmax: 85, bmass: .7, size: .75}, {gfric: .1}];
-  for (let v = 0; v <= 5; v++) {
+  for (const v of LEAN ? [0, 3, 5] : [0, 1, 2, 3, 4, 5]) {
     const mod = Object.assign({}, ...OLD.slice(0, Math.max(1, v)), {grav: 31}), r = await boot(JSON.stringify({...(v ? {physV: v} : {}), mod, size: 2, len: 120, name: 'Old v' + v}), {play: false});
     const S = await session(await B(), SAVE_URL()); await S.p.evaluate(s => localStorage.setItem('droneleague', s), JSON.stringify({...(v ? {physV: v} : {}), mod, name: 'Old v' + v})); await S.p.goto(origin + LEAGUE); await dlReady(S.p);
     const got = await S.p.evaluate(() => { const s = window.__dl.dbg().S; return {physV: s.physV, grav: s.mod.grav, name: s.name}; });
@@ -557,7 +560,7 @@ section('league-cycles', async browser => {
   const S = await session(browser, origin + LEAGUE); const {p} = S; await dlReady(p);
   /* the idle-time warm-up (render/warm.js: Garage, Highlands, shaders) uploads buffers and compiles programs for a while after boot: let it finish first */
   ok(await until(async () => !(await dbg(p, D => D.warmLeft().length)), {timeout: 120000, every: 500}), 'the idle warm-up queue empties while the menu demo runs');
-  const N = FAST ? 3 : 6, back = async () => { await key(p, 'Escape'); await click(p, '#leave'); await until(async () => (await snap(p)).demo, {timeout: 20000}); };
+  const N = FAST ? (LEAN ? 2 : 3) : 6, back = async () => { await key(p, 'Escape'); await click(p, '#leave'); await until(async () => (await snap(p)).demo, {timeout: 20000}); };
   for (const m of ['league', 'free', 'df']) {
     await click(p, '#m_' + m); await back().catch(() => {});
     await cycles(S, `League ${m} start / leave`, async () => { await click(p, '#play'); await playing(p, 30000); await hurry(p); await fly(p, 700); if (m === 'df') { await p.mouse.move(640, 360); await p.mouse.down(); await sleep(400); await p.mouse.up(); } await back(); }, N, leagueExtra);
@@ -693,10 +696,10 @@ section('zombies-content', async browser => {
   const kinds = await p.evaluate(() => Object.keys(window.__z.KIND));
   log(`zombies-content: ${kinds.length} enemy kinds, ${(await p.evaluate(() => Object.keys(window.__z.ITEMS).length))} shop items`);
   for (const k of kinds) await attempt(`enemy kind ${k}`, async () => {
-    await zclear(p); const r = await p.evaluate(k => { const z = window.__z, t = z.make(k, 0, -3500); if (!t) return {none: true}; z.sim(8); return {live: z.api.live(t), p: t.p.toArray(), n: z.api.TH.length}; }, k);
+    await zclear(p); const r = await p.evaluate((k, secs) => { const z = window.__z, t = z.make(k, 0, -3500); if (!t) return {none: true}; z.sim(secs); return {live: z.api.live(t), p: t.p.toArray(), n: z.api.TH.length}; }, k, LEAN ? 5 : 8);
     if (r.none) { note(`enemy kind ${k}: make() gave nothing`); return; }
     await frames(p, 2); await drawFrames(p, 1);
-    const bad = await p.evaluate(() => window.__qa.nan(window.__z.api.TH).bad); ok(!bad.length && r.p.every(Number.isFinite), `enemy kind ${k}: flew 8 s, drawn, finite (${r.live ? 'still flying' : 'gone'}, ${r.n} track(s))${bad.length ? ' ' + bad.join(' ') : ''}`);
+    const bad = await p.evaluate(() => window.__qa.nan(window.__z.api.TH).bad); ok(!bad.length && r.p.every(Number.isFinite), `enemy kind ${k}: flew ${LEAN ? 5 : 8} s, drawn, finite (${r.live ? 'still flying' : 'gone'}, ${r.n} track(s))${bad.length ? ' ' + bad.join(' ') : ''}`);
   });
   await zState(S, 'Zombies after every enemy kind'); drain(S, 'Zombies enemy kinds');
   /* every shop item: bought through the buttons (a placement taken when asked), then a wave with the pilot */
@@ -711,7 +714,7 @@ section('zombies-content', async browser => {
   await zState(S, 'Zombies after buying everything'); drain(S, 'Zombies shop');
   await layout(S, 'Zombies base with everything bought', '#zbase'); await shot(p, 'z-everything');
   /* waves from early to deep with everything in the field: the plan's own kinds, the pilot, the helpers and defences */
-  for (const w of FAST ? [3, 11] : [2, 6, 11, 16, 21, 26, 31]) await attempt(`wave ${w}`, async () => {
+  for (const w of FAST ? (LEAN ? [11] : [3, 11]) : [2, 6, 11, 16, 21, 26, 31]) await attempt(`wave ${w}`, async () => {
     await p.evaluate(w => { const z = window.__z; z.G.cash = Math.max(z.G.cash, 5e5); z.jump(w); z.G.next = z.plan(w); z.G.state = 'base'; z.cont(); }, w);
     const r = await p.evaluate(() => { const z = window.__z; let k = 0, kills = 0, n0 = z.api.TH.length; for (let i = 0; i < 160 && z.G.state === 'wave'; i++) { z.sim(.25); if (i % 2 && z.api.player.dead <= 0 && z.botKill(.8)) kills++; if (z.api.player.dead > 0) z.api.launch(); } return {st: z.G.state, wave: z.G.wave, kills, left: z.api.TH.filter(t => z.api.live(t)).length + z.G.wq.length}; });
     await frames(p, 2); await drawFrames(p, 2);
@@ -803,13 +806,26 @@ section('zombies-spectator', async browser => {
   drain(S, 'spectator'); await p.close();
 });
 
-/* the arcade game's own counts: scene children, geometries and textures the renderer holds */
-const zExtra = () => { const z = window.__z, i = z.api.renderer.info; return {scene: z.api.scene.children.length, geoms: i.memory.geometries, texs: i.memory.textures}; };
+/* the arcade game's own counts: scene children, objects and geometries the renderer holds. The enemies on the field (the menu demo keeps flying a wave behind the menu) are left
+   out of the scene counts: how many are in the air at the moment of counting is chance, and a page that happens to have a few more meshes is not a leak */
+const zExtra = () => { const z = window.__z, i = z.api.renderer.info; let n = 0, t = 0, top = z.api.scene.children.length; z.api.scene.traverse(() => n++);
+  for (const u of z.api.TH) if (u.mesh) { u.mesh.traverse(() => t++); if (u.mesh.parent === z.api.scene) top--; }
+  return {scene: top, objs: n - t, geoms: i.memory.geometries, texs: i.memory.textures}; };
+/* one of every enemy kind flown in front of the camera and drawn, then removed: the kinds' geometry is built the first time one is seen, and which kinds a wave or the demo
+   happens to bring is random, so the first appearances belong before the counting starts, not in the middle of it */
+async function zprime(S) {
+  const {p} = S, kinds = await p.evaluate(() => Object.keys(window.__z.KIND));
+  for (const k of kinds) await attempt(`prime ${k}`, async () => {
+    await p.evaluate(k => { const z = window.__z, c = z.api.camera, f = new z.api.THREE.Vector3(0, 0, -1).applyQuaternion(c.quaternion), t = z.make(k, c.position.x + f.x * 140, c.position.z + f.z * 140); if (t) { t.p.y = c.position.y + f.y * 140; t.mesh.position.copy(t.p); t.mesh.visible = true; } }, k);
+    await frames(p, 2); await zclear(p);
+  });
+}
 section('zombies-cycles', async browser => {
-  const S = await zsession(browser); const {p} = S; if (!ok(S.up, 'Zombies boots (cycles)')) { await p.close(); return; }
-  const N = FAST ? 3 : 6, back = async () => { await key(p, 'Escape'); await click(p, '#leave'); await until(async () => (await zst(p)).demo, {timeout: 20000}); };
-  ok(await until(async () => (await p.evaluate(() => window.__z.warm?.left?.() ?? 0)) === 0, {timeout: 60000, every: 500}) || true, 'idle warm-up settled (or not exposed)');
-  await sleep(FAST ? 4000 : 10000);  /* the idle-time warm-up (engine/warm.js, zwarm.js) compiles and uploads for a while after boot */
+  const S = await zsession(browser, {save: {zwx: 'menu'}}); const {p} = S; if (!ok(S.up, 'Zombies boots (cycles)')) { await p.close(); return; }  /* zwx menu: the menu's weather, not a new random forecast per game (each weather builds its own effects the first time it shows up) */
+  const N = FAST ? (LEAN ? 2 : 3) : 6, back = async () => { await key(p, 'Escape'); await click(p, '#leave'); await until(async () => (await zst(p)).demo, {timeout: 20000}); };
+  /* the idle-time warm-up (zwarm.js: bosses, effects, textures, programs; the living map's and the codex's builds) uploads geometry for a while after boot, and a slow
+     machine finishes it in the middle of the first cycles, which reads as growth: wait for it (Z.warmSt.done) before counting anything */
+  const warmed = await until(async () => p.evaluate(() => !window.__z.Z.warmSt || window.__z.Z.warmSt.done), {timeout: 240000, every: 500}); ok(warmed, 'the idle warm-up finishes while the menu demo runs'); await zprime(S);
   await cycles(S, 'Zombies quick defence start / quit', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.G.cash = 5000; z.Z.base.setTab('shop'); const i = z.G.cards.findIndex(c => c.k === 'rack'); document.querySelector(`#zbase [data-buy="${i}"]`)?.click(); document.querySelector('[data-slot]')?.click(); z.cont(); z.sim(8); }); await frames(p, 3); await back(); }, N, zExtra, 5500);
   await cycles(S, 'Zombies game over / play again', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.cont(); z.sim(3); z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500);
   await cycles(S, 'Zombies campaign sector', async () => { await p.evaluate(() => { window.__z.Z.cp.openMap(); window.__z.Z.cp.select('mill'); }); await click(p, '#zcpgo'); await p.waitForFunction(() => window.__z.G.state === 'base' && !!window.__z.Z.cp.run, {timeout: 30000}); await p.evaluate(() => { window.__z.cont(); window.__z.sim(5); window.__z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500);
@@ -823,7 +839,8 @@ section('zombies-coop', async browser => {
     await S.p.goto(URLC, {waitUntil: 'load'}); S.up = await S.p.waitForFunction(() => window.__z?.net, {timeout: 120000}).then(() => true, () => false); await S.p.$eval('#zname', (e, n) => { e.value = n; }, name).catch(() => {}); S.name = name; return S; };
   const H = await mk('Hosty'), C = await mk('Cleo'); if (!ok(H.up && C.up, 'co-op: both pages boot')) { await H.p.close(); await C.p.close(); return; }
   const wait = (S, f, ms = 60000) => S.p.waitForFunction(f, {timeout: ms, polling: 50}).then(() => true, () => false), tap = (S, sel) => S.p.evaluate(sel => document.querySelector(sel)?.click(), sel);
-  const N = FAST ? 2 : 4;
+  for (const S of [H, C]) { ok(await wait(S, () => !window.__z.Z.warmSt || window.__z.Z.warmSt.done, 240000), `co-op ${S.name}: the idle warm-up finishes before anything is counted`); await zprime(S); }
+  const N = +(argv.find(a => a.startsWith('--rounds='))?.slice(9) || 0) || (FAST ? 2 : 4);  /* --rounds=N: more join / leave rounds, to see whether a count settles or keeps growing */
   async function round(i) {
     await tap(H, '#zhost'); ok(await wait(H, () => window.__z.G.on && window.__z.G.state === 'base' && window.__z.net.n?.code), `co-op ${i}: the host starts a game`);
     const code = await H.p.evaluate(() => window.__z.net.n.code); await C.p.$eval('#zcode', (e, c) => { e.value = c; }, code); await tap(C, '#zjoin');
@@ -849,7 +866,7 @@ section('zombies-saves', async browser => {
       if (S.up) { await click(S.p, '#play'); await S.p.evaluate(() => { const z = window.__z; if (z.G.on && z.G.state === 'base') z.cont(); z.sim(5); }); await frames(S.p, 3); }
       const nan = S.up ? await S.p.evaluate(() => [...window.__qa.nan(window.__z.G).bad, ...window.__qa.nan(window.__z.api.S).bad]) : [], r = {up: S.up, errs: [...S.errs], nan}; await S.p.close(); return r; } catch (e) { return {up: false, errs: [], nan: [], crash: e.message.split('\n')[0]}; } };
   const badZ = r => !r.up || r.errs.length || r.nan.length, whyZ = r => r.crash ? 'crashed: ' + r.crash : !r.up ? 'the page never came up' + (r.errs.length ? ' (' + r.errs.slice(0, 2).join(' | ') + ')' : '') : r.nan.length ? 'NaN: ' + r.nan.slice(0, 3).join(' ') : r.errs.slice(0, 2).join(' | ');
-  for (const j of FAST ? [null, 'x', -1, [], {}] : JUNK) {
+  for (const j of FAST ? (LEAN ? ['x', []] : [null, 'x', -1, [], {}]) : JUNK) {
     const save = ks => JSON.stringify({gmode: 'z', ...Object.fromEntries(ks.map(k => [k, j]))}), r = await tryBoot(save(keys));
     if (!badZ(r)) { ok(true, `Zombies save with every key = ${JSON.stringify(j)}: boots and plays`); continue; }
     let rest = keys.slice(), culprits = [];
@@ -860,10 +877,10 @@ section('zombies-saves', async browser => {
   }
   /* the pilot's controls are shared with the League (its key, 'droneleague'): junk there, and junk in the game's own save, while the other exists */
   const PILOT = ['mode', 'tilt', 'fov', 'thrMode', 'dz', 'cal', 'xcal', 'fireBtn', 'xfire', 'fireInv', 'xflip', 'flipBtn', 'rprof', 'rpi', 'xboost', 'boostBtn'];
-  for (const j of FAST ? [null, 'x', [], {}] : JUNK) { const r = await tryBoot(null, null, JSON.stringify(Object.fromEntries(PILOT.map(k => [k, j])))); ok(!badZ(r), `Zombies with the League's pilot profile all = ${JSON.stringify(j)}: boots and plays${badZ(r) ? ': ' + whyZ(r) : ''}`); }
-  for (const [name, raw] of [['a number', '5'], ['text', '"hi"'], ['a list', '[1,2]'], ['null', 'null']]) { const r = await tryBoot(raw, null, JSON.stringify({fireBtn: 3, xfire: 2})); ok(!badZ(r), `Zombies save that is ${name}, with a League profile present: boots and plays${badZ(r) ? ': ' + whyZ(r) : ''}`); }
-  for (const [name, raw] of [['empty text', ''], ['not JSON', '{oops'], ['null', 'null'], ['an array', '[1,2]'], ['a number', '5'], ['a long string', JSON.stringify('x'.repeat(100000))]]) { const r = await tryBoot(raw); ok(!badZ(r), `Zombies save that is ${name}: boots and plays${badZ(r) ? ': ' + whyZ(r) : ''}`); }
-  for (const [name, pre] of [['getItem throws', () => { Storage.prototype.getItem = () => { throw new Error('blocked'); }; }], ['setItem throws', () => { Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); }; }]]) { const r = await tryBoot(null, pre); ok(!badZ(r), `Zombies with storage that ${name}: boots and plays${badZ(r) ? ': ' + whyZ(r) : ''}`); }
+  for (const j of FAST ? (LEAN ? ['x'] : [null, 'x', [], {}]) : JUNK) { const r = await tryBoot(null, null, JSON.stringify(Object.fromEntries(PILOT.map(k => [k, j])))); ok(!badZ(r), `Zombies with the League's pilot profile all = ${JSON.stringify(j)}: boots and plays${badZ(r) ? ': ' + whyZ(r) : ''}`); }
+  for (const [name, raw] of LEAN ? [['a number', '5']] : [['a number', '5'], ['text', '"hi"'], ['a list', '[1,2]'], ['null', 'null']]) { const r = await tryBoot(raw, null, JSON.stringify({fireBtn: 3, xfire: 2})); ok(!badZ(r), `Zombies save that is ${name}, with a League profile present: boots and plays${badZ(r) ? ': ' + whyZ(r) : ''}`); }
+  for (const [name, raw] of LEAN ? [['not JSON', '{oops']] : [['empty text', ''], ['not JSON', '{oops'], ['null', 'null'], ['an array', '[1,2]'], ['a number', '5'], ['a long string', JSON.stringify('x'.repeat(100000))]]) { const r = await tryBoot(raw); ok(!badZ(r), `Zombies save that is ${name}: boots and plays${badZ(r) ? ': ' + whyZ(r) : ''}`); }
+  for (const [name, pre] of [['getItem throws', () => { Storage.prototype.getItem = () => { throw new Error('blocked'); }; }], ['setItem throws', () => { Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); }; }]].slice(LEAN ? 1 : 0)) { const r = await tryBoot(null, pre); ok(!badZ(r), `Zombies with storage that ${name}: boots and plays${badZ(r) ? ': ' + whyZ(r) : ''}`); }
 }, {fast: true});
 
 /* ---------- monkey: a seeded random player (clicks on what is visible, keys, select / slider changes, resizes), then everything is checked ---------- */
@@ -900,7 +917,7 @@ async function monkey(S, seed, n, {views = VIEWS, quit = []} = {}) {
 section('league-monkey', async browser => {
   for (const seed of FAST ? [7] : [7, 21, 42]) {
     const S = await session(browser, origin + LEAGUE); const {p} = S; await dlReady(p);
-    const r = await monkey(S, seed, FAST ? 120 : 400);
+    const r = await monkey(S, seed, FAST ? (LEAN ? 70 : 120) : 400);
     await p.setViewport({width: 1280, height: 720}); await frames(p, 4);
     const alive = await p.evaluate(() => new Promise(res => { const t = setTimeout(() => res(false), 5000); requestAnimationFrame(() => { clearTimeout(t); res(true); }); }));
     ok(alive, `league monkey seed ${seed}: ${r.acts} random actions, the page still draws frames`);
@@ -917,7 +934,7 @@ section('zombies-monkey', async browser => {
     const S = await zsession(browser); const {p} = S; if (!ok(S.up, `Zombies boots (monkey ${seed})`)) { await p.close(); continue; }
     await p.evaluate(() => { window.__z.api.S.zdiff = 1; });
     if (seed % 2) { if (await zplay(S, `zombies monkey seed ${seed}`)) { await p.evaluate(() => { window.__z.G.cash = 4000; }); await zpilot(p); } }  /* odd seeds start in a game (the base screen, the shop and the waves are where most of the buttons are) */
-    const r = await monkey(S, seed, FAST ? 120 : 400, {views: ZVIEWS});
+    const r = await monkey(S, seed, FAST ? (LEAN ? 70 : 120) : 400, {views: ZVIEWS});
     await p.setViewport({width: 1280, height: 720}); await frames(p, 4);
     const alive = await p.evaluate(() => new Promise(res => { const t = setTimeout(() => res(false), 5000); requestAnimationFrame(() => { clearTimeout(t); res(true); }); }));
     ok(alive, `zombies monkey seed ${seed}: ${r.acts} random actions, the page still draws frames`);
@@ -1003,11 +1020,11 @@ section('zombies-display', async browser => {
   const S = await zsession(browser); const {p} = S; if (!ok(S.up, 'Zombies boots (display)') || !await zplay(S, 'Zombies display')) { await p.close(); return; }
   await p.evaluate(() => { window.__z.G.cash = 3000; window.__z.cont(); }); await p.waitForFunction(() => window.__z.G.state === 'wave', {timeout: 10000});
   const buf = () => p.evaluate(() => { const g = document.querySelector('canvas'), gl = g.getContext('webgl2') || g.getContext('webgl'); return {w: g.width, h: g.height, max: gl ? gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) : 0, iw: innerWidth}; });
-  for (const [w, h, dpr] of [[1280, 720, 1], [1280, 720, 2], [1920, 1080, 3], [3440, 1440, 2], [1280, 720, 1]]) {
+  for (const [w, h, dpr] of LEAN ? [[1280, 720, 1], [1920, 1080, 3], [1280, 720, 1]] : [[1280, 720, 1], [1280, 720, 2], [1920, 1080, 3], [3440, 1440, 2], [1280, 720, 1]]) {
     await p.setViewport({width: w, height: h, deviceScaleFactor: dpr}); await frames(p, 5); await drawFrames(p, 2); const b = await buf();
     ok(b.w > 0 && b.h > 0 && b.w <= b.max && b.h <= b.max, `Zombies display ${w}x${h} @${dpr}x: the drawing buffer ${b.w}x${b.h} is inside the GPU's limit (${b.max})`); drain(S, `Zombies display ${w}x${h}@${dpr}`);
   }
-  for (const [w, h] of [[320, 200], [120, 80], [50, 50], [1280, 720]]) { await p.setViewport({width: w, height: h}); await frames(p, 4); await sleep(300); await p.evaluate(() => window.__z.sim(1)); drain(S, `Zombies display ${w}x${h}`); }
+  for (const [w, h] of LEAN ? [[120, 80], [1280, 720]] : [[320, 200], [120, 80], [50, 50], [1280, 720]]) { await p.setViewport({width: w, height: h}); await frames(p, 4); await sleep(300); await p.evaluate(() => window.__z.sim(1)); drain(S, `Zombies display ${w}x${h}`); }
   await frames(p, 6); const b = await buf(); ok(b.w > 0 && b.iw === 1280, 'Zombies display: back at 1280x720 the canvas is whole again'); await inView(S, 'Zombies HUD after tiny windows', ZHUD);
   await zState(S, 'Zombies display after tiny windows'); drain(S, 'Zombies display'); await p.close();
 }, {fast: true});
@@ -1016,13 +1033,16 @@ section('zombies-display', async browser => {
 const {server, origin} = await serve();
 let browser = await launch();
 async function B() { if (!browser.connected) browser = await launch(); return browser; }  /* a section that crashes the browser on purpose gets a fresh one */
-if (argv.includes('--list')) { for (const [n, s] of Object.entries(R)) console.log(n.padEnd(20), s.area.padEnd(12), s.fast ? 'fast' : 'full only'); process.exit(0); }
+/* CI runs an area's fast pass in parts (--part=N) so that each job stays well inside its time limit on a slow runner; a section not listed is in part 1 */
+const PART = {'league-saves': 2, 'league-input': 2, 'league-display': 2, 'league-cycles': 2, 'league-monkey': 2, 'zombies-content': 2, 'zombies-campaign': 2, 'zombies-sortie': 2, 'zombies-spectator': 2, 'zombies-cycles': 3, 'zombies-coop': 3, 'zombies-display': 3, 'zombies-saves': 4, 'zombies-monkey': 4};
+const PART_N = +(argv.find(a => a.startsWith('--part='))?.slice(7) || 0);
+if (argv.includes('--list')) { for (const [n, s] of Object.entries(R)) console.log(n.padEnd(20), s.area.padEnd(12), ('part ' + (PART[n] || 1)).padEnd(8), s.fast ? 'fast' : 'full only'); process.exit(0); }
 const timing = [];
 for (const [name, s] of Object.entries(R)) {
-  if (SECTIONS ? !SECTIONS.includes(name) : (FAST && !s.fast) || (AREA && s.area !== AREA)) continue;
+  if (SECTIONS ? !SECTIONS.includes(name) : (FAST && !s.fast) || (AREA && s.area !== AREA) || (PART_N && (PART[name] || 1) !== PART_N)) continue;
   log('== ' + name); const t0 = Date.now();
   try { await s.f(await B()); } catch (e) { ok(false, name + ' threw: ' + (e.stack || e.message).split('\n').slice(0, 4).join(' | ')); }
-  timing.push(`${name} ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  timing.push(`${name} ${((Date.now() - t0) / 1000).toFixed(0)} s`); log(`-- ${name} took ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 }
 await browser.close().catch(() => {}); server.close();
 console.log('\ntimes: ' + timing.join(', '));
