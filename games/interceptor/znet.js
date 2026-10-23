@@ -200,7 +200,7 @@ export function initNet(api,G,Z){
    sh:SITES.map(s=>Math.ceil(s.hp)),sm:SITES.map(s=>s.max),bk:SITES.length>3?1:0,wb:[+api.WB.x.toFixed(1),+api.WB.z.toFixed(1)],T,TS,S:D.S,D:D.D,
    ev:n.evs.filter(e=>e[0]>mn).slice(-120),eid:n.eid,pk:n.perks,tp:{radar:G.perks.radar|0,aid:G.perks.aid|0},dr:n.dr,ak:n.ak,pl:rows(),nx,rj:n.rj,
    sw:Z.swSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),sl:Z.sell?.netOut(),
-    so:Z.so?.netOut?.(now)}}  // sorties: the enemy's side of the map (zsortie.js)
+    so:Z.so?.netOut?.(now),sc:Z.sc?.netOut?.(now)}}  // sorties: the enemy's side of the map (zsortie.js); the living map's scars (zscars.js)
  // roster rows [key, name, kills, ready for the next wave, joined mid-wave]; a client shows its own ready state at once
  function rows(){const n=net;if(!n)return[];const nw=G.wave+1;
   if(n.host)return[[n.me||'host',myName(),n.kc[n.me||'host']|0,n.rd===nw?1:0,0],...n.order.filter(k=>n.names[k]).map(k=>[k,n.names[k],n.kc[k]|0,n.rdv[k]===nw?1:0,n.ltv[k]|0])];
@@ -236,7 +236,7 @@ export function initNet(api,G,Z){
   perksIn(g);Z.def.netIn(null,g.D,byId);Z.swHost?.(g.sw,n.me);
   n.tm=new Map(TH.map(t=>[t.id,t]));
   if(Array.isArray(g.ev)){if(n.evSeen<0)n.evSeen=g.eid|0;for(const e of g.ev)if(Array.isArray(e)&&e[0]>n.evSeen){n.evSeen=e[0];try{event(e)}catch(err){console.warn('co-op event',err)}}}
-  tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.chain?.netIn(g.kc);Z.so?.netIn?.(g.so);
+  tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.chain?.netIn(g.kc);Z.so?.netIn?.(g.so);Z.sc?.netIn?.(g.sc);
   stateIn(g);if(net!==n)return;
   G.wq=Array.from({length:cl(g.iq|0,0,400)},()=>({k:'',at:1e9}));
   if(g.ak&&+g.ak[n.me])n.out=n.out.filter(e=>e[0]>+g.ak[n.me]);

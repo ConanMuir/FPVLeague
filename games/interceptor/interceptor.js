@@ -199,7 +199,7 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
 const OC=50,ON=Math.ceil(TW/OC),OG=new Map(),oc0=v=>Math.floor((v+TW/2)/OC);
 function oAdd(o,x,z,rad){for(let i=oc0(x-rad);i<=oc0(x+rad);i++)for(let j=oc0(z-rad);j<=oc0(z+rad);j++){let a=OG.get(i+j*ON);if(!a)OG.set(i+j*ON,a=[]);a.push(o)}}
 TREES.forEach(([x,z,h])=>{const r=h*.26;oAdd({t:1,x,z,y:gh(x,z)-.3,h,r},x,z,r*1.5)});
-HOUSES.forEach(([x,z,a])=>oAdd({x,z,y:gh(x,z)-.3,c:Math.cos(a),s:Math.sin(a)},x,z,8));
+scene.userData.hcol=HOUSES.map(([x,z,a])=>{const o={x,z,y:gh(x,z)-.3,c:Math.cos(a),s:Math.sin(a)};oAdd(o,x,z,8);return o});  /* the living map (zscars.js) lifts a destroyed house's collider away */
 function sdObs(x,y,z){const L=OG.get(oc0(x)+oc0(z)*ON);let d=1e9;if(!L)return d;
  for(const o of L){const dx=x-o.x,dy=y-o.y,dz=z-o.z;
   if(o.t){const r=o.r;if(dy>o.h+r)continue;d=Math.min(d,sdCyl(dx,dy,dz,.3,0,o.h*.5),hyp3(dx+.3*r,(dy-o.h*.55)/1.15,dz-.3*r)-r,hyp3(dx-.4*r,dy-o.h*.72,dz+.3*r)-.8*r)}

@@ -8,7 +8,8 @@
 // the ordinary unlocks (zmeta.js), picked per sector on the briefing. A fully progressed player has more choices, not a stronger base.
 //
 // Saved in the Interceptor settings as S.zcamp = {v:1, d: difficulty index (fixed for the campaign), held: [sector ids], pr: {id: pressure 1-2},
-// ls: {id: losses}, relics: [owned], eq: equipped relic id or '', res: {repair, slot}, sel: selected sector id, done: 1 once the capstone is held}.
+// ls: {id: losses}, relics: [owned], eq: equipped relic id or '', res: {repair, slot}, sel: selected sector id, done: 1 once the capstone is held,
+// sc: {sector id: the living map's scars as one compact string (craters, burns, rubble; zscars.js)}}. A new campaign starts without any.
 // Every read goes through cleanCamp, so a hand-edited, foreign or corrupt save becomes a valid campaign instead of breaking the menu.
 //
 // Hooks (small, all optional on the other side): zombies.js calls Z.dfMod (difficulty numbers), Z.cpCompose (wave roster), Z.cpWin (objective
@@ -103,8 +104,8 @@ export const GEO=(()=>{const pts=[...SECTORS.map(s=>({id:s.id,x:s.x,y:s.y})),...
 export const nbrs=id=>GEO.adj[id]||[];
 
 // ---------- save: defaults and validation ----------
-export const VER=1;
-export const fresh=(d=1)=>({v:VER,d:Number.isInteger(d)&&d>=0&&d<ZDIFF.length?d:1,held:[],pr:{},ls:{},relics:[],eq:'',res:{repair:0,slot:0},sel:'mill',done:0});
+export const VER=1,SC_MAX=3584;  /* SC_MAX: 8 characters a scar, 448 scars at most (zscars.js CAP) */
+export const fresh=(d=1)=>({v:VER,d:Number.isInteger(d)&&d>=0&&d<ZDIFF.length?d:1,held:[],pr:{},ls:{},relics:[],eq:'',res:{repair:0,slot:0},sel:'mill',done:0,sc:{}});
 const int=(v,a,b)=>Number.isInteger(v)&&v>=a&&v<=b?v:0;
 // any value in, a valid campaign out (unknown ids, wrong types and out-of-range numbers are dropped; a save from a newer version starts fresh)
 export function cleanCamp(c,d){if(!c||typeof c!=='object'||Array.isArray(c)||c.v!==VER)return fresh(d);
@@ -113,7 +114,9 @@ export function cleanCamp(c,d){if(!c||typeof c!=='object'||Array.isArray(c)||c.v
  for(const k of SEC_IDS){const p=int(obj(c.pr)[k],0,PR_MAX),l=int(obj(c.ls)[k],0,9999);if(p&&!C.held.includes(k))C.pr[k]=p;if(l)C.ls[k]=l}
  C.relics=[...new Set(Array.isArray(c.relics)?c.relics.filter(k=>has(RELICS,k)):[])];C.eq=has(RELICS,c.eq)&&C.relics.includes(c.eq)?c.eq:'';
  for(const k of RES_IDS)C.res[k]=int(obj(c.res)[k],0,RES_MAX);
- C.sel=has(SEC,c.sel)?c.sel:firstFront(C);C.done=c.done===1&&C.held.includes('gate')?1:0;return C}
+ C.sel=has(SEC,c.sel)?c.sel:firstFront(C);C.done=c.done===1&&C.held.includes('gate')?1:0;
+ for(const k of SEC_IDS){const v=obj(c.sc)[k];if(typeof v==='string'&&v.length<=SC_MAX&&/^[A-Za-z0-9_-]*$/.test(v))C.sc[k]=v}  /* the scars of a sector: a string of the codec's alphabet (zscars.js decodes and checks it) */
+ return C}
 
 // ---------- rules (pure: they take a campaign and return answers or a new campaign) ----------
 const ours=(C,id)=>id==='home'||C.held.includes(id);
@@ -313,7 +316,7 @@ export function initCampaign(api,G,Z){
   for(const b of ov.querySelectorAll('[data-more]')){const id=b.dataset.more,p=()=>ov.querySelector(`[data-pop="${id}"]`);b.onmouseenter=()=>p()?.classList.add('show');b.onmouseleave=()=>p()?.classList.remove('show');
    b.onclick=e=>{e.stopPropagation();pinned=pinned===id?'':id;for(const q of ov.querySelectorAll('[data-pop]'))q.classList.toggle('pin',q.dataset.pop===pinned)}}  /* the chip opens its list; a click holds it open */
   $('zcpx').onclick=closeMap;$('zcpgo').onclick=()=>launch(false);if($('zcphost'))$('zcphost').onclick=()=>launch(true);
-  $('zcpnew').onclick=()=>{if(!newArm){newArm=true;render();return}newArm=false;put(fresh(S.zdiff|0));sel=C().sel;pick.res='';render();syncCard()};
+  $('zcpnew').onclick=()=>{if(!newArm){newArm=true;render();return}newArm=false;put(fresh(S.zdiff|0));Z.cpNew?.();sel=C().sel;pick.res='';render();syncCard()};  /* Z.cpNew: the living map drops the scars still in memory (zscars.js) */
   for(const b of ov.querySelectorAll('[data-cdoc]'))b.onclick=()=>{const l=Z.meta.load();S.zload={...l,doc:b.dataset.cdoc};save();render();Z.syncMode?.()};
   for(const b of ov.querySelectorAll('[data-ckit]'))b.onclick=()=>{const l=Z.meta.load(),k=b.dataset.ckit;let kit=l.kit.includes(k)?l.kit.filter(x=>x!==k):[...l.kit,k];if(kit.length>KIT_MAX)kit=kit.slice(-KIT_MAX);S.zload={...l,kit};save();render();Z.syncMode?.()};
   for(const b of ov.querySelectorAll('[data-crel]'))b.onclick=()=>{const c=C();c.eq=b.dataset.crel;put(cleanCamp(c));render()};
