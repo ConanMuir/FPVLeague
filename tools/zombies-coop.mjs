@@ -75,6 +75,10 @@ await until(A, ids => { const c = __z.api.TH.filter(__z.api.live).map(t => t.id)
   const s = await sync();
   ok(s.h.length >= 2 && s.h.join() === s.c.join(), `Waves sync: host tracks [${s.h}] = client tracks [${s.c}] (${s.kinds})`);
   ok(s.worst < 30, `Waves sync: worst track position gap host vs client ${s.worst.toFixed(1)} m, net of the time between the two reads (snapshots 10 Hz, ${DELAY} ms delay, dead reckoning)`); }
+// radio chatter (zradio.js): each screen makes its own calls from the state it has (the wave start, the new tracks it sees), not from the host's messages
+for (const C of [H, A, B]) { await until(C, () => __z.Z.radio.calls.some(c => c.topic === 'trk'), null, 30000);
+  const r = await ev(C, () => { const R = __z.Z.radio; return {wave: R.st.by.wave | 0, trk: R.st.by.trk | 0, err: R.err && String(R.err), first: R.calls.find(c => c.topic === 'wave')?.txt, t: R.calls.find(c => c.topic === 'trk')?.txt}; });
+  ok(r.wave >= 1 && r.trk >= 1 && !r.err && /[Ww]ave 1/.test(r.first || ''), `Radio: ${C.name} makes its own calls from its copy of the game ("${r.first}" / "${r.t}")`); }
 
 // a screenshot of another pilot's drone with its name tag: Ash parks 18 m in front of the host's camera (held idle so it stays put)
 if (SHOTS) {

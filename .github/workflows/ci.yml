@@ -126,6 +126,10 @@ jobs:
           - check: flight-golden
             area: interceptor
             run: node tools/flight-golden.mjs
+          # radio chatter (zradio.js): callouts, merging and rate limits, the HUD log, the sound cap, speech with and without speechSynthesis
+          - check: zombies-test (radio)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=radio
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

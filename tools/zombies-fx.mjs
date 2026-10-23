@@ -20,7 +20,7 @@ await p.evaluate(() => { window.__look = (x, z, dist, h, ang = 2.4, fpv = false)
 // ---------- wave 1: siren + radio, then a player kill from behind (kill cam) ----------
 await p.evaluate(() => { __z.cont(); __z.sim(2); });
 await sleep(2200);
-const r1 = await p.evaluate(() => ({radio: document.getElementById('zradio').textContent, on: document.getElementById('zradio').className, pad: !!__z.Z.au.M.pad}));
+const r1 = await p.evaluate(() => ({radio: document.getElementById('zchat').textContent + document.getElementById('zradio').textContent, on: document.getElementById('zradio').className, pad: !!__z.Z.au.M.pad}));
 ok(/wave 1|Wave 1|inbound/i.test(r1.radio), `radio on wave start: "${r1.radio}"`);
 await shot('wave-start');
 // put the interceptor 60 m behind the Shahed, matched to it, looking at it, then let the fuse take it in real time
