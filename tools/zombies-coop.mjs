@@ -3,7 +3,7 @@
 // window.__z hooks. Checks: lobby (host / join by code), ready-up and forced start, waves and tracks in sync, a client's kill counts,
 // shared purse and shop requests (helper, personal perk, team perk, repair, kill chain), personal swarms (formation and strike over the wire),
 // the arsenal (a client's weapon purchase, loadout and EMP resolved on the host, the host's laser beam and a client-parked carrier on every screen),
-// site hit points in sync, launch alerts and warning actions from clients (harden, decoy), late join, a client leaving,
+// site hit points in sync, the living map's scars, launch alerts and warning actions from clients (harden, decoy), late join, a client leaving,
 // the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS] [--throttle N]  (N: CPU throttling per page, e.g. 4, to play a slow CI runner)
 // The three windows skip their WebGL draw calls (tools/browser.mjs render stub) unless --shots asks for pictures: drawing three full game
 // windows can drop a busy machine to ~1 frame a second, and the game loop caps the sim per frame, so every wait here would starve.
@@ -217,6 +217,11 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   ok(r.impacted, `Host: T${r.id} impacted the fuel depot (hp ${r.hp})`);
   for (const C of [A, B]) ok(await until(C, hp => Math.ceil(__z.api.SITES[1].hp) === hp, r.hp), `${C.name}: fuel depot hp ${r.hp} matches the host`);
   ok(await until(A, id => __z.api.TH.every(t => t.id !== id || t.impacted), r.id), 'Ash: saw the impact as an event (track marked impacted)'); }
+
+// ---------- the living map (zscars.js): the host's scars reach every client in a snapshot, a destroyed house with them; a client's own explosions make none ----------
+{ const r = await ev(H, () => { const {Z, api} = __z, S = Z.sc; S.ensure(); for (let i = 0; i < 6; i++) S.add(i % 2, -1800 + i * 90, -900, 5 + i, {fade: 1}); const h = S.houses(); S.houseDown(30); S.add(2, h.x[30], h.z[30], 7.4, {fade: 1}); return S.stats(); });
+  for (const C of [A, B]) ok(await until(C, n => { const t = __z.Z.sc.stats(); return t.craters === n[0] && t.burns === n[1] && t.rubble === n[2] && __z.Z.sc.houses().dead[30] === 1; }, [r.craters, r.burns, r.rubble]), `${C.name}: the host's ${r.craters} craters, ${r.burns} burns and ${r.rubble} rubble arrive in a snapshot, the house is gone`);
+  ok(await ev(A, () => { const S = __z.Z.sc, V = __z.api.THREE.Vector3, c = S.stats().craters; S.refill(); S.boom(new V(-1000, __z.api.gh(-1000, -1000) + .5, -1000), 3); return S.stats().craters === c; }), "Ash: an explosion on a client's own screen leaves no scar of its own"); }
 
 // ---------- helpers fire on the clients' screens: the host's rack drones show up as shots ----------
 { await ev(H, () => { const {api, G} = __z; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); const s = __z.Z.def.SLOTS[__z.Z.def.D[0].slot]; for (let i = 0; i < 2; i++) { const t = __z.make('shahed', s.x + 300 * i, s.z - 1700); t.p.y = api.gh(t.p.x, t.p.z) + 300; } __z.sim(3); });
