@@ -10,7 +10,7 @@ import {initAudio} from './zaudio.js';
 import {initAnnounce} from './zannounce.js';
 import {gfx} from '../../engine/gfx.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},pick=a=>a[Math.random()*a.length|0];
-import {money} from '../../engine/hot.js';
+import {money,hyp} from '../../engine/hot.js';
 export function initFX(api,G,Z){
  const {THREE,scene,TH,gh,S}=api,V3=THREE.Vector3,UP=new V3(0,1,0);
  const _a=new V3(),_b=new V3(),_m=new THREE.Matrix4();
@@ -212,7 +212,7 @@ export function initFX(api,G,Z){
    if(t._nd!==undefined&&d>t._nd&&t._nd<32&&!t._wh){t._wh=1;const rv=_a.subVectors(t.v,me.v).length();if(rv>25){_b.subVectors(t.p,c).normalize();const side=_b.dot(_a.set(1,0,0).applyQuaternion(api.camera.quaternion));au.whoosh(cl(.35*(1-t._nd/32)+.08,0,.4),side)}}t._nd=d;NW.add(t)}}
 
  // ---------- intensity for the score: how many, how close to impact, a boss, a failing defence ----------
- function intensity(){let n=0,tmin=1e9,boss=false;for(const t of TH){if(!live(t))continue;n++;const K=KIND[t.k];if(t.k==='boss')boss=true;if(K&&K.dmg&&!(t.k==='decoy'&&t.ident)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);if(tt<tmin)tmin=tt}}
+ function intensity(){let n=0,tmin=1e9,boss=false;for(const t of TH){if(!live(t))continue;n++;const K=KIND[t.k];if(t.k==='boss')boss=true;if(K&&K.dmg&&!(t.k==='decoy'&&t.ident)){const tt=hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);if(tt<tmin)tmin=tt}}
   return cl(.22+.22*cl(n/14,0,1)+.5*cl((48-tmin)/38,0,1)+(boss?.25:0)+(integ()<.3?.12:0),0,1)}
 
  // wrecks that fall to the ground keep burning where they land (FPV quads just pop)

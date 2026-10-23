@@ -70,7 +70,10 @@ export function initRadio(api,G,Z){
  function sound(){const v=vol();if(v<=0||!busOn())return;try{bus.gain.value=v*GAIN_CAP;const t0=AC.currentTime+.01;noise(t0,.04,'highpass',1800,.5,.9,.003);noise(t0+.05,.2,'bandpass',2300,.7,.35,.02);R.au.n++}catch(e){}}
 
  /* ---------- speech: speechSynthesis when the browser has it, clipped and quick; cut off with the call ---------- */
- const voiceFor=sy=>{const vs=safe(()=>sy.getVoices())||[];return vs.find(v=>/^en[-_]/i.test(v.lang)&&v.localService)||vs.find(v=>/^en/i.test(v.lang))||null};
+ /* the voice is looked for once it has been found (the list is read from the system, and may come late: an empty list is asked again) and again when the system says the list changed */
+ let VC=null;
+ const voiceFor=sy=>{if(VC)return VC;const vs=safe(()=>sy.getVoices())||[];return VC=vs.find(v=>/^en[-_]/i.test(v.lang)&&v.localService)||vs.find(v=>/^en/i.test(v.lang))||null};
+ safe(()=>R.env.synth()?.addEventListener?.('voiceschanged',()=>{VC=null}));
  function speak(c){const sy=safe(R.env.synth),U=safe(R.env.utter);if(!S.zrspeech||vol()<=0)return false;if(!sy||!U){R.speech.na++;return false}
   try{if(sy.pending)sy.cancel();const u=new U(c.txt.replace(/["“”]/g,'').replace(/—/g,','));const V=VOICE[c.vc]||VOICE.base;u.pitch=V[0];u.rate=V[1];u.volume=cl(.8*vol(),0,.8);u.lang='en-US';
    const v=voiceFor(sy);if(v)u.voice=v;u.onend=u.onerror=()=>{if(R.speech.live>0)R.speech.live--};R.speech.live++;sy.speak(u);R.speech.n++;R.speech.last=c.txt;return true}catch(e){return false}}

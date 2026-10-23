@@ -55,7 +55,7 @@ export function initLock(api,G,Z){
   step0()}
  // the per-tick search without closures: its state in LS, the angle test and the grid callback made once
  const LS={cam:null,fp:null,me:null,dt:0,best:null,ba:0},ang=t=>{const a=_f.angleTo(_p.subVectors(t.p,LS.cam.position));return LS.fp?Math.min(a,LS.fp.angleTo(_p.subVectors(t.p,LS.me.p))):a},
-  lsCb=t=>{if(!lockable(t)||t.p.distanceTo(LS.me.p)>LOCK.range)return;const a=ang(t);if(a<LS.ba){LS.ba=a;LS.best=t}};
+  lsCb=t=>{if(t.p.distanceTo(LS.me.p)>LOCK.range||!lockable(t))return;const a=ang(t);if(a<LS.ba){LS.ba=a;LS.best=t}};  /* the range first: lockable asks the radar picture (Z.seen), which is a chain of calls, for every track the grid hands over, every tick */
  function step0(){const me=LS.me,dt=LS.dt;LS.best=null;LS.ba=LOCK.cone*D2R;api.grid.near(me.p,LOCK.range,lsCb);const best=LS.best;LS.best=null;
    if(best){if(best!==L.cand){if(L.cand&&L.prog>.05)L.n.faded++;L.cand=best;L.prog=0;L.n.start++;L.tried=0}if(!(best.brk>0&&Z.evades?.(best)))L.prog+=(dt||0)/lockTime(best,me)*(L.mem&&L.mem.t===best&&L.clock<L.mem.until?LOCK.memK||1:1);  /* re-locking a track you just lost is quicker */if(!L.tried&&L.prog>=.25){L.tried=1;L.n.try++}if(L.prog>=1)acquire(best)}
    else if(L.cand){L.prog=Math.max(0,L.prog-(dt||0)*LOCK.decay/LOCK.t);if(!L.prog||!api.live(L.cand)){if(L.cand)L.n.faded++;L.cand=null}}

@@ -153,7 +153,7 @@ export function initBuddy(api,G,Z){
  function visuals(dt){const on=live();
   for(const b of BD.values()){const show=on&&b.state!=='off'&&!(b.state==='down'&&b.dT>10);if(show&&(!b.model||b.rb||b.nm0!==tagText(b)))ensureModel(b);
    const m=b.model;if(!m)continue;m.grp.visible=show;b.tag.visible=false;if(!show)continue;
-   m.grp.position.copy(b.p);m.grp.quaternion.copy(b.q);if(b.state==='fly')m.props.forEach((g,i)=>{g.rotation.y+=dt*55*(i===1||i===2?1:-1)});
+   m.grp.position.copy(b.p);m.grp.quaternion.copy(b.q);if(b.state==='fly')for(let i=0;i<m.props.length;i++)m.props[i].rotation.y+=dt*55*(i===1||i===2?1:-1);
    const cam=api.camera.position,d=b.p.distanceTo(cam);if(d<2200&&b.state!=='down'){b.tag.visible=true;b.tag.position.copy(b.p);b.tag.position.y+=3.4}}
   const sh=gfx.k.swarm>0;if(sh!==shOn){shOn=sh;for(const b of BD.values())b.model?.grp.traverse(o=>{if(o.isMesh)o.castShadow=sh&&!!o.userData.cs})}  /* Graphics quality Low: no shadows from it */
   hud()}
@@ -167,8 +167,11 @@ export function initBuddy(api,G,Z){
   '.zbdr{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:0 0 12px;padding:8px 12px;border:1px solid var(--edge);border-left:3px solid #5fe3ff;border-radius:6px;background:var(--panel);font:700 12px var(--mono);cursor:help}'+
   '.zbdr b{color:#bfeaff;letter-spacing:.08em}.zbdr em{font-style:normal;font-weight:500;color:var(--dim)}';document.head.append(css);
  const bar=(v,c)=>`<u class="${c||(v<30?'lo':v<60?'mid':'')}" style="width:${v}%"></u>`;
+ /* the card's text is built (and compared) only when one of the things it shows changed: it used to be a template of six bars and strings on every frame */
+ let hS=null,hP=-1,hC=-1,hJ='',hY=-2;
  function hud(){const b=mine,show=live()&&b.state!=='off';card.hidden=!show;if(!show)return;
   if(b.tip!==tipL)card.title=tipL=b.tip||'';
+  if(b.state===hS&&b.hpP===hP&&b.chP===hC&&b.job===hJ&&b.say===hY)return;hS=b.state;hP=b.hpP;hC=b.chP;hJ=b.job;hY=b.say;
   const q=b.say>=0?SAYL[b.say]:'',h=`<div class="h"><span>LITTLE BUDDY</span><small>${JOBN[b.job]||''}</small></div><div class="b">HP<i>${bar(b.hpP)}</i></div><div class="b">CHG<i>${bar(b.chP,b.chP<K.low*100?'lo':'c')}</i></div><div class="q">${b.state==='down'?'down until the next wave':q}</div>`;
   if(h!==hudL)html(card,hudL=h)}
  /* the base screen's shop tab: a row for it, same tooltip */
