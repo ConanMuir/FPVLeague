@@ -37,6 +37,7 @@ import {initRadio} from './zradio.js';
 import {initScars} from './zscars.js';
 import {initBrief} from './zbrief.js';
 import {initEndless} from './zendless.js';
+import {initBuddy} from './zbuddy.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 
@@ -339,5 +340,6 @@ export function initZombies(api){
  initScars(api,G,Z);  // the living map (zscars.js): craters, burns and rubble that stay; saved with the campaign, carried to co-op clients
  initBrief(api,G,Z);  /* the threat briefing on the base screen (zbrief.js): what the next wave brings, from the wave plan, and the radio line at its start */
  initEndless(api,G,Z);  /* Endless (zendless.js): after the campaign, a sector with no objective whose waves keep climbing; wraps the campaign's hooks, so it goes last */
+ initBuddy(api,G,Z);  /* Little Buddy (zbuddy.js): your Drone League garage quad flies as a free helper; it only adds to the step / visuals / overlay / radar / start / stop / lock hooks */
  initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
  return Z}
