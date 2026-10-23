@@ -276,6 +276,7 @@ export function initCampaign(api,G,Z){
   const go=t==='front'||t==='held';
   return`<div class="zcpst ${t}">${stTxt}</div><h2>${esc(s.n)}</h2><p class="zcpbr-t">${esc(s.brief)}</p>
    <div class="zcpobj"><span>Objective</span><b>Hold ${s.obj} waves</b><span>${ZDIFF[c.d].n}${c.ls[sel]?` · lost ${c.ls[sel]}×`:''}</span></div>
+   ${Z.cdxBrief?.(sel)||''}
    <h3>Modifiers</h3><ul class="zcpmods">${ms.map(m=>`<li class="${m.id==='pressure'?'pr':''}"><span class="zg">${modGlyph(m)}</span><div><b>${esc(modName(m))}</b><p>${esc(modTxt(m))}</p></div></li>`).join('')}</ul>
    <h3>Reward ${t==='held'?'<small>claimed</small>':''}</h3><p class="zcprw ${t==='held'?'got':''}">${rwH}</p>
    <h3>Loadout <small>doctrine and kit from your unlocks; one relic and one reserve</small></h3>
