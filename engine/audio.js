@@ -15,10 +15,12 @@ export function audioInit({extra,motor}={}){if(AC)return;if(motor)MOT={...MOT,..
 export const audioOn=()=>!!(AC&&mo.length);
 // master bus: every sound in the game (engine, Classic, Zombies) reaches the speakers through one gain and a limiter. AC.destination is
 // re-pointed at the bus so code that connects to AC.destination needs no change; setMaster(0..1) scales everything
-let MST=null;const MASTER=.45;
+let MST=null,SFX=null;export let LIM=null;const MASTER=.45;  /* LIM: the limiter, read by tools/audio-levels.mjs (its reduction = how hard it worked) */
 function masterBus(A){const out=A.destination,g=A.createGain(),lim=A.createDynamicsCompressor();lim.threshold.value=-6;lim.knee.value=6;lim.ratio.value=12;lim.attack.value=.002;lim.release.value=.15;
- g.gain.value=MASTER;g.connect(lim).connect(out);MST=g;try{Object.defineProperty(A,'destination',{value:g,configurable:true})}catch(e){}}
+ g.gain.value=MASTER;g.connect(lim).connect(out);MST=g;LIM=lim;SFX=A.createGain();SFX.connect(g);try{Object.defineProperty(A,'destination',{value:g,configurable:true})}catch(e){}}
 export const setMaster=v=>{if(MST)MST.gain.value=MASTER*cl(+v||0,0,1.5)};
+/* the effects gain tone() and noise() play through (the games' beeps, readouts, hits and thunder): a game's effects slider scales it (Zombies: zaudio.js vols) */
+export const setSfx=v=>{if(SFX)SFX.gain.value=cl(+v||0,0,1)};
 // shaft speed (Hz): thrust ~ rpm² so rpm follows ms^(TE/2); props unload and spin up a little as air flows through the disc
 const rotHz=d=>{const[,te,vp]=MOT.phys();return(MOT.rot[0]+MOT.rot[1]*Math.max(d.ms,0)**(te/2))*(1+.12*cl(d.v.dot(_au.set(0,1,0).applyQuaternion(d.q))/vp,-.5,1))};
 // your own quad; on = flying (not in the menu, not crashed); air = wind velocity (wind noise follows airspeed). Returns false when silent
@@ -29,9 +31,9 @@ export function motorAudio(me,dt,on,air=null){const t=AC.currentTime;
  const mix=[[-1,1,-1],[-1,-1,1],[1,1,1],[1,-1,-1]];  // Betaflight quad-X: RR, FR, RL, FL (roll, pitch, yaw)
  mo.forEach((m,i)=>{const[a,b,c]=mix[i],k=cl((a*aw.z+b*aw.x)*.0035+c*aw.y*.002,-.35,.35),f=r*m.off*(1+k);for(const[o,h]of m.v)o.frequency.setTargetAtTime(f*h,t,.012)});
  const wash=va<-6?cl((-va-6)/18,0,1)*ms:0,flut=1+wash*(Math.random()-.5)*1.4;  // falling into your own wash: the props chop through dirty air
- mg.gain.setTargetAtTime((.04+.075*ms**.9+(me.boostOn?.03:0))*flut,t,.02);mf.frequency.setTargetAtTime(900+r*3*2.6,t,.03);
+ mg.gain.setTargetAtTime((.03+.053*ms**.9+(me.boostOn?.02:0))*flut,t,.02);mf.frequency.setTargetAtTime(900+r*3*2.6,t,.03);  /* full throttle peaks near -14 dBFS: a bed under the effects (tools/audio-levels.mjs) */
  mw.frequency.setTargetAtTime(r*7,t,.02);mw.g.gain.setTargetAtTime(.006+.018*ms,t,.05);
- pf.frequency.setTargetAtTime(r*4.2,t,.03);pg.gain.setTargetAtTime((.015+.09*ms**1.5)*(1+wash*1.5),t,.03);
+ pf.frequency.setTargetAtTime(r*4.2,t,.03);pg.gain.setTargetAtTime((.012+.07*ms**1.5)*(1+wash*1.5),t,.03);
  const ws=cl(sp/WS/MOT.wind[0],0,MOT.wind[1]);wf.frequency.setTargetAtTime(200+ws*1400,t,.1);wg.gain.setTargetAtTime(.17*ws*ws,t,.1);return true}
-export function noise(dur,freq,vol,q=1){if(!AC||vol<.005)return;const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain(),t=AC.currentTime;s.buffer=nbuf;f.type='bandpass';f.frequency.value=freq;f.Q.value=q;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);s.connect(f).connect(g).connect(AC.destination);s.start(t);s.stop(t+dur)}
-export function tone(f0,f1,dur,vol,type='sine'){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+dur)}
+export function noise(dur,freq,vol,q=1){if(!AC||vol<.005)return;const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain(),t=AC.currentTime;s.buffer=nbuf;f.type='bandpass';f.frequency.value=freq;f.Q.value=q;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);s.connect(f).connect(g).connect(SFX||AC.destination);s.start(t);s.stop(t+dur)}
+export function tone(f0,f1,dur,vol,type='sine'){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.connect(g).connect(SFX||AC.destination);o.start(t);o.stop(t+dur)}
