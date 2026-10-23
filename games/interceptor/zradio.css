@@ -1,0 +1,14 @@
+/* Interceptor Zombies radio chatter (zradio.js): the last three calls, bottom centre where the old radio subtitle sat; each one fades out after a few seconds. */
+#zchat{position:absolute;left:50%;bottom:calc(124px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(560px,82vw);display:grid;gap:3px;pointer-events:none;font:600 13px var(--mono)}
+#zchat:empty{display:none}
+#zchat .zc{display:flex;gap:9px;align-items:baseline;box-sizing:border-box;padding:4px 11px;border-left:3px solid #7dff9a;border-radius:4px;background:rgba(5,12,7,.66);color:#dff5d8;text-shadow:0 0 3px #000;animation:zcf 9s linear both}
+#zchat .zc b{flex:none;font-size:10.5px;letter-spacing:.14em;color:#7dff9a}
+#zchat .zc.p2{border-color:var(--amber);color:#fff3d6}#zchat .zc.p2 b{color:var(--amber)}
+#zchat .zc.p3{border-color:var(--red);color:#ffdede;background:rgba(30,6,6,.72)}#zchat .zc.p3 b{color:var(--red)}
+#zchat .zc.foe{border-color:#c98bff;color:#f0e0ff}#zchat .zc.foe b{color:#c98bff}
+#zchat .zc.cut{opacity:.45!important;animation:none}
+@keyframes zcf{0%{opacity:0;transform:translateY(5px)}4%{opacity:1;transform:none}74%{opacity:1}100%{opacity:0}}
+#hud:not(.z) #zchat{display:none}
+#hud.zcine>#zchat{visibility:visible}
+@media (max-width:760px){#zchat{font-size:11.5px;bottom:calc(120px + env(safe-area-inset-bottom,0px))}}
+@media (prefers-reduced-motion:reduce){#zchat .zc{animation-name:zcr}@keyframes zcr{0%,74%{opacity:1}100%{opacity:0}}}

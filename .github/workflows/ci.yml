@@ -7,6 +7,7 @@ name: CI
 
 on:
   push:
+    branches: [main]  # a PR branch runs through its pull_request event only (a push used to start a second, identical run)
   pull_request:
   workflow_dispatch:
 
@@ -159,6 +160,10 @@ jobs:
           - check: zombies-test (codex)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=codex
+          # radio chatter (zradio.js): callouts, merging and rate limits, the HUD log, the sound cap, speech with and without speechSynthesis
+          - check: zombies-test (radio)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=radio
           # the living map: scars from bursts, crashes and destroyed houses; caps, save, campaign, co-op, pixel checks against the terrain, frame cost
           - check: zombies-test (scars)
             area: interceptor
