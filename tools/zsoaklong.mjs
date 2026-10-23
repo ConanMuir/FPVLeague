@@ -14,7 +14,7 @@ export async function longSoak({origin, open, sleep, ok, heapMB, PLAY, SHOP, SKI
       const f = B[m]; if (f) B[m] = function (...a) { A.made++; return f.apply(this, a); }; }
   });
   await p.goto(origin + '/games/interceptor/', {waitUntil: 'load'});
-  await p.evaluate(zd => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd, zwx: 'wave', gfx: 'high', fps: false})), zd);
+  await p.evaluate(zd => { localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd, zwx: 'wave', gfx: 'high', fps: false})); sessionStorage.setItem('zcodex', 'all'); }, zd);  /* the full boss roster (zcodex.js) */
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
   await p.waitForFunction(() => !__z.Z.warmSt || __z.Z.warmSt.done, {timeout: 180000, polling: 500}).catch(() => {});
   const cdp = await p.target().createCDPSession(); await cdp.send('Performance.enable');
