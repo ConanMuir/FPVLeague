@@ -351,8 +351,12 @@ const shut = id => ev(H, id => { const B = __z.api.TH.find(t => t.id === id).bs;
 const lit = id => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); if (t) { t.bs.rv = 1e6; t.bs.af = 0; } }, id);  /* held open (the flare burning) before every burst: a hit snaps the flare out */
 const down = id => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); return !t || !__z.api.live(t); }, id);  /* a dead track leaves the list */
 const onScreens = id => Promise.all([A, B].map(C => until(C, id => __z.api.TH.some(t => t.id === id && __z.api.live(t)), id))).then(r => r.every(Boolean));
-{ await ev(H, () => { __z.G.cash = 4000; });
+/* what the clients' screens announce (zannounce.js) and the boss-down sting, recorded as it happens */
+for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; window.__down = 0; const s0 = Z.an.say, d0 = Z.au.bossDown; Z.an.say = (...a) => { __say.push(String(a[0])); return s0(...a); }; Z.au.bossDown = (...a) => { __down++; return d0(...a); }; });
+{ await ev(H, () => { __z.G.cash = 4000; const P = __z.G.next; P.list.push('hush'); P.q.push({k: 'hush', at: 1, brg: 0}); });  /* the plan names the Hush: the warning goes out on every screen */
+  ok(await until(B, () => !!__z.net.n.nx?.list.includes('hush')), 'Boss fight: the plan the host sent for wave 3 names the Hush');
   await readyUp(3);
+  ok(await until(A, () => __say.includes('HUSH INBOUND')) && await until(B, () => __say.includes('HUSH INBOUND')), 'Boss fight: the HUSH INBOUND warning is on both clients\' screens, as on the host\'s (they read it from the plan)');
   const id = await lastBoss('hush');
   ok(await onScreens(id), `Boss fight: the Hush (T${id}) is the last track of wave 3 and on every screen`);
   /* the arsenal's warheads count a boss as down only when it is: Ash still carries the EMP of the arsenal section, and the Hush loses hit points to it, it does not fall */
@@ -364,6 +368,7 @@ const onScreens = id => Promise.all([A, B].map(C => until(C, id => __z.api.TH.so
 { await ev(A, () => __z.Z.ars.equip('std'));  /* the standard warhead back, at the base screen */
   ok(await until(H, k => __z.Z.ars.P(k).cur === 'std', aKey), 'Boss fight: Ash carries the standard warhead again');
   await ev(H, () => { __z.G.cash = 4000; });
+  for (const C of [A, B]) await ev(C, () => { __say.length = 0; __down = 0; });
   await readyUp(4);
   const id = await lastBoss('hush');
   ok(await onScreens(id), `Boss fight: the Hush (T${id}) is the last track of wave 4 and on every screen`);
@@ -374,6 +379,8 @@ const onScreens = id => Promise.all([A, B].map(C => until(C, id => __z.api.TH.so
   ok(/^HIT/.test(r1.txt) && /The Hush hit/.test(r1.feed) && !/Hush down/.test(r1.feed) && hp1 < hp0 && hp1 > 0, `Boss fight: a burst while the flare burns reads "${r1.txt}" and "hit", not "down": the Hush still has ${hp1} of ${hp0}`);
   let last = r1, n = 1; for (; n < 8 && !await down(id); n++) { await lit(id); last = await burstAt(A, id); }
   ok(await down(id) && /The Hush down/.test(last.feed), `Boss fight: Ash's bursts bring the Hush down (${n} in all), and only the last one reads "down"`);
+  /* the fight's banners go out on every screen, Bea's (who flew nothing of it) as much as the host's: the phases it passed through, the defeat and the sting */
+  ok(await until(B, () => __say.includes('SILENCE') && __say.includes('HUSH DEFEATED') && __down >= 1), `Boss fight: Bea's screen announced the Hush's phases and its defeat, and sounded the sting (${await ev(B, () => __say.join(' > '))})`);
   /* the wave ended with that kill: the win still counts (the cleanup of the wave used to close the fight unrecorded) */
   ok(await until(H, () => (__z.api.S.zboss?.b?.hush?.won | 0) === 1 && !!__z.G.brw?.array && __z.Z.codex.c.b.hush?.beaten === true), 'Boss fight: the Hush was the last track down, and the win is recorded all the same (record, Acoustic Array, the host\'s codex)');
   ok(await ev(A, () => !__z.Z.codex.c.b.hush), 'Boss fight: a client\'s own codex is left alone (the host\'s save moves)');

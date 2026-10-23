@@ -169,6 +169,7 @@ export function initBosses(api,G,Z){
   if(!silent){feed(`<span class="cg">Boss trophy: <b>${R.n}</b></span> · ${R.txt}`);Z.an?.radio('OVERLORD',`Trophy recovered: ${R.n}. ${R.short||''}`,2)}return true}
  function won(e){if(e.over)return;e.over=true;e.won=true;const D=e.D;bump(e.id,'won');const w=Math.max(1,G.wave),cash=Math.round((D.bounty||2500)*(1+w/25));Z.earn?.(cash,e.main.p,' BOSS');
   Z.an?.say(`${D.tag||D.n.toUpperCase()} DEFEATED`,`+${money(cash)}${D.reward?' · '+D.reward.n:''}`,D.col||'#ff9a3c',3);Z.an?.radio('OVERLORD',D.winTxt||`${D.n} is down. Outstanding.`,2);
+  Z.netEv?.(['B',e.id,cash,D.reward?.n||'']);  /* the other pilots' screens get the same banner (Z.bossWon) */
   if(D.reward)grant(D.reward.id);D.won?.(ctx,e)}
  function lost(e){if(e.over)return;e.over=true;bump(e.id,'lost');e.D.lost?.(ctx,e)}
  function encTick(){for(const e of encs()){if(e.over)continue;const bodies=e.list.filter(t=>!BOSSES[t.k].minor);if(e.D.done?e.D.done(ctx,e):bodies.length&&bodies.every(t=>t.bs.dead&&!t.bs.gone)){won(e);continue}if(!encLive(e)&&!e.list.some(t=>t.st==='fall'))lost(e)}
@@ -221,8 +222,10 @@ export function initBosses(api,G,Z){
   for(const D of Object.values(BOSSES)){try{D.clear?.(ctx)}catch(e){console.warn('boss clear',e)}}}
  Z.bossClear=clearAll;
  function waveStart(){const K=G.bkeep||{};G.bkeep={};if(auth())for(const[id,st]of Object.entries(K)){const D=BOSSES[id];if(!D||!st||st.gone)continue;const t=spawn(id,{...(st.at||{}),set:{keep:st}});if(t)t.bs.wake=1}for(const D of Object.values(BOSSES))D.g?.wave?.(ctx);for(const R of rew())R.wave?.(ctx);
-  const nx=TH.filter(t=>mine(t)&&live(t)&&!BOSSES[t.k].minor).length+(G.wq||[]).filter(q=>BOSSES[q.k.split(':')[0]]).length;
-  if(nx){const q=(G.wq||[]).find(q=>BOSSES[q.k]);const D=q?BOSSES[q.k]:null;if(D)setTimeout(()=>{if(G.on&&G.state==='wave'){Z.an?.say(`${D.tag||D.n.toUpperCase()} INBOUND`,D.warn||'boss contact','#ff4d4d',3);Z.au?.siren?.(true)}},60)}}
+  /* a co-op client has no queue (placeholders only): the plan the host sent for this wave names the boss */
+  const kinds=Z.mirror?(Z.netPlan?.()?.list||[]).map(k=>String(k).split(':')[0]):(G.wq||[]).map(q=>q.k.split(':')[0]);
+  const nx=TH.filter(t=>mine(t)&&live(t)&&!BOSSES[t.k].minor).length+kinds.filter(k=>BOSSES[k]).length;
+  if(nx){const q=kinds.find(k=>BOSSES[k]);const D=q?BOSSES[q]:null;if(D)setTimeout(()=>{if(G.on&&G.state==='wave'){Z.an?.say(`${D.tag||D.n.toUpperCase()} INBOUND`,D.warn||'boss contact','#ff4d4d',3);Z.au?.siren?.(true)}},60)}}
 
  // ---------- radar, lock, helpers: what an alive boss does to them, and what your trophies do ----------
  const alive=()=>TH.filter(t=>mine(t)&&live(t));
@@ -286,7 +289,10 @@ export function initBosses(api,G,Z){
 
  // ---------- co-op: the host's boss state rides on each boss track in the snapshot (znet.js) ----------
  Z.bossOut=t=>{if(!t.bs)return[];const D=BOSSES[t.k];return[t.bs.hp|0,t.bs.max|0,t.bs.ph|0,...(D.netOut?.(ctx,t)||[])]};
- Z.bossIn=(t,a)=>{if(!t.bs||!Array.isArray(a))return;const D=BOSSES[t.k];if(Number.isFinite(a[0]))t.bs.hp=a[0];if(Number.isFinite(a[1])&&a[1]>0)t.bs.max=a[1];if(Number.isFinite(a[2])&&a[2]!==t.bs.ph){t.bs.ph=a[2]|0;D.phase?.(ctx,t,t.bs.ph)}
+ /* a co-op client: the host's win over a boss (znet.js event B: kind, bounty, trophy), shown and heard like the host's own */
+ Z.bossWon=a=>{const D=BOSSES[a[0]];if(!D||D.minor||auth())return;const nm=String(a[2]||'').replace(/[<>&"'`]/g,'').slice(0,40);
+  Z.an?.say(`${D.tag||D.n.toUpperCase()} DEFEATED`,`+${money(+a[1]||0)}${nm?' · '+nm:''}`,D.col||'#ff9a3c',3);Z.an?.radio('OVERLORD',D.winTxt||`${D.n} is down. Outstanding.`,2);Z.au?.bossDown()};
+ Z.bossIn=(t,a)=>{if(!t.bs||!Array.isArray(a))return;const D=BOSSES[t.k];if(Number.isFinite(a[0]))t.bs.hp=a[0];if(Number.isFinite(a[1])&&a[1]>0)t.bs.max=a[1];if(Number.isFinite(a[2])&&a[2]!==t.bs.ph){t.bs.ph=a[2]|0;D.phase?.(ctx,t,t.bs.ph);if(!D.minor&&D.phases?.[t.bs.ph])Z.an?.say(D.phases[t.bs.ph],D.n,D.col||'#ff9a3c',2)}  /* the phase banner, as phaseCheck gives it on the host */
   if(!t.bs.enc&&!D.minor){t.bs.init=1;newEnc(t)}D.netIn?.(ctx,t,a.slice(3))};
 
  // ---------- what the boss modules get ----------
