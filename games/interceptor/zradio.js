@@ -87,7 +87,7 @@ export function initRadio(api,G,Z){
   if(!gated&&p<3&&T-(last[topic]??-99)<(CD[topic]||0)){D.cool++;return false}
   const tx=txtAt.get(c.txt);if(p<3&&tx!=null&&T-tx<10){D.dup++;return false}
   while(win.length&&T-win[0]>WIN)win.shift();
-  if(p<3&&win.length+Q.length>=LIM[p]){D.rate++;return false}
+  if(p<3&&!c.nb&&win.length+Q.length>=LIM[p]){D.rate++;return false}
   if(Q.length>=MAXQ){let lo=0;for(let i=1;i<Q.length;i++)if(Q[i].pri<Q[lo].pri)lo=i;if(Q[lo].pri>p||Q[lo].pri===p&&p<3){D.full++;return false}Q.splice(lo,1);D.full++}
   Q.push({...c,topic,pri:p,t0:T,ttl:TTL[p],vc:c.vc||vcOf(c.who)});txtAt.set(c.txt,T);if(txtAt.size>40)txtAt.delete(txtAt.keys().next().value);last[topic]=T;R.st.made++;R.st.by[topic]=(R.st.by[topic]|0)+1;
   if(p>=3&&R.cur&&R.cur.pri<3)cut();pump();return true}
@@ -236,9 +236,9 @@ export function initRadio(api,G,Z){
   if(st==='wave'&&was!=='clear'){critW=false;SWG.clear();batF=0;const q=G.wq||[],n=q.reduce((a,e)=>a+(+String(e.k).split(':')[1]||1),0)+TH.reduce((a,t)=>a+(api.live(t)&&!KIND[t.k]?.minor?1:0),0),big=q.some(e=>{const k=String(e.k).split(':')[0];return k==='boss'||KIND[k]?.bossy&&!KIND[k].minor});
    say('wave',1,BASE,big?pick([`Wave ${G.wave}: heavy contact expected. All units stand to.`,`Air raid warning. Wave ${G.wave}, and something big is coming.`]):
     !n?pick([`Wave ${G.wave}. Air raid warning is up.`,`Stand to, wave ${G.wave}.`]):
-    pick([`Wave ${G.wave}. Air raid warning is up, about ${num(n)} track${n>1?'s':''} on the way.`,`Stand to, wave ${G.wave}. Radar shows ${num(n)} contact${n>1?'s':''} launching.`,`Wave ${G.wave} incoming, about ${num(n)} track${n>1?'s':''}.`]))}
+    pick([`Wave ${G.wave}. Air raid warning is up, about ${num(n)} track${n>1?'s':''} on the way.`,`Stand to, wave ${G.wave}. Radar shows ${num(n)} contact${n>1?'s':''} launching.`,`Wave ${G.wave} incoming, about ${num(n)} track${n>1?'s':''}.`]),{nb:1})}  /* nb: the wave's edges are not held back by the budget */
   else if(st==='clear'&&was==='wave'){let hp=0,mx=0;for(const s of SITES){hp+=Math.max(0,s.hp);mx+=s.max}
-   say('wave',1,BASE,G.perfect?pick([`Sky is clear. Wave ${G.wave} held, no damage.`,`Wave ${G.wave} defeated without a scratch.`]):pick([`Sky is clear. Wave ${G.wave} held, integrity ${pc(mx?hp/mx:1)}.`,`All tracks down. Wave ${G.wave} is over, integrity ${pc(mx?hp/mx:1)}.`]))}
+   say('wave',2,BASE,G.perfect?pick([`Sky is clear. Wave ${G.wave} held, no damage.`,`Wave ${G.wave} defeated without a scratch.`]):pick([`Sky is clear. Wave ${G.wave} held, integrity ${pc(mx?hp/mx:1)}.`,`All tracks down. Wave ${G.wave} is over, integrity ${pc(mx?hp/mx:1)}.`]),{nb:1})}
   else if(st==='base')hush();
   else if(st==='over')say('wave',3,BASE,pick(['All sites are lost. That is the end.','The defence has collapsed.']),{over:true})}
 
