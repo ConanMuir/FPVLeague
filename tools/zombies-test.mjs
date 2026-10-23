@@ -2,7 +2,7 @@
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
 //   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,explore   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
-import {CI} from './browser.mjs';
+import {CI, installRenderStub} from './browser.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
 import {SET as CDX_SET, ORDER as CDX_ORDER, SECRET as CDX_SECRET, cleanCodex, rotate as cdxRotate, scripted as cdxScripted, isAllowed as cdxAllowed, FREE as CDX_FREE} from '../games/interceptor/zcodex.js';
@@ -1747,8 +1747,8 @@ if (want('codex')) {
 if (want('explore')) {
   /* the numbers this section holds the bot to (real-flying benchmark, Champion on Normal, fresh profile: median wave 36.5 over 20 runs before roaming and sorties; cells by wave 12: 208 before, 323 after). BASE_WAVE sits below the benchmark's quarter-point so a bad draw of three does not fail it; the coverage floors sit well under what the bot reaches. */
   /* CI (software GL on a slow runner, the shard has 20 minutes and a retry) runs the light version: one Champion run to wave 13 (the coverage floors are read at wave 12) instead of three to wave 30, beside the full-purse run of two waves from wave 15 instead of five (two windows, not four contexts), the visual run and the campaign
-     choice on one page; the same assertions with floors that one run clears (it reaches 13 in all but about 1 run in 20: the shard retries once). Locally: the full one. */
-  const BASE_CAP = CI ? 13 : 30, BASE_WAVE = CI ? 13 : 26, COV_CELLS = 240, COV_PLACES = 15, COV_SYS = CI ? 14 : 18, N_RUNS = CI ? 1 : 3, SYS_WAVES = CI ? 2 : 5;
+     choice on one page; the same assertions with floors that one run clears (3 standard deviations under what a run reaches by wave 12: a single run is a wider draw than the median of three; it reaches 13 in all but about 1 run in 20, and the shard retries once). Locally: the full one. */
+  const BASE_CAP = CI ? 13 : 30, BASE_WAVE = CI ? 13 : 26, COV_CELLS = CI ? 230 : 240, COV_PLACES = CI ? 12 : 15, COV_SYS = CI ? 14 : 18, N_RUNS = CI ? 1 : 3, SYS_WAVES = CI ? 2 : 5;
   const T0 = Date.now(), lap = n => console.log(`  [explore ${n}: ${Math.round((Date.now() - T0) / 1000)} s]`);
   const KINDS = ['shop', 'launch', 'station', 'transit', 'intercept', 'lock', 'line', 'boss', 'sortie', 'bomb', 'return', 'strike', 'relaunch', 'idle'];
   // 1. the visual run: the leaderboard's flying results, the HUD line, Z.bot.intent, and a sortie flown frame by frame (the shop waits for it, then goes on)
@@ -1782,9 +1782,11 @@ if (want('explore')) {
     ok(!errs.length, 'Explore: visual run: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
     await p.close();
   }
-  // 2. headless runs: Champion on Normal, a fresh profile, in parallel. Locally each in its own context (as tools/zombies-bench.mjs); on CI each in a window with its draw calls stubbed
+  // 2. headless runs: Champion on Normal, a fresh profile, in parallel, each in its own context (as tools/zombies-bench.mjs: a shared save would let them read each other's); on CI with their draw calls stubbed
   async function botRun(lv, d, o = {}) {
-    const ctx = CI ? null : await browser.createBrowserContext(), errs = [], p = await open(browser, origin + '/games/interceptor/', errs, {w: 640, h: 360, page: CI ? await newWindow(browser, {noRender: true}) : await ctx.newPage()});
+    const ctx = await browser.createBrowserContext(), errs = [], pg = await ctx.newPage();
+    if (CI) await installRenderStub(pg, true);
+    const p = await open(browser, origin + '/games/interceptor/', errs, {w: 640, h: 360, page: pg});
     try {
       await p.evaluate(zd => { localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd, wx: 'clear', zwx: 'menu', zmus: 0})); sessionStorage.setItem('zbossRoster', '0'); }, d);  /* no random boss events: the Mirror outruns a tail chase and can hold a wave for good (bosses have their own section) */
       await p.reload({waitUntil: 'load', timeout: 180000}); await p.waitForFunction(() => window.__z, {timeout: 180000});
@@ -1801,7 +1803,7 @@ if (want('explore')) {
       }
       const sum = await p.evaluate(() => { const B = __z.Z.bot; return {s: B.summary(), stuck: B.stuckLog, over: __z.G.state === 'over', modeT: B.modeT}; });
       return {log, st, sum, errs};
-    } finally { await (ctx || p).close().catch(() => {}); }
+    } finally { await ctx.close().catch(() => {}); }
   }
   const med = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n % 2 ? s[n >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2; };
   const jobs = [...Array.from({length: N_RUNS}, () => () => botRun('Champion', 1, {cap: BASE_CAP})), () => botRun('Champion', 1, {jump: 15, cash: 60000, waves: SYS_WAVES})];
@@ -1814,7 +1816,8 @@ if (want('explore')) {
   ok(RUNS.every(r => r.sum.s.stuck === 0), `Explore: the bot never sat still in a state that should move (${RUNS.map(r => r.sum.s.stuck).join(' / ')} stuck)${RUNS.some(r => r.sum.stuck.length) ? ' ' + JSON.stringify(RUNS.flatMap(r => r.sum.stuck).slice(0, 3)) : ''}`);
   ok(med(RUNS.map(r => at(r, 12).cells)) >= COV_CELLS, `Explore: by wave 12 it has flown over ${med(RUNS.map(r => at(r, 12).cells))} map cells (median of ${N_RUNS}; at least ${COV_CELLS} = ${Math.round(100 * COV_CELLS / RUNS[0].sum.s.cellTotal)}% of the operational area)`);
   ok(med(RUNS.map(r => at(r, 12).places)) >= COV_PLACES, `Explore: and ${med(RUNS.map(r => at(r, 12).places))} of ${RUNS[0].sum.s.placesTotal} places (ridges, the river valley, villages, sites, forward positions; at least ${COV_PLACES})`);
-  ok(med(RUNS.map(r => r.sum.s.sorties.n)) >= 3 && RUNS.every(r => r.sum.s.sorties.bombs >= 1), `Explore: sorties flown ${RUNS.map(r => r.sum.s.sorties.n).join(' / ')} (${RUNS.map(r => r.sum.s.sorties.home).join(' / ')} home), bombs dropped ${RUNS.map(r => r.sum.s.sorties.bombs).join(' / ')}, ${RUNS.map(r => Object.values(r.sum.s.sorties.kills).reduce((a, b) => a + b, 0)).join(' / ')} targets destroyed`);
+  const SOR = [...RUNS, RS].map(r => r.sum.s.sorties);  /* bombs over every headless run: one run can draw a gun that turns it back (hull under 28) at every site */
+  ok(med(RUNS.map(r => r.sum.s.sorties.n)) >= 3 && SOR.reduce((a, q) => a + q.bombs, 0) >= 1, `Explore: sorties flown ${RUNS.map(r => r.sum.s.sorties.n).join(' / ')} (${RUNS.map(r => r.sum.s.sorties.home).join(' / ')} home), bombs dropped ${RUNS.map(r => r.sum.s.sorties.bombs).join(' / ')}, ${RUNS.map(r => Object.values(r.sum.s.sorties.kills).reduce((a, b) => a + b, 0)).join(' / ')} targets destroyed`);
   ok(med(waves) >= BASE_WAVE, `Explore: the wave baseline holds: Champion on Normal reached waves ${waves.join(' / ')} (median ${med(waves)}; the real-flying benchmark's median before roaming was 36.5, so at least ${BASE_WAVE})`);
   const S = RS.sum.s;
   console.log('  systems run (wave 15, $60,000):', S.systems + '/' + S.systemsTotal, S.systemIds.join(','), '| unused:', S.unused.join(','));
