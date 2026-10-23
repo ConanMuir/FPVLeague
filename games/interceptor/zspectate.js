@@ -3,7 +3,7 @@
 // (zbotfly.js: sticks, detonate, camera switch, relaunch, perk and swarm keys) and shops on the base screen one visible step at a time, each
 // with a caption saying why.
 // Spectator controls (bar at the bottom, keys in brackets): cameras [C] chase / the bot's FPV / free cam (WASD, Q/E, drag to look, Shift
-// faster) / the sites one by one [V next] / threat cam; speed [1-4] 1x 2x 4x 8x, pause [Space], step 0.1 s [.]; tuning panel [K]; stop.
+// faster) / the sites one by one [V next] / threat cam / the Director (the default: cuts between the dramatic moments, zdirector.js); speed [1-4] 1x 2x 4x 8x, pause [Space], step 0.1 s [.]; tuning panel [K]; stop.
 // The tuning panel edits key game numbers live (prices, enemy speed / bounty / damage / spawn weight, difficulty, helper effectiveness,
 // income and costs); Export gives the changes as JSON, Reset puts everything back. Changes last until Reset or a page reload.
 // On game over a report replaces the end screen: wave reached, the final hit, money over time, purchases by wave with their reasons,
@@ -16,12 +16,14 @@ import {KIND,ITEMS,ZDIFF,HELP,RACK_TIERS,RACK_CAP,RACK_CAP_COST,LRACK,PERK,RESIS
 import {SW} from './zswdata.js';
 import {DOCS,DOC_IDS,KIT,KIT_IDS,KIT_MAX} from './zmeta.js';
 import {SECTORS} from './zcampaign.js';
+import {initDirector} from './zdirector.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,money=n=>'$'+Math.round(n).toLocaleString('en-US'),esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
-const CAMS=[['chase','Chase'],['fpv','Bot FPV'],['free','Free cam'],['sites','Sites'],['threat','Threat cam']],SPEEDS=[1,2,4,8];
+const CAMS=[['chase','Chase'],['fpv','Bot FPV'],['free','Free cam'],['sites','Sites'],['threat','Threat cam'],['director','Director']],SPEEDS=[1,2,4,8];
 export function initSpectate(api,G,Z){
  const {THREE,S,save,SITES,TH,gh}=api,V3=THREE.Vector3,$=id=>document.getElementById(id);
  const E=window.__z;Object.assign(E,{RESIST,data:{RACK_TIERS,RACK_CAP,RACK_CAP_COST,LRACK,HELP,SUPPLY}});E.brain=brain;
  const sp={on:false,bench:false,P:null,o:null,pilot:null,spd:1,paused:false,cam:'chase',site:0,stats:null,gen:null,next:0,cur:null,starting:false,shopT:0};
+ const dir=initDirector(api,G,Z,{pilot:()=>sp.pilot,speed:()=>sp.on&&!sp.paused?sp.spd:1});  /* the Director camera (zdirector.js) */
 
  // ---------- style ----------
  const css=document.createElement('style');css.textContent=`
@@ -76,18 +78,18 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
  const newStats=o=>({lv:o.lv,d:ZDIFF[o.d].n,doc:DOCS[o.doc]?.n||'Standard',kit:o.kit||[],sec:o.sec?SECTORS.find(s=>s.id===o.sec)?.n:'',simT:0,money:[],buys:[],kills:{},lastHit:null,dmg:{},bursts:0,deaths:{det:0,crash:0,bat:0},crashes:[],waves:[],sampleT:0,snap:new Map(),wasDead:false,relaunches:0});
  function start(o){if(sp.on)stop();const P=brain.level(o.lv);if(!P)return false;
   let pickWhy='';if(o.auto){const c=brain.loadout(P,o.sec?SECTORS.find(s=>s.id===o.sec):null);o={...o,doc:c.doc,kit:c.kit};pickWhy=c.why}
-  Object.assign(sp,{on:true,bench:!!o.bench,P,o:{...o},spd:1,paused:false,cam:'chase',site:0,gen:null,cur:null,next:0,stats:newStats(o),shopT:0});
+  Object.assign(sp,{on:true,bench:!!o.bench,P,o:{...o},spd:1,paused:false,cam:o.bench?'chase':'director',site:0,gen:null,cur:null,next:0,stats:newStats(o),shopT:0});
   sp.pilot=createPilot(api,G,Z,P,E);if(pickWhy)E.bot?.use('camp','Loadout: '+DOCS[o.doc].n+(o.kit.length?' + '+o.kit.map(k=>KIT[k].n).join(', '):'')+' · '+pickWhy);
   Z.botIn=(d,dt)=>sp.on&&(G.state!=='base'||Z.bot?.sortie?.on())&&G.state!=='over'?sp.pilot.input(d,dt):null;Z.botFire=()=>sp.on&&sp.pilot.fire();Z.sightCam=sight;
   const ld=Z.meta.load;Z.meta.load=()=>({doc:DOCS[o.doc]?o.doc:'std',kit:(o.kit||[]).filter(k=>KIT[k]).slice(0,KIT_MAX)});sp.starting=true;
   try{if(o.sec&&Z.cp?.start)Z.cp.start(o.sec,true);else api.startMatch()}finally{Z.meta.load=ld;sp.starting=false}
-  reseed(o.d);document.body.classList.add('zsp-on');api.camMode=1;
+  reseed(o.d);document.body.classList.add('zsp-on');api.camMode=1;if(sp.cam==='director')dir.on();
   if(!sp.bench){ui();api.feed(`<span class="cb">Bot spectator: ${esc(P.n)} on ${ZDIFF[o.d].n}</span>. Keys: C camera · 1-4 speed · Space pause · . step · K tuning · Esc menu`)}
   logMoney();return true}
  // the bot's difficulty, whatever the menu or the campaign says: start cash and site hit points follow it, and the first wave is planned again
  function reseed(d){const D0=Z.diff();G.dfo=d;const D=Z.diff(),k=Z.meta.k('startK');G.cash+=Math.round(D.start*k)-Math.round(D0.start*k);
   for(const s of SITES){s.max=Math.max(1,Math.round(s.max*D.hp/D0.hp));s.hp=s.max}G.next=Z.plan(G.wave+1);Z.wx?.start?.(G.next.wx);Z.base.refresh?.()}
- function stop(){if(!sp.on)return;sp.on=false;delete Z.botIn;delete Z.botFire;delete Z.sightCam;Z.stepCap=0;sp.pilot=null;sp.gen=null;
+ function stop(){if(!sp.on)return;sp.on=false;dir.off();delete Z.botIn;delete Z.botFire;delete Z.sightCam;Z.stepCap=0;sp.pilot=null;sp.gen=null;
   document.body.classList.remove('zsp-on');api.camMode=S.cam|0;G.dfo=undefined;for(const id of['zspbar','zspctl','zspcap','zsptune'])$(id)?.remove()}
  // the bot's sights: its FPV camera (down the nose with the tilt switch up), whatever camera the spectator is watching through
  const sq=new THREE.Quaternion(),sx=new V3(1,0,0),sightO={position:new V3(),quaternion:new THREE.Quaternion()};
@@ -154,7 +156,7 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
  function syncCtl(){const c=$('zspctl');if(!c)return;for(const x of c.querySelectorAll('[data-zcam]'))x.classList.toggle('on',x.dataset.zcam===sp.cam);for(const x of c.querySelectorAll('[data-zspd]'))x.classList.toggle('on',+x.dataset.zspd===sp.spd&&!sp.paused);
   $('zsppause').classList.toggle('on',sp.paused);$('zsppause').textContent=sp.paused?'Resume':'Pause';$('zsptbtn').classList.toggle('on',!!$('zsptune'))}
  let hudLast='';
- function hudTick(){const b=$('zspbar');if(!b)return;const ov=G.state==='over';b.hidden=ov;const c=$('zspctl');if(c)c.hidden=ov;if(ov)return;const me=api.player,lk=Z.lk?.t,camN=CAMS.find(c=>c[0]===sp.cam)[1]+(sp.cam==='sites'?' · '+(SITES[sp.site%SITES.length]?.n||''):'');
+ function hudTick(){const b=$('zspbar');if(!b)return;const ov=G.state==='over';b.hidden=ov;const c=$('zspctl');if(c)c.hidden=ov;if(ov)return;const me=api.player,lk=Z.lk?.t,camN=CAMS.find(c=>c[0]===sp.cam)[1]+(sp.cam==='sites'?' · '+(SITES[sp.site%SITES.length]?.n||''):sp.cam==='director'?dir.label():'');
   const h=`<b>BOT ${esc(sp.P.n.toUpperCase())} · ${esc(sp.stats.d.toUpperCase())}</b><span>${esc(G.state==='base'&&!Z.bot?.sortie?.on()?'on the base screen':sp.pilot?.intent||'')}</span><em>${camN} · ${sp.paused?'PAUSED':sp.spd+'×'}${lk?` · LOCK T${String(lk.id).padStart(2,'0')}`:Z.lk?.cand&&Z.lk.prog>0?` · LOCKING ${Math.round(Z.lk.prog*100)}%`:''}${me&&me.dead<=0?` · ${Math.round(me.v.length()*3.6)} km/h · ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m`:''}</em>`;
   if(h!==hudLast)b.innerHTML=hudLast=h}
  function setSpeed(s){sp.spd=s;sp.paused=false;Z.stepCap=Math.ceil(12*s);syncCtl()}
@@ -165,8 +167,8 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
  const cam={p:new V3(),yaw:0,pit:-.25,fov:70,keys:{},drag:null,tp:new V3(),look:new V3(),sm:new V3(),init:false};
  function setCam(k,click){if(k==='sites'&&sp.cam==='sites'&&click)sp.site++;if(k!=='sites'&&sp.cam!=='sites')sp.site=sp.site|0;
   if(k==='free'&&sp.cam!=='free'){const c=api.camera;cam.p.copy(c.position);const f=new V3(0,0,-1).applyQuaternion(c.quaternion);cam.yaw=Math.atan2(f.x,-f.z);cam.pit=Math.asin(cl(f.y,-1,1))}
-  sp.cam=k;cam.init=false;api.camMode=k==='fpv'?0:1;syncCtl()}
- function camTick(dt){if(sp.cam==='chase'||sp.cam==='fpv')return;const c=api.camera,me=api.player;let P=cam.tp,L=cam.look;
+  sp.cam=k;cam.init=false;api.camMode=k==='fpv'?0:1;if(k==='director')dir.on();else dir.off();syncCtl()}
+ function camTick(dt){if(sp.cam==='chase'||sp.cam==='fpv')return;if(sp.cam==='director'){dir.tick(dt);return}const c=api.camera,me=api.player;let P=cam.tp,L=cam.look;
   if(sp.cam==='free'){const k=cam.keys,v=(k.ShiftLeft||k.ShiftRight?240:60)*Math.min(dt,.1),f=new V3(Math.sin(cam.yaw)*Math.cos(cam.pit),Math.sin(cam.pit),-Math.cos(cam.yaw)*Math.cos(cam.pit)),r=new V3(Math.cos(cam.yaw),0,Math.sin(cam.yaw));
    if(k.KeyW)cam.p.addScaledVector(f,v);if(k.KeyS)cam.p.addScaledVector(f,-v);if(k.KeyD)cam.p.addScaledVector(r,v);if(k.KeyA)cam.p.addScaledVector(r,-v);if(k.KeyE)cam.p.y+=v;if(k.KeyQ)cam.p.y-=v;
    cam.p.y=Math.max(cam.p.y,gh(cam.p.x,cam.p.z)+2);P=cam.p;L=cam.look.copy(P).add(f)}
@@ -265,7 +267,7 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
    <text x="${W-8}" y="14" fill="#5fe3ff" font-size="11" text-anchor="end">earned</text><text x="${W-8}" y="28" fill="#ffc640" font-size="11" text-anchor="end">purse</text></svg>`}
 
  // ---------- headless benchmark (tools/zombies-bench.mjs --real) and tests ----------
- E.spec={get on(){return sp.on},sp,start,stop,report,TUNE,apply,resetAll,setCam,setSpeed,setPause,stepOnce,toggleTune,
+ E.spec={get on(){return sp.on},sp,dir,start,stop,report,TUNE,apply,resetAll,setCam,setSpeed,setPause,stepOnce,toggleTune,
   bench:{start:(lv,d,o={})=>start({lv,d,doc:o.doc||'std',kit:o.kit||[],sec:o.sec||'',bench:true}),
    shop(){const r=brain.shopNow(sp.P,E);for(const s of r)if(s.spent>0||s.what==='chain'||s.what==='sell')sp.stats.buys.push({w:G.wave+1,what:s.what,k:s.k||'',why:s.why,cost:s.spent});return r.length},
    wave(max=2400){let n=0;while(G.state==='wave'&&n++<max)E.sim(.5);if(G.state==='clear')E.sim(4);return G.state}}};

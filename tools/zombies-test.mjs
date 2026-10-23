@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore   run only those sections (CI shards them across jobs); default all
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
@@ -2851,6 +2851,123 @@ if (want('explore')) {
   ok(RS.sum.s.stuck === 0, 'Explore: and sat still nowhere');
   const errs = [...RUNS, RS].flatMap(r => r.errs);
   ok(!errs.length, 'Explore: headless runs: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+}
+
+/* ---------- spectator director (zdirector.js): the Director camera cuts between the dramatic moments of a bot's run ---------- */
+if (want('director')) {
+  const {p, errs} = await page();
+  await p.evaluate(() => { __z.spec.start({lv: 'Legend', d: 1, doc: 'std', kit: [], sec: ''}); });
+  await p.waitForFunction(() => __z.spec.on && __z.G.state === 'base', {timeout: 30000});
+  const d0 = await p.evaluate(() => { const {spec} = __z; return {cam: spec.sp.cam, active: spec.dir.active, on: document.querySelector('#zspctl button.on')?.dataset.zcam, btns: [...document.querySelectorAll('#zspctl [data-zcam]')].map(b => b.dataset.zcam).join(), mode: __z.api.camMode, sdf: typeof __z.api.sdf}; });
+  ok(d0.cam === 'director' && d0.active && d0.on === 'director' && /,director$/.test(d0.btns), `Director: the default camera when spectating a bot, last in the camera list (${d0.btns})`);
+  ok(d0.sdf === 'function', 'Director: the world SDF (terrain, trees, buildings) is on the api for the camera');
+  /* a scripted wave: the bot flies it for real; Z.cam runs each step like the draw loop does (the bodies at their in-between pose) */
+  const run = await p.evaluate(() => { try { const {api, G, Z, spec} = __z, dir = spec.dir, IP = api.interp, V = api.THREE.Vector3, cam = api.camera, TICK = 1 / 120;
+    const M = {frames: 0, cine: 0, noView: 0, under: 0, solid: 0, mode: 0, bad: [], booms: [], ip: [], iv: 0, cineHeld: null, card: '', kb: '', sstrike: null, fpv: 0, t: 0, boss: 0};
+    const f0 = Z.flash; Z.flash = (q, k) => { f0(q, k); const f = new V(0, 0, -1).applyQuaternion(cam.quaternion), d = q.clone().sub(cam.position); M.booms.push({t: dir.now, k, vis: d.length() < 1800 && d.dot(f) > .3 * d.length(), hold: dir.lockFor(k)}); };
+    G.cash = 40000; __z.jump(6, 40000); spec.bench.shop(); G.perks.swarm = Math.max(G.perks.swarm | 0, 2); G.perks.swarmk = Math.max(G.perks.swarmk | 0, 1); __z.cont();
+    const at = (b, R) => [Math.sin(b) * R, 1950 - Math.cos(b) * R], did = {}; let t = 0, boss = null;
+    dir.wipe();
+    while (G.state !== 'over' && t < 330 && !(G.state === 'base' && t > 5)) {
+      for (let i = 0; i < 12; i++) api.step(TICK); api.visuals(.1, performance.now()); t += .1;
+      if (!did.a && t > 2) { did.a = 1; for (const [b, k] of [[-1.1, 'shahed'], [0, 'shahed'], [1, 'shahed'], [.4, 'jet'], [-.5, 'jet'], [.1, 'heavy']]) { const [x, z] = at(b, 3800); __z.make(k, x, z); }
+        for (let i = 0; i < 8; i++) { const [x, z] = at(.8, 3600), u = __z.make('swarm', x + i * 20, z + i * 10); u.grp = 77; } }
+      if (!did.b && t > 12) { did.b = 1; boss = __z.make('boss', 0, -3200); }
+      if (did.b && !did.b2 && Z.cine) { did.b2 = t; const n0 = dir.now; Z.cam(.1); M.cineHeld = dir.now === n0; Z.fxTest.endCine(); }
+      if (did.b2 && !did.b3 && t > did.b2 + .5) { did.b3 = 1; const el = document.getElementById('zdirlt'); M.card = el?.textContent || ''; M.cardOn = !!el?.classList.contains('on'); }
+      if (!did.c && t > 30) { did.c = 1; const s = api.SITES[1]; s.hp = Math.max(30, s.max * .15); const u = __z.make('shahed', s.x + 900, s.z - 900, s); u.tgt = s; u.aim = s.aims[0]; u.p.set(u.aim.x + 150, u.aim.y + 50, u.aim.z - 150); u.v.set(-30, -12, 40); }
+      if (!did.d && t > 40) { did.d = 1; const me = api.player, L = []; for (let i = 0; i < 5; i++) { const u = __z.make('shahed', me.p.x + i * 25, me.p.z - 1800); u.p.set(me.p.x + i * 25, me.p.y, me.p.z - 1800 - i * 20); L.push(u); } Z.sw.deploy(Z.sw.mine, 6, 2); M.sstrike = me.dead <= 0 && Z.sw.command('strike'); }
+      if (!did.e && t > 75) { did.e = 1; if (boss) while (api.live(boss)) Z.bossHit(boss); }
+      if (t > 150 && !did.f) { did.f = 1; G.wq.length = 0; }
+      if (t > 190 && !did.g) { did.g = 1; for (const u of api.TH) if (api.live(u)) u.st = 'dead'; }
+      const me = api.player, sim = me.p.clone(); IP.begin(.5); let c;
+      try { Z.cam(.1); c = dir.cur; if (!Z.cine && c.on && c.A.bot && me.dead <= 0 && me.v.length() > 50) M.ip.push(c.A.p.distanceTo(sim) / (.5 * me.v.length() * TICK)); } finally { IP.end(); }
+      cam.updateMatrixWorld();
+      if (Z.cine) { M.cine++; continue; } if (!c.on) continue;
+      M.frames++; if (c.type === 'fpv') M.fpv++;
+      const sj = c.type === 'fpv' ? c.B : c.A, vw = sj.p.clone().applyMatrix4(cam.matrixWorldInverse), nd = sj.p.clone().project(cam);
+      if (!(vw.z < -.5 && Math.abs(nd.x) <= 1.02 && Math.abs(nd.y) <= 1.02)) { M.noView++; if (M.bad.length < 6) M.bad.push([c.type, c.label, +t.toFixed(1), +nd.x.toFixed(2), +nd.y.toFixed(2), +vw.z.toFixed(0)]); }
+      const cp = cam.position; if (cp.y < api.gh(cp.x, cp.z) + .5) M.under++;
+      if (c.type !== 'fpv' && api.sdf(cp.x, cp.y, cp.z) > -.5) M.solid++;
+      if ((c.type === 'fpv') !== (api.camMode === 0)) M.mode++;
+      if (did.b3 && !M.kb) M.kb = document.getElementById('zdirk')?.textContent || '';
+    }
+    for (let i = 0; i < 4; i++) { api.step(TICK); api.visuals(.1, performance.now()); Z.cam(.1); }
+    Z.flash = f0; M.t = +t.toFixed(1); M.state = G.state; M.end = [G.kills.p + G.kills.h];
+    M.log = dir.log.map(l => ({kind: l.kind, type: l.type, why: l.why, t0: +l.t0.toFixed(2), t1: +l.t1.toFixed(2), locked: l.locked, dist: Math.round(l.dist)}));
+    M.stats = dir.stats; M.leaks = dir.leaks(); M.min = dir.MINL; M.ev = dir.slots.filter(s => s.ev && s.s > 0).length;
+    return M; } catch (e) { return {error: String(e.stack).slice(0, 1200)}; } });
+  if (run.error) { console.log('  ' + run.error); ok(false, 'Director: the scripted wave ran'); } else {
+    const L = run.log, kinds = [...new Set(L.map(l => l.kind))], types = [...new Set(L.map(l => l.type))], dur = l => l.t1 - l.t0;
+    console.log(`  wave: ${run.t} s, ${run.frames} frames on the director, ${L.length} shots (${run.stats.cuts} cuts, ${run.stats.eases} eases, ${run.stats.interrupts} interrupts, ${run.stats.forced} forced)`);
+    console.log('  moments:', kinds.join(', '), '· shots:', types.join(', '), '· rejected:', JSON.stringify(run.stats.rej));
+    console.log('  log:', L.map(l => `${l.kind}/${l.type} ${dur(l).toFixed(1)}${l.why === 'end' ? '' : ' ' + l.why}`).join(' | '));
+    ok(L.length >= 10 && kinds.length >= 5 && ['intercept', 'boss'].every(k => kinds.includes(k)) && kinds.some(k => ['site', 'threat', 'blast', 'boss down', 'swarm strike'].includes(k)), `Director: it chose ${L.length} shots over ${kinds.length} kinds of moment (${kinds.join(', ')}) in one wave`);
+    ok(types.length >= 6 && run.stats.cuts >= 5, `Director: ${types.length} different shots (${types.join(', ')}), ${run.stats.cuts} cuts and ${run.stats.eases} eases`);
+    ok(run.frames > 600 && run.noView === 0, `Director: the shot's subject was in view on all ${run.frames} frames` + (run.noView ? ` (${run.noView} not: ${JSON.stringify(run.bad)})` : ''));
+    ok(run.under === 0 && run.solid === 0, `Director: the camera was never under the ground (${run.under}) or inside the world's solids (${run.solid}) on ${run.frames} frames`);
+    ok(run.mode === 0, `Director: the goggle view (camera mode 0) is on exactly during the FPV shots (${run.fpv} frames)`);
+    const rule = L.filter(l => ['end', 'better'].includes(l.why)), early = rule.filter(l => dur(l) < run.min - .05), hard = L.filter(l => l.why === 'interrupt' && dur(l) < 1.8 - .05);
+    ok(rule.length >= 5 && !early.length && !hard.length, `Director: shots keep their minimum (${run.min} s; interrupts 1.8 s): shortest ${Math.min(...rule.map(dur)).toFixed(1)} s of ${rule.length} planned cuts, ${L.filter(l => l.why === 'interrupt').length} interrupts` + (early.length ? ' ' + JSON.stringify(early) : ''));
+    const bad = rule.filter(l => l.locked || run.booms.some(b => b.vis && b.k >= 1.2 && b.t <= l.t1 && l.t1 - b.t < b.hold - .15));
+    ok(run.booms.filter(b => b.vis && b.k >= 1.2).length >= 5 && !bad.length, `Director: no planned cut while an explosion in view was still going (${run.booms.filter(b => b.vis && b.k >= 1.2).length} explosions in view)` + (bad.length ? ' ' + JSON.stringify(bad) : ''));
+    ok(run.cineHeld === true, "Director: it steps aside while the game's own boss fly-by cinematic has the camera");
+    ok(/MOTHERSHIP/.test(run.card) && run.cardOn && /\d+ DOWN/.test(run.kb), `Director: lower-third name card on the boss's arrival ("${run.card.replace(/\s+/g, ' ')}") and a kill count ("${run.kb}")`);
+    ok(run.ip.length >= 8 && run.ip.reduce((a, b) => a + b, 0) / run.ip.length > .6 && run.ip.reduce((a, b) => a + b, 0) / run.ip.length < 1.4, `Director: it points at the in-between (render) pose of the bot, half a tick behind the simulated one (${run.ip.length} frames, mean ratio ${(run.ip.reduce((a, b) => a + b, 0) / Math.max(1, run.ip.length)).toFixed(2)})`);
+    console.log('  swarm strike in the wave: ' + (run.sstrike ? (kinds.includes('swarm strike') ? 'shown' : 'ordered, another moment was bigger') : 'none (the bot was down)'));
+    ok(run.leaks.tracks === 0 && run.ev === 0 && run.leaks.lock === 0 && run.leaks.card === 0 && run.leaks.booms === 0 && run.state === 'base', `Director: nothing left over after the wave: ${run.leaks.tracks} tracks held, ${run.ev} events, no explosion lock, no card (${JSON.stringify(run.leaks)})`);
+  }
+  /* the next wave, for the single-moment checks and the cost: the bot's flight is scripted over, tracks are placed by hand */
+  await p.evaluate(() => { __z.cont(); });
+  /* a site about to be hit while the bot is down: the threat moment, shown from the defender's side */
+  const thr = await p.evaluate(() => { const {api, G, Z, spec} = __z, dir = spec.dir, V = api.THREE.Vector3; 
+    for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); api.lose('crash');
+    const s = api.SITES[1]; s.hp = s.max * .2; const t = __z.make('shahed', s.x + 400, s.z - 400, s); t.tgt = s; t.aim = s.aims[0]; t.p.set(t.aim.x + 100, t.aim.y + 60, t.aim.z - 120); t.v.set(-30, -15, 35);
+    dir.wipe(); dir.tick(.05); const c = dir.cur, sl = dir.slots[1];
+    const o = {kind: c.kind, type: c.type, A: c.A.ref === t, score: +sl.s.toFixed(2), toSite: Math.round(Math.hypot(api.camera.position.x - s.x, api.camera.position.z - s.z)), int: dir.slots[0].s, rej: dir.stats.rej};
+    api.TH.splice(api.TH.indexOf(t), 1); api.scene.remove(t.mesh); s.hp = s.max; return o; });
+  console.log('  threat:', JSON.stringify(thr));
+  ok(thr.kind === 1 && thr.A && thr.score > .4 && thr.int === 0, `Director: a Shahed seconds from a hurt site with the bot down is the moment (score ${thr.score}), shot as "${thr.type}" ${thr.toSite} m from the site`);
+  /* the bot's own intent: the brain's Z.bot.intent {kind, target, why} when it exposes one */
+  const it = await p.evaluate(() => { const {api, G, Z, spec} = __z, dir = spec.dir; api.launch(); for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
+    const me = api.player; me.p.set(0, api.gh(0, 2600) + 300, 2600); me.v.set(0, 0, -60); const a = __z.make('shahed', 0, 100), b = __z.make('shahed', 150, 100); for (const u of [a, b]) { u.p.set(u.p.x, me.p.y, -1200); u.v.set(0, 0, 50); u.aim = new api.THREE.Vector3(0, 0, 1950); }
+    const B0 = Z.bot, set = (kind, target) => { Z.bot = {intent: {kind, target, why: 'test', sub: '', t: 0, w: 0}}; dir.score(); }, sl = dir.slots;
+    set('intercept', null); const was = sl[0].a === a, quiet0 = sl[10].s; set('intercept', b); const now = sl[0].a === b; set('intercept', b.id); const byId = sl[0].a === b;
+    set('transit', {x: 0, y: 300, z: 0, label: 'the north ridge'}); const quiet = sl[10].s; set('sortie', {x: 120, y: 200, z: -3000, label: 'a launch site'}); const run = [sl[8].s, sl[8].x, sl[8].z]; set('bomb', {x: 120, y: 200, z: -3000, label: 'a launch site'}); const bomb = [sl[8].s, sl[8].mag, sl[8].at];
+    Z.bot = B0; return {was, now, byId, quiet0, quiet, run, bomb}; });
+  ok(it.now && it.byId && it.quiet < it.quiet0 && it.run[0] > .4 && it.run[1] === 120 && it.run[2] === -3000 && it.bomb[0] > .9 && it.bomb[2], `Director: it reads the brain's Z.bot.intent: a target that is a track or its id is followed; roaming ("transit") is quiet (${it.quiet} against ${it.quiet0}); a sortie target place is a moment and bombing is a climax (${it.bomb[0]})`);
+  /* a swarm strike with nothing else going on: the moment, shot from the swarm's side */
+  const sw = await p.evaluate(() => { const {api, G, Z, spec} = __z, dir = spec.dir; api.launch(); G.perks.swarm = Math.max(G.perks.swarm | 0, 2); for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
+    const me = api.player; me.p.set(0, api.gh(0, 2600) + 400, 2600); me.v.set(0, 0, -60); for (let i = 0; i < 5; i++) { const u = __z.make('shahed', i * 25, 2600 - 1800 - i * 20); u.p.set(i * 25, me.p.y, 2600 - 1800 - i * 20); }
+    Z.sw.deploy(Z.sw.mine, 6, 2); const ok = Z.sw.command('strike'); dir.wipe(); dir.tick(.05); const c = dir.cur, q = dir.slots[4]; return {ok, kind: c.kind, type: c.type, s: +q.s.toFixed(2), mag: q.mag}; });
+  ok(sw.ok && sw.kind === 4 && sw.s > .9 && sw.mag > 4, `Director: a swarm strike is a moment of its own (score ${sw.s}), shot as "${sw.type}"`);
+  /* a boss going down with nothing else on air: the moment, from the blast that kills it */
+  const bd = await p.evaluate(() => { const {api, G, Z, spec} = __z, dir = spec.dir; api.launch(); for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
+    const b = __z.make('boss', 0, 400); dir.wipe(); while (api.live(b)) Z.bossHit(b); dir.tick(.05); const c = dir.cur, q = dir.slots[3]; return {kind: c.kind, type: c.type, s: +q.s.toFixed(2), mag: q.mag}; });
+  ok(bd.kind === 3 && bd.s > 1.2 && bd.mag > 6, `Director: a boss's death is a moment of its own (score ${bd.s}), shot as "${bd.type}"`);
+  /* cost: the scorer allocates nothing, and a frame is a fraction of a millisecond (a crowd of 80 tracks in the air) */
+  const cdp = await p.createCDPSession(); await cdp.send('HeapProfiler.enable');
+  await p.evaluate(() => { const {api, G, spec} = __z, dir = spec.dir, at = (b, R) => [Math.sin(b) * R, 1950 - Math.cos(b) * R]; 
+    for (let i = 0; i < 60; i++) { const [x, z] = at(-1.2 + i * .04, 3000 + i * 10), u = __z.make(i % 3 ? 'swarm' : 'shahed', x, z); u.grp = 80 + (i % 4); } for (let i = 0; i < 30000; i++) { dir.score(); dir.decide(); } for (let i = 0; i < 6000; i++) dir.tick(1 / 60); });
+  const cost = await p.evaluate(() => { const {api, spec} = __z, dir = spec.dir; let t0 = performance.now(); for (let i = 0; i < 4000; i++) dir.score(); const sc = (performance.now() - t0) / 4000;
+    t0 = performance.now(); for (let i = 0; i < 4000; i++) dir.tick(1 / 60); const tk = (performance.now() - t0) / 4000; return {sc: +sc.toFixed(4), tk: +tk.toFixed(4), tracks: api.TH.length}; });
+  timingCheck(cost.sc < .15 && cost.tk < .25, `Director: scorer ${cost.sc} ms a run, a frame ${cost.tk} ms with ${cost.tracks} tracks in the air`, ok);
+  let heap = null;
+  for (let attempt = 0; attempt < 3 && !(heap && heap.bytes <= 64); attempt++) {
+    await p.evaluate(() => { const dir = __z.spec.dir; for (let i = 0; i < 40000; i++) dir.score(); });
+    try { try { await cdp.send('HeapProfiler.startSampling', {samplingInterval: 32, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true}); } catch (e) { await cdp.send('HeapProfiler.startSampling', {samplingInterval: 32}); }
+      await p.evaluate(() => { const dir = __z.spec.dir; for (let i = 0; i < 20000; i++) dir.score(); });
+      const {profile} = await cdp.send('HeapProfiler.stopSampling'); let bytes = 0, all = 0; const where = [];
+      const walk = n => { all += n.selfSize; if (/zdirector\.js/.test(n.callFrame.url) && /^(score|readIntent|ev|pen|top|decide)$/.test(n.callFrame.functionName) && n.selfSize) { bytes += n.selfSize; where.push(n.callFrame.functionName + ':' + n.callFrame.lineNumber + ' ' + n.selfSize); } for (const c of n.children) walk(c); };
+      walk(profile.head); if (!heap || bytes < heap.bytes) heap = {bytes, all, where}; } catch (e) { console.log('  (heap sampling unavailable: ' + e.message + ')'); break; }
+  }
+  if (heap) ok(heap.bytes <= 64, `Director: the scorer allocates nothing: 20000 runs over 60 tracks, ${heap.bytes} bytes sampled in zdirector.js` + (heap.bytes ? ' ' + heap.where.slice(0, 8).join(', ') : ''));
+  /* leaving: hooks off, the camera and field of view back, the elements gone */
+  const off = await p.evaluate(() => { const {api, G, Z, spec} = __z, dir = spec.dir, c = api.camera; const f = 2 * Math.atan(Math.tan(50 * Math.PI / 180) / c.aspect) * 180 / Math.PI; spec.setCam('chase', true); const o = {act: dir.active, lt: !!document.getElementById('zdirlt'), kb: !!document.getElementById('zdirk'), fov: Math.abs(c.fov - f) < .05, mode: api.camMode};
+    spec.setCam('director', true); const on = dir.active && !!document.getElementById('zdirk'); spec.stop(); Z.flash(c.position.clone(), 6); return {...o, on, stopped: !dir.active && !document.getElementById('zdirlt') && !document.getElementById('zdirk'), booms: dir.leaks().booms, cam: api.camMode === (api.S.cam | 0)}; });
+  ok(!off.act && !off.lt && !off.kb && off.fov && off.mode === 1 && off.on && off.stopped && off.booms === 0 && off.cam, `Director: switching to another camera or stopping turns it off (hooks idle, field of view and camera mode back, no elements left) (${JSON.stringify(off)})`);
+  ok(!errs.length, 'Director: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
 }
 
 // ---------- balance: a scripted player who shops sensibly and runs down a share of the tracks; how far does it get? ----------
