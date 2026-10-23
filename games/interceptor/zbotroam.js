@@ -12,7 +12,7 @@ export function createRoam(E,B,F){
  /* the raids as bearings: the queued spawns (they come in from the edge at their bearing) and the live tracks outside the defended area; the fast
     missiles are left out (they are the kill chain's and the line-sitter's business, and nobody waits for them on a ridge) */
  function scan(){const A=new Map();let inb=0;const add=(b,w)=>{const k=Math.round(b/.3);let a=A.get(k);if(!a)A.set(k,a={b,w:0,n:0});a.b=(a.b*a.w+b*w)/(a.w+w);a.w+=w;a.n++};
-  for(const q of G.wq||[]){const[k,c]=q.k.split(':'),K=KIND[k];if(!K)continue;inb+=+c||1;if(K.armor!=='hard')add(q.brg,K.pts*(+c||1))}
+  for(const q of G.wq||[]){const[k,c]=q.k.split(':'),K=KIND[k];if(!K)continue;inb+=+c||1;if(K.armor!=='hard')add(q.brg,(K.pts||1)*(+c||1))}  /* a boss is worth 0 points: weigh it as one, or its bearing is 0/0 (NaN) and no station scores */
   for(const t of api.TH){if(!api.live(t))continue;inb++;const K=KIND[t.k];if(!K||K.armor==='hard')continue;const px=t.p.x-SC.x,pz=t.p.z-SC.z;if(Math.hypot(px,pz)<1300)continue;add(Math.atan2(px,-pz),K.pts||1)}
   R.axes=[...A.values()];R.inb=inb;R.sig=R.axes.filter(a=>a.w>2).map(a=>Math.round(a.b/.3)).sort().join(',')}
  function pick(me){const s=M.pick({axes:R.axes,from:me.p,cur:R.cur,AW:api.AW||4300,now:B.t,noise:.25});

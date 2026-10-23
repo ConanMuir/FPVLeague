@@ -63,7 +63,7 @@ export function initBuddy(api,G,Z){
   if(pad&&(cf<.85||b.hp<.8*st.tuf))return b.job==='recharge'?(b.jt=rnd(K.pick[0],K.pick[1])):setJob(b,'recharge');
   let boss=null,bd=1e18,bt=null,bs=-1e9,nb=0,thr=0,sp=null,str=null,ss=1e18;const C=[];
   for(const t of TH){if(!api.live(t)||!KIND[t.k])continue;const d=t.p.distanceTo(b.p);
-   if(isMain(t)){if(d<bd){bd=d;boss=t}continue}
+   if(isMain(t)){if(!Z.hid?.(t)&&d<bd){bd=d;boss=t}continue}  /* a boss you cannot see (the Hush, the Ghost, the Puppeteer in disguise, the Jammer King) is not one it circles: its blip and its marks would point the way */
    if(hyp(t.p.x-PADP.x,t.p.z-PADP.z)<4500)thr++;
    if(RAM[t.k]&&t!==b.skip&&d<2400){nb++;const sc=40/(1+t.p.distanceTo(t.aim)/Math.max(1,t.spd)/20)-d/120;if(sc>bs){bs=sc;bt=t}}
    if(d<3200&&t.spd<76&&t.k!=='decoy'&&KIND[t.k].armor!=='hard'&&C.length<40)C.push(t)}
