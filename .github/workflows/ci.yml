@@ -159,6 +159,10 @@ jobs:
           - check: zombies-test (codex)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=codex
+          # radio chatter (zradio.js): callouts, merging and rate limits, the HUD log, the sound cap, speech with and without speechSynthesis
+          - check: zombies-test (radio)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=radio
           # the QA sweep (tools/qa-sweep.mjs): every mode played with scripted inputs, then NaN scans, layout / keyboard, leak, save and hardware-oddity probes (fast pass)
           - check: qa-sweep (League, fast)
             area: league
