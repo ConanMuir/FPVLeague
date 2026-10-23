@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,explore,director   run only those sections (CI shards them across jobs); default all
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,explore,director   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
 import {timingCheck} from './browser.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
@@ -1739,6 +1739,226 @@ if (want('codex')) {
   ok(!sp.off && sp.on && sp.pool >= 10 && sp.w10 === 'boss' && !sp.wrote && !sp.after && sp.sec && sp.secAll, `Codex Bot Spectator: a bot's run has every boss unlocked and allowed by itself (pool ${sp.pool}), writes nothing, and a campaign sector still plays its set piece; off again after`);
   ok(!errs.length, 'Codex: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
   await p.close();
+}
+
+// ---------- radio chatter (zradio.js): callouts from the game's state, merged and rate-limited; the HUD log, a modest squelch, speech through
+// speechSynthesis (and without it); the old subtitle taken over and given back; muted in menus; nothing left behind when a wave ends ----------
+if (want('radio')) {
+  const {p, errs} = await page();
+  await play(p);
+  const r0 = await p.evaluate(() => { const {S} = __z.api, {Z} = __z, R = Z.radio;
+    window.__syn = {spoken: [], cancels: 0, speaking: false, pending: false, speak(u) { this.spoken.push({text: u.text, pitch: u.pitch, rate: u.rate, volume: u.volume}); }, cancel() { this.cancels++; }, getVoices() { return []; }};
+    window.__Utt = function (t) { this.text = t; };
+    R.env.synth = () => window.__syn; R.env.utter = () => window.__Utt;  /* a speechSynthesis stand-in: what was said, and when it was cut off */
+    window.__rf = () => { R.flush(); for (let i = 0; i < 5; i++) R.step(2); };  /* make the merged calls due and let the channel run */
+    window.__at = (brg, k = 'shahed', site = 1, rr = 5000) => __z.make(k, Math.sin(brg) * rr, 1950 - Math.cos(brg) * rr, __z.api.SITES[site]);
+    window.__clr = () => { for (const u of __z.api.TH) __z.api.scene.remove(u.mesh); __z.api.TH.length = 0; const k = __at(.3, 'shahed', 0, 5000); k._rz = 1; };  /* the sky is emptied but for one far track nobody calls: the page's own loop would end the wave between two checks */
+    return {has: !!R, rows: ['f_zradio', 'f_zrspeech', 'f_zradiov'].map(id => !!document.getElementById(id)), css: !!document.querySelector('link[href*="zradio.css"]'), chat: !!document.getElementById('zchat'),
+      def: [S.zradio, S.zrspeech, S.zradiov], cap: R.cap, ac: !!__z.api.AC}; });
+  ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean), 'Radio: the module is up with its HUD log, stylesheet and three settings rows (chatter, speech, volume)');
+  ok(r0.def[0] === true && r0.def[1] === true && r0.def[2] === .6 && r0.cap <= .1, `Radio: defaults are chatter on, speech on, volume ${r0.def[2]}; the sound cap is ${r0.cap}`);
+
+  // new tracks: three Shaheds from the east are one call, with the direction and the site they threaten
+  const m1 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio;
+    __z.cont(); G.wq.length = 0; R.hush(); R.calls.length = 0;
+    for (let i = 0; i < 3; i++) __at(1.571 + i * .03);
+    __z.sim(8);
+    return {calls: R.calls.map(c => `${c.topic}|${c.pri}|${c.who}|${c.txt}`), err: R.err && String(R.err.stack || R.err), lines: R.lines().length, dom: document.querySelectorAll('#zchat .zc').length}; });
+  const trk1 = m1.calls.filter(c => c.startsWith('trk|'));
+  ok(m1.calls.some(c => /^wave\|1\|OVERLORD\|.*(Wave|wave) 1/.test(c) && /three/.test(c)), `Radio: the wave start is called, with the track count ("${(m1.calls.find(c => c.startsWith('wave|')) || '').split('|')[3]}")`);
+  ok(trk1.length === 1 && /Three Shaheds from the east, heading for the fuel depot|Three (new )?Shaheds? (coming in )?from the east/.test(trk1[0]), `Radio: three new tracks are one call ("${(trk1[0] || 'none').split('|')[3]}")`);
+  ok(!m1.err && m1.lines === m1.dom && m1.dom >= 2 && m1.dom <= 3, `Radio: the HUD log shows ${m1.dom} lines (never more than three), no errors in the module`);
+
+  // a flood of tracks from every side: one 'trk' call at a time at least six seconds apart (merged, not a call each), and the calls per 20 s stay within the budget
+  const fl = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio;
+    __clr(); R.hush(); R.calls.length = 0; const made0 = R.st.made;
+    for (let k = 0; k < 24; k++) { __at(-1.2 + (k % 8) * .35, 'shahed', k % 3); __z.sim(.5); }
+    __z.sim(30);
+    const L = R.calls, tr = L.filter(c => c.topic === 'trk'); let win = 0; for (const c of L) win = Math.max(win, L.filter(d => d.t >= c.t && d.t < c.t + 20).length);
+    return {tracks: api.TH.filter(api.live).length, calls: L.length, trk: tr.length, gaps: tr.slice(1).map((c, i) => +(c.at - tr[i].at).toFixed(1)), win, drop: {...R.st.drop}, txt: tr.map(c => c.txt)}; });
+  ok(fl.trk >= 1 && fl.trk <= 8 && fl.trk < 24 / 2, `Radio merging: 24 tracks over 12 s made ${fl.trk} track calls ("${fl.txt[0]}")`);
+  ok(fl.gaps.every(g => g >= 5.9), `Radio cooldown: the track calls are at least 6 s apart (${fl.gaps.join(', ')})`);
+  ok(fl.win <= 4, `Radio budget: at most ${fl.win} calls in any 20 s of a track flood (4 allowed), ${fl.drop.rate} held back by the budget`);
+  const big = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio; __clr(); R.hush(); R.calls.length = 0;
+    for (let i = 0; i < 12; i++) __at(-.05 + i * .008);
+    __z.sim(8); return R.calls.filter(c => c.topic === 'trk').map(c => c.txt); });
+  ok(big.length === 1 && /^Twelve .* from the north/.test(big[0]), `Radio merging: twelve tracks from the north in a second are one call ("${big[0]}")`);
+
+  // the kill chain: launch detected, brace for impact, then the layer that stopped it
+  const ch = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {};
+    __clr(); R.hush(); R.calls.length = 0;
+    const h = __at(0, 'hyper', 2, 40000); __z.sim(26);  /* about 31 s to impact; the 20 s warning shows it 11 s in, terminal at 12 s out is 19 s in */
+    out.det = R.calls.map(c => `${c.topic}|${c.pri}|${c.who}|${c.txt}`);
+    __clr(); out.kills = {};
+    for (const [name, set] of [['bkill', t => { t.kc.b = 'kill'; }], ['tkill', t => { t.kc.pd = 'kill'; }], ['mkill', t => { t.claim = {type: 'gdome'}; }], ['dkill', t => { t.by = 'p'; }]]) {
+      R.hush(); R.calls.length = 0; const t = __at(-1, 'ballistic', 0, 30000); t.kc = {sec: 0, b: 'none', det: 1, mm: 0, pd: '', dc: 0}; t.by = 'h'; set(t); api.killThreat(t, true); __rf();
+      out.kills[name] = R.calls.map(c => c.topic + '|' + c.txt); out.kills[name + 'Pend'] = R.pend().join(); }
+    R.hush(); R.calls.length = 0; const t2 = __at(0, 'ballistic', 1, 60000); t2.kc = {sec: 1, b: 'miss', det: 1, mm: 0, pd: '', dc: 0}; out.miss = [];
+    __z.sim(.6); __rf(); out.miss.push(R.calls.map(c => c.txt)); R.calls.length = 0;
+    t2.claim = {type: 'idome'}; __z.sim(.6); __rf(); out.miss.push(R.calls.map(c => c.txt)); R.calls.length = 0;
+    t2.claim = null; t2.kc.mm = 1; __z.sim(.6); __rf(); out.miss.push(R.calls.map(c => c.txt)); R.calls.length = 0;
+    t2.kc.pd = 'miss'; __z.sim(.6); __rf(); out.miss.push(R.calls.map(c => c.pri + '|' + c.txt));
+    out.err = R.err && String(R.err.stack || R.err); __clr(); return out; });
+  ok(ch.det.some(c => /^fast\|[23]\|EARLY WARNING\|.*(aunch|Hypersonic).*apartments/i.test(c) && /hypersonic/i.test(c)), `Radio kill chain: a launch is called with the missile, the site and the time ("${(ch.det.find(c => c.startsWith('fast|')) || '').split('|')[3]}")`);
+  ok(ch.det.some(c => /^chain\|3\|EARLY WARNING\|.*(Brace|terminal)/.test(c)), `Radio kill chain: urgent brace call as it dives ("${(ch.det.find(c => c.startsWith('chain|')) || '').split('|')[3]}")`);
+  ok(/Boost-phase|boost/i.test(ch.kills.bkill.join()) && /Point defence got|Terminal kill/.test(ch.kills.tkill.join()) && /Midcourse kill|Dome got/.test(ch.kills.mkill.join()) && /Direct hit|destroyed/.test(ch.kills.dkill.join()),
+    `Radio kill chain: each layer's kill is called by name: ${['bkill', 'tkill', 'mkill', 'dkill'].map(k => ch.kills[k].map(c => c.split('|')[1]).join('/')).join(' · ')}`);
+  ok(!ch.kills.bkillPend && ['bkill', 'tkill', 'mkill', 'dkill'].every(k => ch.kills[k].length === 1 && ch.kills[k][0].startsWith('chain|')), 'Radio kill chain: a fast missile\'s kill is one chain call, not also a "splash"');
+  ok(/battery missed|Boost-phase miss/.test(ch.miss[0].join()) && /Midcourse intercept|Dome has/.test(ch.miss[1].join()) && /Midcourse missed|Dome missed/.test(ch.miss[2].join()) && /^3\|.*(Point defence missed|got through point defence)/.test(ch.miss[3].join()),
+    `Radio kill chain: boost miss, midcourse engagement, midcourse miss and a missed point defence (urgent) are called ("${ch.miss.map(m => (m[m.length - 1] || '').replace(/^\d\|/, '')).join('" / "')}")`);
+
+  // the channel: an important call waits, an urgent one cuts in; a stale ambient call is dropped; repeats and chatter inside a cooldown are not said
+  const q1 = await p.evaluate(() => { const {Z} = __z, R = Z.radio, out = {}; R.hush(); R.calls.length = 0; const c0 = R.st.cut, cancels0 = __syn.cancels;
+    R.say('x', 1, 'OVERLORD', 'This is a long routine call that keeps the channel busy for a good while yes.'); const c1 = R.cur;
+    R.say('y', 2, 'OVERLORD', 'Important but not urgent.'); out.imp = {cur: R.cur === c1, queued: R.q.map(c => c.txt), cut: R.st.cut - c0};
+    R.say('z', 3, 'OVERLORD', 'Urgent call.'); out.urg = {cur: R.cur?.txt, firstCut: c1.cut === 1, cut: R.st.cut - c0, cancels: __syn.cancels - cancels0};
+    R.hush(); const s0 = R.st.drop.stale, d0 = R.st.drop.dup, k0 = R.st.drop.cool;
+    R.say('a', 1, 'OVERLORD', 'First long call that holds the channel for quite a long while, over.'); R.say('c', 1, 'OVERLORD', 'Second long call that also holds the channel for a good while, over.'); R.say('b', 0, 'OVERLORD', 'Ambient chatter that goes stale.');
+    R.step(7); R.step(1); out.stale = {dropped: R.st.drop.stale - s0, said: R.calls.some(c => /Ambient/.test(c.txt))};
+    R.hush(); R.say('d', 1, 'OVERLORD', 'Same words.'); const again = R.say('d2', 1, 'OVERLORD', 'Same words.'); out.dup = {again, n: R.st.drop.dup - d0};
+    R.say('kill', 0, 'DART ONE', 'Splash one.'); const k2 = R.say('kill', 0, 'DART ONE', 'Splash two.'); out.cool = {again: k2, n: R.st.drop.cool - k0}; R.hush(); return out; });
+  ok(q1.imp.cur && q1.imp.queued.length === 1 && q1.imp.cut === 0, 'Radio channel: an important (priority 2) call waits for the one on the air');
+  ok(q1.urg.cur === 'Urgent call.' && q1.urg.firstCut && q1.urg.cut === 1 && q1.urg.cancels >= 1, 'Radio channel: only an urgent (priority 3) call cuts in, and the speech of the cut call is cancelled');
+  ok(q1.stale.dropped >= 1 && !q1.stale.said, 'Radio channel: an ambient call that waited too long is dropped, not said late');
+  ok(q1.dup.again === false && q1.dup.n === 1 && q1.cool.again === false && q1.cool.n === 1, 'Radio channel: the same words twice, and a second call of a topic inside its cooldown, are not said');
+
+  // the sites: small hits add up before they are called; a site in trouble and a site lost are urgent
+  const st1 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, s = api.SITES[1], out = {}; __clr(); R.hush(); R.calls.length = 0; R.scan();
+    for (let i = 0; i < 3; i++) { s.hp -= 5; R.scan(); } out.small = R.pend().includes('site');
+    s.hp -= 5; R.scan(); out.added = R.pend().includes('site'); __rf(); out.hit = R.calls.map(c => c.pri + '|' + c.txt);
+    R.hush(); R.calls.length = 0; s.hp = s.max * .3; R.scan(); __rf(); out.crit = R.calls.map(c => c.pri + '|' + c.txt);
+    R.hush(); R.calls.length = 0; s.hp = 0; R.scan(); __rf(); out.lost = R.calls.map(c => c.pri + '|' + c.txt);
+    s.hp = s.max; R.scan(); R.hush(); out.err = R.err && String(R.err.stack || R.err); return out; });
+  ok(!st1.small && st1.added && /^2\|.*fuel depot/.test(st1.hit[0] || ''), `Radio sites: three 5-point hits stay quiet, the fourth is called ("${(st1.hit[0] || '').slice(2)}")`);
+  ok(/^3\|.*(critical|won't take much more).*(30|25) percent/.test(st1.crit[0] || '') && /^3\|.*(lost the fuel depot|fuel depot is gone)/.test(st1.lost[0] || ''), `Radio sites: critical ("${(st1.crit[0] || '').slice(2)}") and lost ("${(st1.lost[0] || '').slice(2)}") are urgent`);
+
+  // helpers (a SAM battery running dry, the swarm), the pilot's battery, the bosses
+  const hb = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}; __clr(); R.hush(); R.calls.length = 0;
+    const d = Z.def.add('sam', 0); Z.def.deploy(); R.scan(); out.mag = d.ammo; d.ammo = 0; R.scan(); __rf(); out.sam = R.calls.map(c => c.who + '|' + c.txt); Z.def.remove(d);
+    R.hush(); R.calls.length = 0; R.note('help', {sw: 1, left: 2}); __rf(); out.sw = R.calls.map(c => c.txt);
+    R.hush(); R.calls.length = 0; const me = api.player; me.dead = 0; me.mah = api.BCAP * .75; R.scan(); __rf(); out.b1 = R.calls.map(c => c.txt);
+    me.mah = api.BCAP * .95; R.hush(); R.calls.length = 0; R.scan(); __rf(); out.b2 = R.calls.map(c => c.txt); me.mah = 0; R.scan(); R.hush(); return out; });
+  ok(hb.mag > 0 && /^LANCE\|(Magazine empty|Out of missiles|Winchester)/.test(hb.sam[0] || ''), `Radio helpers: the SAM battery (callsign LANCE) reports its magazine empty ("${hb.sam[0]}")`);
+  ok(/swarm/i.test(hb.sw[0] || ''), `Radio swarm: a lost swarm drone is called ("${hb.sw[0]}")`);
+  ok(/Battery|pack/.test(hb.b1[0] || '') && /critical/i.test(hb.b2[0] || ''), `Radio battery: 25% ("${hb.b1[0]}") then critical ("${hb.b2[0]}")`);
+  const bs = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}; __clr(); R.hush(); R.calls.length = 0;
+    const b = __z.make('boss', 5000, 1950, api.SITES[1]); __z.sim(2); __rf(); out.arr = R.calls.map(c => c.txt); R.calls.length = 0;
+    Z.bossHit(b); __z.sim(.6); __rf(); out.stage = R.calls.map(c => c.txt); R.calls.length = 0;
+    __clr(); const j = Z.bosses.spawn('jugg', {brg: 1}); __z.sim(.6); Z.fxTest?.endCine(); R.hush(); R.calls.length = 0; j.bs.ph = 1; __z.sim(.6); __rf(); out.phase = R.calls.map(c => c.txt);
+    Z.bossClear('test'); Z.fxTest?.endCine(); __clr(); R.hush(); R.calls.length = 0;
+    const b2 = __z.make('boss', 5000, 1950, api.SITES[1]); __z.sim(.6); R.hush(); R.calls.length = 0; api.killThreat(b2, true); __rf(); out.down = R.calls.map(c => c.txt); __clr(); out.err = R.err && String(R.err.stack || R.err); return out; });
+  ok(/Heavy contact.*Mothership|Mothership/.test(bs.arr[0] || '') && /Stage down\. Two left/.test(bs.stage[0] || '') && /Mothership|carrier/.test(bs.down[0] || ''), `Radio bosses: arrival ("${bs.arr[0]}"), a stage ("${bs.stage[0]}"), the kill ("${bs.down[0]}")`);
+  ok(/breached/i.test(bs.phase.join(' ')) && !bs.err, `Radio bosses: a phase change is called ("${bs.phase.find(t => /breached/i.test(t)) || bs.phase[0]}")`);
+
+  // co-op partners, from the state a client has (pilots, their drones' dead flags, the kill credit)
+  const co = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}, k0 = [Z.pilotsK, Z.netMe, Z.netName]; __clr(); R.hush(); R.calls.length = 0;
+    const peer = {dead: 0}; let list = [['me', api.player], ['p2', peer]]; Z.pilotsK = () => list; Z.netMe = () => 'me'; Z.netName = k => 'Sam';
+    R.scan(); __rf(); out.join = R.calls.map(c => c.txt); R.calls.length = 0; R.hush();
+    peer.dead = 1; R.scan(); __rf(); out.down = R.calls.map(c => c.pri + '|' + c.txt); R.calls.length = 0; R.hush();
+    peer.dead = 0; R.scan(); __rf(); out.up = R.calls.map(c => c.txt); R.calls.length = 0; R.hush();
+    list = [['me', api.player]]; R.scan(); __rf(); out.left = R.calls.map(c => c.txt); R.calls.length = 0; R.hush();
+    const t = __at(.5, 'shahed', 0, 3000); t.by = 'o'; t.byN = 'p2'; api.killThreat(t, true); __rf(); out.kill = R.calls.map(c => c.who + '|' + c.txt);
+    [Z.pilotsK, Z.netMe, Z.netName] = k0; __clr(); R.hush(); return out; });
+  ok(/Sam is on the net/.test(co.join[0] || '') && /^2\|.*Sam/.test(co.down[0] || '') && /Sam is back/.test(co.up[0] || '') && /dropped off/.test(co.left[0] || ''), `Radio co-op: a partner joining, going down, coming back and leaving are called ("${co.join[0]}" / "${(co.down[0] || '').slice(2)}" / "${co.up[0]}" / "${co.left[0]}")`);
+  ok(/^SAM\|(Splash|Kill confirmed|Target down)/.test(co.kill[0] || ''), `Radio co-op: a partner's kill is called under their name ("${co.kill[0]}")`);
+
+  // the old subtitle: its generic lines are covered by the events here and dropped; a boss's scripted line comes through the same channel
+  const lg = await p.evaluate(() => { const {Z} = __z, R = Z.radio, out = {}; R.hush(); R.calls.length = 0; const n0 = R.st.made, l0 = R.st.by.line | 0;
+    for (const t of ['Sky is clear. Rearm and stand by.', 'Air raid warning. Wave 5, all units stand to.', 'Impact on the substation! 200 left.', 'Fuel depot is hit! 340 left.', 'Splash two.', 'Launch detected, ballistic missile, fuel depot, 30 seconds.', 'Three Shaheds inbound from the north-east.', "We've lost the apartments!"]) Z.an.radio('OVERLORD', t, 1);
+    out.generic = R.st.made - n0; Z.an.radio('KOSCHEI', '"Another day, little drone."', 2); out.line = R.cur ? [R.cur.who, R.cur.vc, R.cur.txt, R.cur.topic] : null;
+    R.step(1); Z.an.radio('EARLY WARNING', 'Re-entry, re-entry! Warhead coming down on the substation, 20 seconds.', 2); out.reentry = (R.st.by.line | 0) - l0; R.hush(); return out; });
+  ok(lg.generic === 0 && lg.line && lg.line[0] === 'KOSCHEI' && lg.line[1] === 'foe' && lg.line[3] === 'line' && lg.reentry === 2, `Radio takeover: eight generic subtitle lines dropped, a boss's line and the re-entry call come through (${lg.line && lg.line.join(' / ')})`);
+
+  // presentation: the log, the squelch and static, and the loudness cap
+  const au = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, S = api.S, out = {}; R.hush(); const n0 = R.au.n, sp0 = __syn.spoken.length;
+    S.zradiov = 1; S.zsfxv = 1; for (const t of ['Level check one.', 'Level check two.', 'Level check three.', 'Level check four.']) { R.say('lv' + t, 2, 'OVERLORD', t); R.step(6); R.step(1); }
+    out.full = {peak: R.au.peak, bus: R.busGain(), n: R.au.n - n0, spoken: __syn.spoken.slice(sp0)}; out.lines = R.lines(); out.dom = document.querySelectorAll('#zchat .zc').length;
+    S.zradiov = 9; S.zsfxv = 7; R.hush(); R.say('lvb', 2, 'OVERLORD', 'Level check five.'); out.bad = {peak: R.au.peak, bus: R.busGain()};
+    S.zradiov = 0; R.hush(); const n1 = R.au.n, sp1 = __syn.spoken.length; R.say('lvc', 2, 'OVERLORD', 'Level check six.'); out.mute = {sound: R.au.n - n1, spoken: __syn.spoken.length - sp1, logged: R.calls.at(-1)?.txt};
+    S.zradiov = .6; S.zsfxv = 1; R.hush(); out.ac = !!api.AC; return out; });
+  ok(au.ac ? au.full.n === 4 && au.full.peak > 0 && au.full.peak <= r0.cap + 1e-9 && au.full.bus <= r0.cap + 1e-9 && au.bad.peak <= r0.cap + 1e-9 && au.bad.bus <= r0.cap + 1e-9 : true,
+    `Radio sound: a squelch click and a static burst per call (${au.full.n} for 4 calls); loudest ${au.full.peak.toFixed(3)} at full volume, ${au.bad.bus.toFixed(3)} even with a bad volume setting, cap ${r0.cap}`);
+  ok(au.lines.length === 3 && au.dom === 3 && /Level check four/.test(au.lines[2]), `Radio log: the HUD shows the last three calls (${au.lines.map(l => l.replace(/^OVERLORD/, '')).join(' | ')})`);
+  ok(au.mute.sound === 0 && au.mute.spoken === 0 && au.mute.logged === 'Level check six.', 'Radio volume 0: the call is still logged on the HUD but there is no sound and no speech');
+
+  // speech: clipped and quick; cut with the call; off in the settings; absent in the browser
+  const sp = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, S = api.S, out = {}; R.hush(); R.calls.length = 0; __syn.spoken.length = 0;
+    R.say('s1', 2, 'OVERLORD', 'Speech check one.'); R.say('s2', 3, 'EARLY WARNING', 'Speech check two.'); R.hush(); R.say('s3', 2, 'KOSCHEI', '"Speech check three."');
+    out.said = __syn.spoken.map(s => s.text); out.v = __syn.spoken.map(s => [s.pitch, s.rate, s.volume]);
+    R.hush(); S.zrspeech = false; const n0 = __syn.spoken.length; R.say('s4', 2, 'OVERLORD', 'Speech check four.'); out.off = {spoken: __syn.spoken.length - n0, logged: R.calls.at(-1)?.txt}; S.zrspeech = true;
+    R.hush(); const na0 = R.speech.na; R.env.synth = () => undefined; R.say('s5', 2, 'OVERLORD', 'Speech check five.'); out.none = {na: R.speech.na - na0, logged: R.calls.at(-1)?.txt, lines: R.lines().length};
+    R.hush(); R.env.synth = () => { throw new Error('no speech here'); }; R.say('s6', 2, 'OVERLORD', 'Speech check six.'); out.throws = R.calls.at(-1)?.txt;
+    R.env.synth = () => window.__syn; R.hush(); R.env.utter = () => { throw new Error('no utterance'); }; R.say('s7', 2, 'OVERLORD', 'Speech check seven.'); out.badUtter = R.calls.at(-1)?.txt;
+    R.env.utter = () => window.__Utt; R.hush(); return out; });
+  ok(sp.said.length === 3 && sp.said[0] === 'Speech check one.' && sp.said[2] === 'Speech check three.' && sp.v.every(([pi, ra, vo]) => pi > .3 && pi < 1.5 && ra >= .85 && ra <= 1.4 && vo > 0 && vo <= .8), `Radio speech: spoken through speechSynthesis, clipped and quick (pitch / rate / volume ${sp.v.map(v => v.join('/')).join(', ')}); a boss voices lower and slower`);
+  ok(sp.v[2][0] < sp.v[0][0] && sp.v[2][1] < sp.v[0][1], 'Radio speech: the base, the defences and a boss voice differ in pitch and rate');
+  ok(sp.off.spoken === 0 && sp.off.logged === 'Speech check four.', 'Radio speech: off in the settings, the call still shows on the HUD');
+  ok(sp.none.na === 1 && sp.none.logged === 'Speech check five.' && sp.none.lines >= 1 && sp.throws === 'Speech check six.' && sp.badUtter === 'Speech check seven.', 'Radio speech: no speechSynthesis in the browser (or one that throws) is handled: the calls still run, log and sound');
+
+  // muted in menus
+  const mu = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, out = {}; __clr(); __at(.3, 'shahed', 0, 5000); R.hush(); R.calls.length = 0; const sp0 = __syn.spoken.length, q0 = R.st.drop.quiet;
+    R.say('m1', 1, 'OVERLORD', 'Menu check before.'); out.before = R.cur?.txt; api.showMenu(true); __z.sim(.3);
+    out.cleared = !R.cur && !R.q.length && R.lines().length === 0; const ok1 = R.say('m2', 1, 'OVERLORD', 'Menu check during.'); out.during = {ok: ok1, drop: R.st.drop.quiet - q0, cur: R.cur?.txt};
+    api.showMenu(false); R.hush(); const ok2 = R.say('m3', 1, 'OVERLORD', 'Menu check after.'); out.after = {ok: ok2, cur: R.cur?.txt}; R.hush(); return out; });
+  ok(mu.before === 'Menu check before.' && mu.cleared && mu.during.ok === false && mu.during.drop === 1 && !mu.during.cur && mu.after.ok === true, 'Radio menus: opening the menu hushes the channel (speech cancelled, log cleared) and nothing is said while it is open');
+
+  // the settings rows, saved with the rest; Off gives the old subtitle back
+  await p.select('#f_zradio', '0'); await p.select('#f_zrspeech', '0'); await p.$eval('#f_zradiov', e => { e.value = '.3'; e.dispatchEvent(new Event('input')); });
+  const sv = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, out = {}, s = JSON.parse(localStorage.getItem('dl-interceptor')); out.saved = [s.zradio, s.zrspeech, s.zradiov]; out.live = [api.S.zradio, api.S.zrspeech, api.S.zradiov];
+    R.hush(); const n0 = R.st.made; Z.an.radio('OVERLORD', 'Sky is clear. Rearm and stand by.', 1); Z.an.radioTick(); out.legacy = {cls: document.getElementById('zradio').className, made: R.st.made - n0}; Z.an.radioClear?.();
+    out.sayOff = R.say('off1', 2, 'OVERLORD', 'Radio is off.'); return out; });
+  ok(sv.saved[0] === false && sv.saved[1] === false && sv.saved[2] === .3 && sv.live[0] === false, `Radio settings: chatter, speech and volume are saved with the other settings (${sv.saved.join(', ')})`);
+  ok(/on/.test(sv.legacy.cls) && sv.legacy.made === 0 && sv.sayOff === false, 'Radio settings: with the chatter off the old radio subtitle comes back and nothing is queued');
+  await p.select('#f_zradio', '1'); await p.select('#f_zrspeech', '1'); await p.$eval('#f_zradiov', e => { e.value = '.6'; e.dispatchEvent(new Event('input')); });
+
+  // the end of this scripted wave (the sky is emptied): the clear is called, and when the base screen opens nothing is left on the air, in the queue, on the HUD or in a speech queue
+  const w0 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}; for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0; R.hush(); R.calls.length = 0; const by0 = R.st.by.wave | 0, c0 = __syn.cancels; G.wq.length = 0;
+    let n = 0; while (G.state !== 'base' && n++ < 40) __z.sim(.5);
+    out.state = G.state; out.by = (R.st.by.wave | 0) - by0; out.calls = R.calls.map(c => c.topic + '|' + c.txt); out.cancelled = __syn.cancels - c0;
+    out.left = {q: R.q.length, cur: !!R.cur, pend: R.pend().length, lines: R.lines().length, dom: document.querySelectorAll('#zchat .zc').length, sw: R.sw(), live: R.speech.live}; return out; });
+  ok(w0.state === 'base' && w0.by === 1 && /^wave\|.*(Sky is clear|held|defeated|All tracks down)/.test(w0.calls[0] || ''), `Radio wave end: the clear is called ("${(w0.calls[0] || '').split('|')[1]}")`);
+  ok(w0.left.q === 0 && !w0.left.cur && w0.left.pend === 0 && w0.left.lines === 0 && w0.left.dom === 0 && w0.left.sw === 0 && w0.left.live === 0 && w0.cancelled >= 1, `Radio wave end: the base screen opens quiet, nothing left (queue ${w0.left.q}, on air ${w0.left.cur}, merging ${w0.left.pend}, HUD lines ${w0.left.lines}/${w0.left.dom}, speech queued ${w0.left.live}; the clear's speech cut: ${w0.cancelled})`);
+
+  // a whole wave played by the director and a bot: the start and the end are called, kills and tracks in between, and again nothing is left when the base screen opens
+  const w1 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}; R.hush(); R.calls.length = 0; const by0 = {...R.st.by}, cancels0 = __syn.cancels;
+    __z.cont(); for (let i = 0; i < 700 && G.state !== 'base'; i++) { __z.sim(.5); if (api.player.dead <= 0 && Math.random() < .5) __z.botKill(.8); }
+    out.state = G.state; out.by = Object.fromEntries(Object.keys(R.st.by).map(k => [k, R.st.by[k] - (by0[k] | 0)])); out.calls = R.calls.map(c => c.topic + '|' + c.txt);
+    __z.sim(.2); out.left = {state: G.state, q: R.q.length, cur: !!R.cur, pend: R.pend().length, lines: R.lines().length, dom: document.querySelectorAll('#zchat .zc').length, sw: R.sw(), live: R.speech.live, cancelled: __syn.cancels - cancels0};
+    out.err = R.err && String(R.err.stack || R.err); out.th = api.TH.filter(api.live).map(t => t.k).join(); out.wave = G.wave; return out; });
+  ok(w1.state === 'base' && w1.by.wave >= 2 && w1.calls.some(c => /^wave\|(Wave|Stand to)/.test(c)) && w1.calls.length >= 3, `Radio wave: a wave played end to end made ${w1.calls.length} calls, the start and the end among them (${w1.by.wave} wave calls)`);
+  ok(w1.left.state === 'base' && w1.left.q === 0 && !w1.left.cur && w1.left.pend === 0 && w1.left.lines === 0 && w1.left.dom === 0 && w1.left.sw === 0 && w1.left.live === 0, `Radio wave end: the base screen is quiet, nothing left (queue ${w1.left.q}, on air ${w1.left.cur}, merging ${w1.left.pend}, HUD lines ${w1.left.lines}/${w1.left.dom}, speech queued ${w1.left.live})`);
+
+  // sorties: the launch, an AA lock, hits on the hull, salvage banked, a site found and destroyed; a lost sortie is called
+  const so = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, so = __z.so, W = so.W, out = {}; R.hush(); R.calls.length = 0; so.S.used = -1; so.W.calm = true;
+    const launched = so.launch(); __z.sim(.6); so.S.t = 1e4; __rf(); out.launch = [launched, ...R.calls.map(c => c.who + '|' + c.txt)]; R.calls.length = 0;
+    so.S.tw = 1; so.S.hull = 60; __z.sim(.6); __rf(); out.hit = R.calls.map(c => c.txt); R.calls.length = 0; so.S.tw = 0;
+    so.S.carry = 300; R.scan(); so.S.carry = 0; R.scan(); __rf(); out.bank = R.calls.map(c => c.txt); R.calls.length = 0;  /* salvage carried, then banked inside the line */
+    const t = W.list.find(u => u.t === 'launch' && !u.dead); t.known = true; __z.sim(.6); __rf(); out.found = R.calls.map(c => c.txt); R.calls.length = 0;
+    for (const q of t.parts.filter(x => x.main)) W.blast(q, 3, 1, 'me'); __z.sim(.6); __rf(); out.dead = R.calls.map(c => c.txt); R.calls.length = 0;
+    R.note('so', {ev: 'end'}); __rf(); out.lost = R.calls.map(c => c.txt); R.calls.length = 0;
+    so.finish(); __z.sim(.3); out.after = {on: so.S.on, calls: R.calls.length, base: !document.getElementById('zbase').hidden}; out.err = R.err && String(R.err.stack || R.err); return out; });
+  ok(so.launch[0] === true && /clock|airborne|Off the mat/.test(so.launch[1] || ''), `Radio sortie: the launch is called by the pilot ("${so.launch[1]}")`);
+  ok(/AA|Gun lock|tracking|Break off/.test(so.hit.join(' ')) && /hull|hit/i.test(so.hit.join(' ')) && /Salvage|Cargo/.test(so.bank.join(' ')), `Radio sortie: AA lock ("${so.hit[0]}"), hull ("${so.hit[1]}") and salvage banked ("${so.bank[0]}") are called`);
+  ok(/Launch site located/.test(so.found[0] || '') && /Launch site (destroyed|is gone)/.test(so.dead[0] || ''), `Radio sortie: a site found ("${so.found[0]}") and destroyed ("${so.dead[0]}")`);
+  ok(!so.after.on && so.after.base && so.after.calls === 0, 'Radio sortie: back inside the line the base screen is quiet (no call over the shop)');
+  ok(/Sortie lost|lost the drone/.test(so.lost[0] || '') && !so.err, `Radio sortie: a lost sortie is called ("${so.lost[0]}")`);
+  const own = await p.evaluate(() => { const e = __z.Z.radio.err; return e && String(e.stack || e); });
+  ok(!own, 'Radio: the module caught no error of its own' + (own ? '\n  ' + own : ''));
+  ok(!errs.length, 'Radio: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+
+  // odd saved values (hand-edited or foreign) fall back to the defaults, and the game still plays
+  const bad = [];
+  for (const save of [{gmode: 'z', zradio: 'x', zrspeech: 5, zradiov: 'loud'}, {gmode: 'z', zradio: null, zrspeech: [], zradiov: 9}, {gmode: 'z', zradiov: -3}, {gmode: 'z', zradiov: null}, {gmode: 'z', zradio: false, zrspeech: false}]) {
+    const e2 = [], p2 = await open(browser, origin + '/games/interceptor/', e2);
+    await p2.evaluate(s => localStorage.setItem('dl-interceptor', JSON.stringify(s)), save); await p2.reload({waitUntil: 'load'});
+    const up = await p2.waitForFunction(() => window.__z, {timeout: 60000}).then(() => true, () => false);
+    let r = null;
+    if (up) { await sleep(200); await p2.click('#play'); await sleep(300); r = await p2.evaluate(() => { const {G, Z, api} = __z; if (G.on) __z.cont(); __z.sim(5); const S = api.S; return {z: S.zradio, s: S.zrspeech, v: S.zradiov, ok: typeof S.zradiov === 'number' && S.zradiov >= 0 && S.zradiov <= 1 && typeof S.zradio === 'boolean' && typeof S.zrspeech === 'boolean', err: Z.radio.err && String(Z.radio.err)}; }); }
+    if (!up || e2.length || !r?.ok || r.err) bad.push(JSON.stringify(save) + ' -> ' + JSON.stringify(r) + (up ? '' : ' (page never came up)') + (e2.length ? ' ' + e2[0] : ''));
+    await p2.evaluate(() => localStorage.removeItem('dl-interceptor')); await p2.close();
+  }
+  ok(!bad.length, 'Radio saves: odd saved values load as defaults and play' + (bad.length ? '\n  ' + bad.join('\n  ') : ''));
 }
 
 // ---------- bot explore (zbotroam.js, zbotsortiefly.js, zbotstat.js): the Bot Spectator roams the map, flies the sorties, uses what the game gives it and says what

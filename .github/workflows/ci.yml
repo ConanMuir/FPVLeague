@@ -159,6 +159,10 @@ jobs:
           - check: zombies-test (codex)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=codex
+          # radio chatter (zradio.js): callouts, merging and rate limits, the HUD log, the sound cap, speech with and without speechSynthesis
+          - check: zombies-test (radio)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=radio
           # the Bot Spectator explores: roams the map, flies the sorties, uses its systems, never sticks, holds the benchmark's wave (one visual run, four headless)
           - check: zombies-test (explore)
             area: interceptor
