@@ -17,7 +17,7 @@ for (let run = 0; run < RUNS; run++) {
   const p = await open(b, 'about:blank', errs);
   await p.evaluateOnNewDocument(s => { Math.random = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; }, SEED + run);
   await p.goto(origin + '/games/interceptor/', {waitUntil: 'load'});
-  await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', cam: 1, zmus: 0})));
+  await p.evaluate(() => { localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', cam: 1, zmus: 0})); sessionStorage.setItem('zcodex', 'all'); });  /* the full boss roster (zcodex.js) */
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z);
   const r = await p.evaluate((W, N, seed, prof) => {
     let s = seed >>> 0; Math.random = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
