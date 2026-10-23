@@ -13,10 +13,14 @@ import {GS,SB} from '../state.js';
 import {ORBS} from '../world/orbs.js';
 import {dribble,topOf} from './dribble.js';
 import {freestyle} from './freestyle.js';
+import {foeModel} from './model.js';
+import {laneSpot,passLane,rotate} from './team.js';
+import {lookAhead} from './lookahead.js';
+import {aerialAim} from './aerial.js';
 /* thrust a bot may use: the bot cap (BTHR) by default, a player's full thrust (THR) for the top levels (DIFF[].full); same flight model either way */
 export const thrOf=D=>D.full?THR:BTHR;
 /* how fast another quad can get places: a bot by its level, a player at full thrust and speed (assume the best) */
-const accOf=o=>{if(!o.bot)return THR*.72;const E=DIFF[o.skill??S.diff];return thrOf(E)*E.thr*.72},vmOf=o=>o.bot?DIFF[o.skill??S.diff].vmax*BOTV:120;
+export const accOf=o=>{if(!o.bot)return THR*.72;const E=DIFF[o.skill??S.diff];return thrOf(E)*E.thr*.72},vmOf=o=>o.bot?DIFF[o.skill??S.diff].vmax*BOTV:120;
 // the ball 4 s ahead: the same ball model as the game (physics/ball.js, spin included) without Rapier, at 50 Hz
 export const PDT=1/50,PRED=Array.from({length:200},()=>new V3()),PV=Array.from({length:200},()=>new V3()),_pb={p:new V3(),v:new V3(),w:new V3(),c:false,n:new V3()};
 export function predict(){_pb.p.copy(ball.p);_pb.v.copy(ball.v);_pb.w.copy(ball.w);_pb.c=ball.c;_pb.n.copy(ball.n);for(let i=0;i<PRED.length;i++){ballPhys(_pb,PDT);PRED[i].copy(_pb.p);PV[i].copy(_pb.v)}}  // PV: its velocity there (the smarter planner aims with it)
@@ -24,7 +28,7 @@ const _aim=new V3();
 function intercept(d,D){const acc=thrOf(D)*D.thr*.6,vm=D.vmax*BOTV;
  for(let i=0;i<PRED.length;i+=2){const P=PRED[i],t=(i+1)*PDT;_a.subVectors(P,d.p);const dist=_a.length(),v0=dist>0?d.v.dot(_a)/dist:0;
   const tr=(dist/vm+Math.max(0,vm-v0)/acc*.5)*D.slack+.12;if(tr<=t)return P}return PRED[PRED.length-1]}
-function threat(team){const oz=team?-1:1;for(let i=0;i<125;i+=4){const P=PRED[i];if(P.z*oz>HL-1&&Math.abs(P.x)<GW/2+2&&P.y<GH+2)return true}return false}
+export function threat(team){const oz=team?-1:1;for(let i=0;i<125;i+=4){const P=PRED[i];if(P.z*oz>HL-1&&Math.abs(P.x)<GW/2+2&&P.y<GH+2)return true}return false}
 function think(d,D){if(D.iq)return thinkIQ(d,D);const ai=d.ai,was=ai.strike;ai.strike=false;const s=d.team?1:-1,ownZ=-s*HL;let role=d.role;
  if(Math.random()<.35)ai.nz.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(D.noise);
  const danger=threat(d.team),near=Math.abs(ball.p.z-ownZ)<30;
@@ -47,6 +51,11 @@ function think(d,D){if(D.iq)return thinkIQ(d,D);const ai=d.ai,was=ai.strike;ai.s
 /* carry, pops, chains, air dribbles) whenever the ball is its own; when a foe could get there first, or the ball threatens its goal, */
 /* it and its teammates play the shot planner below like Grand Champion, only faster */
 export function botControl(d,dt){const D=DIFF[d.skill??S.diff],ai=d.ai;
+ /* bots pass 5 (DIFF[].model, team, look): the opponent model every 0.05 s, the look-ahead's timer (a carry pick lapses with it), the */
+ /* rotation timer and its trigger (its own touch while striking: this quad has had its go, the next man takes the ball) */
+ if(D.model){ai.el=(ai.el||0)+dt;if((ai.mt=(ai.mt||0)-dt)<=0){foeModel(d,D,ai.el);ai.el=0;ai.mt=.05}}
+ if(ai.lkT>0)ai.lkT-=dt;else if(ai.lk==='carry')ai.lk=null;
+ if(D.team){const mine=ball.last===d;if(mine&&!ai.lm&&ai.strike)ai.rot=D.rotT??1.2;ai.lm=mine;if(ai.rot>0)ai.rot-=dt}
  if(D.drib){d.pops=true;if(d.role==='attack'&&possess(d,D,dt)){if(ai.top)evade(d,D);if(D.fs)freestyle(d,D,dt);else dribble(d,D,dt);return}if(ai.pos!==false){ai.pos=false;ai.fm=null;ai.t=0}}
  if((ai.t-=dt)<=0){ai.t=D.react*(.7+Math.random()*.6);think(d,D)}
  if(LL.d===d){const s=d.team?1:-1;ai.strike=false;ai.demo=false;ai.tv.set(0,0,0);
@@ -70,7 +79,8 @@ function possess(d,D,dt){const ai=d.ai,h=topOf(d)+BR;_k.subVectors(ball.p,d.p);c
  ai.top=hd<(D.topR??2)&&_k.y>h-.8&&_k.y<h+1.2;if(ai.top){ai.pos=true;return true}  /* on top: keep it */
  if(threat(d.team)||Math.abs((d.team?-1:1)*HL-ball.p.z)<HL*(D.posZ??.66)){ai.pos=false;return false}  /* its goal under threat, or the ball in its own third: no showing off there */
  if((ai.pc=(ai.pc||0)-dt)>0)return ai.pos;ai.pc=.05;
- const me=firstT(d,thrOf(D)*D.thr*.72,D.vmax*BOTV,1);let foe=4;for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)foe=Math.min(foe,firstT(o,accOf(o),vmOf(o),1));
+ const me=firstT(d,thrOf(D)*D.thr*.72,D.vmax*BOTV,1);let foe=4;if(D.model&&D.posM&&ai.foe)foe=ai.foe.ct;else for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)foe=Math.min(foe,firstT(o,accOf(o),vmOf(o),1));  /* posM: the modelled closing time (his hesitation included) instead of reachT; this gate was tuned on reachT and lost the ball with the model */
+ if(D.look&&ai.lk==='carry'&&me<=(D.posT??.6)*2&&foe>me){ai.pos=true;return true}  /* the look-ahead (bots/lookahead.js) valued the carry above a shot: take it */
  if(me>(D.posT??.6)||openGoal(d)){ai.pos=false;return false}  /* not to be collected soon (high up, far off), or an open goal: play it with the planner (shoot) */
  ai.pos=foe-me>(ai.pos?D.posK??.6:D.posG??1.5);return ai.pos}
 /* nobody can get back to cover the goal before a shot from here gets there (a demolished keeper, everyone upfield): shoot now */
@@ -78,9 +88,13 @@ function openGoal(d){const gz=(d.team?1:-1)*HL;_e.set(0,GH*.4,gz);const L=_e.dis
  for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0&&reachT(o,_e,accOf(o),vmOf(o))<tb+.3)return false;return true}
 /* carrying with a foe about to get there: spend the pop now, in whichever of the four pop directions sends the ball most away from him */
 /* and toward the goal (it is caught again, or chased, by the possession game) */
-function evade(d,D){if(!(d.popC>0)||d.popT>0)return;let foe=null,ft=D.evT??.45;for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0){const t=reachT(o,ball.p,accOf(o),vmOf(o));if(t<ft){ft=t;foe=o}}if(!foe)return;
+/* shield (bots/shield.js): it lets go earlier, at the modelled closing time (reachT plus the foe's hesitation, bots/model.js) under shT; team: the pop */
+/* that passes down a teammate's open lane (bots/team.js) counts too */
+function evade(d,D){if(!(d.popC>0)||d.popT>0)return;const ai=d.ai;let foe=null,ft=D.shield?(D.shT??.6):(D.evT??.45);
+ for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0){let t=reachT(o,ball.p,accOf(o),vmOf(o));const m=D.model&&ai.om&&ai.om.get(o);if(m)t+=(1-m.com)*(D.hes??.35);if(t<ft){ft=t;foe=o}}if(!foe)return;
  _g.set(0,0,(d.team?1:-1)*(HL+4)).sub(ball.p);_g.y=0;_g.normalize();_e.subVectors(foe.p,ball.p);_e.y=0;_e.normalize();let best=null,bs=-1e9;
- for(const p of PS){_px.set(p[3],p[4],p[5]).applyQuaternion(d.q);_px.y=0;const l=_px.length();if(l<.5)continue;_px.divideScalar(l);const k=_px.dot(_g)-1.5*_px.dot(_e);if(k>bs){bs=k;best=p}}
+ const lane=D.team&&passLane(d,D,_pl)>(D.passV??.25);if(lane){_pl.sub(ball.p);_pl.y=0;_pl.normalize()}
+ for(const p of PS){_px.set(p[3],p[4],p[5]).applyQuaternion(d.q);_px.y=0;const l=_px.length();if(l<.5)continue;_px.divideScalar(l);const k=_px.dot(_g)-1.5*_px.dot(_e)+(lane?(D.passW??1.2)*_px.dot(_pl):0);if(k>bs){bs=k;best=p}}
  if(best&&d.tryPop(best)){d.ai.ct=0;d.ai.mv=null}}
 /* not striking: don't fly into the ball. A quad racing back past the ball toward its own goal at 100+ m/s would knock it in; if its */
 /* path in the next 0.6 s passes within ~4 m of the ball, steer sideways off that line and ease off (DIFF[].avoid) */
@@ -106,12 +120,13 @@ export function assignRoles(){for(const t of[0,1]){const s=t?1:-1,ms=GS.drones.f
 // ball point it aims the normal at (shot direction * shot speed - the ball's own velocity there), finds the contact point that gives that
 // normal (kept off the floor and walls), and checks whether this quad, flying the same flight model, can be there in time coming from
 // behind the ball. It then flies a timed run through that point (strikeV). Roles rotate by who can actually reach the ball first.
-const _g=new V3(),_n=new V3(),_c=new V3(),_e=new V3(),_k=new V3();
+const _g=new V3(),_n=new V3(),_c=new V3(),_e=new V3(),_k=new V3(),_pl=new V3();
 export function reachT(d,X,acc,vm){_k.subVectors(X,d.p);const dist=_k.length();if(dist<1e-3)return 0;const v0=d.v.dot(_k)/dist,vp=Math.sqrt(Math.max(0,d.v.lengthSq()-v0*v0));
  let t;if(v0>=vm)t=dist/v0;else{const ta=(vm-v0)/acc,da=(v0+vm)*.5*ta;t=da>=dist?(Math.sqrt(v0*v0+2*acc*dist)-v0)/acc:ta+(dist-da)/vm}return t+vp/acc*.6}  // straight-line time: accelerate to vm, kill the sideways speed
-function keeperOf(team){const gz=(team?1:-1)*HL;let k=null,kd=1e9;for(const e of GS.drones)if(e.team!==team&&e.dead<=0){const q=Math.abs(e.p.z-gz)+Math.abs(e.p.x)*.5;if(q<kd){kd=q;k=e}}return kd<50?k:null}
+export function keeperOf(team){const gz=(team?1:-1)*HL;let k=null,kd=1e9;for(const e of GS.drones)if(e.team!==team&&e.dead<=0){const q=Math.abs(e.p.z-gz)+Math.abs(e.p.x)*.5;if(q<kd){kd=q;k=e}}return kd<50?k:null}
 // where in the goal to put it: away from the defender nearest the goal, low or high against where he sits, lifted for the ball's drop
-function goalAim(d,P,kp,out){const gz=(d.team?1:-1)*HL,far=Math.abs(P.z-gz)+Math.abs(P.x)*.3;let x=cl(P.x*.5,-GW/2+6,GW/2-6),y=GH*.4;
+/* (ai.aimP: a point to play the ball at instead, a teammate's lane or a wall / ceiling set-up: bots/team.js, bots/aerial.js) */
+function goalAim(d,P,kp,out){if(d.ai.aimP)return out.copy(d.ai.aimP);const gz=(d.team?1:-1)*HL,far=Math.abs(P.z-gz)+Math.abs(P.x)*.3;let x=cl(P.x*.5,-GW/2+6,GW/2-6),y=GH*.4;
  if(d.ai.gx!=null){x=d.ai.gx;y=d.ai.gy}else if(kp&&far>14&&far<120){const f=cl(Math.abs(kp.p.z-gz)/Math.max(far,1),0,1),lx=P.x*f;x=kp.p.x>lx?-(GW/2-5):GW/2-5;y=kp.p.y>GH*.5?4.5:GH-5}
  const tf=far/70;return out.set(x,Math.min(y+.5*BG*tf*tf,H-6),gz*(1+3/HL))}
 const _n0=new V3(),_c0=new V3(),_q=new V3(),GA=[];for(const y of[4,GH*.5,GH-4])for(const x of[-GW/2+5,-GW/4,0,GW/4,GW/2-5])GA.push([x,y]);
@@ -120,9 +135,10 @@ const _n0=new V3(),_c0=new V3(),_q=new V3(),GA=[];for(const y of[4,GH*.5,GH-4])f
 function bestAim(d,D,P,t0){const gz=(d.team?1:-1)*(HL+3);let best=-1e9;d.ai.gx=null;
  for(const[x,y]of GA){_e.set(x,y,gz);const L=_e.distanceTo(P);let m=1e9;
   for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)for(const f of[.35,.6,.8,1]){_q.lerpVectors(P,_e,f);m=Math.min(m,reachT(o,_q,accOf(o),vmOf(o))-(t0+L*f/70))}
-  m-=Math.abs(x)*.004;if(m>best){best=m;d.ai.gx=x;d.ai.gy=y}}}
+  m-=Math.abs(x)*.004;if(m>best){best=m;d.ai.gx=x;d.ai.gy=y}}
+ d.ai.gm=best;d.ai.gmN=GS.stepN}  /* the open corner's margin (s): under 0, every spot is covered (passes and high set-ups read it) */
 // earliest time a quad (any skill: assumed as quick as this one) can get a touch on the ball, from any side
-function firstT(o,acc,vm,slack){for(let i=1;i<PRED.length;i+=3)if(reachT(o,PRED[i],acc,vm)*slack+.1<=(i+1)*PDT)return(i+1)*PDT;return 4}
+export function firstT(o,acc,vm,slack){for(let i=1;i<PRED.length;i+=3)if(reachT(o,PRED[i],acc,vm)*slack+.1<=(i+1)*PDT)return(i+1)*PDT;return 4}
 export function plan(d,D){const ai=d.ai,acc=thrOf(D)*D.thr*.72,vm=D.vmax*BOTV,vs=vm*.8,R=BR+.75,kp=keeperOf(d.team);let pick=-1,i0=-1;
  if(!ai.fsAim){if(D.aim)bestAim(d,D,ai.tt>0&&ai.P?ai.P:ball.p,ai.tt>0?ai.tt:0);else ai.gx=null}  /* fsAim: the caller set the aim (gx, gy) */
  for(let i=1;i<PRED.length;i+=2){const P=PRED[i],t=(i+1)*PDT;
@@ -135,24 +151,36 @@ export function plan(d,D){const ai=d.ai,acc=thrOf(D)*D.thr*.72,vm=D.vmax*BOTV,vs
   if(al>.4)tr=reachT(d,_c,acc,vm);else{const L=6+6*(1-al);tr=reachT(d,_e.copy(_c).addScaledVector(_n,-L),acc,vm)+L/vs+.3*(1-al)}  // from the wrong side it has to go round first
   if(tr*D.slack+.1<=t||i>=PRED.length-2){if(i0<0){i0=i;ai.t0=t;ai.n0.copy(_n);ai.C0.copy(_c);ai.P0.copy(P)}pick=i;ai.al=al;ai.tt=t;ai.n.copy(_n);ai.C.copy(_c);ai.P.copy(P);break}}
  return pick}
-function thinkIQ(d,D){const ai=d.ai,s=d.team?1:-1,ownZ=-s*HL;let role=d.role;ai.strike=false;ai.demo=null;
+function thinkIQ(d,D){const ai=d.ai,s=d.team?1:-1,ownZ=-s*HL;let role=d.role;ai.strike=false;ai.demo=null;ai.aimP=null;
  if(!ai.C){ai.C=new V3();ai.n=new V3();ai.P=new V3();ai.C0=new V3();ai.n0=new V3();ai.P0=new V3()}
  if(Math.random()<.35)ai.nz.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(D.noise);
  const danger=threat(d.team),near=Math.abs(ball.p.z-ownZ)<30;
  if(role==='keep'&&(danger||near))role='attack';
  if(role==='mid'){if(danger)role='keep';else if(SB()&&d.boost<35&&d.p.distanceTo(ball.p)>30)role='boost'}
  if(role==='attack'&&D.kdemo&&openDemo(d,D)){ai.look.copy(ai.demo.p)}  /* the ball is safe and their keeper is all that stands in the way: demolish him first */
- else if(role==='attack'){const clr=D.shadow&&Math.abs(ownZ-ball.p.z)<(D.clrZ??50);if(clr){ai.fsAim=true;ai.gx=(Math.sign(ball.p.x)||(d.i%2?1:-1))*(HW-12);ai.gy=14}plan(d,D);ai.fsAim=false;  /* in front of its own goal: clear it to the near side, upfield */
+ else if(role==='attack'){const clr=D.shadow&&Math.abs(ownZ-ball.p.z)<(D.clrZ??50);if(clr){ai.fsAim=true;ai.gx=(Math.sign(ball.p.x)||(d.i%2?1:-1))*(HW-12);ai.gy=14}  /* in front of its own goal: clear it to the near side, upfield */
+  if(!clr&&ai.lk==='pass'&&ai.lane)ai.aimP=ai.lane;  /* the look-ahead chose the pass (or a set-up): keep aiming there until its next look */
+  plan(d,D);ai.fsAim=false;
+  /* a covered shot (the open corner's margin ai.gm under passG): a pass into a teammate's open lane (DIFF[].team, bots/team.js) when it is worth */
+  /* more than passV, else a wall or ceiling set-up (DIFF[].aerial, bots/aerial.js); the plan is made again at that aim */
+  if(!clr&&!ai.aimP&&ai.tt>0&&(D.team||D.aerial)){const cov=ai.gm==null||ai.gm<(D.passG??0);
+   if(D.team&&cov&&passLane(d,D,_pl)>(D.passV??.25)){ai.aimP=(ai.lane||(ai.lane=new V3())).copy(_pl);plan(d,D)}
+   else if(D.aerial&&aerialAim(d,D,_pl)){ai.aimP=(ai.lane||(ai.lane=new V3())).copy(_pl);plan(d,D)}}
+  /* the look-ahead (DIFF[].look, bots/lookahead.js): shot, pass, carry or defend by expected goal value, at most every lkT s and within its budget per tick */
+  if(D.look&&!clr){if(!(ai.lkT>0)&&lookAhead(d,D))ai.lkT=D.lkT??.15}else ai.lk=null;
+  const fm=D.model?ai.foe:null;  /* the opponent model (bots/model.js): the soonest foe's closing time, his hesitation included */
   // contested: if a foe can touch it before the placed shot is ready, take the quickest touch instead (still bent toward the goal)
-  if(ai.t0<ai.tt-.05){let ot=4;for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)ot=Math.min(ot,firstT(o,accOf(o),vmOf(o),D.slack));
+  if(ai.t0<ai.tt-.05){let ot=4;if(fm)ot=fm.ct;else for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)ot=Math.min(ot,firstT(o,accOf(o),vmOf(o),D.slack));
    if(ot<ai.tt+.15&&!(D.shadow&&ai.n0.z*s<-.25)){ai.tt=ai.t0;ai.n.copy(ai.n0);ai.C.copy(ai.C0);ai.P.copy(ai.P0);_k.subVectors(ai.C,d.p);const l=_k.length();ai.al=l<1?1:Math.max(.41,_k.dot(ai.n)/l)}}
   /* beaten to it (a foe touches it clearly first): don't chase from behind, shadow it goal-side and play it after his touch (DIFF[].shadow) */
-  let ft=4;if(D.shadow)for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)ft=Math.min(ft,firstT(o,accOf(o),vmOf(o),1));
+  let ft=4;if(fm)ft=fm.ct;else if(D.shadow)for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)ft=Math.min(ft,firstT(o,accOf(o),vmOf(o),1));
   /* or the ball is heading for its own goal (or a foe gets there first) and the quad is not goal-side of it: race back past it (wide of it) and turn to clear it from */
   /* in front, instead of pushing it on into the net from behind */
-  const gO=Math.abs(ownZ-d.p.z)<Math.abs(ownZ-ball.p.z)-2,home=D.shadow&&!gO&&(ball.v.z*-s>12||ft<ai.t0)&&Math.abs(ownZ-ball.p.z)<HL*1.3;
-  if(home||ft<ai.t0-(D.shd??.2)){const to=_a.set(0,0,ownZ).sub(ball.p);to.y=0;const L=to.length()||1;ai.tg.copy(ball.p).addScaledVector(ball.v,home?.5:0).addScaledVector(to,cl(L*.3,8,24)/L);ai.tg.y=cl(ball.p.y,3,14);
-   if(home){_lat.set(d.p.x-ball.p.x,0,0);ai.tg.x+=(Math.sign(_lat.x)||1)*7;ai.tv.copy(ball.v).multiplyScalar(1.2)}else ai.tv.copy(ball.v).multiplyScalar(.8);ai.look.copy(ball.p)}  /* home: on its side of the ball, 7 m wide, faster than the ball */
+  const gO=Math.abs(ownZ-d.p.z)<Math.abs(ownZ-ball.p.z)-2,home=D.shadow&&!gO&&(ball.v.z*-s>12||ft<ai.t0)&&Math.abs(ownZ-ball.p.z)<HL*1.3,dfd=ai.lk==='defend';
+  if(home||dfd||ft<ai.t0-(D.shd??.2)){
+   if(!home&&!dfd&&fm&&fm.com<(D.hesC??.35)&&Math.abs(ownZ-ball.p.z)>HL*.5){ai.tg.copy(ai.C0).addScaledVector(ai.n0,-(D.fkD??10));ai.tv.copy(ball.v).multiplyScalar(.5);ai.look.copy(ai.P0)}  /* the fake: he hesitates, so start the run at the ball; when he commits this becomes the shadow spot */
+   else{const to=_a.set(0,0,ownZ).sub(ball.p);to.y=0;const L=to.length()||1;ai.tg.copy(ball.p).addScaledVector(ball.v,home?.5:0).addScaledVector(to,cl(L*.3,8,24)/L);ai.tg.y=cl(ball.p.y,3,14);
+   if(home){_lat.set(d.p.x-ball.p.x,0,0);ai.tg.x+=(Math.sign(_lat.x)||1)*7;ai.tv.copy(ball.v).multiplyScalar(1.2)}else ai.tv.copy(ball.v).multiplyScalar(.8);ai.look.copy(ball.p)}}  /* home: on its side of the ball, 7 m wide, faster than the ball */
   else{ai.C.add(ai.nz);ai.look.copy(ai.P);
   if(ai.al>.4){ai.strike=true;ai.tg.copy(ai.C)}
   else{const L=8+8*(1-ai.al);ai.tg.copy(ai.C).addScaledVector(ai.n,-L);const lat=_lat.crossVectors(ai.n,UP);if(lat.lengthSq()<.01)lat.set(1,0,0);lat.normalize();
@@ -161,7 +189,7 @@ function thinkIQ(d,D){const ai=d.ai,s=d.team?1:-1,ownZ=-s*HL;let role=d.role;ai.
   ai.tg.x=cl(ai.tg.x,-GW/2+3,GW/2-3);ai.tg.y=cl(ai.tg.y,2.5,GH-3);ai.tv.set(0,0,0);ai.look.copy(ball.p)}
  else if(role==='mid'&&D.demo&&ball.p.z*s>HL*.25&&(ai.demo=keeperOf(d.team))&&ai.demo.p.distanceTo(d.p)<140){ai.look.copy(ai.demo.p)}  // the third man takes out the keeper while the attack is on (a demolition needs DEMO m/s of closing speed)
  else if(role==='mid'){ai.demo=null;const at=GS.drones.find(o=>o.team===d.team&&o!==d&&o.role==='attack'&&o.dead<=0);  // second man: behind the play, wide of the attacker, ready for the rebound
-  ai.tg.lerpVectors(ball.p,_a.set(0,6,ownZ),.3);ai.tg.x+=((at?at.p.x:ball.p.x)>ball.p.x?-1:1)*14;ai.tg.y=cl(ball.p.y*.7,4,20);ai.tv.copy(ball.v).multiplyScalar(.5);ai.look.copy(ball.p)}
+  if(!(D.team&&laneSpot(d,D,at,ai.tg))){ai.tg.lerpVectors(ball.p,_a.set(0,6,ownZ),.3);ai.tg.x+=((at?at.p.x:ball.p.x)>ball.p.x?-1:1)*14;ai.tg.y=cl(ball.p.y*.7,4,20)}ai.tv.copy(ball.v).multiplyScalar(.5);ai.look.copy(ball.p)}  /* team: in a lane ahead of the ball for the pass (bots/team.js) */
  else{let best=null,bd=1e9;for(const p of ORBS)if(p.cd<=0){const dd=p.p.distanceToSquared(d.p)*(p.big?.5:1);if(dd<bd){bd=dd;best=p}}
   if(best){ai.tg.copy(best.p);ai.tv.set(0,0,0);ai.look.copy(best.p)}}
  if(ai.strike)return;
@@ -173,7 +201,7 @@ export function strikeV(d,D,dt){const ai=d.ai,vm=D.vmax*BOTV;ai.tt=Math.max(.04,
 // roles by time to the ball (from the right side), with a little stickiness so they don't flap
 function rolesIQ(ms,s){const D=DIFF[ms[0].skill??S.diff],acc=thrOf(D)*D.thr*.72,vm=D.vmax*BOTV;
  const sc=d=>{let t=4;for(let i=1;i<PRED.length;i+=4){if(reachT(d,PRED[i],acc,vm)<=(i+1)*PDT){t=(i+1)*PDT;break}}return t+((d.p.z-ball.p.z)*s>2?.6:0)-(d.role==='attack'?.2:0)};
- for(const d of ms)d.ai.rs=sc(d);ms.sort((a,b)=>a.ai.rs-b.ai.rs);ms[0].role='attack';
+ for(const d of ms)d.ai.rs=sc(d);if(D.team)rotate(ms,D);ms.sort((a,b)=>a.ai.rs-b.ai.rs);ms[0].role='attack';  /* team: a quad that just struck it rotates back (bots/team.js) */
  const rest=ms.slice(1).sort((a,b)=>Math.abs(a.p.z+s*HL)-Math.abs(b.p.z+s*HL));rest.forEach((d,i)=>d.role=i===0?'keep':'mid')}
 // demolition run: full speed at where the target will be (lead by the closing time), so the hit lands well above DEMO
 function demoV(d,D){const e=d.ai.demo,vm=D.vmax*BOTV;if(e.dead>0){d.ai.demo=null;return _b.set(0,0,0)}const t=e.p.distanceTo(d.p)/vm;return _b.copy(e.p).addScaledVector(e.v,t).sub(d.p).setLength(vm)}
