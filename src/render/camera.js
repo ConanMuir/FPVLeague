@@ -40,7 +40,7 @@ export function updateCam(dt,now){const me=GS.player;bfov+=((me?.boostOn?14:0)-b
   const f=_f.set(0,0,-1).applyQuaternion(me.q).setY(0);if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);camFwd.lerp(f.normalize(),1-Math.exp(-dt*4)).normalize();
   if(lookK>.01){_ld.copy(camera.position).y-=1;_lm.lookAt(camera.position,_ld,camFwd);_lq.setFromRotationMatrix(_lm);camera.quaternion.slerp(_lq,lookK*lookK*(3-2*lookK))}  // look-down: swing the lens straight down at the line, heading at the top of the screen
   if(slK>.01){const span=me.p.distanceTo(ball.p);_ld.lerpVectors(me.p,ball.p,.3);_cp.copy(me.p).addScaledVector(camFwd,-(span*.55+5)).add(_t.set(0,1.5+span*.05,0));  // sling cam: just behind and above the drone, aimed between drone and ball so drone, cable and ball all fit
-   _cp.x=cl(_cp.x,-HW+1,HW-1);_cp.y=cl(_cp.y,.8,H-1);_cp.z=cl(_cp.z,-HL-GD+1,HL+GD-1);slPos=slPos?slPos.lerp(_cp,1-Math.exp(-dt*6)):_cp.clone();
+   _cp.x=cl(_cp.x,-HW+1,HW-1);_cp.y=cl(_cp.y,.8,H-1);_cp.z=cl(_cp.z,-HL-GD+1,HL+GD-1);arenaFree(_cp);slPos=slPos?slPos.lerp(_cp,1-Math.exp(-dt*6)):_cp.clone();arenaFree(slPos);  /* the sling seat too: behind the quad along an end wall it sat 2 m inside the wall */
    _lm.lookAt(slPos,_ld,_t.set(0,1,0));_lq.setFromRotationMatrix(_lm);const k=slK*slK*(3-2*slK);camera.position.lerp(slPos,k);camera.quaternion.slerp(_lq,k);setFov(S.fov+(100-S.fov)*k+bfov)}else{slPos=null;setFov(S.fov+bfov)}
   GS.llView=slK>.5;me.mesh.visible=me.mark.visible=GS.llView}
  else{GS.llView=false;lookK=slK=0;slPos=null;const f=_f.set(0,0,-1).applyQuaternion(me.q);f.y=0;if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);f.normalize();
