@@ -114,6 +114,20 @@ calls (the one producer added for it is the `pack` event when a training pack fi
 - New achievement: append to `ACH` (never rename an id: it is saved). New locked cosmetic: add it to `LEVEL_UNLOCKS` or give an
   achievement a `reward`. `tools/progress-check.mjs` plays real matches headless and checks the whole loop.
 
+## Tournament (`src/tournament/`, `src/modes/tournament.js`, `src/ui/tournament.js`)
+
+- `tournament/bracket.js` is pure: `createTournament(setup)` builds every match of a single or double elimination, round robin or
+  Swiss bracket (4 / 8 / 16 entrants, seeded, as listed or a seeded random draw), `report(T, id, [a, b])` records a score and advances
+  it (no draws: overtime settles a match), `standings(T)`, `playable(T)`, `teamsOf(T, m)` (the slots for `applySlots` and each bot's
+  DIFF level), `replay(setup, results)` rebuilds the bracket from a save.
+- `tournament/store.js` is the save (localStorage `droneleague.tournament`, version `tv`, `TOURN_MIGRATIONS`), loaded through
+  `config/schema.js` like the settings; bots are saved by level name, so a level that no longer exists means the save does not resume.
+  The second local pilot slot (`PILOTS` p2) exists but is hidden (`SECOND_PILOT`): `src/input` reads one pad and one keyboard map.
+- `modes/tournament.js` registers the hidden mode `tourn` (your matches run through the normal match flow in it, so progression records
+  them under `tourn`), runs a bot match watched (`GS.spect`: no player, the broadcast camera in `render/camera.js`) or simulated
+  (`simTick`: the real step loop in the frame budget behind the menu, muted), records every `end` and gives the trophy
+  (`progress/tracker.js tournWon`). `ui/tournament.js` is the screen. `test/tournament.test.mjs` and `tools/tournament-check.mjs` check it.
+
 ## Shared with Riley's games (`src/flight/core.js`, `src/input/sticks.js`)
 
 Two leaf modules are loaded by every game, Jared's (through Vite) and Riley's (`engine/`, `games/`, as raw ES modules), so they
