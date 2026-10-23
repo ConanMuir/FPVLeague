@@ -335,7 +335,7 @@ const boomL=new THREE.PointLight(0xffa040,0,600,1.2);scene.add(boomL);
 // ---------- audio (engine motor synth; bigger interceptor props turn slower than a 5", wind noise follows airspeed) ----------
 let bzo,bzg,bzf;const _ad=new V3();
 // nearest threat: the Shahed's two-stroke "moped" buzz, or a jet's turbine whine
-const audioStart=()=>audioInit({motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:AC=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(AC.destination);bzo.start()}});
+const audioStart=()=>audioInit({motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:(AC,out)=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(out||AC.destination);bzo.start()}});  /* out: the engine's effects gain (the Zombies effects slider) */
 function audioTick(dt){const me=player,on=!demo&&!paused&&me&&me.dead<=0,t=AC.currentTime;
  const nt=nearestThreat(camera.position);let g=0,fz=95;if(nt&&!paused){const r=_a.subVectors(nt.p,camera.position),d=r.length();g=Math.pow(cl(1-d/(nt.jet?1400:800),0,1),2)*(nt.jet?.07:.1);fz=(nt.jet?nt.spd>70?1400:900:95)*(1-nt.v.dot(r)/d/343)}  // Doppler
  bzg.gain.setTargetAtTime(demo?g*.4:g,t,.1);bzo.frequency.setTargetAtTime(fz,t,.1);bzf.frequency.setTargetAtTime(nt?.jet?4000:900,t,.2);
@@ -491,7 +491,7 @@ function impact(t){if(Z.on)return Z.impact(t);t.st='dead';boom(t.aim,4)}
 function killThreat(t,cat){if(Z.on)Z.kill(t,cat);if(cat){t.st='dead';boom(t.p,3.2);SMK.emit(t.p,0x1c1a18,30,14,6,_t.set(0,3,0),1.4,.85);if(!demo)tone(660,1320,.25,.12,'triangle');return}t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
  boom(t.p,1.2);if(demo)return;tone(660,1320,.25,.12,'triangle')}
 function boom(p,k){if(Z.on)Z.flash(p,k);FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
- boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*(Z.on?Math.min(k,3):k));shake=Math.max(shake,near(p)*k*.6);noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}
+ boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*(Z.on?Math.min(k,3):k));shake=Math.max(shake,near(p)*k*.6);if(!Z.on&&!demo)noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}  /* Zombies hears its own placed explosion (Z.flash -> zaudio); the menu's demo is quiet */
 const nearestThreat=p=>GRID.nearest(p,live);
 // most urgent track: least time to reach its target
 const urgent=()=>Z.urgent();

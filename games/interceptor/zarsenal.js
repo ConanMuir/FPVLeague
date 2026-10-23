@@ -90,7 +90,7 @@ export function initArsenal(api,G,Z){
 
  // ---------- HUD: the loaded weapon (and the pod's chaff) next to the wave counter ----------
  const tag=document.createElement('span');tag.id='zwpn';document.querySelector('#zhud .zt')?.append(tag);let last='';
- const h0=Z.hud;Z.hud=dt=>{h0(dt);const w=A.cur(),P=A.P(A.me()),t=!G.on||w==='std'?'':WPN[w].hud+(w==='flare'?` · CHAFF ${P.ch}`:'');if(t!==last){last=t;tag.textContent=t;tag.hidden=!t}};
+ const h0=Z.hud;Z.hud=dt=>{h0(dt);A.snd.warm();const w=A.cur(),P=A.P(A.me()),t=!G.on||w==='std'?'':WPN[w].hud+(w==='flare'?` · CHAFF ${P.ch}`:'');if(t!==last){last=t;tag.textContent=t;tag.hidden=!t}};
  return A}
 
 // ---------- the arsenal's sounds: a small WebAudio synth (no samples), placed in the world like zaudio.js's (distance, delay, air, pan) ----------
@@ -98,7 +98,7 @@ function initSnd(api){const V3=api.THREE.Vector3,_r=new V3(),_x=new V3();let out
  const vol=()=>cl(api.S.zsfxv??1,0,1),now=()=>AC.currentTime;
  const bus=()=>{if(!AC||!nbuf)return null;if(!out){const c=AC.createDynamicsCompressor();c.threshold.value=-14;c.ratio.value=4;out=AC.createGain();out.gain.value=.85;out.connect(c).connect(AC.destination)}return out};
  const filt=(type,f,q=.7)=>{const b=AC.createBiquadFilter();b.type=type;b.frequency.value=f;b.Q.value=q;return b};
- const env=(t0,pk,a,dur)=>{const g=AC.createGain();g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(Math.max(pk,.0002),t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);return g};
+ const env=(t0,pk,a,dur)=>{const g=AC.createGain();g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(Math.max(pk,.0002),t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);return g};  /* starts at the floor: a gain is 1 until its first event (zaudio.js env) */
  const nsrc=(t0,dur)=>{const s=AC.createBufferSource();s.buffer=nbuf;s.start(t0,Math.random()*1.4,dur+.05);nv++;s.onended=()=>nv--;return s};
  const osc=(type,t0,dur,f)=>{const o=AC.createOscillator();o.type=type;if(f)o.frequency.value=f;o.start(t0);o.stop(t0+dur+.05);nv++;o.onended=()=>nv--;return o};
  function at(p,ref,max){const b=bus();if(!b||nv>48)return null;const cam=api.camera,d=p?p.distanceTo(cam.position):0,g=max*vol()/(1+(d/ref)**1.5);if(g<.004)return null;
@@ -107,23 +107,26 @@ function initSnd(api){const V3=api.THREE.Vector3,_r=new V3(),_x=new V3();let out
  const thump=(v,f0,f1,len)=>{const o=osc('sine',v.t0,len);o.frequency.setValueAtTime(f0,v.t0);o.frequency.exponentialRampToValueAtTime(f1,v.t0+len*.8);o.connect(env(v.t0,v.g,.004,len)).connect(v.n)};
  const hiss=(v,type,f,q,pk,a,len,t=0)=>{const s=nsrc(v.t0+t,len),b=filt(type,f,q);s.connect(b).connect(env(v.t0+t,pk,a,len)).connect(v.n);return b};
  return{
+  // the bus (its compressor) is built as soon as there is audio, a frame at a time: a fresh DynamicsCompressor fades in from silence over its
+  // release time, so the first sound through a bus made on demand came out 5 dB quiet (tools/audio-levels.mjs)
+  warm(){bus()},
   // EMP: a falling electric zap over a low thump, then crackle
-  emp(p){const v=at(p,260,1);if(!v)return;const o=osc('sawtooth',v.t0,.7),b=filt('bandpass',1200,2);o.frequency.setValueAtTime(2400,v.t0);o.frequency.exponentialRampToValueAtTime(70,v.t0+.6);o.connect(b).connect(env(v.t0,v.g*.5,.003,.7)).connect(v.n);
+  emp(p){const v=at(p,260,.75);if(!v)return;  /* level with the other detonations up close, about -11 dBFS */const o=osc('sawtooth',v.t0,.7),b=filt('bandpass',1200,2);o.frequency.setValueAtTime(2400,v.t0);o.frequency.exponentialRampToValueAtTime(70,v.t0+.6);o.connect(b).connect(env(v.t0,v.g*.5,.003,.7)).connect(v.n);
    thump(v,90,30,.6);for(let i=0;i<7;i++)hiss(v,'highpass',5000,.7,v.g*.25,.001,.04,.15+i*rnd(.05,.11))},
   // net: a compressed-air launch, and the capture: rope zipping tight, a soft thud
   netShot(p){const v=at(p,120,.7);if(!v)return;hiss(v,'lowpass',700,.8,v.g*.7,.004,.18);thump(v,180,80,.18)},
   net(p){const v=at(p,160,.8);if(!v)return;const b=hiss(v,'bandpass',3200,3,v.g*.45,.01,.35);b.frequency.setValueAtTime(3600,v.t0);b.frequency.exponentialRampToValueAtTime(600,v.t0+.3);thump(v,120,55,.3)},
   // flechette: a sharp crack and the rattle of darts
-  flech(p){const v=at(p,200,1);if(!v)return;hiss(v,'highpass',2500,.6,v.g*.9,.001,.06);for(let i=0;i<8;i++)hiss(v,'bandpass',3500+i*300,4,v.g*.22,.001,.03,.03+i*.018);thump(v,140,60,.2)},
+  flech(p){const v=at(p,200,.5);if(!v)return;  /* the detonations up close peak around -11 dBFS, under the explosions they cause (tools/audio-levels.mjs); they were over */hiss(v,'highpass',2500,.6,v.g*.9,.001,.06);for(let i=0;i<8;i++)hiss(v,'bandpass',3500+i*300,4,v.g*.22,.001,.03,.03+i*.018);thump(v,140,60,.2)},
   // kinetic dart: a metallic clang (inharmonic partials) on a hard impact
-  dart(p){const v=at(p,180,1);if(!v)return;hiss(v,'highpass',1800,.5,v.g*.8,.001,.05);for(const[f,k]of[[523,.5],[1307,.32],[2210,.22],[3400,.15]]){const o=osc('sine',v.t0,.9,f);o.connect(env(v.t0,v.g*k,.002,.9)).connect(v.n)}},
+  dart(p){const v=at(p,180,.5);if(!v)return;hiss(v,'highpass',1800,.5,v.g*.8,.001,.05);for(const[f,k]of[[523,.5],[1307,.32],[2210,.22],[3400,.15]]){const o=osc('sine',v.t0,.9,f);o.connect(env(v.t0,v.g*k,.002,.9)).connect(v.n)}},
   // cluster: the main pop, then a ripple of small ones
-  cluster(p,n){const v=at(p,220,.9);if(!v)return;thump(v,150,50,.3);hiss(v,'lowpass',1600,.6,v.g*.6,.003,.25);for(let i=0;i<n;i++)hiss(v,'bandpass',1200+i*150,1.4,v.g*.3,.002,.08,.35+i*rnd(.06,.14))},
+  cluster(p,n){const v=at(p,220,.65);if(!v)return;thump(v,150,50,.3);hiss(v,'lowpass',1600,.6,v.g*.6,.003,.25);for(let i=0;i<n;i++)hiss(v,'bandpass',1200+i*150,1.4,v.g*.3,.002,.08,.35+i*rnd(.06,.14))},
   // flares and chaff: two pops and a burning hiss
   flares(p){const v=at(p,150,.7);if(!v)return;for(const t of[0,.09]){hiss(v,'lowpass',900,.7,v.g*.6,.002,.09,t)}hiss(v,'highpass',3000,.5,v.g*.25,.05,1.2,.1)},
   click(){const v=at(null,1,.25);if(!v)return;const o=osc('square',v.t0,.05,1400);o.connect(env(v.t0,v.g*.4,.001,.05)).connect(v.n)},
   // microwave pulse: a deep swelling whumm and a sizzle
-  pulse(p){const v=at(p,400,1);if(!v)return;const o=osc('sine',v.t0,1,55);o.frequency.setValueAtTime(40,v.t0);o.frequency.linearRampToValueAtTime(70,v.t0+.4);o.connect(env(v.t0,v.g*.9,.25,1)).connect(v.n);
+  pulse(p){const v=at(p,400,.6);if(!v)return;const o=osc('sine',v.t0,1,55);o.frequency.setValueAtTime(40,v.t0);o.frequency.linearRampToValueAtTime(70,v.t0+.4);o.connect(env(v.t0,v.g*.9,.25,1)).connect(v.n);
    hiss(v,'bandpass',220,1.2,v.g*.5,.15,.8);hiss(v,'highpass',6000,.5,v.g*.3,.05,.45,.2)},
   // a cable snagging a drone: a plucked steel string and a metallic ping
   twang(p){const v=at(p,200,.9);if(!v)return;const o=osc('sawtooth',v.t0,.9,220),b=filt('lowpass',1800,3);o.frequency.setValueAtTime(260,v.t0);o.frequency.exponentialRampToValueAtTime(150,v.t0+.8);o.connect(b).connect(env(v.t0,v.g*.5,.002,.85)).connect(v.n);
