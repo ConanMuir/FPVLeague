@@ -22,7 +22,9 @@ import {gfx} from '../../engine/gfx.js';
 import {detailTex} from '../../engine/render.js';
 import {seeded} from '../../engine/util.js';
 import {FA,CW,CH,FU0,NU,NV,fieldLayout,partRects} from './ground.js';
-const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
+const cl=(v,a,b)=>v<a?a:v>b?b:v;
+/* the scars' own random stream (re-seeded when a run starts): cosmetic randomness must not shift the game's Math.random sequence, or a seeded run would differ with and without scars */
+let rg=seeded(20241);const rr=()=>rg(),rnd=(a,b)=>a+rr()*(b-a);
 
 // ---------- records: type, position on a 2.2 m grid, size, variant, yaw, spread, age; 6 bytes (8 characters) each ----------
 export const CAP=[256,128,64],TYPES=['crater','burn','rubble'],RES=[16,28,14],ORD=[-3,-2,-1],HALF=4500;
@@ -160,7 +162,7 @@ class Pool{
   const me=this.mesh=new THREE.Mesh(g,m);me.frustumCulled=false;me.matrixAutoUpdate=false;me.receiveShadow=true;me.castShadow=false;me.renderOrder=ORD[kind];me.visible=false;me.userData.scars=kind}
  // quantised record -> instance data
  put(i,xq,zq,sq,vq,yq,pq,aq,gh,fade){const k=this.kind,x=dpos(xq),z=dpos(zq),r=dsz(sq),yaw=yq/32*Math.PI*2;
-  this.xq[i]=xq;this.zq[i]=zq;this.sq[i]=sq;this.vq[i]=vq;this.yq[i]=yq;this.aq[i]=aq;this.pf[i]=pq/31;this.glow[i]=k===1&&pq<31?1:0;this.ft[i]=Math.random();
+  this.xq[i]=xq;this.zq[i]=zq;this.sq[i]=sq;this.vq[i]=vq;this.yq[i]=yq;this.aq[i]=aq;this.pf[i]=pq/31;this.glow[i]=k===1&&pq<31?1:0;this.ft[i]=rr();
   const o=i*4,sx=k===1?r*1.3:k===2?r*.74:r,sz=k===1?r*.85:r;
   this.aS[o]=x;this.aS[o+1]=z;this.aS[o+2]=sx;this.aS[o+3]=sz;this.aP[o]=yaw;this.aP[o+1]=vq;this.aP[o+2]=pq/31;this.aP[o+3]=this.glow[i];this.aF[o]=gh(x,z);this.aF[o+1]=fade;this.aF[o+2]=0;this.aF[o+3]=1;
   this.st[i]=1;this.fade[i]=fade;this.want[i]=1;if(i>=this.hw){this.hw=i+1;this.geo.instanceCount=this.hw}this.n++;this.dirty=true}
@@ -226,7 +228,7 @@ export function initScars(api,G,Z){
  let tok=8;  /* scars allowed right now: refilled 3 a second of frame time, 8 at most */
  const live=()=>sc.ready&&G.on&&!api.demo&&!Z.mirror;
  const add=(t,x,z,r,v,yq,pq,aq,fade)=>P[t].add(qpos(x),qpos(z),qsz(r),v,yq,pq,aq,gh,fade);
- sc.add=(t,x,z,r,o={})=>{ensure();rev++;return add(t,x,z,r,o.v??(Math.random()*4|0),o.y??(Math.random()*32|0),o.p??31,o.a??0,o.fade??0)};
+ sc.add=(t,x,z,r,o={})=>{ensure();rev++;return add(t,x,z,r,o.v??(rr()*4|0),o.y??(rr()*32|0),o.p??31,o.a??0,o.fade??0)};
  // ---- village houses: the instanced walls and roofs. A destroyed one is zero-scaled (shadow too) and its collider lifted away; rubble stands in its place ----
  let HS=null;
  function houses(){if(HS)return HS;const L=scene.children.filter(m=>m.userData.house),w=L[0],r=L[1],col=scene.userData.hcol;if(!w||!r||!col)return HS={n:0};
@@ -239,19 +241,19 @@ export function initScars(api,G,Z){
   h.sv[o+32]=h.col[i].y;h.col[i].y=1e6;return true}
  function housesBack(){const h=HS;if(!h||!h.n)return;for(let i=0;i<h.n;i++){if(!h.dead[i])continue;const o=h.slot[i]*34;
   for(const[m,q]of[[h.w,0],[h.r,16]]){const a=m.instanceMatrix.array;for(let k=0;k<16;k++)a[i*16+k]=h.sv[o+q+k];m.instanceMatrix.needsUpdate=true}h.col[i].y=h.sv[o+32];h.dead[i]=0;h.slot[i]=-1}h.used=0}
- const rubbleAt=(i,fade)=>{const h=houses();return P[2].add(qpos(h.x[i]),qpos(h.z[i]),qsz(7.4),Math.random()*4|0,Math.round(((h.yw[i]/(Math.PI*2))%1+1)%1*32)&31,31,0,gh,fade)};
+ const rubbleAt=(i,fade)=>{const h=houses();return P[2].add(qpos(h.x[i]),qpos(h.z[i]),qsz(7.4),rr()*4|0,Math.round(((h.yw[i]/(Math.PI*2))%1+1)%1*32)&31,31,0,gh,fade)};
 
  // ---------- explosions: the one hook (Z.flash) ----------
  function craterAt(x,z,k){const R=cl((1.8+2.4*k**.85)*rnd(.88,1.12),2,16),p=P[0];
   for(let i=0;i<p.hw;i++)if(p.st[i]===1){const r0=dsz(p.sq[i]);if(Math.hypot(dpos(p.xq[i])-x,dpos(p.zq[i])-z)<.25*(R+r0)&&Math.abs(R-r0)<.4*Math.max(R,r0)){p.aq[i]=0;return}}  /* on top of one of the same size: that one is fresh again */
-  add(0,x,z,R,Math.random()*4|0,Math.random()*32|0,31,0,0);rev++}
+  add(0,x,z,R,rr()*4|0,rr()*32|0,31,0,0);rev++}
  function burnAt(x,z,k){const Rf=cl((7+6*k**.8)*flamAt(x,z),0,30);if(Rf<5)return;
   const p=P[1];for(let i=0;i<p.hw;i++)if(p.st[i]===1){const r0=dsz(p.sq[i]);if(Math.hypot(dpos(p.xq[i])-x,dpos(p.zq[i])-z)<.7*r0*p.pf[i]+.4*Rf)return}  /* scorched ground does not catch again */
-  const wb=api.WB,yq=Math.round(((Math.atan2(wb.z,wb.x)/(Math.PI*2))%1+1)%1*32)&31;add(1,x,z,Rf,Math.random()*4|0,yq,Math.round(Math.min(.35,3.2/Rf)*31),0,0);rev++}
+  const wb=api.WB,yq=Math.round(((Math.atan2(wb.z,wb.x)/(Math.PI*2))%1+1)%1*32)&31;add(1,x,z,Rf,rr()*4|0,yq,Math.round(Math.min(.35,3.2/Rf)*31),0,0);rev++}
  function onBoom(p,k){if(!live()||!(k>=.3))return;const x=p.x,z=p.z;if(!(p.y-gh(x,z)<=1+2.2*k))return;  /* (written so that a NaN anywhere makes nothing) */
   if(tok<1)return;tok--;
-  if(k>=1){const h=houses(),rb=7.5+2*k**.8;for(let i=0,c=0;i<h.n&&c<4;i++)if(!h.dead[i]&&Math.hypot(h.x[i]-x,h.z[i]-z)<rb&&Math.random()<cl((k-.5)/1.5,0,1)&&houseDown(i)){rubbleAt(i,0);c++;rev++}}
-  const R=cl(1.8+2.4*k**.85,2,16);if(!bad(x,z,R)){craterAt(x,z,k);if(k>=1.2&&Math.random()<cl((k-.8)/1.2,0,1))burnAt(x,z,k)}
+  if(k>=1){const h=houses(),rb=7.5+2*k**.8;for(let i=0,c=0;i<h.n&&c<4;i++)if(!h.dead[i]&&Math.hypot(h.x[i]-x,h.z[i]-z)<rb&&rr()<cl((k-.5)/1.5,0,1)&&houseDown(i)){rubbleAt(i,0);c++;rev++}}
+  const R=cl(1.8+2.4*k**.85,2,16);if(!bad(x,z,R)){craterAt(x,z,k);if(k>=1.2&&rr()<cl((k-.8)/1.2,0,1))burnAt(x,z,k)}
   rank()}
  const f0=Z.flash;Z.flash=(p,k)=>{f0(p,k);onBoom(p,k)};
  sc.boom=(p,k)=>{ensure();onBoom(p,k)};
@@ -291,8 +293,8 @@ export function initScars(api,G,Z){
  const _w=new V3(),_up=new V3(0,4,0);
  function fireFx(dt){const p=P[1],cam=camera.position,lim=900*gfx.k.fxR;let used=0;
   for(let i=0;i<p.hw&&used<6;i++){if(p.st[i]!==1||p.glow[i]<=0||p.fade[i]<.5)continue;const x=p.aS[i*4],z=p.aS[i*4+1];if(Math.abs(x-cam.x)>lim||Math.abs(z-cam.z)>lim)continue;used++;
-   if((p.ft[i]-=dt)>0)continue;p.ft[i]=.3+Math.random()*.5;const a=Math.random()*6.283,rr=p.pf[i]*.88*Math.sqrt(Math.random()),lx=Math.cos(a)*rr*p.aS[i*4+2],lz=Math.sin(a)*rr*p.aS[i*4+3],yw=p.aP[i*4],co=Math.cos(yw),si=Math.sin(yw),
-    wx=x+lx*co-lz*si,wz=z+lx*si+lz*co;_w.set(wx,gh(wx,wz)+.4,wz);api.FX.emit(_w,0xff7a20,2,3,.5,null,2.2);if(Math.random()<.35)api.SMK.emit(_w,0x2d2926,1,2,8,_up,1,.5)}}
+   if((p.ft[i]-=dt)>0)continue;p.ft[i]=.3+rr()*.5;const a=rr()*6.283,rd=p.pf[i]*.88*Math.sqrt(rr()),lx=Math.cos(a)*rd*p.aS[i*4+2],lz=Math.sin(a)*rd*p.aS[i*4+3],yw=p.aP[i*4],co=Math.cos(yw),si=Math.sin(yw),
+    wx=x+lx*co-lz*si,wz=z+lx*si+lz*co;_w.set(wx,gh(wx,wz)+.4,wz);api.FX.emit(_w,0xff7a20,2,3,.5,null,2.2);if(rr()<.35)api.SMK.emit(_w,0x2d2926,1,2,8,_up,1,.5)}}
  const v0=Z.visuals;Z.visuals=dt=>{v0(dt);if(!sc.ready)return;
   if(G.state!==st0){const was=st0;st0=G.state;if((st0==='clear'||st0==='over')&&was)persist()}
   if(G.wave!==wave0){if(wave0>=0&&G.wave>wave0)for(const p of P)for(let i=0;i<p.hw;i++)if(p.st[i]&&p.aq[i]<15)p.aq[i]++;wave0=G.wave}
@@ -306,7 +308,7 @@ export function initScars(api,G,Z){
  sc.persist=persist;sc.refill=()=>{tok=8};
  Z.cpNew=()=>clear();  /* a new campaign (zcampaign.js): what the last run left must not be saved into it */
  const s0=Z.start;Z.start=()=>{if(G.on)persist();  /* a restart on the same sector keeps what the last run left */
-  s0();wave0=-1;st0='';tok=8;sent=-1;sc.cRev=-1;ensure();
+  s0();rg=seeded(20241);wave0=-1;st0='';tok=8;sent=-1;sc.cRev=-1;ensure();
   const id=client()?null:camp(),s=id?Z.cp.C().sc?.[id]:null;if(s)load(s,{settle:true});else clear();vis()};
  const z1=Z.stop;Z.stop=()=>{persist();clear();z1()};
  // ---------- co-op: every snapshot carries the revision, the records go out when it changed (at most about once a second) and now and then ----------
