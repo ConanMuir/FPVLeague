@@ -12,7 +12,7 @@ import {COS_DEF} from '../parts/cosmetics.js';
 import {curMode,overlay} from '../modes/registry.js';
 import {ball} from '../physics/ball.js';
 import {GS,isBot} from '../state.js';
-import {DIFF_F,HUMAN_F,levelOf,matchXp,packXp} from './xp.js';
+import {DIFF_F,HUMAN_F,levelOf,matchXp,packXp,tournXp} from './xp.js';
 import {newRec,recCounts,recDemo,recFeats,recFloor,recGoal,recHit,recKill,recPop,recSave,recShot,recTouch} from './match-rec.js';
 import {PROFILE_KEY,addXp,commitLeft,commitMatch,loadProfile,unlockAch,view} from './profile.js';
 import {lockOf,newlyUnlocked} from './unlocks.js';
@@ -61,6 +61,9 @@ onEv('end',e=>{const r=cur();if(!r)return;const played=mt();R=null;if(Array.isAr
 onEv('pack',e=>{if(!e||typeof e.of!=='number')return;const x=packXp(e.prev,{n:e.n,of:e.of,t:e.t},e.tier),before={xp:P.xp,ach:{...P.ach},grant:[...P.grant]};
  addXp(P,x.total);const ach=unlockAch(P,view(P,null,S.train),Date.now());saveProfile();
  tell('pack',{id:e.id,res:x,xp0:before.xp,xp1:P.xp,lv0:levelOf(before.xp),lv1:levelOf(P.xp),ach,unl:newlyUnlocked(before,P)})});
+// ---- a tournament you won (modes/tournament.js): a trophy in the profile (feat tourn), XP by bracket size and the bots' level, achievements
+export function tournWon(size,df){const before={xp:P.xp,ach:{...P.ach},grant:[...P.grant]},xp=tournXp(size,df),now=Date.now();P.feat.tourn=(P.feat.tourn||0)+1;addXp(P,xp);
+ const ach=unlockAch(P,view(P,null,S.train),now);saveProfile();for(const a of ach)tell('ach',a);return{xp,ach:ach.map(a=>a.id),xp0:before.xp,xp1:P.xp,lv0:levelOf(before.xp).lv,lv1:levelOf(P.xp).lv,unl:newlyUnlocked(before,P),n:P.feat.tourn}}
 // read-only snapshot for tools (tools/progress-check.mjs, smoke)
 export const profSnap=()=>({xp:P.xp,lv:levelOf(P.xp).lv,ach:Object.keys(P.ach),st:JSON.parse(JSON.stringify(P.st)),best:{...P.best},hist:P.hist.map(h=>({...h})),rec:R?{mode:R.ctx.mode,...recCounts(R)}:null});
 export const achView=()=>view(P,R,S.train);
