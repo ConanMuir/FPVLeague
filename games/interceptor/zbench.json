@@ -16,6 +16,16 @@
       "ballistic": 2,
       "heavy": 3,
       "cruise": 1
+     },
+     "fly": {
+      "med": 32,
+      "min": 20,
+      "max": 35,
+      "n": 3,
+      "cells": 237,
+      "pct": 0.37,
+      "places": 13,
+      "systems": 5
      }
     },
     "Normal": {
@@ -25,6 +35,16 @@
      "cause": {
       "boss": 3,
       "cruise": 3
+     },
+     "fly": {
+      "med": 23,
+      "min": 23,
+      "max": 23,
+      "n": 3,
+      "cells": 221,
+      "pct": 0.34,
+      "places": 13,
+      "systems": 5
      }
     },
     "Hard": {
@@ -33,6 +53,16 @@
      "max": 15,
      "cause": {
       "jet": 6
+     },
+     "fly": {
+      "med": 15,
+      "min": 15,
+      "max": 19,
+      "n": 3,
+      "cells": 207,
+      "pct": 0.32,
+      "places": 12,
+      "systems": 5
      }
     },
     "Nightmare": {
@@ -42,6 +72,16 @@
      "cause": {
       "jet": 5,
       "heavy": 1
+     },
+     "fly": {
+      "med": 14,
+      "min": 11,
+      "max": 15,
+      "n": 3,
+      "cells": 168,
+      "pct": 0.26,
+      "places": 12,
+      "systems": 5
      }
     }
    }
@@ -57,6 +97,16 @@
       "ballistic": 2,
       "boss": 1,
       "hyper": 3
+     },
+     "fly": {
+      "med": 42,
+      "min": 38,
+      "max": 42,
+      "n": 3,
+      "cells": 296,
+      "pct": 0.46,
+      "places": 17,
+      "systems": 17
      }
     },
     "Normal": {
@@ -66,6 +116,16 @@
      "cause": {
       "hyper": 2,
       "ballistic": 4
+     },
+     "fly": {
+      "med": 32,
+      "min": 28,
+      "max": 32,
+      "n": 3,
+      "cells": 297,
+      "pct": 0.46,
+      "places": 16,
+      "systems": 17
      }
     },
     "Hard": {
@@ -76,6 +136,16 @@
       "ballistic": 4,
       "hyper": 1,
       "swarm": 1
+     },
+     "fly": {
+      "med": 27,
+      "min": 26,
+      "max": 29,
+      "n": 3,
+      "cells": 273,
+      "pct": 0.42,
+      "places": 14,
+      "systems": 14
      }
     },
     "Nightmare": {
@@ -87,6 +157,16 @@
       "jet": 1,
       "cruise": 3,
       "heavy": 1
+     },
+     "fly": {
+      "med": 16,
+      "min": 15,
+      "max": 25,
+      "n": 3,
+      "cells": 224,
+      "pct": 0.35,
+      "places": 11,
+      "systems": 11
      }
     }
    }
@@ -101,6 +181,16 @@
      "cause": {
       "ballistic": 3,
       "hyper": 3
+     },
+     "fly": {
+      "med": 44,
+      "min": 44,
+      "max": 44,
+      "n": 3,
+      "cells": 504,
+      "pct": 0.78,
+      "places": 25,
+      "systems": 25
      }
     },
     "Normal": {
@@ -110,6 +200,16 @@
      "cause": {
       "ballistic": 3,
       "hyper": 3
+     },
+     "fly": {
+      "med": 35,
+      "min": 32,
+      "max": 36,
+      "n": 3,
+      "cells": 511,
+      "pct": 0.79,
+      "places": 24,
+      "systems": 23
      }
     },
     "Hard": {
@@ -121,6 +221,16 @@
       "hyper": 1,
       "cruise": 1,
       "boss": 1
+     },
+     "fly": {
+      "med": 25,
+      "min": 22,
+      "max": 26,
+      "n": 3,
+      "cells": 415,
+      "pct": 0.64,
+      "places": 21,
+      "systems": 22
      }
     },
     "Nightmare": {
@@ -132,6 +242,16 @@
       "ballistic": 3,
       "hyper": 1,
       "jet": 1
+     },
+     "fly": {
+      "med": 20,
+      "min": 11,
+      "max": 21,
+      "n": 3,
+      "cells": 339,
+      "pct": 0.53,
+      "places": 19,
+      "systems": 12
      }
     }
    }
@@ -146,6 +266,16 @@
      "cause": {
       "icbm": 5,
       "hyper": 1
+     },
+     "fly": {
+      "med": 60,
+      "min": 60,
+      "max": 60,
+      "n": 3,
+      "cells": 560,
+      "pct": 0.87,
+      "places": 25,
+      "systems": 33
      }
     },
     "Normal": {
@@ -156,6 +286,16 @@
       "icbm": 1,
       "ballistic": 2,
       "hyper": 3
+     },
+     "fly": {
+      "med": 40,
+      "min": 31,
+      "max": 41,
+      "n": 3,
+      "cells": 493,
+      "pct": 0.77,
+      "places": 24,
+      "systems": 29
      }
     },
     "Hard": {
@@ -167,6 +307,16 @@
       "hyper": 2,
       "ballistic": 2,
       "jet": 1
+     },
+     "fly": {
+      "med": 27,
+      "min": 22,
+      "max": 27,
+      "n": 3,
+      "cells": 402,
+      "pct": 0.62,
+      "places": 22,
+      "systems": 24
      }
     },
     "Nightmare": {
@@ -178,6 +328,16 @@
       "boss": 1,
       "swarm": 1,
       "cruise": 1
+     },
+     "fly": {
+      "med": 13,
+      "min": 13,
+      "max": 20,
+      "n": 3,
+      "cells": 354,
+      "pct": 0.55,
+      "places": 20,
+      "systems": 10
      }
     }
    }
@@ -191,6 +351,16 @@
      "max": 60,
      "cause": {
       "ballistic": 1
+     },
+     "fly": {
+      "med": 60,
+      "min": 60,
+      "max": 60,
+      "n": 3,
+      "cells": 555,
+      "pct": 0.86,
+      "places": 26,
+      "systems": 32
      }
     },
     "Normal": {
@@ -202,6 +372,16 @@
       "icbm": 3,
       "hyper": 1,
       "cruise": 1
+     },
+     "fly": {
+      "med": 44,
+      "min": 38,
+      "max": 60,
+      "n": 3,
+      "cells": 532,
+      "pct": 0.83,
+      "places": 24,
+      "systems": 30
      }
     },
     "Hard": {
@@ -212,6 +392,16 @@
       "hyper": 3,
       "swarm": 1,
       "ballistic": 2
+     },
+     "fly": {
+      "med": 28,
+      "min": 28,
+      "max": 36,
+      "n": 3,
+      "cells": 417,
+      "pct": 0.65,
+      "places": 21,
+      "systems": 23
      }
     },
     "Nightmare": {
@@ -223,6 +413,16 @@
       "cruise": 1,
       "hyper": 1,
       "swarm": 1
+     },
+     "fly": {
+      "med": 17,
+      "min": 13,
+      "max": 19,
+      "n": 3,
+      "cells": 307,
+      "pct": 0.48,
+      "places": 18,
+      "systems": 12
      }
     }
    }
@@ -234,13 +434,33 @@
      "med": 60,
      "min": 60,
      "max": 60,
-     "cause": {}
+     "cause": {},
+     "fly": {
+      "med": 60,
+      "min": 60,
+      "max": 60,
+      "n": 3,
+      "cells": 548,
+      "pct": 0.85,
+      "places": 25,
+      "systems": 33
+     }
     },
     "Normal": {
      "med": 60,
      "min": 60,
      "max": 60,
-     "cause": {}
+     "cause": {},
+     "fly": {
+      "med": 46,
+      "min": 41,
+      "max": 60,
+      "n": 3,
+      "cells": 507,
+      "pct": 0.79,
+      "places": 23,
+      "systems": 29
+     }
     },
     "Hard": {
      "med": 43.5,
@@ -250,6 +470,16 @@
       "ballistic": 3,
       "icbm": 2,
       "hyper": 1
+     },
+     "fly": {
+      "med": 27,
+      "min": 13,
+      "max": 28,
+      "n": 3,
+      "cells": 414,
+      "pct": 0.64,
+      "places": 22,
+      "systems": 20
      }
     },
     "Nightmare": {
@@ -262,9 +492,24 @@
       "jet": 1,
       "icbm": 1,
       "swarm": 1
+     },
+     "fly": {
+      "med": 13,
+      "min": 11,
+      "max": 19,
+      "n": 3,
+      "cells": 320,
+      "pct": 0.5,
+      "places": 22,
+      "systems": 7
      }
     }
    }
   }
- ]
+ ],
+ "fly": {
+  "date": "2026-10-23",
+  "runs": 3,
+  "note": "fly: the same bot levels flown for real (zbotfly.js: sticks, sorties, roaming), median wave and how much of the map and how many systems each run used. Written by tools/zombies-bench.mjs --real --write-fly."
+ }
 }

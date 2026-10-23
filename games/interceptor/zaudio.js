@@ -2,7 +2,7 @@
 // are audible when they fire (Gepard bursts, SAM / Tamir launch roar, mortar thumps, drone racks), an air-raid siren starts each wave, the
 // radio crackles with garbled voice under the callouts, close passes whoosh, and a code-built score rises with the threat picture.
 // Everything goes through one compressor so a big moment stays loud without clipping. Volumes: S.zmusv (music) and S.zsfxv (everything else) from the menu sliders; B mutes the music (S.zmus). Zombies only.
-import {AC,nbuf} from '../../engine/audio.js';
+import {AC,nbuf,setSfx} from '../../engine/audio.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)};
 export function initAudio(api){
  const {THREE,S}=api,_r=new THREE.Vector3();
@@ -14,14 +14,16 @@ export function initAudio(api){
   const mus=AC.createGain();mus.gain.value=0;const mlp=AC.createBiquadFilter();mlp.type='lowpass';mlp.frequency.value=12000;mus.connect(mlp).connect(c);
   const curve=new Float32Array(512);for(let i=0;i<512;i++){const x=i/255.5-1;curve[i]=Math.tanh(x*3.2)}
   const ui=AC.createGain();ui.connect(c);A={c,sfx,ui,dil,echo,eo,mus,mlp,curve,sv:-1};vols();return A}
- // the effects volume scales the effects, the radio / announcer bus and the echo return; the music volume is applied in music()
- function vols(){const v=cl(S.zsfxv??1,0,1);if(v===A.sv)return;A.sv=v;const T=now();A.sfx.gain.setTargetAtTime(v,T,.05);A.ui.gain.setTargetAtTime(v,T,.05);A.eo.gain.setTargetAtTime(.55*v,T,.05)}
+ // the effects volume scales the effects, the radio / announcer bus and the echo return, and the engine's own tone / noise (the modules' beeps,
+ // readouts and hits go through engine/audio.js straight to the master bus: setSfx); the music volume is applied in music()
+ function vols(){const v=cl(S.zsfxv??1,0,1);if(v===A.sv)return;A.sv=v;const T=now();A.sfx.gain.setTargetAtTime(v,T,.05);A.ui.gain.setTargetAtTime(v,T,.05);A.eo.gain.setTargetAtTime(.55*v,T,.05);setSfx(v)}
  const now=()=>AC.currentTime;
  const nsrc=(t0,dur)=>{const s=AC.createBufferSource();s.buffer=nbuf;s.start(t0,Math.random()*1.4,dur+.05);s.onended=()=>nv--;nv++;return s};
  const osc=(type,t0,dur)=>{const o=AC.createOscillator();o.type=type;o.start(t0);o.stop(t0+dur+.05);o.onended=()=>nv--;nv++;return o};
  const filt=(type,f,q=.7)=>{const b=AC.createBiquadFilter();b.type=type;b.frequency.value=f;b.Q.value=q;return b};
- // envelope gain: 0 -> peak over a, exponential decay to silence by t0+dur
- const env=(t0,pk,a,dur)=>{const g=AC.createGain();g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(Math.max(pk,.0002),t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);return g};
+ // envelope gain: 0 -> peak over a, exponential decay to silence by t0+dur. The gain starts at the floor (a GainNode is 1 until its first
+ // event; with t0 inside a render quantum the source's first frames passed at full gain: a random click up to -3 dBFS, tools/audio-levels.mjs)
+ const env=(t0,pk,a,dur)=>{const g=AC.createGain();g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(Math.max(pk,.0002),t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);return g};
  // a sound placed in the world: distance gain, air absorption (lowpass), stereo pan, the speed-of-sound delay, and an echo send when far
  function at(p,ref,max,pri=0){if(!bus()||nv>MAXV-(pri?0:10))return null;const cam=api.camera,d=p?p.distanceTo(cam.position):0,g=max/(1+(d/ref)**1.5);if(g<.004)return null;
   const t0=now()+.01+(d>100?Math.min(3.2,d/343):0),lp=filt('lowpass',cl(17000*Math.exp(-d/1400),280,17000),.5);let n=lp;
@@ -40,10 +42,10 @@ export function initAudio(api){
 
  // ---------- helpers firing ----------
  function gun(p,type){
-  if(type==='gepard'){const v=at(p,220,.75);if(!v)return;const{n,t0,g}=v,N=6,iv=.072,s=nsrc(t0,N*iv+.1),b=filt('bandpass',900,.9),eg=AC.createGain(),o=osc('triangle',t0,N*iv+.1),og=AC.createGain();
-   eg.gain.setValueAtTime(0,t0);og.gain.setValueAtTime(0,t0);for(let i=0;i<N;i++){const t=t0+i*iv;eg.gain.setValueAtTime(g*.9,t);eg.gain.exponentialRampToValueAtTime(.0001,t+.05);og.gain.setValueAtTime(g*.8,t);og.gain.exponentialRampToValueAtTime(.0001,t+.06);o.frequency.setValueAtTime(170,t);o.frequency.exponentialRampToValueAtTime(55,t+.06)}
+  if(type==='gepard'){const v=at(p,220,.6);if(!v)return;const{n,t0,g}=v,N=6,iv=.072,s=nsrc(t0,N*iv+.1),b=filt('bandpass',900,.9),eg=AC.createGain(),o=osc('triangle',t0,N*iv+.1),og=AC.createGain();
+   eg.gain.value=og.gain.value=0;eg.gain.setValueAtTime(0,t0);og.gain.setValueAtTime(0,t0);for(let i=0;i<N;i++){const t=t0+i*iv;eg.gain.setValueAtTime(g*.9,t);eg.gain.exponentialRampToValueAtTime(.0001,t+.05);og.gain.setValueAtTime(g*.8,t);og.gain.exponentialRampToValueAtTime(.0001,t+.06);o.frequency.setValueAtTime(170,t);o.frequency.exponentialRampToValueAtTime(55,t+.06)}
    s.connect(b).connect(eg).connect(n);o.connect(og).connect(n);return}
-  if(type==='flak'){const v=at(p,200,.7);if(!v)return;const{n,t0,g}=v,o=osc('sine',t0,.4);o.frequency.setValueAtTime(130,t0);o.frequency.exponentialRampToValueAtTime(42,t0+.3);o.connect(env(t0,g,.002,.38)).connect(n);
+  if(type==='flak'){const v=at(p,200,.55);if(!v)return;const{n,t0,g}=v,o=osc('sine',t0,.4);o.frequency.setValueAtTime(130,t0);o.frequency.exponentialRampToValueAtTime(42,t0+.3);o.connect(env(t0,g,.002,.38)).connect(n);
    const s=nsrc(t0,.3),f=filt('lowpass',700);s.connect(f).connect(env(t0,g*.6,.002,.28)).connect(n);return}
   if(type==='sam'||type==='idome'){const big=type==='sam',v=at(p,300,big?.8:.7,1);if(!v)return;const{n,t0,g}=v,L=big?2.4:1.5,s=nsrc(t0,L),b=filt('bandpass',400,.8);
    b.frequency.setValueAtTime(big?300:600,t0);b.frequency.exponentialRampToValueAtTime(big?1500:2600,t0+.35);b.frequency.exponentialRampToValueAtTime(big?700:1200,t0+L);s.connect(b).connect(env(t0,g,.03,L)).connect(n);
@@ -52,8 +54,8 @@ export function initAudio(api){
    const o=osc('sawtooth',t0,.7),f=filt('lowpass',1400);o.frequency.setValueAtTime(140,t0);o.frequency.exponentialRampToValueAtTime(300,t0+.6);o.connect(f).connect(env(t0,g*.18,.05,.7)).connect(n)}}
 
  // ---------- air-raid siren: a two-tone rotary wail, rising and falling twice, heard across town ----------
- function siren(boss){if(!bus())return;const t0=now()+.15,L=boss?13:10.5,cyc=L/2,g=AC.createGain(),lp=filt('lowpass',1500,.6),pk=boss?.07:.055;
-  g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(pk,t0+1.2);g.gain.setValueAtTime(pk,t0+L-2.2);g.gain.exponentialRampToValueAtTime(.0001,t0+L);
+ function siren(boss){if(!bus())return;const t0=now()+.15,L=boss?13:10.5,cyc=L/2,g=AC.createGain(),lp=filt('lowpass',1500,.6),pk=boss?.05:.04;  /* a bed under the wave start, 3 dB down */
+  g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(pk,t0+1.2);g.gain.setValueAtTime(pk,t0+L-2.2);g.gain.exponentialRampToValueAtTime(.0001,t0+L);
   for(const k of[1,1.26]){const o=osc('sawtooth',t0,L);for(let c=0;c<2;c++){const t=t0+c*cyc;o.frequency.setValueAtTime(150*k,t);o.frequency.exponentialRampToValueAtTime(560*k,t+cyc*.42);o.frequency.setValueAtTime(560*k,t+cyc*.58);o.frequency.exponentialRampToValueAtTime(170*k,t+cyc)}
    const v=osc('sine',t0,L),vg=AC.createGain();v.frequency.value=6.5;vg.gain.value=5*k;v.connect(vg).connect(o.frequency);o.connect(lp)}
   lp.connect(g);if(AC.createStereoPanner){const pn=AC.createStereoPanner();pn.pan.value=-.35;g.connect(pn).connect(A.ui)}else g.connect(A.ui);const e=AC.createGain();e.gain.value=.9;g.connect(e).connect(A.echo)}
@@ -62,7 +64,7 @@ export function initAudio(api){
  function squelch(t0,v=.07){const s=nsrc(t0,.09),h=filt('highpass',1800,.5);s.connect(h).connect(env(t0,v,.003,.09)).connect(A.ui)}
  function radio(dur){if(!bus()||nv>MAXV-6)return;const t0=now()+.09;squelch(now());dur=cl(dur,.5,2.6);
   const o=osc('sawtooth',t0,dur),f1=filt('bandpass',600,4),f2=filt('bandpass',1600,5),g=AC.createGain(),band=filt('bandpass',1500,.55),sh=AC.createWaveShaper(),out=AC.createGain();
-  sh.curve=A.curve;out.gain.value=.05;g.gain.setValueAtTime(.0001,t0);let t=t0;
+  sh.curve=A.curve;out.gain.value=.05;g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);let t=t0;
   while(t<t0+dur-.06){const syl=rnd(.06,.15);o.frequency.setValueAtTime(rnd(100,155),t);o.frequency.linearRampToValueAtTime(rnd(95,165),t+syl);f1.frequency.setValueAtTime(rnd(350,850),t);f2.frequency.setValueAtTime(rnd(1100,2400),t);
    g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(rnd(.6,1),t+.012);g.gain.setTargetAtTime(.0001,t+syl*.75,.02);t+=syl+(Math.random()<.2?rnd(.07,.16):.012)}
   o.connect(f1).connect(g);o.connect(f2).connect(g);g.connect(band).connect(sh).connect(out).connect(A.ui);
@@ -72,7 +74,7 @@ export function initAudio(api){
  // ---------- moments ----------
  // near miss: a Doppler whoosh that sweeps across the stereo field
  function whoosh(vol,side){if(!bus()||nv>MAXV-4)return;const t0=now()+.01,s=nsrc(t0,.75),b=filt('bandpass',2400,1.4),g=AC.createGain();b.frequency.setValueAtTime(2600,t0);b.frequency.exponentialRampToValueAtTime(380,t0+.7);
-  g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(vol,t0+.22);g.gain.exponentialRampToValueAtTime(.0001,t0+.72);s.connect(b).connect(g);
+  g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(vol,t0+.22);g.gain.exponentialRampToValueAtTime(.0001,t0+.72);s.connect(b).connect(g);
   if(AC.createStereoPanner){const pn=AC.createStereoPanner();pn.pan.setValueAtTime(cl(-side,-.9,.9),t0);pn.pan.linearRampToValueAtTime(cl(side,-.9,.9),t0+.6);g.connect(pn).connect(A.sfx)}else g.connect(A.sfx)}
  const note=(f,t0,dur,vol,type='triangle',dst)=>{const o=osc(type,t0,dur);o.frequency.value=f;o.connect(env(t0,vol,.006,dur)).connect(dst||A.ui)};
  // your kill: a punchy low thunk under a bright confirm; lvl = kills in the burst (or the streak) lifts it
@@ -116,7 +118,7 @@ export function initAudio(api){
   if(L[5]>.02)pluck(t,ch[ARP[b16%8]%4]*4,.05*L[5])}
  // I: 0..1 from the director; state: 'wave' | 'clear' | 'base' | 'off'
  function music(I,state,dt){if(!bus())return;vols();const mv=cl(S.zmusv??1,0,1),want=S.zmus!==0&&mv>0&&state!=='off'&&!api.menuOpen;if(want&&!M.on){padOn();M.on=true;M.next=now()+.1;M.step=0}
-  const T=now();A.mus.gain.setTargetAtTime(want?(state==='base'?.55:.8)*mv:0,T,want?.8:.25);if(!M.on)return;if(!want&&A.mus.gain.value<.01){return}
+  const T=now();A.mus.gain.setTargetAtTime(want?(state==='base'?.3:.4)*mv:0,T,want?.8:.25);if(!M.on)return;if(!want&&A.mus.gain.value<.01){return}  /* the score sits 6 dB under a close explosion, not level with it (its peak wanders a dB with the kick's phase) */
   const tgt=state==='wave'?I:state==='clear'?.12:0;M.I+=(tgt-M.I)*Math.min(1,dt*(tgt>M.I?.8:.25));const I2=M.I;
   const th=[0,.18,.32,.42,.58,.8];for(let i=0;i<6;i++)M.lv[i]=sm((I2-th[i])/.12);
   M.pad.g.gain.setTargetAtTime(.05+.03*I2,T,.5);M.pad.lp.frequency.setTargetAtTime(320+1200*I2*I2,T,.6);

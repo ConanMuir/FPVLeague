@@ -133,3 +133,18 @@ body.zb-open #zalert,#hud:not(.z) #zalert{display:none}
 @media (max-width:760px){#zalert{top:auto;bottom:calc(290px + env(safe-area-inset-bottom,0px));width:min(360px,92vw)}}
 /* selling (zsell.js): the refund line on a card, and the card of something sold this base screen (Undo until the wave starts) */
 .zups .zrf{color:#9fb0cc}.zarm.zsold{border-style:dashed;background:rgba(255,198,64,.06)}.zarm.zsold b{color:var(--dim);text-decoration:line-through}.zarm.zsold small{color:var(--amber)}
+
+/* the threat briefing on the base screen (zbrief.js) and Endless (zendless.js) */
+.zbrief{display:grid;gap:6px;padding:8px 12px;border:1px solid rgba(255,77,77,.4);border-radius:8px;background:rgba(255,77,77,.06)}
+.zbrief header{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;font:12px var(--mono)}
+.zbrief header>b{color:#ff9c9c;letter-spacing:.12em}.zbw{color:var(--ink);letter-spacing:.08em}
+.zbi{display:inline-flex;align-items:center;gap:3px;color:var(--dim)}.zbi i{width:9px;height:9px;border-radius:2px;background:rgba(255,255,255,.14)}.zbi i.on{background:var(--amber)}.zbi em{font-style:normal;margin-left:6px;letter-spacing:.08em}
+.zbrief header button{margin-left:auto;font-size:12px;padding:5px 10px}
+.zbrows{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:13.5px;line-height:1.4}
+.zbrows li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;align-items:baseline}
+.zbg{font-style:normal;text-align:center;color:var(--amber)}.zbrows b{color:var(--ink)}.zbrows b.cr{color:var(--red)}.zbrows .cr{color:#ff8a8a}
+.zbk{white-space:nowrap;margin-right:10px}.zbk.boss{color:#ffb0b0}.zbk em{font:700 9px var(--mono);font-style:normal;color:var(--amber);letter-spacing:.08em}
+.zbl{margin:0;font-size:13px;color:var(--ink)}.zbl span{color:var(--dim)}
+.zendb{white-space:nowrap}.zcpm .zendb{font-size:13px;padding:9px 12px}.zendb:disabled{opacity:.45}
+.zendover .zlb{text-align:left}
+@media (max-width:760px){.zbrows{font-size:13px}.zbrief header button{margin-left:0}}

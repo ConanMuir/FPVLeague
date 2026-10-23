@@ -71,7 +71,7 @@ export function initBosses(api,G,Z){
   osc(type,f,t0,dur,dst){const o=AC.createOscillator();o.type=type;o.frequency.value=f;o.start(t0);if(dur)o.stop(t0+dur+.05);if(dst)o.connect(dst);return o},
   nz(t0,dur,dst){const s=AC.createBufferSource();s.buffer=nbuf;s.loop=!dur;s.start(t0,Math.random()*1.2,dur?dur+.05:undefined);if(dst)s.connect(dst);return s},
   filt(type,f,q=.7){const b=AC.createBiquadFilter();b.type=type;b.frequency.value=f;b.Q.value=q;return b},
-  env(t0,pk,a,dur,dst){const g=AC.createGain();g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(Math.max(pk,.0002),t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);if(dst)g.connect(dst);return g},
+  env(t0,pk,a,dur,dst){const g=AC.createGain();g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(Math.max(pk,.0002),t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);if(dst)g.connect(dst);return g},
   get t(){return AC.currentTime}};
  const sting=id=>{const D=BOSSES[id];if(!D?.sting||!SND.ok)return;try{D.sting(SND)}catch(e){console.warn('boss sting',e)}};
  const LOOPS=new Map();
