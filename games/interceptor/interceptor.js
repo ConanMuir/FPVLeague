@@ -160,7 +160,9 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
  const mT=new THREE.CanvasTexture(mkC);mT.anisotropy=4;
  const m=new THREE.Mesh(g,groundMaterial(groundTex,fieldData(FCELLS),mT));m.receiveShadow=true;scene.add(m);GSNOW=m.material.userData.snow;
  // river surface: a ribbon along the river line only (the low ground elsewhere stays dry)
- const rv=[];for(let x=-TW/2;x<=TW/2;x+=25){const z=rivZ(x),dz=(rivZ(x+1)-z),n=Math.hypot(1,dz),ox=-dz/n*68,oz=1/n*68;rv.push(x+ox,rivY(x),z+oz,x-ox,rivY(x),z-oz)}
+ /* each edge vertex takes the water level at its own x: the station's level put the water up to 0.4 m above the bank where the river
+    slants and slopes (the bank is cut for rivY at the vertex's own x) */
+ const rv=[];for(let x=-TW/2;x<=TW/2;x+=25){const z=rivZ(x),dz=(rivZ(x+1)-z),n=Math.hypot(1,dz),ox=-dz/n*68,oz=1/n*68;rv.push(x+ox,rivY(x+ox),z+oz,x-ox,rivY(x-ox),z-oz)}
  const ri=[];for(let k=0;k<rv.length/6-1;k++){const a=k*2;ri.push(a,a+2,a+1,a+1,a+2,a+3)}const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rv,3));rg.setIndex(ri);rg.computeVertexNormals();
  const rm=new THREE.Mesh(rg,new THREE.MeshStandardMaterial({color:0x2f5562,roughness:.08,metalness:.1,side:THREE.DoubleSide}));rm.userData.river=1;scene.add(rm)}
 // trees (trunk + two-lobed crown), village houses, power line from the substation
