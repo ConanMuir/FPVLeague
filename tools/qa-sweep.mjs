@@ -595,6 +595,20 @@ const zplay = async (S, label) => { await click(S.p, '#play'); const up = await 
 const zpilot = (p, on = true) => p.evaluate(on => { clearInterval(window.__zp); if (on) window.__zp = setInterval(() => { const z = window.__z; if (z.G.state === 'wave' && z.api.player && z.api.player.dead <= 0 && !z.api.menuOpen) z.botKill(.8); }, 400); }, on);
 const zwave = (p, ms = 90000) => p.waitForFunction(() => window.__z.G.state === 'base' || window.__z.G.state === 'over', {timeout: ms, polling: 200}).then(() => true, () => false);
 const ztabs = p => p.$$eval('#zbase [data-tab]', l => l.map(b => b.dataset.tab));
+/* the Enemies codex (zcodex.js) opened from `opener` (#zcdxbtn on the menu, #zcdxb on the base screen): laid out, no NaN text, Tab stays in it, Esc closes it */
+async function codexScreen(S, label, opener, {keys = true} = {}) {
+  const {p} = S; if (!await has(p, opener)) { note(`${label}: no ${opener} (the Enemies screen is not on this page)`); return; }
+  await click(p, opener); if (!ok(!(await hidden(p, '#zcdx')), `${label}: the Enemies screen opens`)) return;
+  await layout(S, `${label} Enemies screen`, '#zcdx'); await shot(p, 'z-codex-' + label.replace(/\W+/g, '-'));
+  if (!keys) { await key(p, 'Escape'); return; }
+  const bad = await p.evaluate(() => window.__qa.dom()); ok(!bad.length, `${label} Enemies screen: no NaN / undefined text` + (bad.length ? ' ' + bad.join(' | ') : ''));
+  const stops = new Set(), outside = new Set();
+  for (let i = 0; i < 30; i++) { await p.keyboard.press('Tab'); const t = await p.evaluate(() => { const e = document.activeElement; return {id: e?.id || e?.tagName + ':' + (e?.textContent || '').slice(0, 12), body: !e || e === document.body, in: !!e && document.getElementById('zcdx').contains(e)}; }); if (t.body) continue; stops.add(t.id); if (!t.in) outside.add(t.id); }
+  ok(stops.size > 0, `${label} Enemies screen: Tab reaches its controls (${stops.size} stops)`);
+  if (outside.size) note(`${label} Enemies screen: Tab leaves it to the page behind (${[...outside].slice(0, 4).join(', ')}); the campaign map does the same, so it is judged as a note: an overlay over the page that does not hold focus (inert on what is behind it would)`);
+  await key(p, 'Escape'); ok(await hidden(p, '#zcdx'), `${label} Enemies screen: Esc closes it`);
+  const fo = await p.evaluate(() => { const e = document.activeElement; if (!e || e === document.body) return 'body'; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? 'ok' : 'invisible ' + (e.id || e.tagName); }); ok(fo === 'ok', `${label} Enemies screen: after Esc the focus is on something visible (${fo})`);
+}
 
 section('zombies-tour', async browser => {
   const S = await zsession(browser); const {p} = S;
@@ -608,12 +622,14 @@ section('zombies-tour', async browser => {
   await click(p, '#zdiff [data-d="1"]');
   /* the campaign map */
   if (await has(p, '#zcpopen')) { await click(p, '#zcpopen'); ok(!(await hidden(p, '#zcamp')), 'campaign map opens'); await layout(S, 'campaign map', '#zcamp'); await shot(p, 'z-campaign-map'); await key(p, 'Escape'); ok(await hidden(p, '#zcamp'), 'campaign map: Esc closes it'); ok(!(await hidden(p, '#menu')), 'campaign map: the menu is still there'); }
+  await codexScreen(S, 'Zombies menu', '#zcdxbtn'); drain(S, 'Zombies Enemies screen (menu)');
   /* the mod panel and rates panel (shared with the League) */
   await click(p, '#modbtn'); ok(!(await hidden(p, '#mod')), 'mod panel opens'); await layout(S, 'Zombies mod panel', '#mod'); await key(p, 'KeyT'); await click(p, '#modbtn'); await click(p, '#mclose'); ok(await hidden(p, '#mod'), 'mod panel closes');
   drain(S, 'Zombies menu');
   /* a quick defence: base screen, every tab, a wave with the scripted pilot, a pause */
   if (!await zplay(S, 'Zombies')) { await p.close(); return; }
   await frames(p, 5); let st = await zst(p); ok(st.state === 'base' && !(await hidden(p, '#zbase')), `Zombies: opens on the base screen (${st.state})`);
+  await codexScreen(S, 'Zombies base screen', '#zcdxb'); drain(S, 'Zombies Enemies screen (base)');
   await layout(S, 'Zombies base screen', '#zbase'); await shot(p, 'z-base');
   await p.evaluate(() => { window.__z.G.cash = 9000; });
   for (const t of await ztabs(p)) { await p.evaluate(t => window.__z.Z.base.setTab(t), t); await frames(p, 3); await layout(S, `Zombies base tab ${t}`, '#zbase'); await shot(p, 'z-base-' + t); const bad = await p.evaluate(() => window.__qa.dom()); ok(!bad.length, `Zombies base tab ${t}: no NaN / undefined text` + (bad.length ? ' ' + bad.join(' | ') : '')); }
@@ -650,6 +666,7 @@ section('zombies-resize', async browser => {
     ok(Math.abs(c.cw - c.iw) <= 1 && Math.abs(c.ch - c.ih) <= 1, `${W}: the canvas fills the window (${c.cw}x${c.ch})`);
     await layout(S, `${W} menu`, '#menu'); await shot(p, `z-resize-${w}x${h}-menu`);
     if (await has(p, '#zcpopen')) { await click(p, '#zcpopen'); await layout(S, `${W} campaign map`, '#zcamp'); await shot(p, `z-resize-${w}x${h}-map`); await key(p, 'Escape'); }
+    await codexScreen(S, `${W} menu`, '#zcdxbtn', {keys: false});
     await click(p, '#modbtn'); await layout(S, `${W} mod panel`, '#mod'); await click(p, '#mclose');
     if (!await zplay(S, W)) break;
     await p.evaluate(() => { window.__z.G.cash = 9000; });
