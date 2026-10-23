@@ -34,7 +34,7 @@ export function llStep(dt){LL.cd-=dt;LL.j=0;LL.load*=.97;if(hoopMode())hoopHit()
  const ib=1/(BM*S.llW),id=1/d.fl.mass,vr=_r.subVectors(ball.v,d.v).dot(n),me=1/(ib+id),W=STIFF[S.llStr]||16,cap=L*.15;
  // spring-damper on the stretch, never past "no separating" (no overshoot), and a hard stop past 15% stretch
  const soft=me*dt*(W*W*ext+2*.7*W*vr),hard=me*(vr+(ext-cap)/dt),j=Math.min(Math.max(0,ext>cap?Math.max(soft,hard):Math.min(soft,me*(vr+ext/dt))),4/id);if(j<=0)return;  // at most 4 m/s of tug on the quad per tick: a snatch spreads over a few ticks instead of teleporting the camera
- ball.v.addScaledVector(n,-j*ib);d.v.addScaledVector(n,j*id);LL.j=j*id;LL.load+=(j*id/dt/(BG_()||1)-LL.load)*.08;const bs=ball.v.length();if(bs>MAXB)ball.v.multiplyScalar(MAXB/bs);
+ _u.copy(n).multiplyScalar(-j*ib);if(ball.c){const k=_u.dot(ball.n);if(k>0)_u.addScaledVector(ball.n,-k)}ball.v.add(_u);d.v.addScaledVector(n,j*id);LL.j=j*id;  /* a ball against the map (ball.n points into it) is held by the map: the cable's pull never drives it into the wall, only along it, and the quad still feels the whole tug */LL.load+=(j*id/dt/(BG_()||1)-LL.load)*.08;const bs=ball.v.length();if(bs>MAXB)ball.v.multiplyScalar(MAXB/bs);
  // the hook sits below the centre of mass: the pull also tips the quad toward the load (body-frame rates, the flight controller fights it)
  _q.copy(d.q).invert();const nb=_u.copy(n).applyQuaternion(_q),hb=-.3*DRAD/.6;d.w.x+=hb*nb.z*j*id*2.2;d.w.z-=hb*nb.x*j*id*2.2;  // r x F with r = (0,hb,0)
  if(j*id>.25&&d===GS.player)noise(.08,140,Math.min(.22,j*id/8))}  // a creak when it snatches
