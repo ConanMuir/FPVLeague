@@ -455,9 +455,9 @@ function shahedMesh(jet){const g=new THREE.Group(),m=jet?SHJ:SHM[Math.random()*3
  if(jet){add(SHG.pod,SHEN,0,.36,-1.05);add(SHG.pylon,m,0,.2,-1.0);add(SHG.ex,EXM,0,.36,-1.64)}else{add(SHG.hub,SHEN,0,0,-1.86);add(SHG.disc,MAT.prop,0,0,-1.96);prop=add(SHG.blade,MS.dark,0,0,-1.96)}
  scene.add(g);return{g,prop}}
 const TH=[];let tid=0;
-// render interpolation (engine/interp.js): the sim ticks at 120 Hz, frames draw the interceptor and the tracks between their last two ticks.
+// render interpolation (engine/interp.js): the sim ticks at 120 Hz, frames draw the tracks between their last two ticks and the interceptor ahead of its last one (lead).
 // Zombies registers its own movers (helper shots, swarm drones) through api.interp.
-const IP=makeInterp();IP.add(each=>{if(player)each(player)});IP.add(TH);
+const IP=makeInterp();IP.lead(each=>{if(player)each(player)});IP.add(TH);  /* the player's craft is drawn ahead (extrapolated to real time), everything else a tick behind: engine/interp.js */
 // spatial grid over the tracks for neighbour queries (grid.js): open while a tick runs (not while the threats move) and while a frame is drawn
 const GRID=makeGrid(TH);
 const live=t=>t.st==='cruise'||t.st==='dive',liveSites=()=>SITES.filter(s=>s.hp>0);

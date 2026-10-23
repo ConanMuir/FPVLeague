@@ -56,9 +56,11 @@ export function initWeather(api,G,Z){
   o.deck=A.deck&&B.deck?L(A.deck,B.deck):A.deck||B.deck||0;o.deckA=A.deck&&B.deck?1:A.deck?1-f:f;return o}
  function blend(f){const W=api.WX,o=mix(cur.A,cur.B,f);for(const k in W)delete W[k];Object.assign(W,o);api.wxSky();api.wxLook(api.thermLook)}
  // sim-time driven (G.wt), drawn at 4 Hz; the end state is applied for real (environment map, wind kept)
+ /* the base wind vector (WB) goes from its length at the start of the blend to the new weather's (the same .95 x wind setWeather(keep) sets at the end) along with the blend:
+    it used to hold the old strength for the whole 35 s and then jump to the new one in a single tick (rain -> storm: 10.5 -> 16.2 m/s at once) */
  function shift(dt){if(!cur||!cur.B||cur.done||G.state!=='wave')return;const f=cl((G.wt-cur.at)/cur.dur,0,1);if(f<=0)return;
-  if(!cur.f){api.feed(`<span class="cb">Weather: ${cur.why}</span>`)}cur.f=f;
-  if(f>=1){cur.done=true;api.setWeather(cur.B,true);say(cur.B);return}if((tick-=dt)<=0){tick=.25;blend(f)}}
+  if(!cur.f){api.feed(`<span class="cb">Weather: ${cur.why}</span>`);cur.w0=api.WB.length()}cur.f=f;
+  if(f>=1){cur.done=true;api.setWeather(cur.B,true);say(cur.B);return}api.WB.setLength(cur.w0+(Math.max(.1,cur.B.wind*.95)-cur.w0)*f);if((tick-=dt)<=0){tick=.25;blend(f)}}
 
  // ---------- effects (all pooled) ----------
  const add=o=>{o.frustumCulled=false;o.visible=false;scene.add(o);return o};
