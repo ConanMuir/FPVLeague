@@ -29,10 +29,10 @@ export function createMap(E){
    if(agl>150){for(const[dx,dz]of[[CELL,0],[-CELL,0],[0,CELL],[0,-CELL]]){const q=idx(x+dx,z+dz);if(q>=0&&!bits[q]){bits[q]=1;nAll++;if(inOps(x+dx,z+dz))nOps++;n++}}}return n>0},
   seen:(x,z)=>{const k=idx(x,z);return k>=0&&bits[k]===1},
   count:()=>nOps,all:()=>nAll,pct:()=>nOps/Math.max(1,ops.length),
-  reset(){bits.fill(0);nOps=nAll=0;for(const f of M.features)f.v=0;M.vis.clear()},
+  reset(){bits.fill(0);nOps=nAll=0;for(const f of M.features){f.v=0;f.last=-1e9}},
   /* share of the operational cells inside a box that have been flown over (tests) */
   frac(x0,x1,z0,z1){let a=0,b=0;for(const k of ops){const x=-HALF+((k%NC)+.5)*CELL,z=-HALF+(Math.floor(k/NC)+.5)*CELL;if(x<x0||x>x1||z<z0||z>z1)continue;a++;if(bits[k])b++}return a?b/a:0},
-  features:[],vis:new Map(),SC,dirName};
+  features:[],SC,dirName};
 
  // ---------- features: the places to fly to ----------
  const F=M.features,add=(k,n,x,z,r,agl,o={})=>{const f={id:F.length,k,n,x,z,r,agl,v:0,y:gh(x,z),...o};F.push(f);return f};
@@ -60,7 +60,7 @@ export function createMap(E){
   for(const c of V){if(!inOps(c.x,c.z)||got.some(q=>Math.hypot(q.x-c.x,q.z-c.z)<900))continue;got.push(c);add('village',`the ${dirName(c.x,c.z)} village`,c.x,c.z,330,80,{houses:c.n})}}catch(e){}
  M.byKind=k=>F.filter(f=>f.k===k);
  /* the drone is at p: the features it is over (within the radius, low enough to have looked at them) are visited */
- M.visit=(x,z,y)=>{const out=[];for(const f of F){if(Math.hypot(x-f.x,z-f.z)>f.r)continue;if(y-f.y>f.agl+260)continue;if(!f.v)out.push(f);f.v++;M.vis.set(f.id,(M.vis.get(f.id)||0)+1)}return out};
+ M.visit=(x,z,y,now=0)=>{const out=[];for(const f of F){if(Math.hypot(x-f.x,z-f.z)>f.r)continue;if(y-f.y>f.agl+260)continue;if(!f.v)out.push(f);f.v++;f.last=now}return out};
  M.featStat=()=>{const o={};for(const f of F){const q=o[f.k]||(o[f.k]={n:0,v:0});q.n++;if(f.v)q.v++}let n=0,v=0;for(const q of Object.values(o)){n+=q.n;v+=q.v}return{by:o,n,v}};
 
  // ---------- stations ----------
@@ -69,20 +69,26 @@ export function createMap(E){
  const ray=(b,r)=>({x:SC.x+Math.sin(b)*r,z:SC.z-Math.cos(b)*r});
  const cover=(s,axes)=>{let t=0,w=0;for(const a of axes){const u=Math.sin(a.b),v=-Math.cos(a.b),px=s.x-SC.x,pz=s.z-SC.z,al=px*u+pz*v,cr=Math.abs(px*v-pz*u);
    t+=a.w*Math.exp(-((cr/900)**2))*sm(900,2300,al)*(1-sm(3500,4300,al));w+=a.w}return w?t/w:0};
- /* candidate stations: every feature plus an intercept line on each axis */
+ /* ground not yet flown over: the operational area in 900 m blocks (3 x 3 cells), each with the share of its cells still unseen; the ones more than
+    a third unseen are candidate stations (a bot sweeping one passes over most of its cells) */
+ const BL=3,NB=NC/BL;
+ M.blocks=(AW=4300)=>{const out=[];for(let bj=0;bj<NB;bj++)for(let bi=0;bi<NB;bi++){const x=-HALF+(bi+.5)*BL*CELL,z=-HALF+(bj+.5)*BL*CELL;if(!inOps(x,z)||Math.abs(x)>AW-700||z<-AW+700||z>AW-700)continue;
+   let n=0,u=0;for(let j=0;j<BL;j++)for(let i=0;i<BL;i++){n++;if(!bits[(bj*BL+j)*NC+bi*BL+i])u++}if(u/n>.34)out.push({x,z,share:u/n,bi,bj})}return out};
+ /* candidate stations: every feature, an intercept line on each axis, and the blocks of ground it has not seen */
  M.stations=(axes,AW=4300)=>{const L=F.filter(f=>Math.abs(f.x)<AW-500&&f.z>-AW+500&&f.z<AW-500).map(f=>({...f,src:f}));
+  for(const b of M.blocks(AW))L.push({id:'ground'+b.bi+'/'+b.bj,k:'ground',n:`the unexplored ${dirName(b.x,b.z)} ground`,x:b.x,z:b.z,r:420,agl:90,y:gh(b.x,b.z),src:null,share:b.share});
   for(const a of axes)for(const r of[2400,3100,3700]){const p=ray(a.b,Math.min(r,AW-650));L.push({id:'line'+Math.round(a.b*10)+'/'+r,k:'line',n:`the ${dirName(p.x,p.z)} intercept line`,x:p.x,z:p.z,r:300,agl:90,y:gh(p.x,p.z),src:null,line:true})}
   return L};
  /* the best station now: {from: {x, z}, cur: the station held (or null), axes, visits: Map(id -> flown-over count), heldFor: s, noise} */
  M.pick=(o)=>{const L=M.stations(o.axes,o.AW),has=o.axes.length>0;let best=null,bs=-1e9;
-  for(const s of L){const d=Math.hypot(s.x-o.from.x,s.z-o.from.z),cv=cover(s,o.axes),vis=s.src?(M.vis.get(s.src.id)||0):0,nov=1/(1+vis*.6);
+  for(const s of L){const d=Math.hypot(s.x-o.from.x,s.z-o.from.z),cv=cover(s,o.axes),f=s.src,nov=s.k==='ground'?.35+.9*s.share:!f?.4:!f.v?1:.1+.4*sm(40,300,(o.now||0)-f.last);
    let sc=(has?3.2:.8)*cv+(has?.9:1.9)*nov+(s.k==='ridge'?.2:s.k==='river'||s.k==='hollow'?.15:s.k==='village'?.25:s.k==='line'?.1:0)-d/5200;
    if(o.cur&&s.id===o.cur.id)sc+=(has?.25:-.4);  /* keep what it holds a while when the raids are coming; move on when nothing is */
    if(!has&&d<500)sc-=.8;sc+=(o.noise||0)*Math.random();
    if(sc>bs){bs=sc;best=s}}
   return best?{...best,score:bs,cover:cover(best,o.axes)}:null};
  /* why it holds a station: "Holding the north-east ridge: 6 inbound" */
- M.why=(s,n,axes)=>{const w={ridge:'Holding',line:'Holding',river:'Following',hollow:'Sheltering in',village:'Circling',site:'Covering',fob:'Staging at',radar:'Over'}[s.k]||'At';
+ M.why=(s,n,axes)=>{const w={ridge:'Holding',line:'Holding',river:'Following',hollow:'Sheltering in',village:'Circling',site:'Covering',fob:'Staging at',radar:'Over',ground:'Sweeping'}[s.k]||'At';
   const dirs=[...new Set(axes.map(a=>dirName(SC.x+Math.sin(a.b)*3000,SC.z-Math.cos(a.b)*3000)))].slice(0,2);
   return `${w} ${s.n}${n>0?`: ${n} inbound${dirs.length?' from the '+dirs.join(' and '):''}`:s.k==='line'?'':': looking over new ground'}`};
  M.kmTxt=kmTxt;

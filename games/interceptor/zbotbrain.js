@@ -15,6 +15,8 @@
 //   sell, expand, refit, supply, rebuild   the late-game choices it knows how to use
 //   swarm     personal swarm (zswarm.js): 0 never buys it, 1 buys it and fires commands now and then, 2 flies it well (screen formation and
 //             command, strikes on crowds, attacks what it locks)
+//   explore   how far the real pilot roams (zbotroam.js, zbotsortiefly.js, zbotstat.js): 0 holds over the sites; 1 waits at forward stations on the raids' bearings;
+//             2 + tours unseen ground between raids, flies sorties and uses what the shop gives it; 3 the full run: every system, the strategic targets, variety
 //   lock      teleporting pilot only: chance per half second of forcing a lock (the real pilot has to hold its sights on a track, zlock.js)
 //   chain     the kill chain against the fast missiles (zchain.js, when the build has it): 0 none; 1 one point defence; 2 + a boost battery at the
 //             edge most launches come from and space interceptors; 3 + batteries wherever launches are planned, point defence at every site,
@@ -31,17 +33,17 @@
 // All numbers are game-balance values for bot skill, not measurements of anyone.
 export const DODGE = {none: 0, some: .3, all: .45};
 export const LEVELS = [
-  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], swarm: 0, lock: 0, chain: 0, tryNew: .1,
+  {n: 'Rookie', rate: .004, miss: .55, dodgeK: 1.4, relaunch: .06, shop: 'naive', spend: .4, up: .25, repairAt: .3, repairShare: .25, perks: 'none', domes: -99, perkBuy: ['battery', 'warhead'], swarm: 0, explore: 0, lock: 0, chain: 0, tryNew: .1,
     fly: {lockAim: 0, react: 1.1, aim: 7, det: .09, fire: 7, pick: 'near', decoy: 1, line: 0, relaunch: 0, cruise: .75}},
-  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar', 'swarm'], swarm: 1, lock: .04, chain: 1, warn: {rate: .015, mode: 'random'}, tryNew: .25,
+  {n: 'Pro', rate: .008, miss: .35, dodgeK: 1.15, relaunch: .12, shop: 'basic', spend: .6, up: .4, repairAt: .45, repairShare: .35, perks: 'random', domes: -1, perkBuy: ['warhead', 'freeze', 'radar', 'swarm'], swarm: 1, explore: 1, lock: .04, chain: 1, warn: {rate: .015, mode: 'random'}, tryNew: .25,
     fly: {lockAim: 0.35, react: .7, aim: 4, det: .05, fire: 5, pick: 'urgent', decoy: .5, line: 0, relaunch: 0, cruise: .85}},
-  {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, swarm: 1, lock: .08, chain: 2, warn: {rate: .06, mode: 'harden'}, tryNew: .4,
+  {n: 'All-Star', rate: .011, miss: .26, dodgeK: 1, relaunch: .15, fast: .005, shop: 'smart', spend: .85, up: .8, repairAt: .8, repairShare: .6, perks: 'random', domes: 2, sell: 1, swarm: 1, explore: 2, lock: .08, chain: 2, warn: {rate: .06, mode: 'harden'}, tryNew: .4,
     fly: {lockAim: 0.6, react: .45, aim: 2.5, det: .03, fire: 3.5, pick: 'smart', decoy: .2, line: .25, relaunch: 1, cruise: .95}},
-  {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, swarm: 2, lock: .14, chain: 3, warn: {rate: .12, mode: 'smart'}, tryNew: .6,
+  {n: 'Champion', rate: .016, miss: .15, dodgeK: .8, relaunch: .22, fast: .012, shop: 'smart', spend: 1, up: 1, repairAt: .75, repairShare: .5, perks: 'smart', domes: 3, sell: 1, expand: 1, rebuild: 1, swarm: 2, explore: 3, lock: .14, chain: 3, warn: {rate: .12, mode: 'smart'}, tryNew: .6,
     fly: {lockAim: 0.8, react: .3, aim: 1.5, det: .02, fire: 2.6, pick: 'smart', decoy: 0, line: .5, relaunch: 1, cruise: 1}},
-  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .2, chain: 3, warn: {rate: .2, mode: 'smart'}, tryNew: .8,
+  {n: 'Grand Champion', rate: .021, miss: .1, dodgeK: .7, relaunch: .32, fast: .028, shop: 'smart', spend: 1, up: 1, repairAt: .85, repairShare: .55, perks: 'smart', domes: 3, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, explore: 3, lock: .2, chain: 3, warn: {rate: .2, mode: 'smart'}, tryNew: .8,
     fly: {lockAim: 0.9, react: .22, aim: 1, det: .012, fire: 2, pick: 'smart', decoy: 0, line: .75, relaunch: 1, cruise: 1}},
-  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, lock: .3, chain: 4, warn: {rate: .25, mode: 'best'}, tryNew: 1,
+  {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, explore: 3, lock: .3, chain: 4, warn: {rate: .25, mode: 'best'}, tryNew: 1,
     fly: {lockAim: 1, react: .15, aim: .5, det: .006, fire: 1.6, pick: 'smart', decoy: 0, line: 1, relaunch: 1, cruise: 1}}];
 const key = s => String(s).toLowerCase().replace(/[\s-]+/g, '');
 export const level = n => LEVELS.find(l => key(l.n) === key(n));
@@ -54,7 +56,8 @@ const ORDERS = {naive: ['flak', 'rack', 'lrack', 'ew', 'gepard', 'sam', 'mpads',
 export const KNOWN = new Set([...ORDERS.smart, ...ORDERS.naive, 'fuse', 'drones', 'reload', 'harden', 'overtime']);
 const prio = P => [...ORDERS[P.shop], ...(P.perkBuy || [])].filter(k => P.swarm || k !== 'swarm' && k !== 'swarmk');
 
-// hooks for features this brain doesn't know yet: push {name, shop(P, E, ctx) (a generator of steps, see step() below), wave(P, E, ctx)}
+// hooks for features this brain doesn't know yet: push {name, shop(P, E, ctx) (a generator of steps, see step() below), early(P, E, ctx) (the same, ahead of
+// the helpers, for the levels that explore), wave(P, E, ctx)}
 // (ctx.real: the flying pilot is in the air, ctx.me: its interceptor). Another branch can register its bot logic here instead of editing it.
 export const hooks = [];
 // one shop action: why (the caption the spectator shows), what (a short tag), run() does it and returns what it spent / did
@@ -117,6 +120,7 @@ function* shopSteps0(P, E) {
     if (hp > 0) yield step(`Repairing ${s.n}: ${pct(s)}% hit points left`, 'repair', () => B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)), {site: i}); } }
   if (P.rebuild && B.act.rebuild) for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp <= 0 && G.cash > 9000) yield step(`Rebuilding ${s.n}: destroyed, back at 40%`, 'rebuild', () => B.act.rebuild(i), {site: i}); }
   const open = () => def.SLOTS.some((_, j) => def.slotFree(j)), keep = G.cash * (1 - (P.spend ?? 1)), afford = c => G.cash - c >= keep;
+  for (const h of hooks) if (h.early && P.explore >= 2) { try { yield* h.early(P, E, {afford, open, keep}); } catch (e) { console.warn('bot hook ' + h.name, e); } }  /* hooks that want a place ahead of the helpers (the arsenal's weapon and big defences) */
   if (P.chain >= 2) yield* chainSteps(P, E, afford);  // from All-Star up the kill chain comes before more helpers: it needs no free position
   for (let pass = 0; pass < 3; pass++) {
     const cards = G.cards.map((c, i) => ({...c, i})).filter(c => PRIO.includes(c.k) && IT[c.k] && nw >= from(c.k) && IT[c.k].type !== 'supply' && !(IT[c.k].type === 'perk' && Z.perkMaxed(c.k))).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));
@@ -199,7 +203,7 @@ export function tactics(P, E, o = {}) {
   if (o.teleport && P.lock && alive && Z.lk && !Z.lk.t && Math.random() < P.lock) { const t = Z.urgent(); if (t && KIND[t.k].armor !== 'hard' && t.p.distanceTo(me.p) < 3500) Z.lk.force(t); }
   let sd = '';
   if (P.swarm && sw && sw.d.length && alive) { const L = live().filter(t => t.p.distanceTo(me.p) < 4500 && KIND[t.k].armor !== 'hard');
-    if (P.swarm >= 2) { if (sw.form !== 3) Z.sw.command('form#', 3); if (sw.mode === 'escort') Z.sw.command('screen');
+    if (P.swarm >= 2) { const f = P.explore >= 3 ? swarmForm(E, sw, L, me) : 3; if (sw.form !== f && swarmHold(E, sw)) Z.sw.command('form#', f); if (sw.mode === 'escort' && L.length >= (P.explore >= 3 ? 2 : 0)) Z.sw.command('screen');
       if (Z.lk?.t && sw.mode !== 'attack' && (KIND[Z.lk.t.k].armor === 1 || Z.lk.t.k === 'boss' || L.length < 6)) Z.sw.command('attack');
       if (sw.ch > 0 && L.length >= 6) Z.sw.command('strike'); }
     else if (Math.random() < .02) { if (Z.lk?.t) Z.sw.command('attack'); else Z.sw.command(['screen', 'strike', 'next'][Math.random() * 3 | 0]); }
@@ -207,6 +211,17 @@ export function tactics(P, E, o = {}) {
   for (const h of hooks) if (h.wave) { try { h.wave(P, E, o); } catch (e) { console.warn('bot hook ' + h.name, e); } }
   return sd;
 }
+// the formation that suits what the swarm is about to do (the levels that explore use all five): column under Rocket Assist (it keeps up and draws less), a wedge
+// when it is going at a lock on an armored track or the Mothership (+25% kill chance on attacks and strikes), line abreast against FPV swarms (a pass can take a
+// neighbour), the screen against a crowd, the cloud when there is little about; never more often than every 6 s of the wave
+function swarmForm(E, sw, L, me) {
+  const {Z, KIND} = E, lk = Z.lk?.t;
+  if (me.boost > 0) return 4;
+  if (sw.mode === 'attack' && sw.tgt && (KIND[sw.tgt.k].armor === 1 || sw.tgt.k === 'boss') || lk && (KIND[lk.k].armor === 1 || lk.k === 'boss')) return 1;
+  if (L.filter(t => t.k === 'swarm').length >= 4) return 2;
+  return L.length >= 3 ? 3 : 0;
+}
+function swarmHold(E, sw) { const t = E.G.wt || 0; if (sw.fT != null && t - sw.fT < 6 && t >= sw.fT) return false; sw.fT = t; return true; }
 // launch alerts (zwarn.js, feature-detected: Z.warn): harden / evacuate / decoy, as well as this level knows how
 function warn(P, E) {
   const {G, Z, KIND} = E, Wn = Z.warn, M = P.warn && P.warn.mode; if (!Wn || !M || !(Math.random() < P.warn.rate)) return;

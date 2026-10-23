@@ -13,6 +13,8 @@ import {rate,thrCurve} from '../../engine/rates.js';
 import {KIND} from './zdata.js';
 import {tactics} from './zbotbrain.js';
 import {installBot} from './zbotstat.js';
+import {createRoam} from './zbotroam.js';
+import {createFlier} from './zbotsortiefly.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},gauss=()=>(Math.random()+Math.random()+Math.random()+Math.random()-2)*1.73;
 // stick that gives this output of a monotonic curve f on [lo, hi] (bisection): rates and throttle curves are the player's, so the bot inverts them
 function inv(f,y,lo,hi){let a=lo,b=hi;if(y<=f(a))return a;if(y>=f(b))return b;for(let i=0;i<22;i++){const m=(a+b)/2;if(f(m)<y)a=m;else b=m}return(a+b)/2}
@@ -20,7 +22,10 @@ export function createPilot(api,G,Z,P,E){
  const {THREE,TH,S,gh}=api,V3=THREE.Vector3,UP=new V3(0,1,0),F=P.fly;
  const _a=new V3(),_b=new V3(),_c=new V3(),_n=new V3(),_h=new V3(),_f=new V3(),_v=new V3(),_A=new V3(),_W=new V3(),WT=new V3(),fake={q:null,wt:WT};
  const st={t:0,look:0,tact:0,tgt:null,mode:'idle',intent:'',plan:null,fire:false,aimN:new V3(),line:null,lineT:null,stuck:0,launchT:0,lastMe:null,sw:'',passes:0,fired:0,tgtT:0,why:''};
- const B=installBot(E);  /* intent, coverage and the HUD line (zbotstat.js) */
+ const B=installBot(E),roam=P.explore?createRoam(E,B,F):null;  /* intent, coverage and the HUD line (zbotstat.js); roaming between raids (zbotroam.js) */
+ let roamO=null,sortO=null;
+ const sortie=P.explore>=2?createFlier(E,B,F,P):null;  /* real-flight sorties between waves (zbotsortiefly.js) */
+ B.sortie=sortie;
  const live=t=>api.live(t)&&t.st!=='fall';
  const topV=me=>(S.mod.maxv||115)+(me.bmax||0);
  const ttiOf=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
@@ -68,6 +73,8 @@ export function createPilot(api,G,Z,P,E){
   if(alive&&F.relaunch&&st.t-st.launchT>6&&me.home){const bat=1-me.mah/Math.max(1,api.BCAP),goal=st.line?linePt(st.line,_a):t?t.p:null;
    if(goal){const d=goal.distanceTo(me.p);let df=1e9;for(const f of api.FOBS)df=Math.min(df,Math.hypot(f.x-goal.x,f.z-goal.z));
     if(d>3200&&df<d*.4||bat<.1&&d>1500){st.why=d>3200?'a fresh interceptor from the nearest pad is quicker':'battery low';api.relaunch?.();st.launchT=st.t;return}}}
+  // roaming with a spent pack and nothing to chase: a fresh interceptor from the pad (the rocket burst gets it back out quickly)
+  if(alive&&roam&&roam.wantRelaunch&&!t&&!st.line&&G.state==='wave'&&me.home&&st.t-st.launchT>6){st.why='pack spent';api.relaunch?.();st.launchT=st.t;return}
   // tipped over on the ground: press R
   if(alive&&me.v.lengthSq()<1&&agl(me.p)<2&&_v.set(0,1,0).applyQuaternion(me.q).y<.5){if((st.stuck+=F.react)>3){st.stuck=0;st.why='tipped over';api.relaunch?.();st.launchT=st.t}}else st.stuck=0}
 
@@ -115,11 +122,12 @@ export function createPilot(api,G,Z,P,E){
  function input(me,dt){st.t+=dt;let look=null;const ag=agl(me.p),s=me.v.length(),onMat=ag<3&&s<3&&me.t<6;let kv=1.6,floor=30;
   if(st.lastMe!==me.t&&me.t<.02)st.launchT=st.t;
   const k=dt/1.5,an=F.aim*Math.sqrt(2*k);st.aimN.multiplyScalar(1-k).add(_a.set(gauss()*an,gauss()*an*.6,gauss()*an));
-  const t=st.tgt&&live(st.tgt)?st.tgt:null,L=st.line&&api.live(st.line)?st.line:null;
-  if(t)head.set(t.p.x-me.p.x,0,t.p.z-me.p.z);if(head.lengthSq()<1)head.set(0,0,-1);head.normalize();
+  const SN=sortie&&sortie.on()?sortie.nav(me,dt):null,t=!SN&&st.tgt&&live(st.tgt)?st.tgt:null,L=!SN&&st.line&&api.live(st.line)?st.line:null;sortO=SN;
+  if(SN)head.set(SN.x-me.p.x,0,SN.z-me.p.z);else if(t)head.set(t.p.x-me.p.x,0,t.p.z-me.p.z);if(head.lengthSq()<1)head.set(0,0,-1);head.normalize();
   if(onMat||me.t<1.2&&ag<12){st.mode='mat';const rk=Z.rk?.st?.armed;Vd.set(rk?head.x*30:0,rk?10:16,rk?head.z*30:0);kv=2.5;floor=0;st.intent=`taking off from ${me.home?.n||'the mat'}${rk?' · rocket armed':''}`}  // Rocket Assist lights 4 m up: lean toward the target first
   else if(ag<18&&me.t<8&&!(me.boost>0)&&st.mode==='mat'){Vd.set(head.x*12,14,head.z*12);kv=2;floor=0;st.intent=`climbing out of ${me.home?.n||'the mat'}`}
   else if(st.hold){st.mode='hold';const e=_a.subVectors(st.hold,me.p),d=e.length();kv=approach(e,d,60);floor=10;st.intent=`holding position · ${d.toFixed(1)} m off`}  /* tests: hover on a point */
+  else if(SN){st.mode='sortie';const e=_a.set(SN.x-me.p.x,SN.y-me.p.y,SN.z-me.p.z),d=e.length();Vd.copy(e).multiplyScalar(Math.min(SN.speed,F.cruise*topV(me))/Math.max(d,1));kv=SN.kv;floor=SN.floor;st.intent=SN.why;if(SN.fire)st.fire=true}
   else if(L){st.mode='line';head.set(L.p.x-me.p.x,0,L.p.z-me.p.z);if(head.lengthSq()>1)head.normalize();else head.set(0,0,-1);const H=linePt(L,ip),e=_a.subVectors(H,me.p),d=e.length(),tt=lineTT(L);
    kv=approach(e,d,F.cruise*topV(me));floor=12;
    st.intent=`sitting on the line of ${name(L)} · impact in ${Math.ceil(tt)} s${d>8?' · '+rng(d)+' to go':''}`}
@@ -141,15 +149,18 @@ export function createPilot(api,G,Z,P,E){
    floor=Math.max(d<500?cl(tAgl-10,t.k==='swarm'?8:15,30):30,s*(d<120?.08:.25));  // the faster it goes, the more ground it keeps under it (a pull-out at rocket speed takes hundreds of metres)
    if(d<90)detonate(me,t,dt);
    if(st.plan)st.intent=`detonating on ${name(t)}`}
+  else if(roam&&!(me.mah/Math.max(1,api.BCAP)>.9&&!F.relaunch)){const o=roamO=roam.nav(me,dt),e=_a.set(o.x-me.p.x,o.y-me.p.y,o.z-me.p.z),d=e.length();st.mode='roam';kv=approach(e,d,Math.min(o.speed,F.cruise*topV(me)));floor=o.floor;st.intent=(G.state==='clear'?'wave cleared · ':'')+o.why}
   else{const lowBat=me.mah/Math.max(1,api.BCAP)>.9&&!F.relaunch,P0=lowBat&&me.home?_c.set(me.home.x,gh(me.home.x,me.home.z)+40,me.home.z):loiterPt(_c),e=_a.subVectors(P0,me.p),d=e.length();
    st.mode=lowBat?'home':'loiter';kv=approach(e,d,F.cruise*topV(me));
    st.intent=lowBat?'returning to mat':G.state==='clear'?'wave cleared · holding':'holding over the sites'+(st.sw?'':' · no tracks in reach')}
-  if(me.boost>0&&(st.mode==='line'||st.mode==='hold'||st.mode==='loiter'||st.mode==='home')){const sp=Vd.length();if(sp>1)Vd.setLength(Math.max(sp,topV(me)*.9));kv=1.6}  // the rocket can't be throttled back: circle the point until it burns out
+  if(me.boost>0&&(st.mode==='line'||st.mode==='hold'||st.mode==='loiter'||st.mode==='home'||st.mode==='roam'||st.mode==='sortie')){const sp=Vd.length();if(sp>1)Vd.setLength(Math.max(sp,topV(me)*.9));kv=1.6}  // the rocket can't be throttled back: circle the point until it burns out
   if(st.sw&&st.mode!=='mat')st.intent+=' · '+st.sw;
   // camera tilt switch: level for take-off, 90 degrees once it is away from the mat (its sights look down the nose)
   if(!onMat&&ag>10&&!api.camUp)api.camUp=true;
   st.lastMe=me.t;st.lastIntent=st.intent;st.lastV=s;
-  {const tg=t||L,K={mat:'launch',hold:'idle',line:'line',home:'return',loiter:'station'}[st.mode]||(tg&&Z.lk?.t===tg?'lock':'intercept');B.set(K,st.intent,tg?{x:tg.p.x,y:tg.p.y,z:tg.p.z,label:name(tg)}:null)}
+  {const tg=t||L;if(st.mode==='sortie'&&sortO)B.set(sortO.kind,st.intent,sortO.tgt?{...sortO.tgt,label:sortO.label}:null);
+   else if(st.mode==='roam'&&roamO)B.set(roamO.kind,st.intent,{x:roamO.st.x,y:roamO.st.y+roamO.st.agl,z:roamO.st.z,label:roamO.label});
+   else{const K={mat:'launch',hold:'idle',line:'line',home:'return',loiter:'station'}[st.mode]||(tg&&Z.lk?.t===tg?'lock':'intercept');B.set(K,st.intent,tg?{x:tg.p.x,y:tg.p.y,z:tg.p.z,label:name(tg)}:null)}}
   const A=want(me,Vd,kv,floor);return sticks(me,A,head,dt,look)}
 
  // manual detonation: when the closest approach is a moment away and close enough, press detonate at that moment (with this pilot's timing
@@ -164,7 +175,7 @@ export function createPilot(api,G,Z,P,E){
 
  // per physics step from zspectate.js: tactics (perks, swarm) every half second, the radar picture every F.react seconds
  function step(dt){const me=api.player;if(!me)return;const alive=me.dead<=0;if(!alive)st.t+=dt;
-  if((st.look-=dt)<=0){st.look=F.react*(.7+Math.random()*.6);think(me,alive)}
+  if((st.look-=dt)<=0){st.look=F.react*(.7+Math.random()*.6);if(!(sortie&&sortie.on()))think(me,alive)}
   if(st.tgt&&!live(st.tgt)){st.tgt=null;st.look=Math.min(st.look,F.react*.5)}
   if((st.tact-=dt)<=0){st.tact=.5;if(G.state==='wave')st.sw=tactics(P,E,{me})||''}
   if(!alive){st.intent=me.dead>0?`next interceptor in ${me.dead.toFixed(1)} s`:st.intent;B.set('relaunch',st.intent,null)}}

@@ -25,6 +25,7 @@ export const ARSBOT={name:'arsenal',
   const wDone=!part&&G.__arsW===G.wave;if(part==='weapon')G.__arsW=G.wave;  // the weapon is decided once a base screen
   if((lv||P.force)&&(!part||part==='weapon')&&!wDone){const me=A.P(A.me()),pts=k=>(cnt[k]|0)*(KIND[k]?KIND[k].pts:0),hard=['ballistic','hyper','icbm'].reduce((a,k)=>a+(cnt[k]|0),0),noise={};
    const val=id=>{let v=0;for(const k in cnt)v+=pts(k)*(WEFF[id][k]??0);
+    if(lv>=3&&P.explore>=3){if(!me.own.has(id))v*=1.2;else if(!(A.stats().wk[id]>0))v*=1.08}  /* a bot that explores wants to see each weapon work once */
     if(lv>=3){if(id==='emp')v*=Math.min(1.25,.35+def.D.length/12);if(id==='flare')v+=(pts('jet')+pts('cruise'))*.25;if(id==='dart')v+=hard*40*(P.fast||0)*8;if(id==='net'&&nw<15)v*=1.15;if(id==='cluster')v*=(cnt.swarm|0)>=10?1.3:1.1}
     else if(lv===2)v*=noise[id]??=.8+Math.random()*.4;return v};
    const ok=id=>!A.ban.has(id)&&nw>=WPN[id].from;let L=WORDER.filter(ok);if(lv===1)L=L.filter(id=>id==='std'||id==='net'||id==='flech');
@@ -48,6 +49,8 @@ export const ARSBOT={name:'arsenal',
    if(j>=0){const jj=j;yield step(`Buying a ${IT[k].n.toLowerCase()} (${money(price)}) at ${def.SLOTS[jj].n}: ${WHY[k]}`,'place',()=>Z.base.act.place(k,jj),{k,slot:jj,cost:price})}}
   // carriers: re-parked every break on the approach that brings the most threat points
   if(shop!=='naive'&&part!=='early')for(const d of def.D)if(d.type==='carrier'){const b=A.bestPark(),s=def.SLOTS[d.slot];if(Math.hypot(s.x-b.x,s.z-b.z)>5)yield step('Parking the drone carrier on the main approach','park',()=>A.autoPark(d.id),{id:d.id})}},
+ // ahead of the helpers (the real pilot's shop, zbotbrain.js): the weapon for the next wave and the defences that earn a place before the helpers, as tools/zbot.mjs does
+ *early(P,E,ctx={}){yield*ARSBOT.shop(P,E,{...ctx,part:'weapon'});yield*ARSBOT.shop(P,E,{...ctx,part:'early'})},
  // the brain's per-tick tactics: nothing extra (the weapon's use is in how the pilot fires it, run() below for the teleporting pilot)
  wave(){},
  // the teleporting pilot (tools/zbot.mjs WAVE): which track to run down with the loaded weapon, and where to put the interceptor before firing.

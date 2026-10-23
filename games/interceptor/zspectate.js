@@ -76,7 +76,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  function start(o){if(sp.on)stop();const P=brain.level(o.lv);if(!P)return false;
   Object.assign(sp,{on:true,bench:!!o.bench,P,o:{...o},spd:1,paused:false,cam:'chase',site:0,gen:null,cur:null,next:0,stats:newStats(o),shopT:0});
   sp.pilot=createPilot(api,G,Z,P,E);
-  Z.botIn=(d,dt)=>sp.on&&G.state!=='base'&&G.state!=='over'?sp.pilot.input(d,dt):null;Z.botFire=()=>sp.on&&sp.pilot.fire();Z.sightCam=sight;
+  Z.botIn=(d,dt)=>sp.on&&(G.state!=='base'||Z.bot?.sortie?.on())&&G.state!=='over'?sp.pilot.input(d,dt):null;Z.botFire=()=>sp.on&&sp.pilot.fire();Z.sightCam=sight;
   const ld=Z.meta.load;Z.meta.load=()=>({doc:DOCS[o.doc]?o.doc:'std',kit:(o.kit||[]).filter(k=>KIT[k]).slice(0,KIT_MAX)});sp.starting=true;
   try{S.gmode='z';if(o.sec&&Z.cp?.start)Z.cp.start(o.sec,true);else api.startMatch()}finally{Z.meta.load=ld;sp.starting=false}
   reseed(o.d);document.body.classList.add('zsp-on');api.camMode=1;
@@ -122,12 +122,12 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  function tick(dt){const st=sp.stats,me=api.player;if(G.state==='wave'||G.state==='clear'){st.simT+=dt;if((st.sampleT-=dt)<=0){st.sampleT=5;logMoney()}}
   if(G.state!==lastState){if(G.state==='wave'){sp.gen=null;sp.cur=null;sp.next=0;for(const d of Z.def.D)st.snap.set(d.id,d.kills);st.waves.push({w:G.wave,cash:Math.round(G.cash),integ:Math.round(100*Z.integrity().hp/Math.max(1,Z.integrity().max))})}lastState=G.state;logMoney()}
   if(me){const dead=me.dead>0;if(dead&&!st.wasDead){const why=G.detFlag?'det':me.mah>=api.BCAP?'bat':'crash';st.deaths[why]++;if(why==='crash'&&st.crashes.length<40)st.crashes.push({w:G.wave,y:Math.round(me.p.y),agl:Math.round(me.p.y-gh(me.p.x,me.p.z)),x:Math.round(me.p.x),z:Math.round(me.p.z),mode:sp.pilot.st.mode,intent:sp.pilot.st.lastIntent||'',v:Math.round(sp.pilot.st.lastV||0),t:+me.t.toFixed(1)})}st.wasDead=dead}
-  if(G.state==='wave'||G.state==='clear')sp.pilot.step(dt);
+  if(G.state==='wave'||G.state==='clear'||Z.bot?.sortie?.on())sp.pilot.step(dt);
   if(!sp.bench)hudTick()}
 
  // ---------- the base screen, one visible step at a time ----------
  const DELAY=1100;
- function shopTick(){if(!sp.on||sp.bench||G.state!=='base'||sp.paused||api.menuOpen)return;const now=performance.now();if(now<sp.next)return;const d=DELAY/sp.spd;
+ function shopTick(){if(!sp.on||sp.bench||G.state!=='base'||sp.paused||api.menuOpen||Z.bot?.wait?.())return;const now=performance.now();if(now<sp.next)return;const d=DELAY/sp.spd;
   if(!sp.gen){sp.gen=brain.shopSteps(sp.P,E);sp.cur=null;caption('Base screen','Looking over the shop…');sp.next=now+d*.8;logMoney();return}
   if(sp.cur){const c=sp.cur;sp.cur=null;const c0=G.cash;let r;try{r=c.run()}catch(e){console.warn('bot shop step',e)}const spent=c0-G.cash;
    if(spent>0||c.what==='chain'||c.what==='sell')sp.stats.buys.push({w:G.wave+1,what:c.what,k:c.k||'',why:c.why,cost:Math.round(spent)});Z.base.refresh?.();sp.next=now+d*.45;return}
@@ -245,14 +245,14 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
   $('zover').innerHTML=`<div class="zpanel zgo zsprep"><h2>${won?'Sector held':'Bot report'}</h2><div class="zbig">WAVE ${G.wave}</div>
    <p class="zhint">${esc(st.lv)} · ${esc(st.d)} · ${esc(st.doc)} doctrine${st.kit.length?' · kit '+esc(st.kit.map(k=>KIT[k]?.n||k).join(', ')):''}${st.sec?' · '+esc(st.sec):' · quick defence'}</p>
    <div class="zstats"><span>Wave reached</span><b>${G.wave}</b><span>Cause of death</span><b>${esc(cause)}</b><span>Intercepts</span><b>${tot}</b><span>Money earned</span><b>${money(G.earned)}</b>
-    <span>Interceptors used</span><b>${api.spent|0} (bursts ${st.deaths.det}, crashes ${st.deaths.crash}, flat ${st.deaths.bat})</b><span>Detonations</span><b>${st.bursts} · ${(st.kills.pilot?.n|0)} pilot kills</b><span>Time in the air</span><b>${Math.floor(st.simT/60)}:${String(Math.round(st.simT%60)).padStart(2,'0')}</b></div>
+    <span>Interceptors used</span><b>${api.spent|0} (bursts ${st.deaths.det}, crashes ${st.deaths.crash}, flat ${st.deaths.bat})</b><span>Detonations</span><b>${st.bursts} · ${(st.kills.pilot?.n|0)} pilot kills</b><span>Time in the air</span><b>${Math.floor(st.simT/60)}:${String(Math.round(st.simT%60)).padStart(2,'0')}</b>${Z.bot?.statRow?.()||''}</div>
    <div class="cols"><div><h3>Money over time</h3>${chart(st)}</div><div><h3>Kills by source</h3><div class="bars">${K.map(([s,o])=>`<span>${esc(s)}</span><i class="${s==='pilot'||s==='airstrike'?'p':''}" style="width:${(100*o.n/kmax).toFixed(1)}%" title="${esc(Object.entries(o.k).map(([k,n])=>n+'× '+(KIND[k]?.n||k)).join(', '))}"></i><b>${o.n}</b>`).join('')||'<span>none</span>'}</div></div></div>
    <h3>Purchases</h3><div class="buys"><table><tr><th>Wave</th><th>Cost</th><th>Why</th></tr>${st.buys.map(b=>`<tr><td class="n">${b.w}</td><td class="n">${b.cost?money(b.cost):''}</td><td>${esc(b.why)}</td></tr>`).join('')||'<tr><td colspan="3">nothing bought</td></tr>'}</table></div>
    ${tuned}<div class="btns"><button class="go" id="zspagain">Watch again</button><button id="zspexport">Export JSON</button><button id="zmenu">Menu</button></div></div>`;
   $('zover').hidden=false;$('zspagain').onclick=()=>{$('zover').hidden=true;start(sp.o)};$('zmenu').onclick=()=>{$('zover').hidden=true;api.startDemo()};
   $('zspexport').onclick=()=>{const t=JSON.stringify(report(),null,1);try{navigator.clipboard?.writeText(t)}catch(e){}const b=new Blob([t],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`bot-${st.lv.replace(/\s/g,'')}-${st.d}-wave${G.wave}.json`;a.click()};
   Z.syncMode?.();setTimeout(()=>$('zspagain')?.focus(),50)}
- function report(){const st=sp.stats;return{level:st.lv,difficulty:st.d,doctrine:st.doc,kit:st.kit,sector:st.sec||null,wave:G.wave,won:G.cpRes==='won',cause:st.lastHit,earned:Math.round(G.earned),spent:api.spent|0,bursts:st.bursts,deaths:st.deaths,simT:Math.round(st.simT),kills:st.kills,money:st.money,buys:st.buys,damage:st.dmg,waves:st.waves,tuning:TUNE.v}}
+ function report(){const st=sp.stats;return{level:st.lv,difficulty:st.d,doctrine:st.doc,kit:st.kit,sector:st.sec||null,wave:G.wave,won:G.cpRes==='won',cause:st.lastHit,earned:Math.round(G.earned),spent:api.spent|0,bursts:st.bursts,deaths:st.deaths,simT:Math.round(st.simT),kills:st.kills,money:st.money,coverage:Z.bot?.summary?.(),buys:st.buys,damage:st.dmg,waves:st.waves,tuning:TUNE.v}}
  // money over time: the purse (amber) and money earned so far (cyan) against time in the air, a tick per wave
  function chart(st){const M=st.money,W=520,H=200,pad=34;if(M.length<2)return'<p class="zhint">Not enough data.</p>';
   const tmax=Math.max(1,...M.map(m=>m.t)),ymax=Math.max(1,...M.map(m=>Math.max(m.cash,m.earned))),X=t=>pad+(W-pad-8)*t/tmax,Y=v=>H-20-(H-34)*v/ymax;

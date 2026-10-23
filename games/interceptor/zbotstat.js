@@ -26,7 +26,7 @@ export function installBot(E){
  if(E.bot)return E.bot;
  const {api,G,Z}=E,$=id=>document.getElementById(id);
  const B={get on(){return !!(B.pilot&&E.spec&&E.spec.on)},P:null,pilot:null,map:null,t:0,intent:{kind:'idle',sub:'',why:'',target:null,t:0,w:0},hist:[],used:new Map(),log:[],flashT:0,flash:'',stuck:0,stuckLog:[],modeT:{},
-  wait:()=>false,sortie:null,wave0:0,sr:{n:0,home:0,bombs:0,hits:0,lost:0,late:0,shot:0,kills:{convoy:0,launch:0,factory:0},banked:0}};
+  wait:()=>!!(B.sortie&&B.sortie.on()),sortie:null,wave0:0,sr:{n:0,home:0,bombs:0,hits:0,lost:0,late:0,shot:0,kills:{convoy:0,launch:0,factory:0},banked:0}};
  E.bot=B;Z.bot=B;
  B.map=createMap(E);
  B.get=()=>B.map;
@@ -34,9 +34,11 @@ export function installBot(E){
  B.begin=(P,pilot)=>{B.P=P;B.pilot=pilot;B.t=0;B.hist.length=0;B.used.clear();B.log.length=0;B.stuck=0;B.stuckLog.length=0;B.modeT={};B.map.reset();B.flash='';B.flashT=0;B.still=null;B.lastW=0;B.wave0=0;
   Object.assign(B.sr,{n:0,home:0,bombs:0,hits:0,lost:0,late:0,shot:0,kills:{convoy:0,launch:0,factory:0},banked:0});B.set('idle','Starting',null);return B};
  // ---------- intent ----------
- B.set=(kind,why,target=null,sub='')=>{const I=B.intent;I.target=target;if(I.kind===kind&&I.why===why)return;
-  if(I.kind!==kind||I.why!==why){B.hist.push({k:I.kind,why:I.why,t:+B.t.toFixed(1),w:I.w});if(B.hist.length>60)B.hist.shift()}
-  I.kind=kind;I.sub=sub;I.why=why;I.t=B.t;I.w=G.wave};
+ /* the history keeps a line when the kind or the words change, not when only a distance or a clock ticks over */
+ const sig=s=>s.replace(/[0-9][0-9.,]*/g,'#');let sigNow='';
+ B.set=(kind,why,target=null,sub='')=>{const I=B.intent;I.target=target;if(I.kind===kind&&I.why===why)return;const g=sig(why);
+  if(I.kind!==kind||g!==sigNow){B.hist.push({k:kind,why,t:+B.t.toFixed(1),w:G.wave});if(B.hist.length>80)B.hist.shift();I.t=B.t;sigNow=g}
+  I.kind=kind;I.sub=sub;I.why=why;I.w=G.wave};
  /* a special action worth a line for a few seconds, counted as a system used (id) */
  B.use=(id,flash)=>{if(!B.on)return;let u=B.used.get(id);if(!u)B.used.set(id,u={n:0,w0:G.wave,w1:G.wave});u.n++;u.w1=G.wave;if(flash){B.flash=flash;B.flashT=B.t+6}};
  B.did=id=>B.used.has(id);
@@ -55,6 +57,8 @@ export function installBot(E){
  B.summary=()=>{const sys=B.systems(),used=sys.filter(([id])=>B.used.has(id)),F=B.map.featStat();
   return{cells:B.map.count(),cellsAll:B.map.all(),cellTotal:B.map.total,pct:+B.map.pct().toFixed(3),places:F.v,placesTotal:F.n,placeBy:Object.fromEntries(Object.entries(F.by).map(([k,v])=>[k,v.v+'/'+v.n])),
    systems:used.length,systemsTotal:sys.length,systemIds:used.map(([id])=>id),unused:sys.filter(([id])=>!B.used.has(id)).map(([id])=>id),sorties:{...B.sr,kills:{...B.sr.kills}},stuck:B.stuck,stuckLog:B.stuckLog.slice(0,6),wave:G.wave,log:B.log.map(l=>[l.w,l.cells,l.places,l.systems])}};
+ /* two or three rows for the spectator's report (zspectate.js over()) */
+ B.statRow=()=>{const s=B.summary();return`<span>Map covered</span><b>${Math.round(s.pct*100)}% · ${s.cells} cells · ${s.places}/${s.placesTotal} places</b><span>Systems used</span><b>${s.systems} of ${s.systemsTotal}</b>${s.sorties.n?`<span>Sorties</span><b>${s.sorties.n} flown, ${s.sorties.home} home, ${s.sorties.bombs} bombs dropped</b>`:''}`};
  B.line=(final)=>{const s=B.summary();return`${final?'run':'wave '+G.wave}: ${s.cells} cells (${Math.round(s.pct*100)}% of the operational area), ${s.places}/${s.placesTotal} places, ${s.systems}/${s.systemsTotal} systems${B.sr.n?`, ${B.sr.n} sortie${B.sr.n>1?'s':''} (${B.sr.home} back home, ${B.sr.hits} hits)`:''}`};
  /* wave end: log it, and put it on the spectator's wave record (its report and JSON export) */
  const ARSD=['laser','mwave','barrage','smoke','carrier'];
@@ -71,7 +75,7 @@ export function installBot(E){
   if(G.state!==lastState){if(lastState==='wave'&&G.state!=='wave')waveEnd();lastState=G.state;still=null}
   const me=api.player;if(!me||me.dead>0){still=null;return}
   const p=me.p,agl=p.y-api.gh(p.x,p.z);B.map.mark(p.x,p.z,agl);
-  const nf=B.map.visit(p.x,p.z,p.y);if(nf.length&&G.state==='wave'){const f=nf[0];B.flash=`First time over ${f.n}`;B.flashT=B.t+4}
+  const nf=B.map.visit(p.x,p.z,p.y,B.t);if(nf.length&&G.state==='wave'){const f=nf[0];B.flash=`First time over ${f.n}`;B.flashT=B.t+4}
   const lk=!!(Z.lk&&Z.lk.t);if(lk&&!B.lkWas)B.use('lock');B.lkWas=lk;const rk=!!(Z.rk&&Z.rk.st&&Z.rk.st.t>0);if(rk&&!B.rkWas)B.use('rocket','Rocket assist burn');B.rkWas=rk;
   const k=B.intent.kind;B.modeT[k]=(B.modeT[k]||0)+dt;
   // stuck: in a state that should be moving, less than 30 m in 25 s
