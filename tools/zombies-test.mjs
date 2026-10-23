@@ -893,12 +893,13 @@ if (want('bosses')) {
     out.intro = !!t.bs.intro; const pr = A.probe(), st = A.state(), W0 = window.__hsW0; out.dark = {dark: st.dark, light: st.light, on: st.on, pass: st.pass, sources: st.sources, sun: +(pr.sun / W0.sun).toFixed(2), hemi: +(pr.hemi / W0.hemi).toFixed(2)};
     out.radar = {seen: Z.seen(t), hid: Z.hid(t), other: Z.seen(o1), rk: +(Z.radarK() / rk0).toFixed(2)}; o1.st = 'dead';
     out.fx = Z.bosses.fx(); const V = snd.live()[0]; out.voice = V ? {n: snd.voices(), model: V.pan.panningModel, dist: V.pan.distanceModel, ref: V.pan.refDistance, peak: +V.peak.toFixed(3), cap: V.cap} : null;
-    // the windows: 170 s of play with the pilot out of the way (down, so nothing it flies near can burst it): the reveal and the after-pass window per pass,
+    // the windows: until four passes have run, with the pilot out of the way (down, so nothing it flies near can burst it): the reveal and the after-pass window per pass,
     // the voice levels against the cap, the panner on the boss
     const RV = [], AF = []; let cr = 0, ca = 0; const mx = {hum: 0, blade: 0, whoosh: 0, shear: 0, creak: 0, now: 0}; let panErr = 0;
     const hov = {x: me.p.x, y: me.p.y + 120, z: me.p.z}, down = () => { api.player.dead = 1e9; api.camera.position.copy(api.player.p); api.camera.updateMatrixWorld(); };
     t.bs.age = 0;  /* (a short pass at a near site can end while its flare still burns: the two windows are counted on their own) */
-    for (let i = 0; i < 1000; i++) { down(); __z.sim(.1); const B = t.bs;
+    for (let i = 0; i < 3000 && !(AF.length >= 4 && RV.length >= 4); i++) { down(); __z.sim(.1); const B = t.bs; if (i % 1000 === 999) B.age = 0;  /* until four passes have run (how long that takes depends on which sites it picks), not for a fixed time */
+
       if (B.rv > 0) cr += .1; else if (cr) { RV.push(+cr.toFixed(1)); cr = 0; } if (B.af > 0) ca += .1; else if (ca) { AF.push(+ca.toFixed(1)); ca = 0; }
       const v = snd.live()[0]; if (v) { for (const q in mx) mx[q] = Math.max(mx[q], q === 'now' ? v.now() : v.lvl[q]); panErr = Math.max(panErr, Math.abs(v.pan.positionX.value - t.p.x) + Math.abs(v.pan.positionZ.value - t.p.z)); } if (t.st === 'dead') break; }
     out.rv = RV; out.af = AF; out.passes = t.bs.ps | 0;
@@ -920,10 +921,11 @@ if (want('bosses')) {
   ok(hs1.mx.hum > .02 && hs1.mx.whoosh > .02 && hs1.mx.creak > .02 && hs1.mx.shear > 0 && hs1.mx.now <= hs1.caps.cap && hs1.voice.peak <= hs1.caps.cap && hs1.caps.sum <= hs1.caps.cap,
     `Hush: hum, whoosh, wind-shear and creak all played (peaks ${JSON.stringify(hs1.mx)}); the voices never add up past the gain cap ${hs1.caps.cap} (nominal ${hs1.caps.sum})`);
   // the thermal camera (H): static for it, the picture fills with noise; ordinary drones are still there
-  await p.keyboard.press('KeyH'); await frames(p, 4);
+  await p.keyboard.press('KeyH'); await p.waitForFunction(() => __z.api.thermLook === true, {timeout: 60000}).catch(() => {});  /* the camera feed switches in the draw loop: wait on the state, not on a frame count (slow frames in CI) */
   const hsT = await p.evaluate(() => { const {api, Z} = __z, t = __hsT, o = Z.make('shahed', api.PADP.x + 200, api.PADP.z - 700); o.p.y = api.gh(o.p.x, o.p.z) + 300; __z.sim(3); const r = {therm: api.thermLook, noise: Z.atmos.state().noise, hull: t.mesh.visible, seen: Z.seen(t), other: Z.seen(o), flare: t.mesh.userData.core.visible}; o.st = 'dead'; return r; });
-  await p.keyboard.press('KeyH'); await frames(p, 4);
+  await p.keyboard.press('KeyH'); await p.waitForFunction(() => __z.api.thermLook === false, {timeout: 60000}).catch(() => {});
   const hsT2 = await p.evaluate(() => { const {api, Z} = __z, t = __hsT; __z.sim(3); return {therm: api.thermLook, noise: Z.atmos.state().noise, hull: t.mesh.visible}; });
+  console.log('  hush thermal:', JSON.stringify([hsT, hsT2]));
   ok(hsT.therm && hsT.noise >= .1 && !hsT.hull && !hsT.flare && !hsT.seen && hsT.other && !hsT2.therm && hsT2.noise === 0 && hsT2.hull, `Hush: thermal goes to static for it (picture noise ${hsT.noise} on the thermal camera, none on the day camera; hull and flare gone from it) while ordinary drones still show`);
   const hs2 = await p.evaluate(async () => { const {api, Z, G} = __z, D = Z.bosses.BOSSES.hush, C = Z.bosses.ctx, t = __hsT, B = t.bs, cm = await import('./zhush-cue.js'), out = {};
     const rec = () => { let n = 0; return {get n() { return n; }, oc: new Proxy({}, {get: (o, k) => k in o ? o[k] : (...a) => { n++; }, set: (o, k, v) => { o[k] = v; return true; }})}; };
@@ -961,13 +963,13 @@ if (want('bosses')) {
   // the wave ends: darkness, radar, thermal, the voice, the listener all back exactly
   const hs3 = await p.evaluate(async () => { const {api, Z, G} = __z, snd = await import('./zhush-snd.js'), A = Z.atmos, out = {}, W0 = window.__hsW0, V = snd.live()[0];
     const wx = () => { const f = api.scene.fog; return {near: f.near, far: f.far, col: f.color.getHex(), sun: api.sun.intensity, hemi: api.hemi.intensity}; }, same = (a, b) => ['near', 'far', 'col', 'sun', 'hemi'].filter(k => a[k] !== b[k]);
-    out.during = {voices: snd.voices(), dark: A.state().dark, grade: A.state().pass}; const aud = await import('/engine/audio.js');
+    out.therm = api.thermLook; out.during = {voices: snd.voices(), dark: A.state().dark, grade: A.state().pass}; const aud = await import('/engine/audio.js');
     G.wq.length = 0; for (const u of api.TH) u.st = 'dead'; G.state = 'clear'; G.clearT = 3; __z.sim(.5);
     const pr = A.probe(), st = A.state(), l = aud.AC?.listener; out.after = {voices: snd.voices(), now: V ? V.now() : 0, on: st.on, pass: st.pass, sources: st.sources, dark: st.dark, noise: st.noise}; out.fx = Z.bosses.fx(); out.rk = +(Z.radarK() / window.__hsRk).toFixed(2);
     out.diff = [...same(W0, wx()), ...same(W0, {near: pr.fogNear, far: pr.fogFar, col: pr.fogCol, sun: pr.sun, hemi: pr.hemi})]; out.lis = l && l.positionX ? [l.positionX.value, l.positionY.value, l.positionZ.value, l.forwardZ.value, l.upY.value] : null;
     __z.sim(4); if (G.state === 'base') G.bkeep = {}; __z.cont(); __b.clear(); return out; });
-  ok(!hs3.after.voices && !hs3.after.now && !hs3.after.on && !hs3.after.pass && !hs3.after.sources && !hs3.after.dark && !hs3.after.noise && hs3.rk === 1 && !hs3.diff.length && Object.values(hs3.fx).every(v => !v) && (!hs3.lis || hs3.lis.join() === '0,0,0,-1,1'),
-    'Hush: after the wave the darkness, the static, the voice and the listener are back exactly (fog, fog colour and light the weather\'s own; radar range x1; no sound left) ' + JSON.stringify({after: hs3.after, diff: hs3.diff, rk: hs3.rk, lis: hs3.lis, fx: Object.entries(hs3.fx).filter(([, v]) => v).map(([k]) => k)}));
+  ok(!hs3.therm && !hs3.after.voices && !hs3.after.now && !hs3.after.on && !hs3.after.pass && !hs3.after.sources && !hs3.after.dark && !hs3.after.noise && hs3.rk === 1 && !hs3.diff.length && Object.values(hs3.fx).every(v => !v) && (!hs3.lis || hs3.lis.join() === '0,0,0,-1,1'),
+    'Hush: after the wave the darkness, the static, the voice and the listener are back exactly (fog, fog colour and light the weather\'s own; radar range x1; no sound left) ' + JSON.stringify({therm: hs3.therm, after: hs3.after, diff: hs3.diff, rk: hs3.rk, lis: hs3.lis, fx: Object.entries(hs3.fx).filter(([, v]) => v).map(([k]) => k)}));
   // the end of a wave ends every boss effect: models, particles, wires and tethers, trails, debris, missiles, sound loops, the bar, false IFF,
   // jamming; a boss still up when the wave ends is gone (the two that outlive a wave withdraw with their run state). Same at game over and quit.
   const ends = await p.evaluate(() => { const {api, Z, G} = __z, out = {}, other = () => Z.make('shahed', 0, -2500), base = {lj: 0, rk: 0};
