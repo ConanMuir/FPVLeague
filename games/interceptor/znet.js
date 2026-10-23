@@ -50,6 +50,7 @@ export function initNet(api,G,Z){
  Z.pilotsK=()=>net?[[net.me||'host',api.player],...[...net.pil].filter(([,r])=>r.seen).map(([k,r])=>[k,r.d])]:null;
  Z.netMe=()=>net?net.me||'host':null;Z.netRole=()=>net?(net.host?'host':'client'):null;Z.isReady=()=>!!net&&net.rd===G.wave+1;
  Z.netEv=e=>{if(net?.host)ev(e)};Z.netName=k=>nameOf(k);
+ Z.netPlan=()=>net&&!net.host?net.nx:null;  /* a client's copy of the host's plan for the wave (zbosses.js: the boss warning) */
 
  // ---------- lobby on the Zombies start menu: name, Host co-op, code + Join (and open games, in a claude.ai room) ----------
  const box=document.createElement('div');box.id='zmp';box.className='zmp';
@@ -180,7 +181,8 @@ export function initNet(api,G,Z){
   if(Array.isArray(hits))for(const h of hits.slice(0,40)){if(!Array.isArray(h))continue;const t=TH.find(u=>u.id===h[0]),r=cl(+h[1]||0,0,30),cv=cl(+h[2]||0,0,3000);if(!t||!api.live(t)){out.push([h[0],'m',r]);continue}
    who(t,k);const o=Z.outcome(t,r,cv);
    if(t.k==='boss'){if(o!=='miss'){Z.bossHit(t);out.push([t.id,'b',r])}else out.push([t.id,'m',r]);continue}
-   if(o==='kill'){api.killThreat(t,r<2.4&&Math.random()<.55);out.push([t.id,'k',r])}else if(o==='damage'){api.damage(t);out.push([t.id,'d',r])}else out.push([t.id,'m',r])}
+   const hp0=t.bs?t.bs.hp:0,res=c=>t.bs&&!t.bs.dead&&t.st!=='dead'?t.bs.hp<hp0?'b':'n':c;  /* a registry boss (zbosses.js) loses hit points, it does not fall to a burst: b it was hit, n it shrugged the burst off */
+   if(o==='kill'){api.killThreat(t,r<2.4&&Math.random()<.55);out.push([t.id,res('k'),r])}else if(o==='damage'){api.damage(t);out.push([t.id,res('d'),r])}else out.push([t.id,'m',r])}
   G.burst=null;net.dr[k]={s:seq,o:out,nr:+(+nr||0).toFixed(1)}}
  // kills, impacts, explosions and gun bursts become events for the clients
  const k0=Z.kill;Z.kill=(t,cat)=>{const was=t.paid;k0(t,cat);if(!net||!net.host||was||!t.paid||!G.on)return;const by=t.by==='p'?net.me:t.by==='o'?t.byN:'';if(by)net.kc[by]=(net.kc[by]|0)+1;
@@ -245,12 +247,12 @@ export function initNet(api,G,Z){
  function stateIn(g){const n=net,st=g.st,w=g.w|0;
   if(g.nx&&typeof g.nx==='object'&&Array.isArray(g.nx.list)){const j=JSON.stringify(g.nx);if(j!==n.nxJ){n.nxJ=j;n.nx={list:g.nx.list.map(String).filter(q=>KIND[q.split(':')[0]]),brgs:(g.nx.brgs||[]).map(Number).filter(Number.isFinite),q:[],wx:g.nx.wx&&Z.wx.T[g.nx.wx.id]?g.nx.wx:null,
    cuts:Array.isArray(g.nx.ct)?g.nx.ct.slice(0,12):null};if(G.state==='base')G.next=n.nx}}
-  if(st==='base'){n.late=false;if(G.state!=='base'){$('zover').hidden=true;G.wave=w;api.wave=w;Z.rk.stop();G.next=n.nx||Z.plan(w+1);Z.base.open()}else G.wave=w}
+  if(st==='base'){n.late=false;if(G.state!=='base'){$('zover').hidden=true;G.wave=w;api.wave=w;Z.rk.stop();G.next=n.nx||Z.plan(w+1);Z.base.open();Z.bossTrans?.()}else G.wave=w}  /* bossTrans: the boss director sees the wave end now, not at a step the paused base screen will never run */
   else if(st==='wave'){if(G.state==='base'&&!n.late){G.wave=w-1;G.next=n.nx||{list:[],brgs:[],q:[],wx:null};cont()}
    else if(G.state!=='wave'&&G.state!=='clear'){Z.base.close();G.state='wave';G.wave=w;api.wave=w;n.late=true;Z.def.deploy();banner(`WAVE ${w} IN PROGRESS`,'co',2.4);feed('You join at the next base screen. Watch the radar meanwhile.')}
    else{G.wave=w;if(G.state==='clear')G.state='wave'}}
   else if(st==='clear'){if(G.state==='wave'){G.state='clear';if(!n.late)banner(`WAVE ${G.wave} CLEAR`,'cg',2.6)}}
-  else if(st==='over'){if(G.state!=='over'){G.wave=w;Z.base.close();Z.gameOver()}}}
+  else if(st==='over'){if(G.state!=='over'){G.wave=w;Z.base.close();Z.gameOver();Z.bossTrans?.()}}}
  // perks: the host keeps each pilot's own levels; the team perks (radar, Foreign Aid) are the host's
  function perksIn(g){const mine=g.pk&&typeof g.pk==='object'&&g.pk[net.me]||{},tp=g.tp||{},P={};
   for(const k of Object.keys(PERK)){const v=cl((TEAM.includes(k)?tp[k]:mine[k])|0,0,PERK[k].cost.length);if(v)P[k]=v}
@@ -264,6 +266,7 @@ export function initNet(api,G,Z){
   if(T==='m'){if(e[2]===net.me)feed(`<span class="co">${String(e[3]).replace(/[<>&]/g,'').slice(0,200)}</span>`);return}
   if(T==='g'){const d=Z.def.D.find(x=>x.id===e[2]),t=byId(e[3]);if(d&&t&&d.mesh)Z.def.burst(d,t);return}
   if(T==='S'){Z.so?.netEv?.(e.slice(2));return}  // sorties (zsortie.js): AA bursts, hits on this pilot, salvage carried, calls
+  if(T==='B'){Z.bossWon?.(e.slice(2));return}  /* the host won a boss fight: the banner and the sting (zbosses.js) */
   const t=byId(e[2]);if(!t||t.st==='dead')return;
   if(T==='k'){if(t.paid)return;const by=String(e[4]||'');t.by=by===net.me?'p':by?'o':'h';t.byN=by;if(e[3])t.st='dead';else{t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3)}
    Z.kill(t,!!e[3]);if(by&&by!==net.me)feed(`<b>${nameOf(by)}</b> · <span class="cg">${Z.tname(t)} down</span>`)}
@@ -294,11 +297,11 @@ export function initNet(api,G,Z){
   for(const t of TH)if(api.live(t)){const r=t.p.distanceTo(d.p);nr=Math.min(nr,r);if(r>30)continue;const cv=Math.max(0,-_a.subVectors(t.v,d.v).dot(_t.subVectors(t.p,d.p))/(r||1));h.push([t.id,+r.toFixed(2),+cv.toFixed(1)])}
   G.detFlag=true;if(h.length){req(['d',h,+nr.toFixed(1)]);banner('BURST','co',.8)}else{G.streak=0;const txt=nr<300?`MISSED BY ${Math.round(nr)} m`:'NOTHING IN RANGE';banner(txt,'cr',1.4);G.det={txt,t:performance.now()};tone(260,190,.16,.045,'triangle')}
   api.lose('det')}
- function result(R){if(R.dh)return;const o=Array.isArray(R.o)?R.o.filter(a=>Array.isArray(a)):[],k=o.filter(a=>a[1]==='k'||a[1]==='b').length,d=o.filter(a=>a[1]==='d').length,best=o.reduce((m,a)=>a[1]!=='m'?Math.min(m,+a[2]||0):m,1e9),nr=+R.nr||1e9;
-  const txt=k?`HIT — ${best.toFixed(1)} m`:d?`DAMAGED — ${best.toFixed(1)} m`:nr<300?`MISSED BY ${nr.toFixed(1)} m`:'NOTHING IN RANGE';
-  banner(txt,k?'cg':d?'co':'cr',1.4);G.det={txt,t:performance.now()};G.streak=k?G.streak+1:0;
+ function result(R){if(R.dh)return;const o=Array.isArray(R.o)?R.o.filter(a=>Array.isArray(a)):[],k=o.filter(a=>a[1]==='k'||a[1]==='b').length,d=o.filter(a=>a[1]==='d').length,n=o.filter(a=>a[1]==='n').length,best=o.reduce((m,a)=>a[1]!=='m'&&a[1]!=='n'?Math.min(m,+a[2]||0):m,1e9),nr=+R.nr||1e9;
+  const txt=k?`HIT — ${best.toFixed(1)} m`:d?`DAMAGED — ${best.toFixed(1)} m`:n?'NO EFFECT':nr<300?`MISSED BY ${nr.toFixed(1)} m`:'NOTHING IN RANGE';
+  banner(txt,k?'cg':d||n?'co':'cr',1.4);G.det={txt,t:performance.now()};G.streak=k?G.streak+1:0;
   if(k)tone(520,1040,.22,.14,'triangle');else if(d)tone(440,520,.2,.1,'triangle');else tone(260,190,.16,.045,'triangle');
-  feed(o.map(([id,c,r])=>{const t=byId(id),nm=t?Z.tname(t):'T'+String(id|0).padStart(2,'0');r=(+r||0).toFixed(1);return c==='k'?`<span class="cg">${nm} down</span> (${r} m)`:c==='b'?`<span class="cg">${nm} hit</span> (${r} m)`:c==='d'?`<span class="co">${nm} damaged</span> (${r} m)`:`<span class="co">Missed ${nm} (${r} m)</span>`}).join('<br>')||'Detonated: nothing in range')}
+  feed(o.map(([id,c,r])=>{const t=byId(id),nm=t?Z.tname(t):'T'+String(id|0).padStart(2,'0');r=(+r||0).toFixed(1);return c==='k'?`<span class="cg">${nm} down</span> (${r} m)`:c==='b'?`<span class="cg">${nm} hit</span> (${r} m)`:c==='d'?`<span class="co">${nm} damaged</span> (${r} m)`:c==='n'?`<span class="co">${nm}: no effect</span> (${r} m)`:`<span class="co">Missed ${nm} (${r} m)</span>`}).join('<br>')||'Detonated: nothing in range')}
  function req(e){if(!net)return 0;if(net.host){apply(net.me||'host',e,0);return 0}const s=++net.oseq;net.out.push([s,...e]);if(net.out.length>64)net.out.splice(0,net.out.length-64);send(performance.now(),true);return s}
 
  // ---------- drawing: other pilots (mesh, name tags, radar), the roster on the HUD ----------

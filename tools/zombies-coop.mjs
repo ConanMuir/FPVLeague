@@ -4,7 +4,7 @@
 // shared purse and shop requests (helper, personal perk, team perk, repair, kill chain), personal swarms (formation and strike over the wire), Little Buddies (each pilot with a garage gets one, flown by the host, drawn on every screen),
 // the arsenal (a client's weapon purchase, loadout and EMP resolved on the host, the host's laser beam and a client-parked carrier on every screen),
 // site hit points in sync, the living map's scars, launch alerts and warning actions from clients (harden, decoy), late join, a client leaving,
-// the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS] [--throttle N]  (N: CPU throttling per page, e.g. 4, to play a slow CI runner)
+// boss fights (a client's burst reads hit / no effect / down; the boss that is the last track down still wins; the wave's end on a client that never saw the clear state), the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS] [--throttle N]  (N: CPU throttling per page, e.g. 4, to play a slow CI runner)
 // The three windows skip their WebGL draw calls (tools/browser.mjs render stub) unless --shots asks for pictures: drawing three full game
 // windows can drop a busy machine to ~1 frame a second, and the game loop caps the sim per frame, so every wait here would starve.
 import {serve, launch, open, sleep, newWindow} from './zlib.mjs';
@@ -280,8 +280,8 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   ok(await until(A, id => __z.api.TH.every(t => t.id !== id || t.impacted), r.id), 'Ash: saw the impact as an event (track marked impacted)'); }
 
 // ---------- the living map (zscars.js): the host's scars reach every client in a snapshot, a destroyed house with them; a client's own explosions make none ----------
-{ const r = await ev(H, () => { const {Z, api} = __z, S = Z.sc; S.ensure(); for (let i = 0; i < 6; i++) S.add(i % 2, -1800 + i * 90, -900, 5 + i, {fade: 1}); const h = S.houses(); S.houseDown(30); S.add(2, h.x[30], h.z[30], 7.4, {fade: 1}); return S.stats(); });
-  for (const C of [A, B]) ok(await until(C, n => { const t = __z.Z.sc.stats(); return t.craters === n[0] && t.burns === n[1] && t.rubble === n[2] && __z.Z.sc.houses().dead[30] === 1; }, [r.craters, r.burns, r.rubble]), `${C.name}: the host's ${r.craters} craters, ${r.burns} burns and ${r.rubble} rubble arrive in a snapshot, the house is gone`);
+{ const r = await ev(H, () => { const {Z, api} = __z, S = Z.sc; S.ensure(); for (let i = 0; i < 6; i++) S.add(i % 2, -1800 + i * 90, -900, 5 + i, {fade: 1}); S.add(0, -1800, -900, 2.5, {fade: 1}); S.add(0, -1800, -900, 9, {fade: 1});  /* three craters of three sizes on one spot: each is a scar of its own */ const h = S.houses(); S.houseDown(30); S.add(2, h.x[30], h.z[30], 7.4, {fade: 1}); return S.stats(); });
+  for (const C of [A, B]) ok(await until(C, n => { const t = __z.Z.sc.stats(); return t.craters === n[0] && t.burns === n[1] && t.rubble === n[2] && __z.Z.sc.houses().dead[30] === 1; }, [r.craters, r.burns, r.rubble]), `${C.name}: the host's ${r.craters} craters, ${r.burns} burns and ${r.rubble} rubble arrive in a snapshot (three of the craters on one spot), the house is gone`);
   ok(await ev(A, () => { const S = __z.Z.sc, V = __z.api.THREE.Vector3, c = S.stats().craters; S.refill(); S.boom(new V(-1000, __z.api.gh(-1000, -1000) + .5, -1000), 3); return S.stats().craters === c; }), "Ash: an explosion on a client's own screen leaves no scar of its own"); }
 
 // ---------- helpers fire on the clients' screens: the host's rack drones show up as shots ----------
@@ -336,6 +336,97 @@ ok(await until(B, () => __z.G.on && __z.G.state === 'wave' && __z.net.n?.late), 
 ok(await ev(B, () => __z.Z.idle() && document.getElementById('zinb').textContent.includes('NEXT BASE')) || await until(B, () => document.getElementById('zinb').textContent.includes('NEXT BASE')), 'Late join: the HUD says she joins at the next base screen');
 await ev(H, () => { __z.G.wq.length = 0; for (let i = 0; i < 600 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0) __z.botKill(.8); } __z.sim(4); });
 ok(await until(B, () => __z.G.state === 'base' && !__z.net.n.late && __z.net.rows().length === 3), 'Late join: at the base screen Bea is in, roster back to 3');
+
+// ---------- boss fights (zbosses.js, zcodex.js): the host runs the fight, a client's burst is rolled there; the boss is the only track left of its wave ----------
+const readyUp = async n => { for (const P of all) await tap(P, '#zgo'); for (const P of all) await until(P, n => __z.G.state === 'wave' && __z.G.wave === n, n); };
+/* the wave's raid gone and nothing queued, so the boss is the last live track: the moment it falls the wave is clear */
+const lastBoss = kind => ev(H, kind => { const {G, api, Z} = __z; G.wq.length = 0; for (const t of api.TH) if (api.live(t)) t.st = 'dead';
+  const t = kind === 'boss' ? Z.make('boss', 0, 150) : Z.bosses.spawn(kind, {R: 1800, brg: 0}); if (kind === 'boss') t.p.y = api.gh(0, 150) + 650; __z.sim(1); return t.id; }, kind);  /* a second of the host's sim: the boss starts with its real hit points on its first step */
+/* a burst from a client's interceptor parked 1 m behind the track as that client sees it; resolves with the readout the host sent back */
+const burstAt = async (C, id) => { await ev(C, () => { if (__z.api.player.dead > 0) __z.api.launch(); __z.G.det = null; });
+  await ev(C, id => { const {api, Z} = __z, me = api.player, t = api.TH.find(t => t.id === id); me.p.copy(t.p).addScaledVector(t.v.clone().normalize(), -1); me.v.copy(t.v); Z.detonate(); }, id);
+  await until(C, () => __z.G.det?.txt); return ev(C, () => ({txt: __z.G.det.txt, feed: document.getElementById('feed').textContent})); };
+const hpOf = id => ev(H, id => __z.api.TH.find(t => t.id === id).bs.hp, id);
+const shut = id => ev(H, id => { const B = __z.api.TH.find(t => t.id === id).bs; B.rv = B.af = 0; B.md = 0; B.tm = 1e9; }, id);  /* the Hush circling, no flare, no pass coming */
+const lit = id => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); if (t) { t.bs.rv = 1e6; t.bs.af = 0; } }, id);  /* held open (the flare burning) before every burst: a hit snaps the flare out */
+const down = id => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); return !t || !__z.api.live(t); }, id);  /* a dead track leaves the list */
+const onScreens = id => Promise.all([A, B].map(C => until(C, id => __z.api.TH.some(t => t.id === id && __z.api.live(t)), id))).then(r => r.every(Boolean));
+/* what the clients' screens announce (zannounce.js) and the boss-down sting, recorded as it happens */
+for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; window.__down = 0; const s0 = Z.an.say, d0 = Z.au.bossDown; Z.an.say = (...a) => { __say.push(String(a[0])); return s0(...a); }; Z.au.bossDown = (...a) => { __down++; return d0(...a); }; });
+{ await ev(H, () => { __z.G.cash = 4000; const P = __z.G.next; P.list.push('hush'); P.q.push({k: 'hush', at: 1, brg: 0}); });  /* the plan names the Hush: the warning goes out on every screen */
+  ok(await until(B, () => !!__z.net.n.nx?.list.includes('hush')), 'Boss fight: the plan the host sent for wave 3 names the Hush');
+  await readyUp(3);
+  ok(await until(A, () => __say.includes('HUSH INBOUND')) && await until(B, () => __say.includes('HUSH INBOUND')), 'Boss fight: the HUSH INBOUND warning is on both clients\' screens, as on the host\'s (they read it from the plan)');
+  const id = await lastBoss('hush');
+  ok(await onScreens(id), `Boss fight: the Hush (T${id}) is the last track of wave 3 and on every screen`);
+  /* the arsenal's warheads count a boss as down only when it is: Ash still carries the EMP of the arsenal section, and the Hush loses hit points to it, it does not fall */
+  await lit(id); const hpE = await hpOf(id), rE = await burstAt(A, id);
+  ok(/^EMP/.test(rE.txt) && !/DOWN/.test(rE.txt) && await hpOf(id) < hpE && !await down(id), `Boss fight: the EMP burst on the lit Hush reads "${rE.txt}" (no DOWN), the Hush has ${await hpOf(id)} of ${hpE} left`);
+  await ev(H, id => { const t = __z.api.TH.find(t => t.id === id); __z.Z.bosses.ctx.vanish(t, 'gone'); }, id);  /* sent away, so that the wave ends */
+  for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
+}
+{ await ev(A, () => __z.Z.ars.equip('std'));  /* the standard warhead back, at the base screen */
+  ok(await until(H, k => __z.Z.ars.P(k).cur === 'std', aKey), 'Boss fight: Ash carries the standard warhead again');
+  await ev(H, () => { __z.G.cash = 4000; });
+  for (const C of [A, B]) await ev(C, () => { __say.length = 0; __down = 0; });
+  await readyUp(4);
+  const id = await lastBoss('hush');
+  ok(await onScreens(id), `Boss fight: the Hush (T${id}) is the last track of wave 4 and on every screen`);
+  /* what the host does with a burst is what the readout says: a boss shrugs off a burst while it is dark, loses hit points to one while the flare burns, and is "down" only when it is */
+  const hp0 = await hpOf(id); await shut(id); const r0 = await burstAt(A, id);
+  ok(/^NO EFFECT/.test(r0.txt) && /no effect/.test(r0.feed) && !/Hush down/.test(r0.feed) && await hpOf(id) === hp0, `Boss fight: a burst on the dark Hush reads "${r0.txt}", not a hit (hit points stay ${hp0})`);
+  await lit(id); const r1 = await burstAt(A, id), hp1 = await hpOf(id);
+  ok(/^HIT/.test(r1.txt) && /The Hush hit/.test(r1.feed) && !/Hush down/.test(r1.feed) && hp1 < hp0 && hp1 > 0, `Boss fight: a burst while the flare burns reads "${r1.txt}" and "hit", not "down": the Hush still has ${hp1} of ${hp0}`);
+  let last = r1, n = 1; for (; n < 8 && !await down(id); n++) { await lit(id); last = await burstAt(A, id); }
+  ok(await down(id) && /The Hush down/.test(last.feed), `Boss fight: Ash's bursts bring the Hush down (${n} in all), and only the last one reads "down"`);
+  /* the fight's banners go out on every screen, Bea's (who flew nothing of it) as much as the host's: the phases it passed through, the defeat and the sting */
+  ok(await until(B, () => __say.includes('SILENCE') && __say.includes('HUSH DEFEATED') && __down >= 1), `Boss fight: Bea's screen announced the Hush's phases and its defeat, and sounded the sting (${await ev(B, () => __say.join(' > '))})`);
+  /* the wave ended with that kill: the win still counts (the cleanup of the wave used to close the fight unrecorded) */
+  ok(await until(H, () => (__z.api.S.zboss?.b?.hush?.won | 0) === 1 && !!__z.G.brw?.array && __z.Z.codex.c.b.hush?.beaten === true), 'Boss fight: the Hush was the last track down, and the win is recorded all the same (record, Acoustic Array, the host\'s codex)');
+  ok(await ev(A, () => !__z.Z.codex.c.b.hush), 'Boss fight: a client\'s own codex is left alone (the host\'s save moves)');
+  for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
+}
+
+// ---------- what a boss does to a client's screen on its own (zboss-siren.js, zboss-ghost.js): the Siren's song makes the drones near it read friendly (green, "FRIENDLY") on every screen, not only on the host's;
+// the Ghost's lock slip cools down on the client that suffered it ----------
+{ await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(5);
+  const id = await lastBoss('siren');
+  const covered = P => ev(P, () => __z.api.TH.filter(t => __z.api.live(t) && !__z.Z.bosses.BOSSES[t.k] && t.iff > 0).length);
+  ok(await until(H, () => __z.api.TH.some(t => !__z.Z.bosses.BOSSES[t.k] && t.iff > 0)), 'Siren: the host\'s song covers the drones around it');
+  const nh = await covered(H);
+  for (const C of [A, B]) ok(await until(C, n => __z.api.TH.filter(t => __z.api.live(t) && !__z.Z.bosses.BOSSES[t.k] && t.iff > 0).length >= n - 1, nh) && await covered(C) > 0, `Siren: ${C.name} sees the covered drones read friendly too (${await covered(C)} of the host's ${nh})`);
+  /* the Ghost's lock cooldown runs down on a client's copy too (a slipped lock used to stay shut there for good: the countdown was in the host's tick) */
+  const gid = await ev(H, () => __z.Z.bosses.spawn('ghost', {R: 1500, brg: 0}).id);
+  ok(await until(A, id => __z.api.TH.some(t => t.id === id), gid), 'Ghost: it is on Ash\'s screen');
+  await ev(A, id => { __z.api.TH.find(t => t.id === id).bs.lcd = 3; }, gid);  /* the lock slipped on Ash's screen */
+  ok(await until(A, id => { const t = __z.api.TH.find(t => t.id === id); return !(t.bs.lcd > 0) && __z.Z.lockJam(t) < 10; }, gid), 'Ghost: three seconds after a slip Ash can lock it again');
+  await ev(H, id => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; }, id);  /* the wave is over */
+  for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
+}
+
+// ---------- the wave's end on a client (zbosses.js): the base and game-over screens pause a client's sim, so a client that never gets a step in the wave's clear state must still see the wave end ----------
+{ await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(6);
+  const id = await lastBoss('boss');
+  ok(await until(B, () => __z.Z.bosses.shadows.some(m => m.visible)), 'Wave end: the Mothership is the last track of wave 6 and its shadow is down on Bea\'s ground');
+  const stages = () => ev(H, id => __z.api.TH.find(t => t.id === id)?.stages | 0, id);
+  for (let i = 0; i < 8 && await stages() > 1; i++) await burstAt(A, id);
+  ok(await stages() === 1, 'Wave end: Ash\'s bursts have taken the Mothership down to its last pod');
+  /* the last pod goes while the host holds its snapshots, and the host runs the clear window out in one go: the clients are told "base", never "clear" */
+  await ev(H, () => { __z.net.n.sendT = performance.now() + 1e5; });
+  await ev(A, id => { const {api, Z} = __z, me = api.player, t = api.TH.find(t => t.id === id); if (me.dead > 0) api.launch(); me.p.copy(t.p).addScaledVector(t.v.clone().normalize(), -1); me.v.copy(t.v); Z.detonate(); }, id);
+  ok(await until(H, id => !__z.api.TH.some(t => t.id === id && __z.api.live(t)), id), 'Wave end: the last pod goes, the Mothership is down on the host');
+  await ev(H, () => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; for (let i = 0; i < 40 && __z.G.state !== 'base'; i++) __z.sim(.5); __z.net.n.sendT = 0; });
+  for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base') && await until(C, () => !__z.Z.bosses.shadows.some(m => m.visible)), `${C.name}: on the base screen the Mothership's shadow is gone, though ${C.name} never saw the clear state`);
+  /* a game over with the Hush in the air: the darkness and the fight go from the client's screen as they do from the host's */
+  await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(7);
+  await lastBoss('hush');
+  ok(await until(A, () => __z.Z.atmos.sources > 0) && await until(B, () => __z.Z.atmos.sources > 0), 'Wave end: the Hush\'s darkness is down on both clients');
+  await ev(H, () => { __z.Z.gameOver(); __z.sim(.1); });
+  for (const P of all) ok(await until(P, () => __z.G.state === 'over') && await until(P, () => { const f = __z.Z.bosses.fx(); return __z.Z.atmos.sources === 0 && !f.grade && !f.encs && !f.bar; }), `${P.name}: game over, and the Hush's darkness, grade and boss bar are gone`);
+}
 
 // ---------- campaign (zcampaign.js): the host plays a sector of their campaign; the clients play it with them; only the host's save moves ----------
 { const c0 = await ev(A, () => JSON.stringify(__z.api.S.zcamp ?? null));
