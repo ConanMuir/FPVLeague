@@ -48,6 +48,15 @@ if (want('saves')) {
     if (!up || errs.length > n0) bad.push(JSON.stringify(save) + (up ? '' : ' (page never came up)'));
   }
   ok(!bad.length, 'Saves: odd saved values still load and play' + (bad.length ? '\n  ' + bad.join('\n  ') + '\n  ' + errs.slice(0, 3).join('\n  ') : ''));
+  /* a field of view from a hand-edited or foreign pilot profile (the shared droneleague key): the lens stays sane and the reticle in a wave draws (zlock's arc took a negative radius from fov -1 or 1e9) */
+  { const fb = [];
+    for (const fov of [-1, 1e9, 0, 'x', 5, 400]) { const n0 = errs.length;
+      await p.evaluate(f => { localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z'})); localStorage.setItem('droneleague', JSON.stringify({fov: f})); }, fov); await p.reload({waitUntil: 'load'});  /* the pilot profile is the League's key */
+      await p.waitForFunction(() => window.__z, {timeout: 60000}); await p.click('#play'); await p.waitForFunction(() => __z.G.state === 'base', {timeout: 30000});
+      await p.evaluate(() => __z.cont()); await frames(p, 8);
+      const cf = await p.evaluate(() => __z.api.camera.fov); if (!(cf > 1 && cf < 179) || errs.length > n0) fb.push(`fov ${JSON.stringify(fov)}: camera ${cf}${errs.length > n0 ? ' ' + errs.at(-1) : ''}`); }
+    await p.evaluate(() => localStorage.removeItem('droneleague'));  /* the profile is shared by every page of this run */
+    ok(!fb.length, 'Saves: a field of view of -1, 1e9, 0, text, 5 or 400 is clamped (lens and reticle stay sane)' + (fb.length ? '\n  ' + fb.join('\n  ') : '')); }
   /* Classic is gone: an old Classic save (and ?mode=classic) opens Zombies, there is no mode picker, and the settings only Classic read are dropped */
   await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'classic', diff: 2, fuse: 'manual', skin: 'strela', guide: 0, guideSw: 3, setV: 4, wx: 'clear'})));
   await p.goto(origin + '/games/interceptor/?mode=classic', {waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
