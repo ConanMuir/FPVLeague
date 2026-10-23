@@ -1,6 +1,6 @@
 // QA sweep: plays every mode of both games headless with scripted inputs and checks what no single feature test looks at.
 //   node tools/qa-sweep.mjs [--fast] [--area=league|interceptor] [--part=N] [--sections=league-tour,zombies-cycles,...] [--shots DIR] [--list]
-//                           (--part: CI runs the League fast pass as three parts (1 to 3) and the Zombies one as four, so each job fits its time limit on a slow runner)
+//                           (--part: CI runs the League fast pass as two parts and the Zombies one as four, so each job fits its time limit on a slow runner)
 //                           [--cycle=text] [--settle=ms]   (cycle: run only the leak tests whose name has the text, 12 cycles; settle: wait after each cycle)
 // Sections (--list): league-* and zombies-* (tour, resize, saves, flow / content, cycles, monkey, input, display, ...); each belongs to a CI area
 // (tools/ci-scope.mjs: league = Drone League, interceptor = Zombies), and is in the fast pass or only in the full run.
@@ -14,7 +14,7 @@
 //            (a cycle's timers get a settle time first: the HUD feed keeps a removed message 4.5 s, and a detached node is not a leaked one)
 //   saves    older and broken settings / saves load, migrate and play (every key set to junk, delta-debugged to the keys that break it)
 //   hardware gamepads that report NaN / nothing, tiny windows, 2x and 3x pixel ratios, no network; and a seeded random player (the monkey)
-// --fast runs a short pass of the probes (CI: the last matrix entries, the League pass in three parts and the Zombies pass in four); without it the sections run longer, with more
+// --fast runs a short pass of the probes (CI: the last matrix entries, the League pass in two parts and the Zombies pass in four); without it the sections run longer, with more
 // viewports, cycles, junk values and monkey seeds. The viewports include a portrait phone for the League; the Zombies HUD is landscape only.
 // A probe that finds something prints "FAIL ..." and the tool exits 1; "note" lines are things worth a look that are not wrong by themselves.
 // Needs `npm run build` first for the League sections (they load games/drone-league/index.html). Headless only, like every tool here.
@@ -807,7 +807,7 @@ section('zombies-spectator', async browser => {
 });
 
 /* the arcade game's own counts: scene children, geometries and textures the renderer holds */
-const zExtra = () => { const z = window.__z, i = z.api.renderer.info; return {scene: z.api.scene.children.length, geoms: i.memory.geometries, texs: i.memory.textures}; };
+const zExtra = () => { const z = window.__z, i = z.api.renderer.info; let n = 0; z.api.scene.traverse(() => n++); return {scene: z.api.scene.children.length, objs: n, geoms: i.memory.geometries, texs: i.memory.textures}; };  /* objs: the whole tree (a group that collects meshes does not change the top level) */
 section('zombies-cycles', async browser => {
   const S = await zsession(browser, {save: {zwx: 'menu'}}); const {p} = S; if (!ok(S.up, 'Zombies boots (cycles)')) { await p.close(); return; }  /* zwx menu: the menu's weather, not a new random forecast per game (each weather builds its own effects the first time it shows up) */
   const N = FAST ? (LEAN ? 2 : 3) : 6, back = async () => { await key(p, 'Escape'); await click(p, '#leave'); await until(async () => (await zst(p)).demo, {timeout: 20000}); };
@@ -1022,7 +1022,7 @@ const {server, origin} = await serve();
 let browser = await launch();
 async function B() { if (!browser.connected) browser = await launch(); return browser; }  /* a section that crashes the browser on purpose gets a fresh one */
 /* CI runs an area's fast pass in parts (--part=N) so that each job stays well inside its time limit on a slow runner; a section not listed is in part 1 */
-const PART = {'league-saves': 2, 'league-input': 2, 'league-display': 2, 'league-cycles': 3, 'league-monkey': 3, 'zombies-content': 2, 'zombies-campaign': 2, 'zombies-sortie': 2, 'zombies-spectator': 2, 'zombies-cycles': 3, 'zombies-coop': 3, 'zombies-display': 3, 'zombies-saves': 4, 'zombies-monkey': 4};
+const PART = {'league-saves': 2, 'league-input': 2, 'league-display': 2, 'league-cycles': 2, 'league-monkey': 2, 'zombies-content': 2, 'zombies-campaign': 2, 'zombies-sortie': 2, 'zombies-spectator': 2, 'zombies-cycles': 3, 'zombies-coop': 3, 'zombies-display': 3, 'zombies-saves': 4, 'zombies-monkey': 4};
 const PART_N = +(argv.find(a => a.startsWith('--part='))?.slice(7) || 0);
 if (argv.includes('--list')) { for (const [n, s] of Object.entries(R)) console.log(n.padEnd(20), s.area.padEnd(12), ('part ' + (PART[n] || 1)).padEnd(8), s.fast ? 'fast' : 'full only'); process.exit(0); }
 const timing = [];
