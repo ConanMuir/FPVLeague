@@ -278,10 +278,11 @@ export function initScars(api,G,Z){
    if(!bad(X,Z0,dsz(sq)*(t===1?1.3:1)))P[t].add(x,z,sq,v,y,t===1&&settle?31:pq,aq,gh,f)}
   rank();vis();rev++}
  /* merge a snapshot into the live set: what is there stays (no re-fade), what is new fades in, what is gone fades out */
- function apply(s){ensure();const R=unpack(s),key=(t,x,z)=>t<<24|x<<12|z,want=new Map();for(const r of R)want.set(key(r[0],r[1],r[2]),r);
-  for(let t=0;t<3;t++){const p=P[t];for(let i=0;i<p.hw;i++)if(p.st[i]===1){const k=key(t,p.xq[i],p.zq[i]),r=want.get(k);
-   if(r){want.delete(k);if(t===1&&Math.abs(p.pf[i]-r[6]/31)>.2){p.pf[i]=p.aP[i*4+2]=r[6]/31;p.dirty=true}}else p.drop(i)}}
-  for(const[t,x,z,sq,v,y,pq,aq]of want.values()){
+ /* a scar is told apart by its kind, its quantised spot and its size: a small crater inside a big one on the same 2 m cell is a scar of its own, and two alike are two */
+ function apply(s){ensure();const R=unpack(s),key=(t,x,z,q)=>((t*4096+x)*4096+z)*64+q,want=new Map();for(const r of R){const k=key(r[0],r[1],r[2],r[3]),a=want.get(k);if(a)a.push(r);else want.set(k,[r])}
+  for(let t=0;t<3;t++){const p=P[t];for(let i=0;i<p.hw;i++)if(p.st[i]===1){const k=key(t,p.xq[i],p.zq[i],p.sq[i]),a=want.get(k),r=a&&a.pop();
+   if(r){if(!a.length)want.delete(k);if(t===1&&Math.abs(p.pf[i]-r[6]/31)>.2){p.pf[i]=p.aP[i*4+2]=r[6]/31;p.dirty=true}}else p.drop(i)}}
+  for(const a of want.values())for(const[t,x,z,sq,v,y,pq,aq]of a){
    if(t===2){const i=houseNear(dpos(x),dpos(z),5);if(i>=0&&houseDown(i))P[2].add(qpos(houses().x[i]),qpos(houses().z[i]),sq,v,y,pq,aq,gh,0);continue}
    P[t].add(x,z,sq,v,y,pq,aq,gh,0)}
   rank();vis()}
