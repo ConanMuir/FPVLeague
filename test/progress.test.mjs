@@ -143,6 +143,9 @@ test('recorder: Dogfight kills, turrets, deaths, hits; match feats', () => {
   assert.equal(recFeats(lg, {winner: 0, overtime: false, oppBots: true, mateBots: true, diffs: [5, 5]}).gc, 0, 'bot team-mates: no Giant Slayer');
   assert.equal(recFeats(lg, {winner: 0, overtime: false, oppBots: true, mateBots: false, diffs: [3]}).champ, 0, 'Legend is not Champion');
   assert.equal(recFeats(lg, {winner: 1, overtime: false, oppBots: true, mateBots: false, diffs: [5]}).gc, 0);
+  const hard = recFeats(lg, {winner: 0, overtime: false, oppBots: true, mateBots: false, diffs: [7, 9]});
+  assert.deepEqual([hard.champ, hard.gc], [1, 1], 'the Freestyler and an evolved level are harder than Grand Champion: Champion Material and Giant Slayer');
+  assert.deepEqual((f => [f.champ, f.gc])(recFeats(lg, {winner: 0, overtime: false, oppBots: true, mateBots: false, diffs: [4, 6]})), [1, 0], 'a Champion with a Dribbler: Champion Material only');
 });
 
 test('profile commits: stats, records, streaks, history, achievements and the unlocks they bring', () => {

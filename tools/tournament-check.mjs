@@ -69,7 +69,12 @@ const r = await p.evaluate(async () => {
   const set = (id, v) => { const s = $(id); s.value = String(v); s.dispatchEvent(new Event('change', {bubbles: true})); };
   set('tn_format', 'rr'); set('tn_size', 4); set('tn_len', 60); q('[data-mv="1:-1"]').click(); const top = q('#tnslots select').value; $('tnstart').click(); const u0 = snap();
   q('[data-act="sim"]')?.click(); const u1 = snap(); let g0 = 0; while (TM.TN.sim && g0++ < 4000) TM.simTick(200); const u2 = snap();
-  out.ui = {on: u0.on, format: u0.format, size: u0.size, top, first: u0.entrants[0], simStarted: u1.cur?.how === 'sim', results: u2.results, abandon: !!$('tnquit')}; TM.tournAbandon(); UI.renderTournament();
+  /* then Simulate all: every bot match left (two more of the three bot v bot ones) in turn, the queue outliving each match's end, until only your matches are left */
+  UI.renderTournament(); $('tnsimall').click(); const u3 = snap(); const stopBtn = !!$('tnstopq'); let g1 = 0; while ((TM.TN.sim || TM.TN.queue) && g1++ < 40000) TM.simTick(200); const u4 = snap();
+  out.ui = {on: u0.on, format: u0.format, size: u0.size, top, first: u0.entrants[0], simStarted: u1.cur?.how === 'sim', results: u2.results, abandon: !!$('tnquit'), queued: u3.queue, stopBtn, all: u4.results, noBots: !TM.nextBots(), left: u4.playable.length}; TM.tournAbandon(); UI.renderTournament();
+  /* 1c. abandoned while a simulation runs (not offered by the screen, whose Abandon is disabled meanwhile; a caller can): the mode goes back to your own, with its menu demo */
+  S.game = 'league'; TM.tournNew(cleanSetup(names)({format: 'single', size: 4, team: 1, len: 60, pairing: 'list', mates: 2, seed: 4, entrants: [{kind: 'bot', lv: 'Rookie'}, {kind: 'bot', lv: 'Pro'}, {kind: 'bot', lv: 'Legend'}, {kind: 'bot', lv: 'Champion'}]}));
+  TM.tournSimAll(); TM.simTick(30); const a0 = {before: GS.GM, sim: !!TM.TN.sim}; TM.tournAbandon(); out.abandonSim = {...a0, GM: GS.GM, demo: GS.demo, on: window.__dl.tourn().on, drones: GS.drones.length}; UI.renderTournament();
   /* 2. a small one: you and three bots, 1v1, 1 minute, as listed (You v Rookie, Legend v Pro) */
   const setup = cleanSetup(names)({format: 'single', size: 4, team: 1, len: 60, pairing: 'list', mates: 2, seed: 1, entrants: [{kind: 'human', pilot: 'p1'}, {kind: 'bot', lv: 'Rookie'}, {kind: 'bot', lv: 'Legend'}, {kind: 'bot', lv: 'Pro'}]});
   TM.tournNew(setup); UI.renderTournament();
@@ -101,6 +106,8 @@ const r = await p.evaluate(async () => {
 console.log(JSON.stringify(r, null, 1));
 ok(r.screen.open && r.screen.slots === 8 && r.screen.options === r.screen.levels + 1 && r.screen.start, `the Tournament screen: 8 slots by default, each offering You and the ${r.screen.levels} bot levels`);
 ok(r.ui.on && r.ui.format === 'rr' && r.ui.size === 4 && r.ui.top === 'b:0' && r.ui.first.kind === 'bot' && r.ui.first.name === NAMES[0] && r.ui.simStarted && r.ui.results === 1 && r.ui.abandon, `through the controls: a round robin of 4 started with ${r.ui.first.name} moved to the top seed, a bot match simulated from its button`);
+ok(r.ui.queued && r.ui.stopBtn && r.ui.all === 3 && r.ui.noBots && r.ui.left === 3, `Simulate all bot matches runs every bot match in turn (the round robin of 4 with you: ${r.ui.all} of the 3 bot matches done, ${r.ui.left} of yours left); Stop after this match offered meanwhile`);
+ok(r.abandonSim.sim && r.abandonSim.before === 'tourn' && r.abandonSim.GM === 'league' && r.abandonSim.demo && !r.abandonSim.on, `abandoned under a simulation (mode ${r.abandonSim.before} before): the mode is back to ${r.abandonSim.GM} with its menu demo (${r.abandonSim.drones} quads), no tournament left`);
 ok(r.bracket.boxes === 3 && r.bracket.play && r.bracket.watch && r.bracket.sim && r.bracket.saved, 'a 4-player single elimination: 3 match boxes, Play on yours, Watch / Simulate on the bots\' one, saved');
 ok(r.simStart && r.sim.started === 'sim' && r.sim.demo0 && r.sim.paused0 && r.sim.drones0.length === 2 && r.sim.drones0.every(d => d.bot) && r.sim.drones0.map(d => d.skill).sort().join() === [idx('Legend'), idx('Pro')].sort().join(), `simulate: 1v1 of bots at their levels behind the menu (${r.sim.drones0.map(d => NAMES[d.skill]).join(' v ')})`);
 ok(r.sim.results === 1 && r.sim.last?.id === 'w1-1' && r.sim.last.score[0] !== r.sim.last.score[1] && r.sim.savedResults === 1 && r.sim.demoAfter && !r.sim.pausedAfter, `simulated to a result (${r.sim.last?.score.join('-')}) in ${r.sim.ms} ms, saved, the menu demo back`);

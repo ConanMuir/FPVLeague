@@ -79,7 +79,7 @@ export function initTournament(){tournInit();defaults();
  $('tournbtn').addEventListener('click',renderTournament);  /* ui/menu.js opens the screen (data-scr); the body is rendered fresh */
  const body=$('tnbody');body.addEventListener('click',onClick);body.addEventListener('change',onChange);for(const t of['dragstart','dragover','dragleave','drop','dragend'])body.addEventListener(t,onDrag);
  /* the pause menu during a tournament match: Restart restarts that match, Leave goes back to the bracket (the match stays to be played) */
- const play=$('play').onclick;$('play').onclick=()=>{const c=TN.cur;if(c&&!GS.demo){tournStop();(c.how==='watch'?tournWatch:tournPlay)(c.id);return}play()};
+ const play=$('play').onclick;$('play').onclick=()=>{const c=TN.cur;if(c&&!GS.demo){tournStop();(c.how==='watch'?tournWatch:tournPlay)(c.id);return}if(TN.sim||GS.GM==='tourn'){tournStop();backToGame()}play()};  /* Play vs bots under a simulation (Back from the bracket, then Play): the simulation stops and the match is one of your own mode's, not a TOURNAMENT one filed under tourn */
  const leave=$('leave').onclick;$('leave').onclick=()=>{const t=!!TN.cur;tournStop();leave();if(t){backToGame();open()}};
  addHud('tourn',frame)}
 /* per rendered frame: drive a simulation, keep the spectator HUD tidy, open the bracket when a match's menu comes back, refresh the screen on changes */
