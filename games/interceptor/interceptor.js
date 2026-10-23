@@ -32,7 +32,7 @@ mountMod();setFeedTime(5500);
 // ---------- world constants (metres, seconds; real scale) ----------
 // AO = area of operations, ±AW. Threats enter at SPAWNZ (north, -z) and fly toward the defended sites in the south (+z).
 let AW=3000;const TW=9000,TN=360,CEIL=4000,SPAWNZ=-2900;  // AW is widened while Zombies runs
-let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.22,MAXV=78,TE=1.6,VP=240,DL=.1,DQ=.006,HOV=(G/THR)**(1/TE),TAU=.012,DB=.35,GSPD=1,SHK=1,LETH=4,CRASH=30,RELT=2.5,BCAP=16000,MSZ=1,SAGK=1;
+let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.22,MAXV=78,TE=1.6,VP=240,DL=.1,DQ=.006,HOV=(G/THR)**(1/TE),TAU=.012,DB=.35,GSPD=1,SHK=1,LETH=5,CRASH=30,RELT=2.5,BCAP=16000,MSZ=1,SAGK=1;
 const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3(),_tl=new V3(),_vr=new V3();
 const RRS=[2000,5000,10000];
 const DEF={mode:"acro",tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,nextSw:-1,zwx:'wave',gfx:'auto',fps:true,haze:false,fcap:0};
@@ -483,9 +483,10 @@ const urgent=()=>Z.urgent();
 // selected track: the most urgent unless you picked one with Next track (N); tracks cycle in order of urgency
 let pickT=null;const selT=()=>pickT&&live(pickT)?pickT:urgent();
 function nextTrack(){const L=TH.filter(t=>live(t)&&!(Z.on&&Z.hid?.(t))).sort((a,b)=>Math.hypot(a.aim.x-a.p.x,a.aim.z-a.p.z)/a.spd-Math.hypot(b.aim.x-b.p.x,b.aim.z-b.p.z)/b.spd);if(!L.length)return;pickT=L[(L.indexOf(selT())+1)%L.length];if(!demo)banner('T'+String(pickT.id).padStart(2,'0'),'',.6)}
-// warhead: a small fragmentation charge. Kill probability falls off with miss distance; the proximity fuse fires at closest approach but has ~15 ms of delay,
-// so at high closing speed it bursts past the target (tail chase ≈ full lethal radius, head-on ≈ direct hit only). fuseR = the 50% kill radius at a closing speed.
-const FDLY=.015,pkill=(r,cv)=>{const re=r+cv*FDLY,k=LETH/4;return re<1.2?1:Math.exp(-(((re-1.2)/(2.5*k))**2))},fuseR=cv=>Math.max(.3,1.2+2.08*LETH/4-cv*FDLY);
+/* warhead: a fragmentation charge. A burst within LETH (the Fuse radius tuner, 5 m by default; arcade leeway) of the track always kills. Past that the
+ kill chance falls off over a couple of metres, and the ~15 ms fuse delay counts: at high closing speed the burst lands past the target, so a near
+ miss head-on does less than the same miss in a tail chase. pdmg = the chance a miss still damages it. fuseR = the 50% kill radius at a closing speed (never under LETH). */
+const FDLY=.015,PKS=.375,pkill=(r,cv)=>r<=LETH?1:Math.exp(-(((r+cv*FDLY-LETH)/(PKS*LETH))**2)),pdmg=(r,cv)=>Math.exp(-(((r+cv*FDLY-LETH)/(2*PKS*LETH))**2)),fuseR=cv=>Math.max(LETH,LETH*(1+PKS*.8326)-cv*FDLY);
 const aspect=(t,p)=>{const c=_ad.subVectors(p,t.p).normalize().dot(_tv.copy(t.v).normalize());return c<-.5?'TAIL':c>.5?'HEAD-ON':'BEAM'};
 
 // ---------- interceptor life: launch, fuse, detonation, crash, battery ----------
@@ -501,7 +502,7 @@ function lose(why){const d=player;if(d.dead>0)return;d.dead=RELT;spent++;deadP.c
  if(why==='crash')feed('Interceptor lost: crashed');if(why==='bat')feed('Interceptor lost: battery flat')}
 // damaged: smoking, slower, sinking; some fail a little later
 function damage(t){t.dmg=1;t.cs*=.8;t.spd*=.8;t.fail=Math.random()<.45?6+Math.random()*16:0;FX.emit(t.p,0xffb040,30,8,.6,null,2)}
-// warhead: contact always fires it; the proximity fuse fires at closest approach inside its 6 m sensing range; the detonate button fires it any time
+/* warhead: contact always fires it; the proximity fuse fires at closest approach inside its sensing range (1.5 x LETH, 7.5 m by default); the detonate button fires it any time */
 // Only tracks near the interceptor matter (grid query): a track's range at the last fuse check (t.pd) is kept for those it saw then (t.fk);
 // one it didn't see was farther than FR then, and FR covers the fuse window, so for it "opening" can't be true yet. Tracks that came inside
 // 20 m and haven't been reported yet (FW) are followed wherever they go, for the "Passed ... m off" line.
@@ -514,7 +515,7 @@ function fuse(){const d=player,fire=Z.on&&Z.botFire?Z.botFire():fireIn(),edge=fi
  for(const t of FW){if(!live(t)){FW.delete(t);continue}if(!FC.includes(t)&&TH.includes(t)){FC.push(t);more=true}}if(more)FC.sort((a,b)=>TH.indexOf(a)-TH.indexOf(b));
  for(const t of FC){const pd=t.fk===k-1?t.pd:Infinity,r=_a.subVectors(t.p,d.p).length(),cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a)/(r||1));
   if(r<1.5)hit=true;else if(r<LETH*1.5&&r>pd)rec=true;
-  if(r<20){t.dmin=Math.min(t.dmin,r);t.cvm=Math.max(t.cvm,cv)}else if(t.dmin<20&&r>pd&&!demo){feed(`<span class="co">Passed ${Z.tname(t)} ${Math.round(t.dmin)} m off</span>${Z.autoFuse()?' · outside the 6 m fuse':''}`);t.dmin=1e9;t.cvm=0}
+  if(r<20){t.dmin=Math.min(t.dmin,r);t.cvm=Math.max(t.cvm,cv)}else if(t.dmin<20&&r>pd&&!demo){feed(`<span class="co">Passed ${Z.tname(t)} ${Math.round(t.dmin)} m off</span>${Z.autoFuse()?` · outside the ${+(LETH*1.5).toFixed(1)} m fuse`:''}`);t.dmin=1e9;t.cvm=0}
   t.pd=r;t.fk=k;if(t.dmin<20)FW.add(t);else FW.delete(t)}
  if(hit||Z.autoFuse()&&rec||edge)Z.detonate()}
 
@@ -654,13 +655,14 @@ const MODS=[
  ['Interceptor','tau','Stick lag',26,2,60,1,'ms'],['Interceptor','dl','Linear drag',0.01,0,1,.005,''],['Interceptor','dq','Air drag',0.0027,0,.03,.0001,''],['Interceptor','fs','Fin side force',4,.2,12,.1,'×'],
  ['Interceptor','size','Drone size',0.5,.4,2.5,.05,'×'],['Interceptor','dbounce','Wall bounce',0.2,0,1,.05,''],['Interceptor','gfric','Ground grip',0.5,0,1,.02,''],['Interceptor','spool','Motor spool',70,0,150,5,'ms'],['Interceptor','turtle','Turtle rate',260,60,720,10,'°/s'],['Interceptor','wash','Prop wash',1,0,3,.1,'×'],
  ['Interceptor','bcap','Battery',16000,2000,40000,500,'mAh'],
- ['Warhead','leth','Fuse radius',4,1,15,.5,'m'],['Warhead','crash','Crash speed',12,3,120,1,'m/s'],['Warhead','relt','Relaunch time',2.5,0,10,.5,'s'],
+ ['Warhead','leth','Fuse radius',5,1,15,.5,'m'],['Warhead','crash','Crash speed',12,3,120,1,'m/s'],['Warhead','relt','Relaunch time',2.5,0,10,.5,'s'],
  ['Match','speed','Game speed',1,.25,2,.05,'×'],
  ['Look','bloom','Glow',0.9,0,2.5,.05,''],['Look','shake','Camera shake',1,0,3,.1,'×']];
 const PRESETS={'Default':{},'League 6S 5-inch':{thr:98,te:1.6,vp:68,maxv:60,dl:.04,dq:.0137,fs:.6,tau:4,spool:20},'Training':{leth:8},'Big warhead':{leth:10}};
 // v4: tail-sitter dart aerodynamics (untouched old Interceptor / Warhead values reset)
 const migrate=()=>{if((S.physV|0)<4){for(const g of['Interceptor','Warhead'])for(const m of MODS)if(m[0]===g)S.mod[m[1]]=m[3];S.physV=4;save()}
- if((S.physV|0)<5){for(const k of['tau','dl','spool'])S.mod[k]=MODS.find(m=>m[1]===k)[3];S.physV=5;save()}};  // v5: heavier feel (Riley found v4's too floaty)
+ if((S.physV|0)<5){for(const k of['tau','dl','spool'])S.mod[k]=MODS.find(m=>m[1]===k)[3];S.physV=5;save()}  /* v5: heavier feel (Riley found v4's too floaty) */
+ if((S.physV|0)<6){if(S.mod.leth===4)S.mod.leth=5;S.physV=6;save()}};  /* v6: the 5 m sure-kill fuse radius (an untouched old 4 m default moves up) */
 function applyTune(){const T=S.mod;G=T.grav;THR=T.thr;TE=T.te;VP=T.vp;MAXV=T.maxv;TAU=T.tau/1000;DL=T.dl;DQ=T.dq;FS=T.fs;DRAD=.8*T.size;MSZ=T.size/.5;{const k=MSZ;HBR=.04*k;DI=.1*k*k;  // collision hull: 4 fin tips (it stands on these), 4 prop tips, the nose; 4 cm spheres
   HBP=[[.15,-.36,0],[-.15,-.36,0],[0,-.36,.15],[0,-.36,-.15],[.27,.15,.27],[-.27,.15,.27],[.27,.15,-.27],[-.27,.15,-.27],[0,.4,0]].map(([x,y,z])=>new V3(x,y,z).multiplyScalar(k))}SPOOL=T.spool/1000;GF=T.gfric;TURT=T.turtle*Math.PI/180;WASH=T.wash;DB=T.dbounce;BCAP=T.bcap;
  LETH=T.leth;CRASH=T.crash;RELT=T.relt;GSPD=T.speed;SHK=T.shake;bloom.strength=T.bloom*.33;HOV=(G/THR)**(1/TE)}
@@ -677,7 +679,7 @@ function step(dt){const me=player;TK++;IP.snap();GRID.open();try{
 // static scenery (terrain, river, houses, pylons and wires, the forest, the sites' props): matrices once, never walked again by updateMatrixWorld.
 // Moving things stay live: sky, sun, sun disc, cloud deck, rain, the radar's spinning antenna, the light, the sites' building roots (buildings.js freezes their stages)
 {const live=new Set([sky,deck,sunDisc,RADM,rainL,cloudG,sun,sun.target,boomL,hemi,...SITES.map(s=>s.root)]);for(const o of scene.children)if(!live.has(o)&&!o.isLight&&!o.isPoints&&(o.isMesh||o.isGroup||o.isLine))freeze(o)}
-const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
+const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,pdmg,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,

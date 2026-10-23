@@ -130,6 +130,10 @@ jobs:
           - check: flight-golden
             area: interceptor
             run: node tools/flight-golden.mjs
+          # the Jammer King's electronic-warfare duel: the pip under jamming and after a burn-through, distance and emitters, the HUD, the bot, all cleared with the wave
+          - check: zombies-test (ew)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=ew
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

@@ -1,48 +1,64 @@
-// The interceptor's body styled as a 9K32 Strela-2 (9M32) missile: slender olive-drab tube at the real 72 mm-class calibre, glass seeker dome
-// on a short tapered nose, four small canards behind the dome, four clipped folding tail fins it stands on, joint bands, the yellow warhead band
-// and white stencils, and a motor nozzle in the tail. All geometry and textures are built in code. It covers the same envelope as the dart it replaced
-// (nose tip y 0.384, fin tips at r 0.15 / y -0.36), so the collision hull, camera and props stay where they are; the quad arms, motors and props
-// are shared and added by interceptor.js. Body +Y = nose. The nozzle exit sits at (0, -0.375, 0); the exhaust points along local -Y.
+/* The interceptor's body styled as the shoulder-fired Strela-2 missile seen in Ukraine footage (appearance only): a long slim plain tube in dull
+ olive, a small bluish glass seeker dome on a short tapered nose, four small canards just behind it, four thin narrow tail fins and a plain
+ nozzle, with a couple of thin painted bands and faint stencils from a small canvas texture. Also the matching launch tube (strelaLauncher).
+ All geometry and textures are built in code and merged into one mesh per material (shared by every body). It covers the same envelope as
+ the dart it replaced (nose tip y ~0.38, fin tips at r 0.15 / y -0.36), so the collision hull, camera and props stay where they are; the quad arms,
+ motors and props are shared and added by interceptor.js. Body +Y = nose. The nozzle exit sits at (0, -0.375, 0); the exhaust points along local -Y. */
 import * as THREE from 'three';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {tex} from '../../engine/render.js';
 
-const R=.038,Y0=-.31,Y1=.31,H=Y1-Y0;  // main tube radius and extent (the textured part)
-// tube skin: canvas top = nose end (CylinderGeometry puts uv.y=1 at the top), canvas x = around the body starting at +Z
+const R=.03,Y0=-.33,Y1=.3,H=Y1-Y0,PAINT='#3d4430';  /* main tube radius and extent (the textured part), base paint */
+/* tube skin: canvas top = nose end (CylinderGeometry puts uv.y=1 at the top), canvas x = around the body starting at +Z */
 const skin=()=>tex(256,1024,(g,w,h)=>{const row=y=>(Y1-y)/H*h;
- g.fillStyle='#56603a';g.fillRect(0,0,w,h);
- for(let i=0;i<900;i++){const x=Math.random()*w,y=Math.random()*h,l=4+Math.random()*40;g.fillStyle=`rgba(${Math.random()<.5?'20,24,10':'150,160,110'},${.04+Math.random()*.06})`;g.fillRect(x,y,1+Math.random()*2,l)}  // paint streaks
- for(let i=0;i<70;i++){g.fillStyle=`rgba(190,185,160,${.08+Math.random()*.15})`;g.beginPath();g.ellipse(Math.random()*w,Math.random()*h,1+Math.random()*4,1+Math.random()*2,Math.random()*3,0,7);g.fill()}  // chips and scuffs
- const band=(y0,y1,c)=>{g.fillStyle=c;g.fillRect(0,row(y1),w,row(y0)-row(y1))};
- band(.262,.27,'#16181a');band(.178,.212,'#c9a227');band(.172,.178,'#16181a');band(.212,.218,'#16181a');  // seeker / steering joint, warhead band with black edges
- band(.04,.046,'#1d2016');band(-.2,-.194,'#1d2016');band(-.31,-.285,'#1a1c17');  // motor section joints, dark tail ring
- g.fillStyle='rgba(225,222,205,.88)';g.font='bold 30px "Arial Narrow",Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';
- for(const u of[.25,.75]){g.font='bold 30px "Arial Narrow",Arial,sans-serif';g.save();g.translate(u*w,row(-.075));g.rotate(-Math.PI/2);g.fillText('9М32',0,0);g.font='bold 15px Arial,sans-serif';g.fillText('07-83  ★  2/4',0,26);g.restore();
-  g.font='bold 17px "Arial Narrow",Arial,sans-serif';g.save();g.translate(u*w,row(-.243));g.rotate(-Math.PI/2);g.fillText('ОСТОРОЖНО',0,0);g.restore();
-  g.fillStyle='rgba(225,222,205,.88)';g.fillRect(u*w-14,row(.245),28,3);g.fillRect(u*w-14,row(.233),28,3)}  // arming stripes
- g.fillStyle='rgba(30,30,25,.55)';for(const u of[0,.5])g.fillRect(u*w-1,0,3,h)});  // seam lines
+ g.fillStyle=PAINT;g.fillRect(0,0,w,h);
+ for(let i=0;i<500;i++){g.fillStyle=`rgba(${Math.random()<.5?'18,20,12':'120,128,96'},${.025+Math.random()*.04})`;g.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*3,6+Math.random()*50)}  /* faint brush streaks */
+ for(let i=0;i<40;i++){g.fillStyle=`rgba(160,158,135,${.06+Math.random()*.1})`;g.beginPath();g.ellipse(Math.random()*w,Math.random()*h,1+Math.random()*3,1+Math.random()*1.5,Math.random()*3,0,7);g.fill()}  /* small chips */
+ const band=(y0,y1,c)=>{g.fillStyle=c;g.fillRect(0,row(y1),w,Math.max(2,row(y0)-row(y1)))};
+ for(const y of[.238,.118,-.04,-.205])band(y-.0012,y+.0012,'rgba(14,16,12,.85)');  /* section joints */
+ band(.168,.178,'rgba(150,128,52,.8)');band(-.33,-.322,'#202219');  /* one thin dull yellow band, the dark tail ring */
+ g.fillStyle='rgba(205,202,182,.5)';g.textAlign='center';g.textBaseline='middle';
+ for(const u of[.25,.75]){g.save();g.translate(u*w,row(-.11));g.rotate(-Math.PI/2);g.font='bold 24px "Arial Narrow",Arial,sans-serif';g.fillText('9М32М',0,0);
+  g.font='12px Arial,sans-serif';g.fillText('№ 0412  08-84',0,20);g.restore();
+  g.save();g.translate(u*w,row(.05));g.rotate(-Math.PI/2);g.font='11px Arial,sans-serif';g.fillText('ОСТОРОЖНО',0,0);g.restore();
+  g.fillRect(u*w-9,row(.208),18,2)}  /* stencils on two sides; a short arming tick */
+ g.fillStyle='rgba(20,22,16,.4)';for(const u of[0,.5])g.fillRect(u*w,0,2,h)});  /* seam lines */
 
 let M=null;
-const mats=()=>M||(M={skin:new THREE.MeshStandardMaterial({map:skin(),roughness:.62,metalness:.12}),
- olive:new THREE.MeshStandardMaterial({color:0x4f5934,roughness:.6,metalness:.12}),dark:new THREE.MeshStandardMaterial({color:0x1b1d19,roughness:.55,metalness:.3}),
- steel:new THREE.MeshStandardMaterial({color:0x3a3c3e,roughness:.35,metalness:.85,side:THREE.DoubleSide}),soot:new THREE.MeshBasicMaterial({color:0x060606}),
- dome:new THREE.MeshStandardMaterial({color:0x7d8e9a,roughness:.04,metalness:.35,transparent:true,opacity:.5,depthWrite:false}),
- seeker:new THREE.MeshStandardMaterial({color:0xc08a3a,roughness:.25,metalness:1}),ring:new THREE.MeshStandardMaterial({color:0x8a8f93,roughness:.3,metalness:.9})});
+const mats=()=>M||(M={skin:new THREE.MeshStandardMaterial({map:skin(),roughness:.74,metalness:.08}),
+ olive:new THREE.MeshStandardMaterial({color:0x353b29,roughness:.74,metalness:.08}),dark:new THREE.MeshStandardMaterial({color:0x1a1c18,roughness:.6,metalness:.3}),
+ steel:new THREE.MeshStandardMaterial({color:0x2f3133,roughness:.4,metalness:.8,side:THREE.DoubleSide}),soot:new THREE.MeshBasicMaterial({color:0x050505}),
+ glass:new THREE.MeshStandardMaterial({color:0x6d8ca8,roughness:.06,metalness:.55,transparent:true,opacity:.86,depthWrite:false})});
 
-// fin outline in the (radial, y) plane, extruded thin and centred on the plane
+/* thin fin outline in the (radial, y) plane, extruded and centred on the plane; geometry helpers place a part and drop its index so all merge */
 const fin=(pts,t)=>{const s=new THREE.Shape();s.moveTo(...pts[0]);for(const p of pts.slice(1))s.lineTo(...p);s.closePath();return new THREE.ExtrudeGeometry(s,{depth:t,bevelEnabled:false}).translate(0,0,-t/2)};
+const at=(geo,y,ry=0)=>{geo.rotateY(ry).translate(0,y,0);return geo.index?geo.toNonIndexed():geo};
+const merge=a=>{for(const g of a){g.clearGroups();g.deleteAttribute('uv')}return mergeGeometries(a)};
+const four=(mk,y=0)=>[0,1,2,3].map(k=>at(mk(),y,k*Math.PI/2));
+
 let GE=null;
-const geos=()=>GE||(GE={tube:new THREE.CylinderGeometry(R,R,H,28,1,true),
- tail:new THREE.CylinderGeometry(R,.034,.03,28),nozzle:new THREE.CylinderGeometry(.021,.025,.035,20,1,true),throat:new THREE.CircleGeometry(.021,20).rotateX(Math.PI/2),
- nose:new THREE.CylinderGeometry(.03,R,.045,28,1,true),dome:new THREE.SphereGeometry(.029,24,12,0,Math.PI*2,0,Math.PI/2),
- ringD:new THREE.CylinderGeometry(.0315,.0315,.006,28),seeker:new THREE.CylinderGeometry(.012,.018,.016,16),eye:new THREE.SphereGeometry(.009,12,8),
- collar:new THREE.CylinderGeometry(.042,.042,.032,28),
- canard:fin([[R-.002,.255],[R-.002,.3],[.066,.29],[.066,.272]],.003),  // small trapezoid canards just behind the dome
- tfin:fin([[.034,-.21],[.15,-.295],[.15,-.36],[.034,-.342]],.004)});  // clipped tail fins: swept leading edge, square-cut tip it stands on
+const geos=()=>GE||(GE={
+ tube:new THREE.CylinderGeometry(R,R,H,24,1,true).translate(0,(Y0+Y1)/2,0),
+ olive:merge([at(new THREE.LatheGeometry([0,.25,.5,.75,1].map(t=>new THREE.Vector2(.0195+(R-.0195)*(1-t**1.7),Y1+.052*t)),24),0),  /* short tapered nose */
+  ...four(()=>fin([[R-.002,.246],[R-.002,.284],[.052,.276],[.052,.258]],.0025)),  /* small canards just behind the nose */
+  ...four(()=>fin([[R-.002,-.27],[R-.002,-.314],[.15,-.36],[.15,-.318]],.003))]),  /* four thin narrow swept tail fins (it stands on the tips) */
+ dark:merge([at(new THREE.CylinderGeometry(R+.004,R+.004,.03,24),.1),  /* clamp where the quad arms cross the body */
+  at(new THREE.CylinderGeometry(R,R*.9,.006,24),Y0-.003),at(new THREE.SphereGeometry(.008,10,6),.36)]),  /* tail ring; the seeker eye behind the glass */
+ steel:merge([at(new THREE.CylinderGeometry(.0205,.0205,.004,24),.353),at(new THREE.CylinderGeometry(.0165,.0185,.039,18,1,true),-.3555)]),  /* dome retaining ring, plain nozzle */
+ soot:new THREE.CircleGeometry(.0165,18).rotateX(Math.PI/2).translate(0,-.346,0),
+ glass:new THREE.SphereGeometry(.0195,20,10,0,Math.PI*2,0,Math.PI/2).scale(1,1.25,1).translate(0,.354,0)});  /* rounded seeker dome */
 
 export function strelaBody(){const g=new THREE.Group(),m=mats(),G=geos();
- const add=(geo,mat,y,ry=0,shadow=true)=>{const o=new THREE.Mesh(geo,mat);o.position.y=y;o.rotation.y=ry;o.castShadow=shadow;g.add(o);return o};
- add(G.tube,m.skin,0);add(G.tail,m.dark,Y0-.015);add(G.nozzle,m.steel,-.3575);add(G.throat,m.soot,-.345,0,false);
- add(G.nose,m.olive,Y1+.0225);add(G.ringD,m.ring,.356);add(G.seeker,m.seeker,.362,0,false);add(G.eye,m.dark,.37,0,false);add(G.dome,m.dome,.355,0,false);
- add(G.collar,m.dark,.1);  // clamp where the quad arms cross the body
- for(let k=0;k<4;k++){add(G.canard,m.olive,0,k*Math.PI/2);add(G.tfin,m.olive,0,k*Math.PI/2)}
+ for(const k of['tube','olive','dark','steel','soot','glass']){const o=new THREE.Mesh(G[k],m[k==='tube'?'skin':k]);o.castShadow=k!=='soot'&&k!=='glass';g.add(o)}
  return g}
+
+/* the matching launch tube (one merged geometry, a new one each call: zdef.js frees a defence's geometries with it), along local Z with the
+ muzzle at +Z, length L and radius r: end caps, a pistol grip with its trigger guard, the cylindrical battery unit under the front, a simple
+ sight on the left of the front and a shoulder rest */
+export function strelaLauncher(L=1.5,r=.05){const p=(geo,x,y,z,rx=0)=>{geo.rotateX(rx).translate(x,y,z);return geo},Z=L/2;
+ return mergeGeometries([p(new THREE.CylinderGeometry(r,r,L,10,1,true),0,0,0,Math.PI/2),
+  p(new THREE.CylinderGeometry(r*1.25,r*1.25,L*.06,10),0,0,Z-L*.03,Math.PI/2),p(new THREE.CylinderGeometry(r*1.25,r*1.25,L*.06,10),0,0,-Z+L*.03,Math.PI/2),
+  p(new THREE.BoxGeometry(r*.7,r*2.6,r*1.1),0,-r*2,Z*.2,.25),p(new THREE.BoxGeometry(r*.3,r*.3,r*1.6),0,-r*1.3,Z*.2+r*1.1),
+  p(new THREE.CylinderGeometry(r*.7,r*.7,r*3.2,8),0,-r*2.3,Z*.58,-.35),
+  p(new THREE.BoxGeometry(r*.35,r*1.4,r*.35),-r*1.15,r*.9,Z*.62),p(new THREE.BoxGeometry(r*.35,r*.35,r*1.6),-r*1.15,r*1.5,Z*.62),
+  p(new THREE.BoxGeometry(r*.6,r*1.6,r*2.2),0,-r*1.3,-Z*.45)].map(g=>g.index?g.toNonIndexed():g).map(g=>{g.deleteAttribute('uv');return g}))}

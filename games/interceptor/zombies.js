@@ -29,6 +29,7 @@ import {initReentry} from './zreentry.js';
 import {initStratRadar} from './zstratradar.js';
 import {initBosses} from './zbosses.js';
 import './zboss-roster.js';
+import {initEW} from './zew.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 
@@ -218,7 +219,7 @@ export function initZombies(api){
  // one-hit rules: a direct hit always kills; proximity uses pkill; armor 1 turns a proximity kill into damage; 'hard' needs a direct hit
  function outcome(t,r,cv){const K=KIND[t.k]||KIND.shahed;if(r<K.hitR)return'kill';if(K.armor==='hard')return'miss';
   const p=api.pkill(r,cv);if(Math.random()<p)return K.armor===1||K.armor==='boss'?'damage':'kill';
-  const re=r+cv*api.FDLY;if(!t.dmg&&Math.random()<Math.exp(-(((re-1.2)/(5*api.LETH/4))**2)))return'damage';return'miss'}
+  if(!t.dmg&&Math.random()<api.pdmg(r,cv))return'damage';return'miss'}
  Z.outcome=outcome;
  // helper hits: p = the helper's kill chance for this target. Marked targets take double damage from helpers: two rolls (1-(1-p)^2),
  // near-miss damage becomes a kill, and armor is ignored. Unmarked armor turns non-direct hits into damage.
@@ -317,6 +318,7 @@ export function initZombies(api){
  initCampaign(api,G,Z);  // the campaign map and its sectors (zcampaign.js): wraps the hooks above, before the effects and co-op wrap them
  initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
  initBosses(api,G,Z);  // the boss roster (zbosses.js + zboss-*.js): wraps the hooks above, before the effects and co-op layers
+ initEW(api,G,Z);  /* electronic warfare (zew.js): the Jammer King's noise-against-signal duel on the pip, radar and lock-on; the boss module feeds it */
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
  initNet(api,G,Z);  // co-op (znet.js): wraps them again
