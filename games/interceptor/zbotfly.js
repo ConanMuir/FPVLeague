@@ -148,6 +148,7 @@ export function createPilot(api,G,Z,P,E){
     tau=Math.min(tau,60);ip.copy(t.p).addScaledVector(t.v,tau);
     if(KIND[t.k]?.armor==='boss'&&t.spd>60){turnOf(t,dt);if(meet(t,me.p,sp*.95,_c))ip.copy(_c)}  /* a circling boss: where its turn takes it */
     if(!fastT&&t.v.lengthSq()>1){const f=_c.copy(t.v).normalize(),ahead=rel.dot(f)<0;ip.addScaledVector(f,-Math.min(ahead?420:220,d*(ahead?.35:.12)))}  /* slow tracks: come in toward their six, wider when meeting one head-on */
+    if(d>=dTerm&&Z.ew&&Z.lk?.t===t)Z.ew.skew(ip,me.p,d);  /* locked: it flies to the pip the HUD shows, so jamming (zew.js) moves what it flies to, as it moves the HUD's; the last run-in is by eye */
     if(d<dTerm)ip.add(st.aimN);Vd.subVectors(ip,me.p).setLength(sp);kv=d<dTerm?3.2:1.6;
     st.intent=`${d<dTerm?'closing on':'chasing'} ${name(t)} · ${rng(d)}`;
     // lock-on: a pilot who uses it holds its sights on a track it is coming up behind or abeam (one meeting it head-on it turns into the six of first)

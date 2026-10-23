@@ -85,8 +85,8 @@ const js = await p.evaluate(() => { const {api} = __z; let t0 = performance.now(
 console.log('late wave perf', JSON.stringify({...perf, ...js}));
 await p.evaluate(() => { clearInterval(window.__hold); clearInterval(window.__keep); });
 
-// ---------- Classic is untouched: no time scale, no FX state ----------
+// ---------- the menu: no time scale, no FX state ----------
 const cl = await p.evaluate(() => { __z.api.startDemo(); return {tsc: __z.Z.tsc, on: __z.Z.on, fires: __z.Z.fxState().fires}; });
-ok(cl.tsc === 1 && !cl.on && cl.fires === 0, 'menu / Classic: time scale 1, FX cleared');
+ok(cl.tsc === 1 && !cl.on && cl.fires === 0, 'menu: time scale 1, FX cleared');
 ok(!errs.length, 'no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
 await b.close(); server.close(); process.exit(fails ? 1 : 0);

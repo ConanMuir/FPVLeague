@@ -1,4 +1,4 @@
-// Zombies battery: a bigger pack than Classic (zswdata BAT.k x the tuned capacity; Classic keeps Riley's 16,000 mAh), Better battery doubles
+// Zombies battery: a bigger pack than the tuned one (zswdata BAT.k x the mod panel's Battery, 16,000 mAh by default), Better battery doubles
 // it, and the top bar shows what is left: charge, flight time at full throttle (with the swarm's draw) and the range that gives at
 // cruise (or at your recent average speed when that is faster, e.g. under Rocket Assist). The pack itself is still Riley's model in interceptor.js; zperk.js sets its capacity (api.BCAP).
 import {BAT,SW} from './zswdata.js';
