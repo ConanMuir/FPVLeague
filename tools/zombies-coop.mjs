@@ -380,6 +380,29 @@ const onScreens = id => Promise.all([A, B].map(C => until(C, id => __z.api.TH.so
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }
 
+// ---------- the wave's end on a client (zbosses.js): the base and game-over screens pause a client's sim, so a client that never gets a step in the wave's clear state must still see the wave end ----------
+{ await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(5);
+  const id = await lastBoss('boss');
+  ok(await until(B, () => __z.Z.bosses.shadows.some(m => m.visible)), 'Wave end: the Mothership is the last track of wave 5 and its shadow is down on Bea\'s ground');
+  const stages = () => ev(H, id => __z.api.TH.find(t => t.id === id)?.stages | 0, id);
+  for (let i = 0; i < 8 && await stages() > 1; i++) await burstAt(A, id);
+  ok(await stages() === 1, 'Wave end: Ash\'s bursts have taken the Mothership down to its last pod');
+  /* the last pod goes while the host holds its snapshots, and the host runs the clear window out in one go: the clients are told "base", never "clear" */
+  await ev(H, () => { __z.net.n.sendT = performance.now() + 1e5; });
+  await ev(A, id => { const {api, Z} = __z, me = api.player, t = api.TH.find(t => t.id === id); if (me.dead > 0) api.launch(); me.p.copy(t.p).addScaledVector(t.v.clone().normalize(), -1); me.v.copy(t.v); Z.detonate(); }, id);
+  ok(await until(H, id => !__z.api.TH.some(t => t.id === id && __z.api.live(t)), id), 'Wave end: the last pod goes, the Mothership is down on the host');
+  await ev(H, () => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; for (let i = 0; i < 40 && __z.G.state !== 'base'; i++) __z.sim(.5); __z.net.n.sendT = 0; });
+  for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base') && await until(C, () => !__z.Z.bosses.shadows.some(m => m.visible)), `${C.name}: on the base screen the Mothership's shadow is gone, though ${C.name} never saw the clear state`);
+  /* a game over with the Hush in the air: the darkness and the fight go from the client's screen as they do from the host's */
+  await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(6);
+  await lastBoss('hush');
+  ok(await until(A, () => __z.Z.atmos.sources > 0) && await until(B, () => __z.Z.atmos.sources > 0), 'Wave end: the Hush\'s darkness is down on both clients');
+  await ev(H, () => { __z.Z.gameOver(); __z.sim(.1); });
+  for (const P of all) ok(await until(P, () => __z.G.state === 'over') && await until(P, () => { const f = __z.Z.bosses.fx(); return __z.Z.atmos.sources === 0 && !f.grade && !f.encs && !f.bar; }), `${P.name}: game over, and the Hush's darkness, grade and boss bar are gone`);
+}
+
 // ---------- campaign (zcampaign.js): the host plays a sector of their campaign; the clients play it with them; only the host's save moves ----------
 { const c0 = await ev(A, () => JSON.stringify(__z.api.S.zcamp ?? null));
   await ev(H, () => __z.Z.cp.start('hosp', true));
