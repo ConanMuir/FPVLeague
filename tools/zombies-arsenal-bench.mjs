@@ -22,7 +22,7 @@ const browser = await launch({w: 640, h: 360});
 async function run(L, conf, idx) {
   const ctx = await browser.createBrowserContext(), errs = [], p = await open(browser, origin + '/games/interceptor/', errs, {w: 640, h: 360, page: await ctx.newPage()});
   try {
-    await p.evaluate((zd, ban, wx) => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd, wx: 'clear', zmus: 0, zarsBan: ban, ...(wx === 'clear' ? {zwx: 'menu'} : {})})), ZD, banOf(conf), WX);
+    await p.evaluate((zd, ban, wx) => { localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd, wx: 'clear', zmus: 0, zarsBan: ban, ...(wx === 'clear' ? {zwx: 'menu'} : {})})); sessionStorage.setItem('zcodex', 'all'); }, ZD, banOf(conf), WX);  /* the full boss roster (zcodex.js) */
     await p.reload({waitUntil: 'load', timeout: 180000}); await p.waitForFunction(() => window.__z, {timeout: 180000});
     await p.evaluate(() => document.getElementById('play').click());
     await p.waitForFunction(() => __z.G.state === 'base', {timeout: 60000});
