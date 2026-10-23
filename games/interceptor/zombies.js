@@ -30,6 +30,7 @@ import {initStratRadar} from './zstratradar.js';
 import {initBosses} from './zbosses.js';
 import './zboss-roster.js';
 import {initEW} from './zew.js';
+import {initSell} from './zsell.js';
 import {initCodex} from './zcodex.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
@@ -327,5 +328,6 @@ export function initZombies(api){
  initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
  initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
+ initSell(api,G,Z);  // selling anything you own with an Undo until the wave starts (zsell.js); the base screen reads Z.sell, so it only wraps the base open / close and start / stop
  initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
  return Z}
