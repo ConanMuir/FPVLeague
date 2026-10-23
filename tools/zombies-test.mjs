@@ -84,6 +84,9 @@ if (want('zombies')) {
   ok(cat.n === cat.all && !cat.kit && cat.groups === 'Helpers/Supplies for the next wave/Active perks/Passive perks' && !cat.reroll, `Shop lists every item but kit (${cat.n}) in groups ${cat.groups}, no reroll`);
   const bought = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); if (i < 0) return 'no rack'; document.querySelector(`[data-buy="${i}"]`).click(); return !!document.querySelector('[data-slot]'); });
   ok(bought === true, 'Base: buying the rack card asks for a position');
+  await p.keyboard.press('Escape'); const esc1 = await p.evaluate(() => ({menu: __z.api.menuOpen, placing: !!__z.G.placing})); await p.keyboard.press('Escape');
+  const esc2 = await p.evaluate(() => ({menu: __z.api.menuOpen, placing: !!__z.G.placing, slots: document.querySelectorAll('[data-slot]').length}));
+  ok(esc1.menu && esc1.placing && !esc2.menu && esc2.placing && esc2.slots > 0, 'Base: Esc opens the menu and Esc closes it again with the placement still pending (Cancel backs out of it)');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-place.png'});
   await p.click('[data-slot]');
   const arm = await p.evaluate(() => ({n: __z.Z.def.D.length, cash: __z.G.cash, armory: !!document.querySelector('[data-up]')}));
