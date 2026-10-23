@@ -115,10 +115,12 @@ export function buildDF(){if(dfBuilt)return;dfBuilt=true;LOOKS.df.bg=skyTex(DFC)
  // the caves: unlit rock with its light baked in (the sun can't reach), team-coloured guide strips, and a gold trim round each entrance (no light beams: the user asked for them gone)
  {CAVES=buildCaves();const geo=M=>{const q=new THREE.BufferGeometry();q.setAttribute('position',new THREE.Float32BufferAttribute(M.p,3));q.setAttribute('color',new THREE.Float32BufferAttribute(M.c,3));q.setIndex(M.i);return q};
   dfG.add(new THREE.Mesh(geo(CAVES.walls),new THREE.MeshBasicMaterial({vertexColors:true})),new THREE.Mesh(geo(CAVES.strips),new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,side:THREE.DoubleSide})));
-  // the gold trim round each entrance: a thin tube along the rim of the hole (just outside it, sunk so it stands ~0.3 m proud of the
-  // ground). Decoration only: no collider, nothing in the map SDF; the opening it frames is the tunnel itself
-  const gold=glow(0xffd36a,1.6);for(const e of CAVE.entrances){const n=new V3(...e.n),c=new V3(...e.p),pts=e.rim.map(q=>{const p=new V3(...q),o=p.clone().sub(c);o.addScaledVector(n,-o.dot(n)).normalize();return p.addScaledVector(o,.55).addScaledVector(n,-.15)});
-   dfG.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true),144,.45,8,true),gold))}}
+  // the gold trim round each entrance: a thin tube along the rim of the hole, sunk so it stands ~0.35 m proud of the ground. It straddles
+  // the rim (0.4 m in, 0.6 m out): the terrain's cut edge and the tunnel wall's top edge are both polylines that wander 0.1-0.2 m either
+  // side of the true rim, and a tube just outside it left their seam showing as dark slits and pale wedges along its inner edge.
+  // Decoration only: no collider, nothing in the map SDF; the opening it frames is the tunnel itself
+  const gold=glow(0xffd36a,1.6);for(const e of CAVE.entrances){const n=new V3(...e.n),c=new V3(...e.p),pts=e.rim.map(q=>{const p=new V3(...q),o=p.clone().sub(c);o.addScaledVector(n,-o.dot(n)).normalize();return p.addScaledVector(o,.1).addScaledVector(n,-.15)});
+   dfG.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true),144,.5,8,true),gold))}}
  {const T=dfGrid(),n1=T.nx+1,y=CANY+.6,P=[],I=[];for(let z=0;z<T.nz;z++)for(let x=0;x<T.nx;x++){const i=z*n1+x;if(Math.min(T.h[i],T.h[i+1],T.h[i+n1],T.h[i+n1+1])>y)continue;const b=P.length/3,x0=-T.w/2+x*T.w/T.nx,z0=-T.l/2+z*T.l/T.nz,x1=x0+T.w/T.nx,z1=z0+T.l/T.nz;
   P.push(x0,y,z0,x1,y,z0,x1,y,z1,x0,y,z1);I.push(b,b+2,b+1,b,b+3,b+2)}const WC=clipIndexed(P,I,[],(x,y,z)=>sdCave(x,y,z,null,1)),wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(WC.p,3));wg.setIndex(WC.idx);wg.computeVertexNormals();
   dfG.add(new THREE.Mesh(wg,new THREE.MeshStandardMaterial({color:0x2f6f8a,roughness:.15,metalness:.2,transparent:true,opacity:.82})))}  // the river: only the grid cells that dip below it (an infinite plane showed up inside the cave entrances)

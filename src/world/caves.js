@@ -14,7 +14,9 @@ const top=(x,z,a)=>{let m=-1e9;for(const dx of[-14,0,14])for(const dz of[-14,0,1
 // above the entrances; lower level: D0 deep hall under H0, D1 deep cavern under the blue half (D1' orange)
 const N={H0:[0,-100,0],H1:[-250,-95,280],A:[150,-88,330],B:[300,-90,60],D0:[0,-200,0],D1:[-290,-190,140],
  S1:[-95,top(-95,545,22),545],  // hillside ramp beside the blue base (~115 m from the pad), down to H1
- S2:[cxR(-200)+6,-22,-200],     // ramp out of the river canyon's east wall, down to the hall
+ S2:[cxR(-200)+44,15,-200],     // ramp out of the river canyon's east wall, down to the hall
+ /* S2 sits 44 m out from the canyon's centre line and 15 m up: the mouth lands on the wall, its rim 27 m and its pad 5 m above the
+    water. 6 m out and 18 m up, the axis met the flooded floor instead: half the rim lay under the river, the tilted pad a crater in the bed */
  S3:[300,top(300,60,25),60]};   // vertical shaft in the open hills, down to the ring at B
 for(const k of Object.keys(N))if(k!=='H0'&&k!=='D0')N[mn(k)]=mir(N[k]);
 // caverns: round halls (drums: flat floor, straight wall, rounded edges; [radius, half-height]). Tunnels meet the straight wall square
@@ -58,7 +60,10 @@ function dense(P,f,round){const R=[P[0]];for(let i=1;i<P.length-1;i++){const u=n
   for(let i=0;i<40&&n[0]*md[0]+n[1]*md[1]+n[2]*md[2]<cmax;i++)n=nrm(n.map((v,j)=>v+(md[j]-v)*.05));if(n[1]<.5)n=nrm([n[0],.5/Math.sqrt(.75)*Math.hypot(n[0],n[2]),n[2]]);
   const e1=nrm([d[1]*0-d[2]*1,d[2]*0-d[0]*0,d[0]*1-d[1]*0]),u0=hl>.05?e1:[1,0,0],v0=[d[1]*u0[2]-d[2]*u0[1],d[2]*u0[0]-d[0]*u0[2],d[0]*u0[1]-d[1]*u0[0]],nd=n[0]*d[0]+n[1]*d[1]+n[2]*d[2];
   const rim=Array.from({length:144},(_,i)=>{const a=i/144*Math.PI*2,u=[0,1,2].map(j=>Math.cos(a)*u0[j]+Math.sin(a)*v0[j]),t=-p.r*(n[0]*u[0]+n[1]*u[1]+n[2]*u[2])/nd;return[0,1,2].map(j=>c[j]+d[j]*t+u[j]*p.r)});
-  const ext=Math.max(...rim.map(q=>Math.hypot(q[0]-c[0],q[2]-c[2])));MOUTHS.push({c,n,r:ext+3,b:22});
+  /* the pad's flat part reaches 12 m past the rim: the terrain grid's ~7 m cells put a vertex of a triangle the rim crosses up to 10 m
+     beyond it, and a vertex in the blend bends that triangle off the plane (2 m at the canyon mouth, where the wall is 20 m off the plane
+     a few metres out; the hole was no longer the ellipse the trim follows) */
+  const ext=Math.max(...rim.map(q=>Math.hypot(q[0]-c[0],q[2]-c[2])));MOUTHS.push({c,n,r:ext+12,b:22});
   CAVE.entrances.push({p:c,d,n,r:p.r,rim,top:p.pts[0],name:p.n.split('-')[0]})}}
 // is the straight line between a route end and a graph point inside the caves (so they can be joined)?
 function inside(a,q){for(let i=1;i<8;i++){const w=i/8;if(sdCave(a[0]+(q.x-a[0])*w,a[1]+(q.y-a[1])*w,a[2]+(q.z-a[2])*w)>-2)return false}return true}
