@@ -15,7 +15,7 @@
 //    uploaded as burns spread) and costs a texture fetch on every ground pixel for scars that cover a sliver of the screen; a decal costs
 //    only the pixels it covers, and its spread is one float per instance (the texture holds the order the ground ignites in)
 //  - quality (engine/gfx.js scar, scFar): fewer shown and a nearer fade at Medium and Low; the records (and the save) keep all of them
-// Authority: scars are made only by the solo player or the co-op host. Hooks: zombies.js calls initScars(api,G,Z) once, last; it wraps Z.flash (every
+// Authority: scars are made only by the solo player or the co-op host. Hooks: zombies.js calls initScars(api,G,Z) once, near the end (only the codex comes after it); it wraps Z.flash (every
 // explosion), start, stop and visuals. znet.js carries Z.sc.netOut / netIn in the snapshot; zcampaign.js keeps S.zcamp.sc.
 import {later,warmers} from '../../engine/idle.js';
 import {gfx} from '../../engine/gfx.js';
