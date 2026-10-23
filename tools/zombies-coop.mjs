@@ -206,11 +206,28 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   ok(await until(B, k => { const b = __z.Z.bd.BD.get(k); return b && b.ids.join() === 'squash,pod,lr,armor' && b.model?.kind === 'parts' && b.tag?.userData.text === 'Ash\'s Little Buddy'; }, aKey), 'Buddy: on Bea\'s screen Ash\'s buddy is built from his parts (Squash-H, Pod, Long-Range, Armor) with the tag "Ash\'s Little Buddy"');
   const st2 = await ev(H, k => { const b = __z.Z.bd.BD.get(k); return {tuf: b.st.tuf, end: b.st.end, agi: b.st.agi}; }, aKey), bs = await ev(B, k => { const b = __z.Z.bd.BD.get(k); return {tuf: b.st.tuf, end: b.st.end, agi: b.st.agi}; }, aKey);
   ok(st2.tuf === bs.tuf && st2.end === bs.end && st2.agi === bs.agi && st2.end > 100, `Buddy: the host and Bea work Ash's buddy out the same from his parts (charge ${Math.round(st2.end)} s, hp ${Math.round(st2.tuf)}, agility ${Math.round(st2.agi)})`);
+  // sync of a buddy at rest: Ash's buddy parked on the pad on the host shows at the same spot on Bea's screen (nothing moves, so there is no lag to allow for)
+  { const pad = await ev(H, k => { const b = __z.Z.bd.BD.get(k); b.state = 'pad'; b.job = 'perch'; b.jt = 1e9; b.v.set(0, 0, 0); __z.sim(.1); return b.p.toArray(); }, aKey);
+    ok(await until(B, ([k, x, y, z]) => { const b = __z.Z.bd.BD.get(k); return b.state === 'pad' && b.p.distanceTo(new __z.api.THREE.Vector3(x, y, z)) < 2; }, [aKey, ...pad]), 'Buddy sync: Ash\'s buddy parked on the pad on the host is within 2 m of that spot on Bea\'s screen'); await ev(H, k => { __z.Z.bd.BD.get(k).jt = 0; }, aKey); }  /* released: it picks a job again */
   // small drones near the pad send them out; Ash's buddy flies on the host, Bea's copy follows it
   await ev(H, () => { const {api} = __z; for (let i = 0; i < 6; i++) { const x = 100 + i * 40, z = 1500, t = __z.make('decoy', x, z); t.p.set(x, api.gh(x, z) + 60, z); t.alt = 60; t.v.set(0, 0, 0); t.spd = t.cs = .5; t.wps.length = 0; t.cpb = 1; } __z.sim(6); });
   ok(await until(H, k => __z.Z.bd.BD.get(k).state === 'fly', aKey) && await until(B, k => __z.Z.bd.BD.get(k).state === 'fly', aKey), 'Buddy: Ash\'s buddy takes off on the host and Bea sees it fly');
-  { const best = async () => { let w = 1e9; for (let i = 0; i < 8; i++) { const h = await ev(H, k => __z.Z.bd.BD.get(k).p.toArray(), aKey), c = await ev(B, k => __z.Z.bd.BD.get(k).p.toArray(), aKey); w = Math.min(w, Math.hypot(h[0] - c[0], h[1] - c[1], h[2] - c[2])); if (w < 120) break; await sleep(120); } return w; };
-    const w = await best(); ok(w < 150, `Buddy sync: Ash's buddy is ${w.toFixed(0)} m apart between the host and Bea (snapshots 10 Hz, ${DELAY} ms delay, dead reckoning, a buddy at 60 m/s)`); }
+  // sync of a buddy in flight: the host flies Ash's buddy along a straight line at 60 m/s (scripted, so where it is at any moment is known exactly). Bea's copy must be
+  // on that line, never ahead of the host, and behind it by no more than the snapshot interval, twice the net delay and the gap between the two reads allow, stretched by how
+  // far her own game clock runs behind the wall clock (a starved page dead-reckons less per second): the metres follow speed x lag, not a fixed number
+  await ev(H, k => { const {api, Z} = __z, V = api.THREE.Vector3, P0 = new V(-1200, 0, 4200); P0.y = api.gh(-1200, 3000) + 700; const L = window.__line = {t: 0, v: 60, dir: new V(0, 0, -1), P0, on: true}, s0 = Z.step;
+    Z.step = dt => { s0(dt); const b = Z.bd.BD.get(k); if (!L.on || !b || b.state === 'off') return; L.t += dt; const s = L.v * (L.t % 80); b.state = 'fly'; b.job = 'escort'; b.jt = 1e9; b.tgt = null; b.hp = b.st.tuf; b.chg = b.st.end; b.p.copy(L.P0).addScaledVector(L.dir, s); b.v.copy(L.dir).multiplyScalar(L.v); if (L.t === dt) api.interp.cut(b); }; }, aKey);
+  for (const P of [H, B]) await ev(P, () => { window.__gt = 0; const s0 = __z.Z.step; __z.Z.step = dt => { s0(dt); window.__gt += dt; };
+    window.__w = (k, L) => { const V = __z.api.THREE.Vector3, b = __z.Z.bd.BD.get(k), d = new V(...L.dir), r = b.p.clone().sub(new V(...L.P0)), s = r.dot(d); return {s, perp: r.addScaledVector(d, -s).length(), st: b.state, gt: window.__gt, w: performance.timeOrigin + performance.now()}; }; });
+  { const L = await ev(H, () => ({P0: __line.P0.toArray(), dir: __line.dir.toArray(), v: __line.v}));
+    ok(await until(B, ([k, L]) => { const c = __w(k, L); return c.st === 'fly' && c.perp < 3 && c.s > 0; }, [aKey, L]), 'Buddy sync: Bea\'s copy of Ash\'s buddy picks up the host\'s line');
+    const S = [];
+    for (let i = 0; i < 6; i++) { const t0 = Date.now(), c = await ev(B, ([k, L]) => __w(k, L), [aKey, L]), h = await ev(H, ([k, L]) => __w(k, L), [aKey, L]); S.push({c, h, gap: (Date.now() - t0) / 1000}); await sleep(150); }
+    const first = S[0], last = S.at(-1), wall = (last.c.w - first.c.w) / 1000, game = last.c.gt - first.c.gt, stretch = Math.max(1, game > 0 ? wall / game : 99);
+    const lag = S.map(x => (x.h.s - x.c.s) / L.v), allow = S.map(x => (.25 + 2 * DELAY / 1000 + x.gap) * stretch * 1.5 + .25), best = Math.min(...lag.map((l, i) => l - allow[i]));
+    ok(S.every(x => x.c.perp < 3 && x.h.perp < 3 && x.c.s <= x.h.s + 1), `Buddy sync: Bea's copy stays on the host's line (worst ${Math.max(...S.map(x => x.c.perp)).toFixed(1)} m off it) and never ahead of the host`);
+    ok(best <= 0 && last.c.s - first.c.s > .5 * (last.h.s - first.h.s), `Buddy sync: Bea's copy follows Ash's buddy at 60 m/s about ${Math.min(...lag).toFixed(2)} s behind at best (about ${(Math.min(...lag) * L.v).toFixed(0)} m; allowed for the snapshot interval, ${2 * DELAY} ms of delay and the read gap, x${stretch.toFixed(1)} for her starved clock)`); }
+  await ev(H, () => { __line.on = false; });
   ok(await until(A, () => { const c = document.getElementById('zbd'); return !c.hidden && /LITTLE BUDDY/.test(c.textContent) && /HP/.test(c.textContent); }), `Buddy: Ash's HUD card is up ("${(await ev(A, () => document.getElementById('zbd').textContent)).replace(/\s+/g, ' ').slice(0, 50)}")`);
   // a crash on the host shows on every screen, and the card says so
   await ev(H, k => { __z.Z.bd.BD.get(k).hp = 0; __z.sim(1); }, aKey);
@@ -270,9 +287,12 @@ ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is
   const ids = await ev(H, ([x, y, z]) => { const {api, G} = __z, out = []; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
     for (let i = 0; i < 3; i++) { const t = __z.make('shahed', x + 15 + i * 8, z - 20); t.p.set(x + 15 + i * 8, y + 2, z - 20 - i * 5); t.alt = t.p.y - api.gh(t.p.x, t.p.z); t.spd = t.cs = 4; t.v.set(0, 0, -4); t.wps.length = 0; out.push(t.id); } return out; }, P0);
   ok(await until(A, ids => ids.every(id => __z.api.TH.some(t => t.id === id && __z.api.live(t))), ids), 'Arsenal: Ash sees the three Shaheds next to him');
+  ok(await until(B, ids => ids.every(id => __z.api.TH.some(t => t.id === id && __z.api.live(t))), ids), 'Arsenal: Bea sees the three Shaheds too (the stun is an event: a screen without the tracks when it arrives never shows it)');
+  await ev(B, ids => { window.__emp = new Set(); clearInterval(window.__empIv); window.__empIv = setInterval(() => { for (const t of __z.api.TH) if (t.emp > 0) __emp.add(t.id); }, 15); }, ids);  /* the stun lasts 4.5 s: a slow runner can miss it between two polls, so it is recorded as it happens */
   await ev(A, () => __z.Z.detonate());
   ok(await until(H, ids => ids.every(id => __z.api.TH.find(t => t.id === id)?.emp > 0), ids), 'Arsenal: the host resolves Ash\'s EMP with the solo rules: all three disabled');
-  ok(await until(B, ids => ids.filter(id => __z.api.TH.find(t => t.id === id)?.emp > 0).length === 3, ids), 'Arsenal: Bea sees them disabled');
+  ok(await until(B, ids => ids.every(id => __emp.has(id)), ids), 'Arsenal: Bea sees them disabled');
+  await ev(B, () => clearInterval(window.__empIv));
   ok(await until(A, () => /^EMP — 3 DISABLED/.test(__z.G.det?.txt || '')), 'Arsenal: Ash gets the readout from the host ("EMP — 3 DISABLED")');
   await ev(A, () => { __z.net.n.late = false; __z.api.launch(); });
   // the host builds a laser battery mid-wave (meshes go up on every screen with a redeploy) and gives it a track
