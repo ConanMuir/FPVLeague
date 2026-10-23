@@ -126,6 +126,15 @@ jobs:
           - check: intercept-check
             area: interceptor
             run: node tools/intercept-check.mjs
+          # visual glitch guards (tools/glitch-check.mjs): the river below its banks, weather motes at the lens, dynamic-resolution target
+          # sizes, the Dogfight cave-mouth trim over its seam
+          - check: glitch-check (Interceptor)
+            area: interceptor
+            run: node tools/glitch-check.mjs river motes dynres --only=interceptor
+          - check: glitch-check (League)
+            area: league
+            build: true
+            run: node tools/glitch-check.mjs motes dynres mouths --only=league
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor
@@ -138,6 +147,10 @@ jobs:
           - check: bot-ladder-check
             area: league
             run: node tools/bot-ladder-check.mjs
+          # selling with an Undo until the wave starts (the refund rule, opened positions, a dome's stock, the kill chain, a co-op client's request to the host) and the campaign map's three-modifier cap
+          - check: zombies-test (sell)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=sell
           # the arsenal's kill ledger: one short bot run (Pro, Normal, 12 waves); the tool must run and book every kill to an item (the full table is docs/ARSENAL-STATS.md)
           - check: arsenal-stats (quick)
             area: interceptor

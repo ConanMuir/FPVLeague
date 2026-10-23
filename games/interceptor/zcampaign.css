@@ -51,6 +51,11 @@
 .zc-n.locked .zc-nm{fill:rgba(223,232,255,.55)}
 .zc-mi rect{fill:rgba(8,12,22,.9);stroke:rgba(255,198,64,.45)}.zc-mi text{font:700 14px var(--mono);text-anchor:middle;fill:#ffd77a}
 .zc-n.locked .zc-mi rect{stroke:rgba(255,255,255,.15)}.zc-n.locked .zc-mi text{fill:rgba(255,215,122,.5)}.zc-n.held .zc-mi{opacity:.55}
+/* a sector's "+n" chip (the strongest three modifiers show, this opens the rest) and its list */
+.zc-more{cursor:pointer}.zc-more rect{fill:rgba(8,12,22,.9);stroke:rgba(255,198,64,.8);stroke-dasharray:3 2}.zc-more text{font:700 12px var(--mono);text-anchor:middle;fill:#ffd77a}.zc-more:hover rect{fill:rgba(255,198,64,.2)}
+.zc-n.locked .zc-more rect{stroke:rgba(255,255,255,.25)}.zc-n.locked .zc-more text{fill:rgba(255,215,122,.5)}.zc-n.held .zc-more{opacity:.55}
+.zc-pop{visibility:hidden;pointer-events:none}.zc-pop.show,.zc-pop.pin{visibility:visible}.zc-pop rect{fill:rgba(8,12,22,.97);stroke:rgba(255,198,64,.6)}
+.zc-pg{font:700 14px var(--mono);text-anchor:middle;fill:#ffd77a}.zc-pn{font:12px var(--mono);fill:#dfe8ff}
 .zc-pr{font:700 15px var(--mono);fill:#ff4d4d;paint-order:stroke;stroke:#05070d;stroke-width:3px}
 .zcpmap .zleg .lh{background:rgba(61,149,255,.55);border-radius:2px}.zcpmap .zleg .lf{border:1.5px solid #ffc640;border-radius:50%;box-sizing:border-box}
 .zcpmap .zleg .ll{background:repeating-linear-gradient(45deg,rgba(255,77,77,.5) 0 2px,transparent 2px 5px);border-radius:2px}
