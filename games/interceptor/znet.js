@@ -80,7 +80,7 @@ export function initNet(api,G,Z){
   try{r=await(room.p2p?room.join('z'+code,isHost):room.join('dlz-'+code))}catch(e){const c=e?.code||'error';if(isHost&&c==='taken')return enter(Math.random().toString(36).slice(2,6),true);
    msg(c==='not_found'?'No game found with that code.':c==='timeout'?'Could not reach that game. Check the code and your connection.':c==='load_failed'?'Could not load the online library. Check your internet connection.':`Could not open that game (${c}). Try again.`,1);return}
   const n=net={r,code,host:isHost,me:null,hostPeer:null,peers:[],last:{},t0:performance.now(),gone:0,tk:0,sendT:0,vt:0,
-   eid:0,evs:[],hk:{},ak:{},esv:{},rdv:{},ltv:{},skv:{},ktv:{},kt:{},perks:{},kc:{},dr:{},names:{},order:[],rj:[],gid:1,sn:0,snapIv:100,mute:0,
+   eid:0,evs:[],hk:{},ak:{},esv:{},rdv:{},ltv:{},skv:{},srv:{},ktv:{},kt:{},perks:{},kc:{},dr:{},names:{},order:[],rj:[],gid:1,sn:0,snapIv:100,mute:0,
    out:[],oseq:Date.now(),evSeen:-1,drSeen:0,ts:new Map(),tm:new Map(),pl:[],gid0:0,late:false,rd:0,pil:new Map(),sig:'',nx:null,nxJ:'',pkJ:''};
   r.onPeers(ch=>{if(net!==n)return;n.peers=ch.peers;const me=ch.peers.find(p=>p.sameTab);if(me)n.me=me.peer},
    e=>{if(net===n)ended(e.code==='host_left'?'The host left the game. Co-op game over.':`Lost connection to the game (${e.code}).`)});
@@ -102,7 +102,7 @@ export function initNet(api,G,Z){
  function tick(){if(!net)return;const now=performance.now();if(now-net.tk<15)return;net.tk=now;recv(now);if(net)send(now)}
  setInterval(()=>{if(net&&performance.now()-net.tk>150)tick()},100);
  const pack=d=>[+d.p.x.toFixed(2),+d.p.y.toFixed(2),+d.p.z.toFixed(2),+d.q.x.toFixed(3),+d.q.y.toFixed(3),+d.q.z.toFixed(3),+d.q.w.toFixed(3),+d.v.x.toFixed(1),+d.v.y.toFixed(1),+d.v.z.toFixed(1)];
- function send(now,force){const n=net;if(!n||!force&&now-n.sendT<(n.host?n.snapIv:50))return;n.sendT=now;const me=api.player,P={z:1,n:myName(),rd:n.rd|0,es:n.evSeen,lt:n.late?1:0,sk:G.streak|0,kt:Z.meta.load().kit};
+ function send(now,force){const n=net;if(!n||!force&&now-n.sendT<(n.host?n.snapIv:50))return;n.sendT=now;const me=api.player,P={z:1,n:myName(),rd:n.rd|0,es:n.evSeen,sr:Z.sc?.cRev??-1,lt:n.late?1:0,sk:G.streak|0,kt:Z.meta.load().kit};
   if(me&&G.on&&!api.demo){P.s=pack(me);P.d=me.dead>0?1:0;P.rk=(me.boost||0)>1?1:0;const s=api.selT();P.sl=s&&me.dead<=0&&me.v.lengthSq()>64&&api.live(s)&&s.p.distanceTo(me.p)<1500?s.id:0;const sw=Z.swOut?.();if(sw)P.sw=sw;const bd=Z.bdOut?.();if(bd)P.bd=bd}  /* P.bd: my Little Buddy's garage loadout (zbuddy.js) */
   if(n.host){if(G.on)P.g=snap(now)}else P.ev=n.out.slice(-32);
   n.r.presence(P).catch(()=>{});
@@ -143,10 +143,10 @@ export function initNet(api,G,Z){
  function hostPeer(k,pr){const n=net;if(n.rj.includes(k))return false;
   if(!n.names[k]){if(Object.keys(n.names).length>=MAXP-1){n.rj.push(k);return false}n.names[k]=clean(pr.n);n.order.push(k);n.kc[k]=n.kc[k]|0;n.hk[k]=0;
    team(`<b>${n.names[k]}</b> joined${G.state==='base'||G.state==='over'?'':' · in at the next base screen'}`)}
-  n.names[k]=clean(pr.n);n.skv[k]=pr.sk|0;n.rdv[k]=pr.rd|0;n.ltv[k]=pr.lt?1:0;n.esv[k]=Number.isFinite(+pr.es)?+pr.es:-1;n.ktv[k]=kitOf(pr.kt);
+  n.names[k]=clean(pr.n);n.skv[k]=pr.sk|0;n.srv[k]=Number.isFinite(+pr.sr)?+pr.sr:-1;n.rdv[k]=pr.rd|0;n.ltv[k]=pr.lt?1:0;n.esv[k]=Number.isFinite(+pr.es)?+pr.es:-1;n.ktv[k]=kitOf(pr.kt);
   if(Array.isArray(pr.ev))for(const e of pr.ev){if(!Array.isArray(e)||!(+e[0]>(n.hk[k]||0)))continue;n.hk[k]=+e[0];try{apply(k,e.slice(1),+e[0])}catch(err){console.warn('co-op request',err)}}
   n.ak[k]=n.hk[k];return true}
- function gone(k){const n=net,nm=n.names[k];if(!nm)return;for(const o of[n.names,n.esv,n.rdv,n.ltv,n.skv,n.ktv,n.hk,n.ak,n.dr])delete o[k];n.order=n.order.filter(x=>x!==k);team(`<b>${nm}</b> left the game`)}
+ function gone(k){const n=net,nm=n.names[k];if(!nm)return;for(const o of[n.names,n.esv,n.rdv,n.ltv,n.skv,n.srv,n.ktv,n.hk,n.ak,n.dr])delete o[k];n.order=n.order.filter(x=>x!==k);team(`<b>${nm}</b> left the game`)}
  const ev=e=>{const n=net;n.evs.push([++n.eid,...e]);if(n.evs.length>240)n.evs.splice(0,n.evs.length-240)};
  const team=h=>{feed(h);if(net?.host)ev(['f',h])};
  Z.team=team;  // the kill chain and warning actions announce through it (zchain.js, zwarn.js)
@@ -205,7 +205,7 @@ export function initNet(api,G,Z){
    sh:SITES.map(s=>Math.ceil(s.hp)),sm:SITES.map(s=>s.max),bk:SITES.length>3?1:0,wb:[+api.WB.x.toFixed(1),+api.WB.z.toFixed(1)],T,TS,S:D.S,D:D.D,
    ev:n.evs.filter(e=>e[0]>mn).slice(-120),eid:n.eid,pk:n.perks,tp:{radar:G.perks.radar|0,aid:G.perks.aid|0},dr:n.dr,ak:n.ak,pl:rows(),nx,rj:n.rj,
    bw:Object.keys(G.brw||{}),cx:Z.codexNet?.(),sw:Z.swSnap?.(n.me||'host'),bd:Z.bdSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),sl:Z.sell?.netOut(),
-    so:Z.so?.netOut?.(now),sc:Z.sc?.netOut?.(now)}}  // sorties: the enemy's side of the map (zsortie.js); the living map's scars (zscars.js)
+    so:Z.so?.netOut?.(now),sc:Z.sc?.netOut?.(now,Object.values(n.srv))}}  // sorties: the enemy's side of the map (zsortie.js); the living map's scars (zscars.js)
  // roster rows [key, name, kills, ready for the next wave, joined mid-wave]; a client shows its own ready state at once
  function rows(){const n=net;if(!n)return[];const nw=G.wave+1;
   if(n.host)return[[n.me||'host',myName(),n.kc[n.me||'host']|0,n.rd===nw?1:0,0],...n.order.filter(k=>n.names[k]).map(k=>[k,n.names[k],n.kc[k]|0,n.rdv[k]===nw?1:0,n.ltv[k]|0])];

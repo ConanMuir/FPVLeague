@@ -331,8 +331,12 @@ await ev(B, () => __z.api.showMenu(true)); await B.p.click('#leave');
 ok(await until(H, () => __z.net.rows().length === 2), 'Leave: Bea quits, the host roster drops to 2');
 ok(await until(A, () => __z.net.rows().length === 2 && __z.net.n.pil.size === 1), 'Leave: Ash sees the roster drop and Bea\'s drone go');
 ok(!(await st(B)).on && await ev(B, () => !document.getElementById('menu').hidden), 'Leave: Bea is back on the start menu');
+const sc0 = await ev(H, () => { const t = __z.Z.sc.stats(); return t.craters + '/' + t.burns + '/' + t.rubble; });
+await ev(H, () => __z.Z.sc.netOut(performance.now()));  /* the host has just sent its scars: the next regular send is five seconds off */
 await B.p.$eval('#zcode', (e, c) => { e.value = c; }, code); await B.p.click('#zjoin');
 ok(await until(B, () => __z.G.on && __z.G.state === 'wave' && __z.net.n?.late), 'Late join: Bea rejoins during wave 2 and waits (spectating, idle on the mat)');
+/* the host's scars reach her within a couple of seconds of joining, not at the next regular send */
+ok(await until(B, n => { const t = __z.Z.sc.stats(); return t.craters + '/' + t.burns + '/' + t.rubble === n; }, sc0, 2500), `Late join: Bea has the host's scars (${sc0} craters / burns / rubble) a moment after she is in`);
 ok(await ev(B, () => __z.Z.idle() && document.getElementById('zinb').textContent.includes('NEXT BASE')) || await until(B, () => document.getElementById('zinb').textContent.includes('NEXT BASE')), 'Late join: the HUD says she joins at the next base screen');
 await ev(H, () => { __z.G.wq.length = 0; for (let i = 0; i < 600 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0) __z.botKill(.8); } __z.sim(4); });
 ok(await until(B, () => __z.G.state === 'base' && !__z.net.n.late && __z.net.rows().length === 3), 'Late join: at the base screen Bea is in, roster back to 3');
