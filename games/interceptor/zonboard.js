@@ -19,11 +19,12 @@ export function initOnboard(api,G,Z){
  const {TH,S}=api,$=id=>document.getElementById(id);
  {const l=document.createElement('link');l.rel='stylesheet';l.href=new URL('./zonboard.css',import.meta.url).href;document.head.append(l)}
  const Q=new URLSearchParams(location.search).get('guide'),auto=!!navigator.webdriver;  /* auto: a headless harness or bench, which only gets the guide when it asks (?guide=1) */
- const A={on:false,why:'',ended:'',cur:null,st:{},n:{},ev:{},log:[],T:0,acc:0,gap:0,gentle:false,p0:null,k0:0,lt:0,cam:[false,0],d0:0,sw0:null};
+ const A={on:false,why:'',ended:'',cur:null,st:{},n:{},ev:{},log:[],acc:0,gap:0,gentle:false,p0:null,k0:0,lt:0,cam:[false,0],d0:0,sw0:null};
  let card=null,mo=null,last='';
  const me=()=>api.player,alive=()=>{const m=me();return!!m&&m.dead<=0},wave=()=>G.state==='wave',w1=()=>wave()&&G.wave===1&&alive(),base=()=>G.state==='base'&&!Z.base.el.hidden;
  const near=r=>{const m=me();if(!m)return false;for(const t of TH)if(api.live(t)&&t.p.distanceTo(m.p)<r)return true;return false},seen=()=>TH.some(t=>api.live(t)&&Z.seen(t));
  const rackAt=()=>G.cards.findIndex(c=>c.k==='rack'),cardAt=key=>G.cards.findIndex(c=>c.k===key),owned=()=>(Z.perkLevel?.('rocket')|0)>0;
+ const shopBtn=key=>$('zbase').querySelector(`[data-buy="${cardAt(key)}"]`)||$('zbase').querySelector('[data-tab="shop"]');  /* the item's buy button, or the Shop tab while another tab is open */
  const swKey=()=>{const m=Z.sw?.mine;return m?[m.mode,m.form,m.sseq,m.tgt?m.tgt.id:0,m.ch].join():''};
 
  /* ---------- the steps, in the order they are taught: ready = relevant now, done = the action happened, ttl = seconds it waits ---------- */
@@ -40,20 +41,20 @@ export function initOnboard(api,G,Z){
   {id:'lock',ttl:60,flight:1,ready:()=>w1()&&seen(),done:()=>!!A.ev.lock,ok:'Locked.',
    hud:()=>`Track inbound: the amber blip on the radar, bottom right. Fly at it and hold the dashed ring on it until it locks.`,
    say:'Contact. Put the dashed ring on the track and hold it there. That is a lock.'},
-  {id:'pip',ttl:14,flight:1,ready:()=>w1()&&!!Z.lk?.t,done:()=>!!A.ev.burst||(!!Z.lk?.t&&me().p.distanceTo(Z.lk.t.p)<NEAR),ok:'',
+  {id:'pip',ttl:14,flight:1,ready:()=>w1()&&!!Z.lk?.t,done:()=>!!A.ev.burst||(!!Z.lk?.t&&me().p.distanceTo(Z.lk.t.p)<NEAR),ok:'On the pip.',
    hud:()=>`Locked. The cyan marker is the <b>pip</b>: where you meet the track if you fly straight at it, with the seconds to intercept. Fly at the pip, not at the drone.`,
    say:'Locked. Fly at the pip, the marker, not at the drone. That is where you meet it.'},
   {id:'burst',ttl:40,flight:1,ready:()=>w1()&&seen()&&(!!A.ev.lock||near(400)),done:()=>!!A.ev.burst,ok:'Burst away.',
    hud:()=>gp()?`Detonate with the fire button (RB) within a few metres of the track. The Proximity fuse perk (Shop) fires at closest approach for you.`:`Detonate with ${k('F')} or click within a few metres of the track. The Proximity fuse perk (Shop) fires at closest approach for you.`,
    say:'Get close and burst. A few metres is a kill. The proximity fuse in the shop will do the timing for you.'},
   {id:'helper',ttl:75,ready:()=>base()&&G.wave>=1&&rackAt()>=0&&G.cash>=Z.itemPrice('rack')&&!A.ev.helper,done:()=>!!A.ev.helper,ok:'Helper bought.',
-   hl:()=>G.placing?$('zbase').querySelector('[data-slot]'):$('zbase').querySelector(`[data-buy="${rackAt()}"]`),
+   hl:()=>G.placing?$('zbase').querySelector('[data-slot]'):shopBtn('rack'),
    hud:()=>G.placing?`Pick a free position for it, from the list or on the map. It deploys when the next wave starts.`:`Wave cleared. Spend it: in the <b>Shop</b>, buy an <b>Interceptor drone rack</b> for a free position. Helpers fight for you while you fly.`,
    say:'Good work. Spend the money: put a drone rack on the line.'},
   {id:'sortie',ttl:45,ready:()=>base()&&!!Z.xTab&&!!Z.so&&G.wave>=SO.from&&!Z.so.S.on&&Z.so.S.used!==G.wave,done:()=>!!A.ev.tab,ok:'Sortie tab open.',hl:()=>$('zbase').querySelector(`[data-tab="${Z.xTab?.id}"]`),
    hud:()=>`Sorties are open: the <b>Sortie</b> tab sends you past the line to bomb the convoys, launch sites and factories that feed the next waves. One a break. Take a look.`,
    say:'Between waves you can fly a sortie behind the enemy line. The Sortie tab has the details.'},
-  {id:'rocket',ttl:60,ready:()=>base()&&G.wave>=1&&!owned()&&Z.itemFrom('rocket')<=G.wave+1&&cardAt('rocket')>=0,done:()=>owned(),ok:'Rocket Assist bought.',hl:()=>$('zbase').querySelector(`[data-buy="${cardAt('rocket')}"]`),
+  {id:'rocket',ttl:60,ready:()=>base()&&G.wave>=1&&!owned()&&Z.itemFrom('rocket')<=G.wave+1&&cardAt('rocket')>=0,done:()=>owned(),ok:'Rocket Assist bought.',hl:()=>shopBtn('rocket'),
    hud:()=>`<b>Rocket Assist</b> is open (Shop, Passive perks): every liftoff gets a 15 s rocket burst, about 3x top speed, same stick rates.`,
    say:'Rocket Assist is available. Every launch gets a fifteen second burn.'},
   {id:'rocketfly',ttl:9,info:1,ready:()=>wave()&&alive()&&owned()&&(Z.rk?.st.t>0),done:()=>!!A.ev.burn&&!(Z.rk?.st.t>0),ok:'',
@@ -81,23 +82,23 @@ export function initOnboard(api,G,Z){
  function paint(){const c=A.cur;if(!card||!c)return;const h=c.fin?`✓ ${c.step.ok}`:c.step.hud();if(h!==last){card.querySelector('.t').innerHTML=last=h}
   card.classList.toggle('ok',!!c.fin);vis()}
  /* the base screen redraws itself; the button a prompt points at gets its glow back after each redraw */
- function glow(){const s=A.cur?.step;for(const e of document.querySelectorAll('.zob-hl'))e.classList.remove('zob-hl');if(!s?.hl||!base())return;try{s.hl()?.classList.add('zob-hl')}catch(e){}}
+ function glow(show){const s=A.cur?.step;for(const e of document.querySelectorAll('.zob-hl'))e.classList.remove('zob-hl');if(!s?.hl||!base())return;try{const e=s.hl();if(e){e.classList.add('zob-hl');if(show===true)e.scrollIntoView?.({block:'nearest'})}}catch(e){}}  /* show: scroll it into view (once, when the prompt opens, not on every redraw) */
  function say(s){const R=Z.radio;if(!R||!s.say)return;try{R.say('guide',2,'OVERLORD',s.say,{nb:1,over:true})}catch(e){}}
 
  /* ---------- the flow ---------- */
  function open(s){A.cur={step:s,left:s.ttl,fin:0};A.n[s.id]=(A.n[s.id]|0)+1;A.log.push(s.id);s.on?.();last='';say(s);
-  if(s.hl&&!mo&&Z.base.el){mo=new MutationObserver(glow);mo.observe(Z.base.el,{childList:true,subtree:true})}glow();paint()}
+  if(s.hl&&!mo&&Z.base.el){mo=new MutationObserver(()=>glow());mo.observe(Z.base.el,{childList:true,subtree:true})}glow(true);paint()}
  function close(res){const c=A.cur;if(!c)return;const s=c.step;A.cur=null;A.gap=GAP;last='';
   if(res==='drop')A.st[s.id]=A.n[s.id]>=OPENS?'timeout':A.st[s.id];else A.st[s.id]=res;
   if(mo){mo.disconnect();mo=null}glow();if(card)card.hidden=true}
  /* the wave-1 prompts end with wave 1; what was never taught is not taught later */
- function expire(){if(!(G.wave>=1&&(G.state==='clear'||G.state==='base')||G.wave>=2))return;for(const s of STEPS)if(s.flight&&!A.st[s.id]){if(A.cur?.step===s)close('timeout');A.st[s.id]='timeout'}}
+ function expire(){if(!(G.wave>=1&&(G.state==='clear'||G.state==='base')||G.wave>=2))return;for(const s of STEPS)if(s.flight&&!A.st[s.id]){if(A.cur?.step===s)close(A.cur.fin?'done':'timeout');A.st[s.id]=A.st[s.id]||'timeout'}}
  function pick(){for(const s of STEPS){if(A.st[s.id])continue;if(s.done()){A.st[s.id]='done';continue}if(s.ready()){open(s);return}}}
  /* the guided wave: tracks it spawns fly slower (the plan was thinned and spread in gentle()) */
  function slow(){if(!A.gentle)return;if(G.wave!==1||G.state==='clear'||G.state==='over'){A.gentle=false;return}if(G.state!=='wave')return;
   for(const t of TH)if(!t._ob&&api.live(t)){t._ob=1;if(t.spd<150){t.spd*=GN.slow;t.cs*=GN.slow;t.v.multiplyScalar(GN.slow)}}}
  function gentle(P){if(P.ob)return;P.ob=1;if(P.q.length>GN.max){P.q.length=GN.max;P.list=P.q.map(e=>e.k)}for(const e of P.q)e.at=+(GN.lead+e.at*GN.space).toFixed(1);A.gentle=true}
- function run(dt){A.T+=dt;if(!G.on||G.state==='over'){end(G.on?'over':'off');return}
+ function run(dt){if(!G.on||G.state==='over'){end(G.on?'over':'off');return}
   poll();slow();expire();const c=A.cur;
   if(c){const s=c.step;
    if(c.fin){if((c.fin-=dt)<=0)close('done')}
@@ -112,7 +113,7 @@ export function initOnboard(api,G,Z){
   for(const e of document.querySelectorAll('.zob-hl'))e.classList.remove('zob-hl');card?.remove();card=null;last='';sk2.hidden=true}
  /* eligible: a first solo run on a human's browser. The save flag is set as the guide starts, so a run left halfway never brings it back */
  function begin(){const why=S.zonb?'seen':Z.online?'coop':window.__z?.spec?.on?'bot':Q==='0'||auto&&Q!=='1'?'auto':'';A.why=why;if(why)return;
-  S.zonb=1;api.save();Object.assign(A,{on:true,ended:'',cur:null,st:{},n:{},ev:{},log:[],T:0,acc:0,gap:0,gentle:false,p0:null,d0:Z.def.D.length,sw0:null});
+  S.zonb=1;api.save();Object.assign(A,{on:true,ended:'',cur:null,st:{},n:{},ev:{},log:[],acc:0,gap:0,gentle:false,p0:null,d0:Z.def.D.length,sw0:null});
   card=mk();sk2.hidden=false}
 
  /* ---------- hooks ---------- */

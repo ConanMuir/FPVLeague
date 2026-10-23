@@ -1605,7 +1605,10 @@ if (want('onboard')) {
   /* a page on a fresh save (the harness is an automated browser, so the guide only runs when the URL says ?guide=1) */
   const fresh = async (p, qs) => {
     await p.evaluate(() => { sessionStorage.setItem('zbossRoster', '0'); localStorage.setItem('dl-interceptor', JSON.stringify({wx: 'clear'})); });
-    await p.goto(GURL + qs, {waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3);
+    await p.goto(GURL + qs, {waitUntil: 'load'}); await inject(p);
+  };
+  const inject = async p => {  /* the page's helpers (they go with a reload) */
+    await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3);
     await p.evaluate(() => {
       window.__u = (fn, max = 20) => { for (let i = 0; i < max * 4 && !fn(); i++) __z.sim(.25); return !!fn(); };  /* sim until fn() or max seconds */
       window.__key = (code, down = true) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', {code}));
@@ -1620,8 +1623,7 @@ if (want('onboard')) {
   // an automated browser never gets the guide on its own (benches and every other harness run on fresh saves): wave 1 is the plain wave, nothing is saved
   await fresh(p, '');
   await play(p);
-  const a0 = await p.evaluate(() => ({wd: navigator.webdriver, api: !!__z.Z.onboard, g: __g(), at: __z.G.wq.map(q => q.at), n: __z.G.wq.length}));
-  await p.evaluate(() => { __z.cont(); __z.sim(6); });
+  const a0 = await p.evaluate(() => { const r = {wd: navigator.webdriver, api: !!__z.Z.onboard, g: __g()}; __z.cont(); r.at = __z.G.wq.map(q => q.at); r.n = r.at.length; __z.sim(6); return r; });
   const a1 = await p.evaluate(`(${ratio})()`);
   ok(a0.wd === true && a0.api && !a0.g.on && a0.g.why === 'auto' && a0.g.flag === undefined && !a0.g.card, `Onboard: an automated browser gets no guide by default (why "${a0.g.why}"), no flag saved, no card`);
   ok(a0.n === 2 && a0.at.join() === '0,25' && a1 >= .9, `Onboard: so wave 1 is the plain wave there (tracks at ${a0.at.join('/')} s, Shahed at ${a1} of its speed)`);
@@ -1660,7 +1662,7 @@ if (want('onboard')) {
   await p.evaluate(() => { __key('KeyF'); __z.sim(.15); __key('KeyF', false); __z.sim(.1); __u(() => __z.Z.onboard.fin, 3); });
   const bu1 = await p.evaluate(() => __g()); ok(bu1.fin && /^✓/.test(bu1.text), `Onboard: the burst ticks it ("${bu1.text}")`);
   const lg = await p.evaluate(() => { __clear(); return {g: __g(), tr: __z.api.TH.filter(__z.api.live).length}; });
-  ok(lg.g.log.join().startsWith('brief,fly,look,lock,pip,burst') && ['fly', 'look', 'lock', 'pip', 'burst'].every(k => lg.g.st[k] === 'done'),`Onboard: the wave-1 prompts came in order (${lg.g.log.join(' > ')}) and all five were done`);
+  ok(lg.g.log.join().startsWith('brief,fly,look,lock,pip,burst') && ['fly', 'look', 'lock', 'pip', 'burst'].every(k => lg.g.st[k] === 'done'),`Onboard: the wave-1 prompts came in order (${lg.g.log.join(' > ')}) and all five were done (${JSON.stringify(lg.g.st)})`);
   ok(!lg.g.gentle && lg.g.card && lg.g.ended === '', `Onboard: wave 1 over: the gentle wave is switched off, the guide goes on to the base screen`);
   // the base screen: the first helper, then sorties
   await p.evaluate(() => __u(() => __z.Z.onboard.step === 'helper', 6));
@@ -1677,9 +1679,11 @@ if (want('onboard')) {
   await p.evaluate(() => { document.querySelector(`[data-tab="${__z.Z.xTab.id}"]`).click(); __z.sim(.3); __u(() => __z.Z.onboard.fin, 3); });
   const s1 = await p.evaluate(() => __g()); ok(s1.fin && /^✓/.test(s1.text), 'Onboard: opening the Sortie tab ticks it');
   // later unlocks: Rocket Assist when the shop opens it, the swarm commands when a swarm is up
-  const r0 = await p.evaluate(() => { __u(() => !__z.Z.onboard.step, 4); const q = __g(); __z.jump(3, 9000); __z.Z.base.refresh(); __u(() => __z.Z.onboard.step === 'rocket', 4); return {q, g: __g(), hl: !!document.querySelector('.zob-hl')}; });
-  ok(!r0.q.step && r0.q.log.join().endsWith('sortie') && r0.g.step === 'rocket' && /Rocket Assist/.test(r0.g.text) && r0.hl, `Onboard: nothing more is asked until Rocket Assist opens in the shop, then it is pointed at (${r0.g.log.join(' > ')})`);
-  await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rocket'); document.querySelector(`[data-buy="${i}"]`).click(); __z.sim(.3); __u(() => __z.Z.onboard.fin, 3); });
+  const r0 = await p.evaluate(() => { __u(() => !__z.Z.onboard.step, 4); const q = __g(); q.from = __z.Z.itemFrom('rocket') + '@' + __z.G.wave; __z.jump(3, 9000); __z.Z.base.refresh(); __u(() => __z.Z.onboard.step === 'rocket', 4); return {q, g: __g(), hl: document.querySelector('.zob-hl')?.dataset.tab === 'shop'}; });  /* the Sortie tab is still open, so the Shop tab is what glows */
+  ok(!r0.q.step && r0.q.log.join().endsWith('sortie') && r0.g.step === 'rocket' && /Rocket Assist/.test(r0.g.text) && r0.hl, `Onboard: nothing more is asked until Rocket Assist opens in the shop, then it is pointed at (${r0.g.log.join(' > ')}; before: ${r0.q.step} ${r0.q.from})`);
+  const rg = await p.evaluate(async () => { document.querySelector('[data-tab="shop"]').click(); await new Promise(r => setTimeout(r, 30));  /* the redraw's observer runs after this task */
+    const i = __z.G.cards.findIndex(c => c.k === 'rocket'), hl = document.querySelector('.zob-hl')?.dataset.buy === String(i); document.querySelector(`[data-buy="${i}"]`).click(); __z.sim(.3); __u(() => __z.Z.onboard.fin, 3); return hl; });
+  ok(rg, 'Onboard: back on the Shop tab the glow moves to the Rocket Assist button (it survives the base screen redrawing)');
   const r1 = await p.evaluate(() => ({g: __g(), own: __z.Z.perkLevel('rocket')})); ok(r1.own === 1 && r1.g.fin, 'Onboard: buying Rocket Assist ticks it');
   const r2 = await p.evaluate(() => { __z.cont(); const gw = __g().gentle; __z.sim(.3); __key('KeyW'); __u(() => __z.Z.rk.st.t > 0, 8); __key('KeyW', false); __u(() => __z.Z.onboard.step === 'rocketfly', 3); const g = __g(); __u(() => !__z.Z.onboard.step, 12); return {gw, g, after: __g()}; });
   ok(r2.g.step === 'rocketfly' && /Rocket burn/.test(r2.g.text) && r2.after.st.rocketfly === 'done', `Onboard: the first rocket burn gets its line, which closes by itself`);
@@ -1696,29 +1700,31 @@ if (want('onboard')) {
   const nv = await p.evaluate(() => { const {api, Z, G} = __z; api.startDemo(); const a = {}; Z.start(); a.again = __g();
     Z.cp.start('factory', true); a.camp = __g(); a.cpOn = Z.cp.on; document.getElementById('mreset').click(); a.reset = {flag: __g().flag, S: api.S.zonb}; return a; });
   ok(!nv.again.on && nv.again.why === 'seen' && !nv.again.card && !nv.camp.on && nv.cpOn && nv.camp.why === 'seen' && nv.reset.flag === 1 && nv.reset.S === 1, `Onboard: a second run and a campaign sector never show it (why "${nv.again.why}"), and the flag survives a settings reset`);
-  await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await play(p);
-  const rl = await p.evaluate(() => { __z.cont(); return {g: __g(), at: __z.G.wq.map(q => q.at)}; });
+  await p.reload({waitUntil: 'load'}); await inject(p); await play(p);
+  const rl =await p.evaluate(() => { __z.cont(); return {g: __g(), at: __z.G.wq.map(q => q.at)}; });
   ok(!rl.g.on && rl.g.why === 'seen' && rl.g.flag === 1 && !rl.g.card && rl.at.join() === '0,25', `Onboard: after a reload it is still off, and wave 1 is the plain wave (${rl.at.join('/')} s)`);
 
   // the save is the only place the flag lives: a wiped save is a new browser. Nothing is done here, so every prompt waits and times out, play is never blocked, and Skip ends it at once
   await fresh(p, '?guide=1'); await play(p);
   const t0 = await p.evaluate(() => { __z.cont(); __u(() => __z.Z.onboard.st.fly === 'timeout', 40); const g = __g(); __u(() => __z.Z.onboard.step === 'look', 5); return {g, g2: __g(), tracks: __z.api.TH.filter(__z.api.live).length, st: __z.G.state}; });
   ok(t0.g.st.fly === 'timeout' && t0.g2.step === 'look' && t0.st === 'wave', `Onboard: a prompt nobody acts on times out (flying: ${t0.g.st.fly}) and the next one comes; the wave ran on meanwhile (${t0.tracks} track(s) live)`);
-  await p.click('#zobskip'); await frames(p, 2);
+  const me1 = await p.evaluate(() => { __z.api.showMenu(true); __z.sim(.3); return {g: __g(), skip2: document.getElementById('zobskip2').hidden, shown: __z.Z.onboard.shown}; });  /* the pause menu has its own Skip guide (on the base screen the menu sits behind the panel, the card's button is the one there) */
+  ok(me1.g.on && !me1.skip2 && !me1.shown, 'Onboard: the pause menu shows Skip guide and the card steps aside while it is open');
+  await p.click('#zobskip2'); await p.evaluate(() => { __z.api.showMenu(false); }); await frames(p, 2);
   const sk = await p.evaluate(() => { const g = __g(); __z.sim(3); return {g, later: __g(), skip2: document.getElementById('zobskip2').hidden, st: __z.G.state}; });
   ok(!sk.g.on && sk.g.ended === 'skip' && !sk.g.card && !sk.g.gentle && sk.later.step === null && sk.skip2 && sk.g.flag === 1 && sk.st === 'wave', 'Onboard: Skip guide ends it at once: card gone, gentle wave off, the pause-menu button hidden, the wave still running, the flag still set');
 
-  // bots and benches never get it and never use the flag up; the next human run still does. Skipping from the pause menu before wave 1 leaves the plain wave
+  // bots and benches never get it and never use the flag up; the next human run still does. Skipping at the Briefing leaves the plain wave
   await fresh(p, '?guide=1');
   const bt = await p.evaluate(() => { const {api, Z, G, spec} = __z, o = {}; api.startDemo(); spec.bench.start('Legend', 1); o.bench = __g(); api.startDemo();
     spec.start({lv: 'Legend', d: 1, doc: 'std', kit: [], sec: ''}); o.watch = __g(); spec.stop(); api.startDemo(); o.after = __g(); return o; });
   ok(!bt.bench.on && bt.bench.why === 'bot' && !bt.watch.on && bt.watch.why === 'bot' && !bt.bench.card && !bt.watch.card && bt.bench.flag === undefined && bt.after.flag === undefined, `Onboard: the bot benchmark and Bot Spectator never get it, and leave the flag alone (why "${bt.bench.why}" / "${bt.watch.why}")`);
   await play(p);
-  const me2 = await p.evaluate(() => { __u(() => __z.Z.onboard.step === 'brief', 3); __z.api.showMenu(true); __z.sim(.3); return {g: __g(), skip2: document.getElementById('zobskip2').hidden, shown: __z.Z.onboard.shown}; });
-  ok(me2.g.on && me2.g.flag === 1 && !me2.skip2 && !me2.shown, 'Onboard: the first human run after the bots still gets the guide; the pause menu shows Skip guide and the card steps aside');
-  await p.click('#zobskip2');
-  const sk2 = await p.evaluate(() => { __z.api.showMenu(false); __z.cont(); return {g: __g(), at: __z.G.wq.map(q => q.at), skip2: document.getElementById('zobskip2').hidden}; });
-  ok(!sk2.g.on && sk2.g.ended === 'skip' && !sk2.g.gentle && sk2.at.join() === '0,25' && sk2.skip2, `Onboard: skipping from the pause menu before wave 1 leaves wave 1 the plain wave (${sk2.at.join('/')} s)`);
+  const me2 = await p.evaluate(() => { __u(() => __z.Z.onboard.step === 'brief', 3); return {g: __g(), shown: __z.Z.onboard.shown}; });
+  ok(me2.g.on && me2.g.flag === 1 && me2.shown, 'Onboard: the first human run after the bots still gets the guide (they left the flag alone)');
+  await p.click('#zobskip');  /* a real click on the card's button, over the base screen */
+  const sk2 = await p.evaluate(() => { __z.cont(); return {g: __g(), at: __z.G.wq.map(q => q.at), skip2: document.getElementById('zobskip2').hidden}; });
+  ok(!sk2.g.on && sk2.g.ended === 'skip' && !sk2.g.gentle && sk2.at.join() === '0,25' && sk2.skip2, `Onboard: skipping at the Briefing leaves wave 1 the plain wave (${sk2.at.join('/')} s)`);
   ok(!errs.length, 'Onboard: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
   await p.close();
 
