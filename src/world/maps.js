@@ -8,6 +8,7 @@ import {bloom,compileFor,fitShadow,hemi,instDepth,qId,renderer,scaleUV,scene,sun
 import {GS} from '../state.js';
 import {GOALF,NETM,RIML,floorM,goalG,gridTex,mouthM,neonG,outer,pitchLines,rampM,wallM} from './arena.js';
 import {fbm,sm,vnoise} from './noise.js';
+import {nearFade} from '../../engine/nearfade.js';
 import {UT,applyQ,buildProps,buildStadium,offR,terrainGeo,terrainMat,turfNormal,waterMat} from './outdoor.js';
 export let lookBK=1,mapId='',uvDone=false;export const mapMat={},mapG={};
 onTune(T=>{bloom.strength=T.bloom*lookBK});  // was part of applyTune()
@@ -54,7 +55,7 @@ export const LOOKS={arena:{bg:new THREE.Color(0x04060c),env:neonEnv,fog:scene.fo
 for(const[id,c]of Object.entries(OUT))LOOKS[id]={bg:null,fog:new THREE.Fog(c.fog,320,1500),hemi:c.hemi,sun:[c.sc,c.si],sp:new V3(...c.sun).normalize().multiplyScalar(260),sc:[180,180,620],exp:c.exp||1,bk:.6,th:1.25,br:.3};
 const arenaMat={floor:floorM.material,ramp:rampM.material,wall:wallM.material,mouth:mouthM.map(m=>m.material),gf:GOALF.map(m=>m.material)};
 export const snowP=(()=>{const N=2600,p=new Float32Array(N*3);for(let i=0;i<N*3;i++)p[i]=(Math.random()-.5)*160;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(p,3));
- const s=new THREE.Points(g,new THREE.PointsMaterial({map:dotTex(),color:0xffffff,size:.45,transparent:true,depthWrite:false,opacity:.9}));s.frustumCulled=false;s.visible=false;scene.add(s);return s})();
+ const s=new THREE.Points(g,nearFade(new THREE.PointsMaterial({map:dotTex(),color:0xffffff,size:.45,transparent:true,depthWrite:false,opacity:.9}),1.2,4));  /* nearFade: no flake blots the lens */s.frustumCulled=false;s.visible=false;scene.add(s);return s})();
 function outEmblem(g,cx,cy,R,line){g.save();g.translate(cx,cy);const hex=r=>{g.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i;g.lineTo(r*Math.cos(a),r*Math.sin(a))}g.closePath()};
  hex(R);g.fillStyle='rgba(255,255,255,.1)';g.fill();g.lineWidth=R*.045;g.strokeStyle=line;g.stroke();hex(R*.86);g.lineWidth=R*.014;g.stroke();
  g.fillStyle=line;for(const[sx,sy]of[[1,1],[-1,1],[1,-1],[-1,-1]]){g.save();g.rotate(Math.atan2(sy,sx));g.fillRect(0,-R*.035,R*.42,R*.07);g.restore();g.beginPath();g.arc(sx*R*.3,sy*R*.3,R*.15,0,7);g.lineWidth=R*.03;g.stroke()}
