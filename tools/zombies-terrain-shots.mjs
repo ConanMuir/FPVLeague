@@ -1,7 +1,6 @@
-// Terrain and building screenshots for eyeballing: node tools/zombies-terrain-shots.mjs OUTDIR [ground] [sites] [classic] [gpu]
+// Terrain and building screenshots for eyeballing: node tools/zombies-terrain-shots.mjs OUTDIR [ground] [sites] [gpu]
 //  ground   the farmland from a chase-cam height, 40 m, 300 m and 1500 m
 //  sites    every defended site (and the command bunker) at each damage stage: 100 / 75 / 50 / 25 / 0 % HP, then repaired
-//  classic  Classic mode: the sites from the menu's demo camera height (no damage states there)
 //  gpu      GPU time per frame (render + gl.finish, not vsync-bound) from the chase cam and from altitude
 // Frames are rendered straight from the scene camera (no HUD, no bloom), so the base screen and the OSD don't get in the way.
 import fs from 'node:fs';
@@ -9,9 +8,9 @@ import {serve, launch, open, sleep} from './zlib.mjs';
 const [OUT, ...what] = process.argv.slice(2), want = k => !what.length || what.includes(k);
 fs.mkdirSync(OUT, {recursive: true});
 const {server, origin} = await serve(); const b = await launch(); const errs = [];
-async function page(mode) {
+async function page() {
   const p = await open(b, origin + '/games/interceptor/', errs);
-  await p.evaluate(m => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: m, wx: 'clear', cam: 1})), mode);
+  await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({wx: 'clear', cam: 1})));
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z); await sleep(500);
   await p.click('#play'); await sleep(600);
   // shot(): put the camera at pos looking at tgt, move the sun's shadow box there, render once and return a PNG
@@ -30,7 +29,7 @@ const save = async (p, name, pos, tgt, fov) => { const u = await p.evaluate((a, 
 const at = async (p, x, z, h) => (await p.evaluate((x, z) => __gy(x, z), x, z)) + h;
 
 if (want('ground') || want('sites') || want('gpu')) {
-  const p = await page('z');
+  const p = await page();
   if (want('ground')) {
     const x = 700, z = -1300;
     await save(p, 'ground-chase', [x, await at(p, x, z, 4), z], [x - 20, await at(p, x - 20, z - 60, 0), z - 60], 65);
@@ -79,12 +78,6 @@ if (want('ground') || want('sites') || want('gpu')) {
       out.gpu = gl.getParameter(gl.getExtension('WEBGL_debug_renderer_info').UNMASKED_RENDERER_WEBGL); return out; });
     console.log('gpu ms/frame (render + readback, median of 15)', JSON.stringify(r));
   }
-  await p.close();
-}
-if (want('classic')) {
-  const p = await page('classic');
-  await save(p, 'classic-sites', [0, 320, 2950], [0, 30, 1900], 55);
-  await save(p, 'classic-sub', [-720 + 90, await at(p, -720, 1750, 60), 1750 + 110], [-720, await at(p, -720, 1750, 6), 1750], 55);
   await p.close();
 }
 console.log(errs.length ? errs.join('\n') : 'no errors'); await b.close(); server.close();

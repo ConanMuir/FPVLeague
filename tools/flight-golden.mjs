@@ -16,7 +16,7 @@ const browser = await launch();
 let fails = 0;
 try {
   const errs = [], p = await open(browser, origin + '/games/interceptor/', errs);
-  await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: 'classic', wx: 'clear'})));
+  await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), wx: 'clear'})));
   await p.reload({waitUntil: 'load'});
   await p.waitForFunction(() => window.__z, {timeout: 60000});
   await frames(p, 3);

@@ -4,6 +4,7 @@
 // (RESIST, or its Armory refit's own numbers: REFIT); Z.helperHit applies armor and Mark. Everything in flight is pooled and drawn instanced.
 import {dot,glow} from '../../engine/render.js';
 import {hyp} from '../../engine/hot.js';
+import {strelaLauncher} from './strela.js';
 import {KIND,RESIST,RACK_TIERS,RACK_CAP,RACK_REARM,RACK_RANGE,DRONE_SPD,DRONE_FUEL,HELP,REFIT,LRACK} from './zdata.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initDefences(api,G,Z){
@@ -52,7 +53,7 @@ export function initDefences(api,G,Z){
   lrack(d){const g=MESH.rack(d);g.scale.setScalar(.8);return g},
   hflak(d){const g=kit();g.add$(new THREE.CylinderGeometry(3.2,3.5,1,16),M.sand,0,.5,0);d.aim=g.add$(new THREE.CylinderGeometry(.24,.3,3.6,10),M.dark,0,2.2,0,-.45);g.add$(new THREE.BoxGeometry(1.3,.7,1.3),M.olive,0,1.2,0);return g},
   mpads(d){const g=kit();g.add$(new THREE.BoxGeometry(2,1,3.6),M.olive,0,.9,0);g.add$(new THREE.BoxGeometry(1.8,.9,1.2),M.olive,0,1.8,-1.1);wheels(g,.95,1.2);d.cells=[];
-   for(let i=0;i<3;i++)d.cells.push(g.add$(new THREE.CylinderGeometry(.12,.12,1.7,8).rotateX(Math.PI/2),M.tube,-.45+i*.45,1.75,.9,-.5));return g}};
+   for(let i=0;i<3;i++)d.cells.push(g.add$(strelaLauncher(1.6,.075),M.olive,-.45+i*.45,1.75,.9,-.5));return g}};  /* three Strela launch tubes (strela.js) */
 
  // ---------- things in flight: drones, SAM / dome interceptors, space interceptors, mortar shells, tracers ----------
  // per kind: top speed, acceleration, turn rate (rad/s), climb-out, fuel (s), resolve distance (m), drawn scale
