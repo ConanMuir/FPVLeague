@@ -17,16 +17,19 @@ async function heapMB() { const s = await p.target().createCDPSession(); await s
 await p.evaluate(async () => {
   const M = window.__ls = {DF: await import('/src/modes/dogfight.js'), MA: await import('/src/modes/match.js'), GS: (await import('/src/state.js')).GS, ST: await import('/src/modes/step.js'),
     ball: (await import('/src/physics/ball.js')).ball, C: await import('/src/config/constants.js'), SD: await import('/src/physics/sdf.js'), MP: await import('/src/world/maps.js'), R: await import('/src/render/renderer.js'),
-    S: (await import('/src/config/settings.js')).S, CV: await import('/src/world/caves.js')};
+    S: (await import('/src/config/settings.js')).S, CV: await import('/src/world/caves.js'), CAM: await import('/src/render/camera.js')};
   M.lv = x => { const i = M.C.DIFF.findIndex(d => d.n.toLowerCase() === String(x).toLowerCase()); return i >= 0 ? i : +x; };
   // one config: mode, map, two levels, sim seconds; returns per-tick invariant counts
   M.setup = (mode, map, la, lb) => { const {DF, MA, GS, S, MP} = M; if (mode !== 'df') { S.map = map; } DF.setGame(mode); if (mode !== 'df') MP.setMap(map); MA.startDemo(); GS.paused = true; GS.menuOpen = true; GS.score = [0, 0];
-    for (const d of GS.drones) d.skill = d.team === 0 ? M.lv(la) : M.lv(lb); MA.kickoff(); M.acc = {ticks: 0, play: 0, goals: 0, ballOut: 0, ballOutMax: 0, ballFar: 0, nan: 0, inWall: 0, inWallMax: 0, stuck: 0, stuckWho: [], demos: 0, pos: new Map()}; };
+    for (const d of GS.drones) d.skill = d.team === 0 ? M.lv(la) : M.lv(lb); MA.kickoff(); M.acc = {ticks: 0, play: 0, goals: 0, ballOut: 0, ballOutMax: 0, ballFar: 0, nan: 0, inWall: 0, inWallMax: 0, stuck: 0, stuckWho: [], demos: 0, pos: new Map(), camIn: 0, camInMax: 0, camInAt: []}; };
   M.run = sec => { const {GS, ST, ball, SD, C} = M, A = M.acc, dt = 1 / 120, n = Math.round(sec / dt);
     for (let i = 0; i < n; i++) { const s0 = GS.score[0] + GS.score[1]; ST.step(dt); A.ticks++; if (GS.state === 'play') A.play += dt; if (GS.score[0] + GS.score[1] !== s0) A.goals++;
       if (!Number.isFinite(ball.p.x + ball.p.y + ball.p.z + ball.v.x + ball.v.y + ball.v.z)) A.nan++;
       if (!GS.OBSON) { const d = SD.sdf(ball.p.x, ball.p.y, ball.p.z) + C.BR; if (d > .3) { A.ballOut++; A.ballOutMax = Math.max(A.ballOutMax, d); } if (Math.abs(ball.p.x) > C.HW + 5 || Math.abs(ball.p.z) > C.HL + C.GD + 8 || ball.p.y < -2 || ball.p.y > C.H + 10) A.ballFar++; }
       if (i % 12) continue;  // drones: 10 Hz is plenty
+      // the chase cam (odd chunks) and the ball cam (even) on the first quad, as a player would see it: never inside the arena's walls (its corners and fillets are rounded, its end walls stand outside the goal mouth)
+      if (!GS.OBSON && GS.player) { GS.menuOpen = false; GS.camMode = 1 + (M.chunk & 1); M.CAM.updateCam(.1, performance.now()); GS.menuOpen = true; const c = M.R.camera.position, sc = SD.sdf(c.x, c.y, c.z);
+        if (sc > 0) { A.camIn++; A.camInMax = Math.max(A.camInMax, sc); if (A.camInAt.length < 3) A.camInAt.push(`cam${GS.camMode}@${c.toArray().map(v => Math.round(v))} sdf ${sc.toFixed(2)} quad@${GS.player.p.toArray().map(v => Math.round(v))}`); } }
       for (const d of GS.drones) { if (d.dead > 0) continue; if (!Number.isFinite(d.p.x + d.p.y + d.p.z + d.v.x + d.q.w)) { A.nan++; continue; }
         const s = SD.sdf(d.p.x, d.p.y, d.p.z); if (s > .25) { A.inWall++; A.inWallMax = Math.max(A.inWallMax, s); }
         // stuck: alive, in play, moved < 1.5 m over the last 4 s while inside or touching rock
@@ -53,12 +56,12 @@ const rows = []; let simMin = 0;
 const h0 = await heapMB(), s0 = await p.evaluate(() => window.__ls.stats());
 for (const [mode, map, la, lb] of CONFIGS) {
   const T0 = Date.now(); await p.evaluate((m, map, a, b) => window.__ls.setup(m, map, a, b), mode, map, la, lb);
-  for (let c = 0; c < MINS * 4; c++) { await p.evaluate(() => window.__ls.run(15)); await new Promise(r => setTimeout(r, 30)); }
+  for (let c = 0; c < MINS * 4; c++) { await p.evaluate(c => { window.__ls.chunk = c; window.__ls.run(15); }, c); await new Promise(r => setTimeout(r, 30)); }
   simMin += MINS;
-  const a = await p.evaluate(() => { const A = window.__ls.acc; return {...A, pos: undefined, play: +(A.play / 60).toFixed(1), ballOutMax: +A.ballOutMax.toFixed(2), inWallMax: +A.inWallMax.toFixed(2)}; });
+  const a = await p.evaluate(() => { const A = window.__ls.acc; return {...A, pos: undefined, play: +(A.play / 60).toFixed(1), ballOutMax: +A.ballOutMax.toFixed(2), inWallMax: +A.inWallMax.toFixed(2), camInMax: +A.camInMax.toFixed(2)}; });
   const st = await p.evaluate(() => window.__ls.stats());
   rows.push({mode, map, la, lb, ...a, ...st});
-  console.log(`  ${mode.padEnd(6)} ${map.padEnd(8)} ${la} v ${lb}: ${a.goals} goals/points, play ${a.play} min | ball out ${a.ballOut} ticks (max ${a.ballOutMax} m) far ${a.ballFar} | NaN ${a.nan} | in wall ${a.inWall} samples (max ${a.inWallMax} m) | stuck ${a.stuck} ${a.stuckWho.join(' ')} | objs ${st.objs} geo ${st.geo} tex ${st.tex} | ${Math.round((Date.now() - T0) / 1000)} s`);
+  console.log(`  ${mode.padEnd(6)} ${map.padEnd(8)} ${la} v ${lb}: ${a.goals} goals/points, play ${a.play} min | ball out ${a.ballOut} ticks (max ${a.ballOutMax} m) far ${a.ballFar} | NaN ${a.nan} | in wall ${a.inWall} samples (max ${a.inWallMax} m) | stuck ${a.stuck} ${a.stuckWho.join(' ')}${mode === 'df' ? '' : ` | cam in wall ${a.camIn} (max ${a.camInMax} m) ${a.camInAt.join(' ')}`} | objs ${st.objs} geo ${st.geo} tex ${st.tex} | ${Math.round((Date.now() - T0) / 1000)} s`);
 }
 const h1 = await heapMB(), s1 = await p.evaluate(() => window.__ls.stats());
 // the same configs again: a second pass must not grow the scene or GPU memory (map and mode switches reuse what they built)
@@ -70,6 +73,7 @@ ok(rows.every(r => !r.nan), 'no NaN in ball or drones');
 ok(rows.every(r => r.mode === 'df' || (r.ballOut < 30 && !r.ballFar)), `League: the ball stays in the arena (${rows.filter(r => r.mode !== 'df').map(r => r.ballOut + '/' + r.ballFar).join(' ')})`);
 ok(rows.every(r => r.inWall < 50), `drones stay out of walls and rock (samples inside: ${rows.map(r => r.inWall).join(' ')})`);
 ok(rows.every(r => r.stuck < 5), `no drone stuck against a wall or in a cave (${rows.map(r => r.stuck).join(' ')})`);
+ok(rows.every(r => r.mode === 'df' || r.camIn === 0), `League: the chase and ball cams stay out of the arena walls (samples inside: ${rows.filter(r => r.mode !== 'df').map(r => r.camIn).join(' ')})`);
 ok([...new Set(rows.map(r => r.mode))].every(m => rows.filter(r => r.mode === m).reduce((a, r) => a + r.goals, 0) > 0), `every mode scores (${rows.map(r => r.goals).join(" ")})`);
 // mode lifecycle through the real menu: in a match, open the pause menu and switch League -> Dogfight -> Freeplay -> League with the mode
 // buttons, then enter a training pack from its tile, play shots, leave with Leave game; 8 rounds. The mode, world, drones, physics
