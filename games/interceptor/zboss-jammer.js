@@ -4,7 +4,7 @@
 // The hunt (so it is a hunt you win by attention, not by flying out your battery at random):
 //  * its jamming PULSES: 8 s on, 4 s off. In each WINDOW your radar and lock work, its emitter strobes violet (visible from anywhere if you
 //    look the right way) and it shows on radar if you are within 6 km. The bar counts the cycle down.
-//  * SIGNAL: the bar reads how hot the jamming is where you are and where you look (cold / cool / warm / hot / burning); the static you hear
+//  * HEAT: the bar reads how hot the jamming is where you are and where you look (cold / cool / warm / hot / burning); the static you hear
 //    rises with it. Fly and look toward it.
 //  * RELAY PODS (4) hover around your sites. Living pods are jamming strobes on your radar: a violet line from the radar toward each.
 //    Kill one and its last transmission draws a BEARING LINE toward the King; two lines cross at a fix circle that shrinks with each pod.
@@ -13,9 +13,16 @@
 //    the King surfaces for 15 s: low, slow, on radar and lockable.
 //  Phases: HIDDEN, HUNTED (hit once: it relocates and pulses faster), CORNERED (its emitter overheats and glows; it runs for the edge).
 //  It withdraws after about four minutes. Beaten: the EW Crown trophy.
+/* The electronic-warfare duel (zew.js): while it lives it spoofs your pip. Each tick this module tells the engine where its emitters are
+   (the King, loud and long-ranged, and each living relay pod, short-ranged) and whether a pulse window is open; the engine makes the
+   noise on your screens from your distance to each emitter, so a destroyed pod takes its share away. The pip (the lock-on intercept
+   point) drifts and jitters inside a growing ring, ghost pips flicker near it, ghost tracks blink on the radar, lock-on is slower and
+   drops now and then, helpers lose odds. Hold the real target in the seeker, close the range and kill pods, and the SIGNAL meter beats
+   the noise: BURN-THROUGH, a few seconds with the pip snapped true and the seeker clean, then it re-tunes. The EW Crown makes you immune.
+   Everything is cleared with the wave (clear / fxLeft below), and the status line's HEAT is the hunt's compass, not this duel. */
 import {registerBoss} from './zbosses.js';
 import {dot} from '../../engine/render.js';
-const PER=12,JAM=8,PODR=1200,KINGR=1500;
+const PER=12,JAM=8,PODR=1200,KINGR=1500,KW=.8,KR=8000,PW=.22,PR=3500;  /* emitters: weight and reach (m) of the King, and of a pod */
 const _hz={x:0,y:0,z:0};  // haze emit point (reused)
 
 
@@ -62,17 +69,24 @@ function signal(C,t){const d=C.api.player;if(!d||d.dead>0)return 0;const r=t.p.d
 function fix(B){const L=B.lines||[];if(L.length<2)return null;let a=0,b=0,c=0,d=0,e=0;for(const l of L){const nx=-Math.cos(l.a),nz=Math.sin(l.a),k=nx*l.x+nz*l.z;a+=nx*nx;b+=nx*nz;c+=nz*nz;d+=nx*k;e+=nz*k}
  const det=a*c-b*b;if(Math.abs(det)<1e-6)return null;return{x:(d*c-b*e)/det,z:(a*e-b*d)/det,r:Math.max(150,900/(L.length-1))}}
 function relocate(C,t){const B=t.bs,a=C.rnd(-1.6,1.6),R=C.rnd(2500,3700);B.home={x:C.cl(C.siteC.x+Math.sin(a)*R,-3800,3800),z:C.cl(C.siteC.z-Math.cos(a)*R,-3800,3800)}}
+/* what the EW engine (zew.js) is told every tick: the emitters (one reused list), the pulse window, how hard it shouts (overloaded: less,
+   cornered: more), how many pods live now and at most; null when nothing is jamming (no King, or you hold the EW Crown) */
+const EMS=[],SRC={em:EMS,win:false,k:1,lx:1,pods:0,pm:0};
+function emit(i,p,w,R){const e=EMS[i]||(EMS[i]={x:0,y:0,z:0,w:0,R:0});e.x=p.x;e.y=p.y;e.z=p.z;e.w=w;e.R=R}
+function feed(C){const TH=C.api.TH;let t=null;for(let i=0;i<TH.length;i++){const u=TH[i];if(u.k==='jammer'&&C.api.live(u)){t=u;break}}if(!t||!t.bs||C.G.brw?.crown)return null;
+ const B=t.bs;let n=1;emit(0,t.p,KW,KR);for(let i=0;i<TH.length;i++){const u=TH[i];if(u.k==='jpod'&&C.api.live(u))emit(n++,u.p,PW,PR)}EMS.length=n;
+ SRC.pods=n-1;B.pm=Math.max(B.pm|0,SRC.pods);SRC.pm=B.pm;SRC.win=winOf(B);SRC.k=(B.surf>0?.55:1)*(B.ph>=2?1.15:1);SRC.lx=B.ph>=2?1.2:1;return SRC}
 
 registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55,alt:[700,900],hitR:4.5,det:6000,cash:1500,bounty:7000,far:5200,
  resist:{rack:.3,gepard:.4,sam:.8,mpads:.5,idome:.4,hflak:.3},hp:6,phases:['HIDDEN','HUNTED','CORNERED'],
- note:'an electronic-warfare aircraft hiding in the fog. Radar, lock-on and helpers degrade while it lives. Hunt it: jamming windows, the signal meter, bearing lines from its relay pods, and overloads when you kill inside its bubbles.',
+ note:'an electronic-warfare aircraft hiding in the fog. Radar, lock-on and helpers degrade while it lives, and it spoofs your intercept pip (drift, ghosts): hold the real target in your sights, close in and kill its relay pods to burn through the noise. Hunt it: jamming windows, the heat meter, bearing lines from its relay pods, and overloads when you kill inside its bubbles.',
  warn:'massive jamming',spawn:{event:{from:18,p:.045},boss:30},
  build:C=>kingModel(C),
- init(C,t){const B=t.bs,{api}=C;relocate(C,t);B.pt=0;B.cnt=0;B.surf=0;B.lines=[];B.sil=5;B.exposed=0;
+ init(C,t){const B=t.bs,{api}=C;relocate(C,t);B.pt=0;B.cnt=0;B.surf=0;B.lines=[];B.sil=5;B.exposed=0;B.pm=0;
   const cam=api.camera,f=new C.V3(0,0,-1).applyQuaternion(cam.quaternion).setY(0);if(f.lengthSq()<.01)f.set(0,0,-1);f.normalize();const r=new C.V3(-f.z,0,f.x);
   t.p.copy(cam.position).addScaledVector(f,1900).addScaledVector(r,-500);t.p.y=Math.max(cam.position.y+180,api.gh(t.p.x,t.p.z)+260);t.v.copy(r).multiplyScalar(60);
   const n=C.DFI()>=3?5:C.DFI()===0?3:4;for(let i=0;i<n;i++){const a=-1.4+2.8*(i+.5)/n+C.rnd(-.2,.2),R=C.rnd(1500,3000),x=C.cl(C.siteC.x+Math.sin(a)*R,-3900,3900),z=C.cl(C.siteC.z-Math.cos(a)*R,-3900,3900);
-   const p=C.spawn('jpod',{x,z,enc:B.enc});if(p){p.bs.y0=api.gh(x,z)+C.rnd(150,280);p.p.y=p.bs.y0;p.bs.init=1;p.bs.hp=p.bs.max=1}}
+   const p=C.spawn('jpod',{x,z,enc:B.enc});if(p){p.bs.y0=api.gh(x,z)+C.rnd(150,280);p.p.y=p.bs.y0;p.bs.init=1;p.bs.hp=p.bs.max=1;B.pm++}}
   C.Z.an?.radio('EARLY WARNING','Massive jamming on every band. Something big is out there… there! Did you see it?',2)},
  introFn(C,t){C.Z.an?.say('JAMMER KING','a silhouette in the haze · then gone','#c77dff',3);C.api.feed('<span style="color:#c77dff">A huge silhouette slid through the haze… and vanished into the fog.</span> Hunt it: windows, signal, relay pods, overloads.')},
  tick(C,t,dt){const B=t.bs,{api}=C;if(B.sil>0){B.sil-=dt;t.p.addScaledVector(t.v,dt);if(B.sil<=0){t.p.set(B.home.x,api.gh(B.home.x,B.home.z)+800,B.home.z);t.v.set(55,0,0)}return true}
@@ -88,14 +102,17 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
  // grows hot near it (the same signal as the meter)
  atmos(C,t,o){const B=t.bs,w=winOf(B),s=signal(C,t),pulse=.5+.5*Math.sin(performance.now()/260);o.fog=w?.65:.28;o.fogC.set(0x55583a);o.fogMix=w?.25:.7;o.light=w?.8:.5;o.dark=w?.05:.22;
   o.tint.set(0xb2c06a);o.tintA=w?.08:.3+.12*pulse;o.desat=w?.08:.28;o.vign=w?.2:.45;o.noise=w?.03:.16+.1*pulse+.35*s;return B.sil>0?.8:1},
- lockK:(C,u)=>jamOn(C,u)?(u.bs.ph>=2?3:2.5):1,radarK:(C,u)=>jamOn(C,u)?.55:1,jinkK:(C,u)=>jamOn(C,u)?.7:1,lockSelf:()=>1.5,
+ /* lock-on time and the helpers' odds come from the EW engine's noise (zew.js: nearer the emitters is worse, a pod down is better, a burn-through
+    clears it); a pulse window clears all three at once; the radar's range loses nearly half while it jams, back in full in a burn-through */
+ lockK:(C,u)=>jamOn(C,u)?C.Z.ew.lockK():1,radarK:(C,u)=>jamOn(C,u)&&!C.Z.ew.burning?.55:1,jinkK:(C,u)=>jamOn(C,u)?C.Z.ew.helperK():1,lockSelf:()=>1.5,
+ clear:C=>C.Z.ew?.clear(),fxLeft:C=>C.Z.ew?.left()||{},
  hit(C,t,h){return h.q==='kill'?2:h.q==='helper'?1:1},
  hurt(C,t){if(!t.bs.exposed&&t.bs.ph<2){relocate(C,t);C.api.feed('<span style="color:#c77dff">The Jammer King took a hit and relocated.</span>')}},
  phase(C,t,i){if(i===2)C.api.feed('<span style="color:#c77dff">Its emitter is overheating: the King glows and runs for the edge.</span>')},
- death(C,t){for(const u of C.api.TH)if(u.k==='jpod'&&u.st!=='dead'){C.vanish(u,'gone');C.api.boom(u.p,1)}},
+ death(C,t){C.Z.ew?.clear();for(const u of C.api.TH)if(u.k==='jpod'&&u.st!=='dead'){C.vanish(u,'gone');C.api.boom(u.p,1)}},
  status(C,e){const t=e.main,B=t.bs,w=winOf(B),per=B.ph>=1?10:PER,jam=B.ph>=1?6.5:JAM,left=w?per-B.pt:jam-B.pt,s=signal(C,t),pods=C.api.TH.filter(u=>u.k==='jpod'&&C.api.live(u)).length;
   const lab=s<.15?'COLD':s<.35?'COOL':s<.6?'WARM':s<.8?'HOT':'BURNING',bars='▮'.repeat(Math.round(s*8))+'▯'.repeat(8-Math.round(s*8));
-  return`${B.exposed?'<b>EXPOSED</b>':B.surf>0?`<b>SURFACED ${Math.ceil(B.surf)} s</b>`:'HIDDEN'} · ${w?'<b>WINDOW</b>':'JAM'} ${Math.ceil(left)} s · SIGNAL ${bars} <b>${lab}</b><br>relays ${pods} · lines ${B.lines?.length|0} · overload ${B.cnt|0}/${need(C)}`},
+  return`${B.exposed?'<b>EXPOSED</b>':B.surf>0?`<b>SURFACED ${Math.ceil(B.surf)} s</b>`:'HIDDEN'} · ${w?'<b>WINDOW</b>':'JAM'} ${Math.ceil(left)} s · HEAT ${bars} <b>${lab}</b><br>relays ${pods} · lines ${B.lines?.length|0} · overload ${B.cnt|0}/${need(C)}${C.Z.ew?.on?` · ${C.Z.ew.line()}`:''}`},
  vis(C,t,dt){const B=t.bs,U=t.mesh.userData,cam=C.api.camera.position,d=t.p.distanceTo(cam),M=mats(C),seen=C.Z.seen(t);
   for(const p of U.props)p.rotation.z+=dt*30;U.dome.rotation.y+=dt*.8;
   if(!winOf(B)&&(B.hz=(B.hz||0)-dt)<=0){B.hz=.16;const c=cam,a=Math.random()*6.28,r=C.rnd(220,900);_hz.x=c.x+Math.cos(a)*r;_hz.z=c.z+Math.sin(a)*r;_hz.y=C.api.gh(_hz.x,_hz.z)+C.rnd(10,140);C.haze(_hz,0x5a5c3c,.32,14,2.5)}  // haze banks roll in
@@ -103,8 +120,9 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
   const w=winOf(B),hot=B.ph>=2||B.surf>0||B.exposed;U.st.visible=!sil&&(w||hot)&&Math.sin(performance.now()/(w?70:160))>-.2;U.em.visible=w||hot;
   if(hot&&(B.sm=(B.sm||0)-dt)<=0){B.sm=.12;C.FX.emit(t.p.clone().add(new C.V3(0,-1.6,0)),0xc77dff,3,4,.5,null,2.5)}},
  radar(C,rc,P,t){const B=t.bs,{api}=C,pd=P(api.PADP.x,api.PADP.z);
-  if(jamOn(C,t)){rc.fillStyle='rgba(150,160,80,.12)';rc.fillRect(0,0,500,500);rc.fillStyle='rgba(199,125,255,.6)';for(let i=0;i<240;i++)rc.fillRect(C.rnd(0,500),C.rnd(0,500),C.rnd(1,5),1.5);
-   rc.strokeStyle='rgba(199,125,255,.22)';rc.lineWidth=3;for(let i=0;i<9;i++){const y=C.rnd(0,500);rc.beginPath();rc.moveTo(0,y);rc.lineTo(500,y+C.rnd(-20,20));rc.stroke()}}
+  const nz=Math.min(1,(C.Z.ew?.neff||0)*1.6);  /* the static follows the engine's noise: thick near the emitters, gone in a window or a burn-through */
+  if(nz>.03){rc.fillStyle='rgba(150,160,80,'+(.12*nz).toFixed(3)+')';rc.fillRect(0,0,500,500);rc.fillStyle='rgba(199,125,255,.6)';for(let i=0,n=Math.round(240*nz);i<n;i++)rc.fillRect(C.rnd(0,500),C.rnd(0,500),C.rnd(1,5),1.5);
+   rc.strokeStyle='rgba(199,125,255,.22)';rc.lineWidth=3;for(let i=0,n=Math.round(9*nz);i<n;i++){const y=C.rnd(0,500);rc.beginPath();rc.moveTo(0,y);rc.lineTo(500,y+C.rnd(-20,20));rc.stroke()}}
   rc.setLineDash([6,6]);rc.strokeStyle='rgba(199,125,255,.55)';rc.lineWidth=2;for(const u of api.TH)if(u.k==='jpod'&&api.live(u)){const a=Math.atan2(u.p.x-api.PADP.x,u.p.z-api.PADP.z),q=P(api.PADP.x+Math.sin(a)*9000,api.PADP.z+Math.cos(a)*9000);rc.beginPath();rc.moveTo(pd[0],pd[1]);rc.lineTo(q[0],q[1]);rc.stroke()}
   rc.setLineDash([]);rc.strokeStyle='#c77dff';rc.lineWidth=2.5;for(const l of B.lines||[]){const a=P(l.x,l.z),b=P(l.x+Math.sin(l.a)*8000,l.z+Math.cos(l.a)*8000);rc.beginPath();rc.moveTo(a[0],a[1]);rc.lineTo(b[0],b[1]);rc.stroke()}
   const F=fix(B);if(F){const c=P(F.x,F.z),e=P(F.x+F.r,F.z);rc.beginPath();rc.arc(c[0],c[1],Math.max(6,Math.hypot(e[0]-c[0],e[1]-c[1])),0,7);rc.stroke();rc.fillStyle='#c77dff';rc.font='700 15px "JetBrains Mono",monospace';rc.fillText('KING?',c[0]+10,c[1]-10)}},
@@ -121,7 +139,8 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
  loopVol:(C,t)=>signal(C,t)*(winOf(t.bs)?.03:.13),
  reward:{id:'crown',n:'EW Crown',short:'immune to jamming; lock 25% faster; radar +20%',txt:'The King\'s captured EW suite: enemy jamming no longer touches you (Jammer Kings, the Mothership), your lock-on builds 25% faster and your radar reaches 20% farther.',
   lockK(C,t){const{api}=C,d=api.player;let k=.75;if(api.TH.some(u=>u.k==='boss'&&api.live(u)&&(u.p.distanceTo(t.p)<2500||d&&u.p.distanceTo(d.p)<2500)))k/=1.7;return k},radarK:()=>1.2},
- g:{kill(C,t){if(t.k==='jpod'||t.k==='jammer')return;const k=king(C);if(!k||k.bs.exposed||!C.auth())return;const B=k.bs;
+ g:{step:(C,dt)=>C.Z.ew?.update(dt,feed(C)),  /* every tick: the engine hears the emitters (zew.js) */
+  kill(C,t){if(t.k==='jpod'||t.k==='jammer')return;const k=king(C);if(!k||k.bs.exposed||!C.auth())return;const B=k.bs;
    const inb=t.p.distanceTo(k.p)<KINGR||C.api.TH.some(u=>u.k==='jpod'&&C.api.live(u)&&u.p.distanceTo(t.p)<PODR);if(!inb)return;B.cnt=(B.cnt|0)+1;
    if(B.cnt>=need(C)){B.cnt=0;B.surf=15;C.Z.an?.say('NETWORK OVERLOAD','the Jammer King surfaces · 15 s','#c77dff',3);C.api.feed('<span class="cg">Network overload!</span> The Jammer King is forced down and onto your radar for 15 s.')}}}});
 

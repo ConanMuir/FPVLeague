@@ -154,7 +154,7 @@ export function initCampaign(api,G,Z){
  const R=()=>run&&RELICS[run.relic];
  Z.cp={get on(){return!!run},get run(){return run},has:k=>!!run&&run.mods.some(m=>m.id===k),n:(k,d=0)=>{if(!run)return d;const m=run.mods.find(m=>m.id==='raid');return k==='launchSites'&&m?MODS.raid.launchSites:d},
   C,put,status:id=>status(C(),id),front:()=>front(C()),result,cleanCamp,SECTORS,MODS,RELICS,GEO,
-  start:(id,force)=>{const c=C();if(!force&&!playable(c,id))return false;armed=id;S.gmode='z';$('zover').hidden=true;closeMap();api.startMatch();return!!run}};
+  start:(id,force)=>{const c=C();if(!force&&!playable(c,id))return false;armed=id;$('zover').hidden=true;closeMap();api.startMatch();return!!run}};
 
  // ---------- hooks into the run ----------
  // difficulty numbers: the campaign's difficulty with the sector's modifiers on top (a derived object, so ZDIFF itself never changes)
@@ -237,10 +237,10 @@ export function initCampaign(api,G,Z){
 
  // ---------- start menu: the campaign card next to the difficulty ----------
  const card=document.createElement('div');card.className='zcpm';card.id='zcpm';$('zdiff').after(card);
- function syncCard(){card.hidden=S.gmode!=='z';if(card.hidden)return;const c=C(),f=front(c),D=ZDIFF[c.d];
+ function syncCard(){const c=C(),f=front(c),D=ZDIFF[c.d];
   card.innerHTML=`<div><b>Campaign</b><span>${c.done?'Complete: every sector open for replays':`${c.held.length} of ${SECTORS.length} sectors held · ${D.n}${f.length?` · next: ${esc(SEC[c.sel]?.n||SEC[f[0]].n)}`:''}`}</span></div><button class="go" id="zcpopen">Campaign map ▸</button>`;
   $('zcpopen').onclick=()=>openMap()}
- syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};$('gmode').addEventListener('click',()=>setTimeout(syncCard,0));
+ syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};
  // Quick defence (the play button) never plays an armed sector
  $('play').addEventListener('click',()=>{armed=null},true);
 
@@ -303,7 +303,7 @@ export function initCampaign(api,G,Z){
   for(const b of ov.querySelectorAll('[data-crel]'))b.onclick=()=>{const c=C();c.eq=b.dataset.crel;put(cleanCamp(c));render()};
   for(const b of ov.querySelectorAll('[data-cres]'))b.onclick=()=>{pick.res=b.dataset.cres;render()}}
  function select(id){if(!has(SEC,id))return;sel=id;newArm=false;const c=C();c.sel=id;put(c);render();$('zcpgo')?.focus({preventScroll:true})}
- function launch(coop){const c=C();if(!playable(c,sel)||client()&&G.on)return;armed=sel;c.sel=sel;put(c);S.gmode='z';save();closeMap();$('zover').hidden=true;
+ function launch(coop){const c=C();if(!playable(c,sel)||client()&&G.on)return;armed=sel;c.sel=sel;put(c);save();closeMap();$('zover').hidden=true;
   if(coop){$('zhost').click();return}
   api.startMatch()}
  function openMap(){const c=C();if(S.zcamp?.v!==VER)put(c);sel=c.sel;newArm=false;ov.hidden=false;document.body.classList.add('zcp-open');render();setTimeout(()=>$('zcpgo')?.focus({preventScroll:true}),30)}

@@ -22,7 +22,7 @@ export const ORDER=['shahed','jet','decoy','swarm','heavy','cruise','ballistic',
 export const SITE_HP={SUBSTATION:400,'FUEL DEPOT':400,APARTMENTS:600,'COMMAND BUNKER':500};
 export const BUNKER_WAVE=10;
 
-// wave budget in threat points; wave 1 is the Classic pair (one Shahed, one Geran-3)
+// wave budget in threat points; wave 1 is the opening pair (one Shahed, one Geran-3)
 export const budget=(w,k=1)=>w===1?26:Math.round((14+12*w+.9*w*w)*k);  // k = the difficulty's wave-size multiplier
 
 // Zombies difficulty (start menu). wave = wave-size multiplier, cash = money per kill and bonus multiplier, start = starting cash,
@@ -39,7 +39,7 @@ export const ZDIFF=[
  {n:'Nightmare',wave:1.2,cash:.7,start:1000,hp:.9,shift:6,evade:'all',tac:{tot:1,escort:.6,focus:.6,feint:.3,jink:.25},txt:'Every raid times its arrival, hunts the weakest site and some switch targets on the way in; everything jinks; new types come 6 waves early. Bring friends.'}];
 export const EVADE_SOME=['jet','heavy','cruise','swarm','boss'];
 export const isBoss=w=>w>0&&w%10===0;
-// the wave a kind first shows up on a difficulty (never before wave 2 except the Classic pair)
+// the wave a kind first shows up on a difficulty (never before wave 2 except the opening pair)
 export const kindFrom=(k,shift=0)=>{const f=KIND[k].from;return f<=1?f:Math.max(2,f-shift)};
 // relative pick weights once unlocked: the newest kind starts rare and grows
 export const weight=(k,w,shift=0)=>{const K=KIND[k],f=kindFrom(k,shift);if(w<f)return 0;const age=w-f;return({shahed:6,jet:3.5,decoy:2.5,swarm:2.2,heavy:1.6,cruise:1.4,ballistic:.8,hyper:.5,icbm:.35})[k]*Math.min(1,.45+age*.12)};

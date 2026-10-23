@@ -4,12 +4,14 @@
 // a moment and the lock drops. Weather slows the lock (low visibility, rain; thermal helps), so does jamming (near a Mothership, or whatever
 // Z.lockJam(t) returns); the Optics perk speeds it up. On Hard and Nightmare an evading track jinks when it is locked and can break it.
 // The lock is what the personal swarm's "attack my lock" goes after (zswarm.js). Numbers: zswdata.js LOCK.
+/* Electronic warfare (zew.js): while the Jammer King jams, the pip is drawn through Z.ew.skew (L.dp: the true point L.ip moved by drift and jitter,
+   inside a ring L.eu that holds the truth), ghost pips and static ride on it, and the jamming can drop a lock. A burn-through makes L.dp = L.ip again. */
 import {LOCK} from './zswdata.js';
 import {track as leadTrack,solve as leadSolve} from './lead.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,D2R=Math.PI/180;
 export function initLock(api,G,Z){
  const {THREE,TH,S}=api,V3=THREE.Vector3,_a=new V3(),_b=new V3(),_f=new V3(),_p=new V3(),_v2=new V3();
- const L={cand:null,prog:0,tgt:null,full:false,lost:0,held:0,ip:new V3(),tti:0,unc:0,sol:{p:new V3(),tau:0,unc:0,ok:true},ph:0,snd:null,st:0,brk:null,n:{start:0,try:0,lock:0,lost:0,broken:0,faded:0,gone:0,held:0}};  // n: counts for tuning (tracks entering the reticle, attempts past 25%, locks, lost by aim, broken by a jink, part-built locks that faded, targets killed or gone)
+ const L={cand:null,prog:0,tgt:null,full:false,lost:0,held:0,ip:new V3(),dp:new V3(),eu:0,tti:0,unc:0,sol:{p:new V3(),tau:0,unc:0,ok:true},ph:0,snd:null,st:0,brk:null,n:{start:0,try:0,lock:0,lost:0,broken:0,faded:0,gone:0,held:0}};  // n: counts for tuning (tracks entering the reticle, attempts past 25%, locks, lost by aim, broken by a jink, part-built locks that faded, targets killed or gone)
  const lv=k=>Z.perkLevel?.(k)|0;
  // seconds to lock this track from here: range, Optics, weather (visibility through the current fog, rain; thermal sees further), jamming
  function lockTime(t,me){const d=t.p.distanceTo(me.p);let k=LOCK.t*(1+Math.max(0,d-800)/1000*LOCK.far)*LOCK.optics[cl(lv('optics'),0,3)];
@@ -33,11 +35,13 @@ export function initLock(api,G,Z){
   if(t.net)return Math.random()<B[0]*B[1]*dt;  /* a co-op client mirrors the track: the host flies it, so just the odds */
   if(L.held>1&&!(t.brk>0)&&(t.brkCd||0)<=0&&Math.random()<B[0]*dt){t.brk=1.6;t.brkCd=5;t.brkDir=Math.random()<.5?-1:1}
   if(t.brk>1.3&&!t.lkJ){t.lkJ=1;return Math.random()<B[1]}if(!(t.brk>0))t.lkJ=0;return false}  /* each jink (one of yours closing inside 350 m, or this one) rolls once */
- /* where to fly to meet it: lead.js, the same solver as Classic's PIP, on sim state every tick of the lock. The point is where you actually meet
+ /* where to fly to meet it: lead.js, on sim state every tick of the lock. The point is where you actually meet
     the track flying straight at your speed (at least 40 m/s; flat out when you can't catch it at that), allowing for its turn; L.unc says
     how far that could move if it changes what it is doing. */
  function intercept(t,me,dt){const ld=leadTrack(t,dt,V3),O=L.sol,s=Math.max(me.v.length(),40);leadSolve(O,t.p,t.v,ld.a,me.p,s,V3);
-  if(!O.ok)leadSolve(O,t.p,t.v,ld.a,me.p,Math.max(s,(S.mod?.maxv||115)+(me.bmax||0)),V3);L.ip.copy(O.p);L.tti=O.tau;L.unc=O.unc}
+  if(!O.ok)leadSolve(O,t.p,t.v,ld.a,me.p,Math.max(s,(S.mod?.maxv||115)+(me.bmax||0)),V3);L.ip.copy(O.p);L.tti=O.tau;L.unc=O.unc;
+  /* what the HUD draws: the true point, moved by the jamming (zew.js) while an emitter is up; L.eu = the ring that holds the truth */
+  L.dp.copy(L.ip);L.eu=Z.ew?Z.ew.skew(L.dp,me.p,t.p.distanceTo(me.p)):0}
  function step(dt){L.clock=(L.clock||0)+(dt||0);const me=api.player,on=G.on&&G.state==='wave'&&me&&me.dead<=0&&!api.demo&&!Z.cine&&!Z.idle?.();
   if(!on){if(L.full&&L.tgt&&!api.live(L.tgt))L.n.gone++;if(L.full||L.prog||L.cand){L.full=false;L.tgt=null;L.cand=null;L.prog=0}L.st=0;return}
   // a track is in your sights when the reticle is on it, or when you are flying straight at it (the flight path): at 40-70 m/s the dart flies
@@ -45,7 +49,9 @@ export function initLock(api,G,Z){
   const cam=LS.cam=sights();_f.set(0,0,-1).applyQuaternion(cam.quaternion);LS.fp=me.v.lengthSq()>400?_v2.copy(me.v).normalize():null;LS.me=me;LS.dt=dt;
   if(L.full){const t=L.tgt;if(!api.live(t)){L.n.gone++;drop(t&&t.st!=='dead'&&t.st!=='fall'?'LOCK LOST':'');return step0()}
    const d=t.p.distanceTo(me.p);L.lost=ang(t)>keepA(d)||d>LOCK.range*1.25?L.lost+dt:0;if(L.lost>LOCK.keepT){L.n.lost++;L.mem={t,until:L.clock+(LOCK.mem||0)};drop('LOCK LOST');return step0()}
-   if(evasion(t,dt)){L.n.broken++;drop('LOCK BROKEN');return step0()}L.held+=dt;L.n.held+=dt;intercept(t,me,dt);if(api.pickT!==t)api.pickT=t;L.st=2;return}
+   if(evasion(t,dt)){L.n.broken++;drop('LOCK BROKEN');return step0()}
+   if(Z.ew&&L.held>Z.ew.EW.dropHeld&&Z.ew.lockDrop(t,me,dt)){L.n.lost++;drop('LOCK JAMMED');return step0()}  /* the jamming drops it now and then (zew.js) */
+   L.held+=dt;L.n.held+=dt;intercept(t,me,dt);if(api.pickT!==t)api.pickT=t;L.st=2;return}
   step0()}
  // the per-tick search without closures: its state in LS, the angle test and the grid callback made once
  const LS={cam:null,fp:null,me:null,dt:0,best:null,ba:0},ang=t=>{const a=_f.angleTo(_p.subVectors(t.p,LS.cam.position));return LS.fp?Math.min(a,LS.fp.angleTo(_p.subVectors(t.p,LS.me.p))):a},
@@ -77,14 +83,15 @@ export function initLock(api,G,Z){
    if(q){const R=20;oc.beginPath();oc.moveTo(q[0],q[1]-R);oc.lineTo(q[0]+R,q[1]);oc.lineTo(q[0],q[1]+R);oc.lineTo(q[0]-R,q[1]);oc.closePath();oc.stroke();oc.fillText(`LOCK T${String(t.id).padStart(2,'0')}`,q[0],q[1]-R-8)}
    /* intercept path: a straight dashed line from your interceptor (drawn where the frame draws it) to the meet point, the path the solution
       assumes; chevrons along it every quarter */
-   const p0=me.p,pts=[];for(let i=0;i<=24;i++){_a.lerpVectors(p0,L.ip,i/24);pts.push(scr(_a,W,H))}
+   const p0=me.p,pts=[];for(let i=0;i<=24;i++){_a.lerpVectors(p0,L.dp,i/24);pts.push(scr(_a,W,H))}
    oc.setLineDash([8,6]);oc.lineWidth=2;oc.beginPath();let pen=false;for(const q2 of pts){if(!q2){pen=false;continue}if(pen)oc.lineTo(q2[0],q2[1]);else oc.moveTo(q2[0],q2[1]);pen=true}oc.stroke();oc.setLineDash([]);
    for(let i=6;i<pts.length-1;i+=6){const a=pts[i],b=pts[i+1];if(!a||!b)continue;const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);oc.save();oc.translate(a[0],a[1]);oc.rotate(ang);oc.beginPath();oc.moveTo(-5,-6);oc.lineTo(3,0);oc.lineTo(-5,6);oc.stroke();oc.restore()}
-   const ip=scr(L.ip,W,H),txt=`INTERCEPT ${L.tti<10?L.tti.toFixed(1):Math.round(L.tti)} s`;
-   if(ip&&ip[0]>0&&ip[0]<W&&ip[1]>0&&ip[1]<H){const d=Math.max(1,L.ip.distanceTo(cam.position)),ur=L.unc/d/tf*H/2;if(ur>14){oc.save();oc.globalAlpha=.45;oc.setLineDash([2,4]);oc.beginPath();oc.arc(ip[0],ip[1],Math.min(ur,H),0,7);oc.stroke();oc.restore()}  /* how far the point may move if the track changes course */
+   const ip=scr(L.dp,W,H),txt=`INTERCEPT ${L.tti<10?L.tti.toFixed(1):Math.round(L.tti)} s`;
+   if(ip&&ip[0]>0&&ip[0]<W&&ip[1]>0&&ip[1]<H){const d=Math.max(1,L.dp.distanceTo(cam.position)),ur=L.unc/d/tf*H/2;if(ur>14){oc.save();oc.globalAlpha=.45;oc.setLineDash([2,4]);oc.beginPath();oc.arc(ip[0],ip[1],Math.min(ur,H),0,7);oc.stroke();oc.restore()}  /* how far the point may move if the track changes course */
     oc.beginPath();oc.arc(ip[0],ip[1],11,0,7);oc.moveTo(ip[0]-17,ip[1]);oc.lineTo(ip[0]-6,ip[1]);oc.moveTo(ip[0]+6,ip[1]);oc.lineTo(ip[0]+17,ip[1]);oc.moveTo(ip[0],ip[1]-17);oc.lineTo(ip[0],ip[1]-6);oc.stroke();oc.fillText(txt,ip[0],ip[1]+30)}
-   else{_p.copy(L.ip).project(cam);let x=_p.x,y=_p.y;if(_p.z>1){x=-x;y=-y}const m=Math.max(Math.abs(x)/.86,Math.abs(y)/.78,1e-3);x/=m;y/=m;const X=(x*.5+.5)*W,Y=(-y*.5+.5)*H;
-    oc.save();oc.translate(X,Y);oc.rotate(Math.atan2(-y,x));oc.beginPath();oc.moveTo(16,0);oc.lineTo(-6,-11);oc.lineTo(-1,0);oc.lineTo(-6,11);oc.closePath();oc.fill();oc.restore();oc.fillText(txt,X,Y+26)}}
+   else{_p.copy(L.dp).project(cam);let x=_p.x,y=_p.y;if(_p.z>1){x=-x;y=-y}const m=Math.max(Math.abs(x)/.86,Math.abs(y)/.78,1e-3);x/=m;y/=m;const X=(x*.5+.5)*W,Y=(-y*.5+.5)*H;
+    oc.save();oc.translate(X,Y);oc.rotate(Math.atan2(-y,x));oc.beginPath();oc.moveTo(16,0);oc.lineTo(-6,-11);oc.lineTo(-1,0);oc.lineTo(-6,11);oc.closePath();oc.fill();oc.restore();oc.fillText(txt,X,Y+26)}
+   Z.ew?.pipFx(oc,scr,W,H,L.dp,me.p,ip&&ip[0]>0&&ip[0]<W&&ip[1]>0&&ip[1]<H?ip:null,L.eu)}  /* jamming: its ring, ghost pips, static over the pip, the burn-through ring (zew.js) */
   oc.restore()}
  // ---------- hooks (zombies.js calls initLock before the game-feel and co-op layers wrap these) ----------
  const s0=Z.step;Z.step=dt=>{s0(dt);step(dt)};
@@ -92,6 +99,6 @@ export function initLock(api,G,Z){
  const o0=Z.overlay;Z.overlay=oc=>{o0(oc);overlay(oc,innerWidth,innerHeight)};
  const st0=Z.stop;Z.stop=()=>{st0();drop('');L.st=0;if(L.snd){try{L.snd.g.gain.value=0}catch(e){}}};
  // Z.lk: the swarm's "attack my lock" and the bots (force: a lock without the hold, for the bot pilots and the tests)
- Z.lk={get t(){return L.full&&api.live(L.tgt)?L.tgt:null},get prog(){return L.full?1:L.prog},get cand(){return L.cand},get tti(){return L.tti},get unc(){return L.unc},ip:L.ip,L,lockTime,
+ Z.lk={get t(){return L.full&&api.live(L.tgt)?L.tgt:null},get prog(){return L.full?1:L.prog},get cand(){return L.cand},get tti(){return L.tti},get unc(){return L.unc},get eu(){return L.eu},ip:L.ip,dp:L.dp,L,lockTime,
   force(t){if(t&&api.live(t))acquire(t,true)},clear(){drop('')},sights};
  return Z.lk}
