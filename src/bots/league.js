@@ -1,4 +1,5 @@
 // ---------- bots (League): ball prediction, intercept, roles, cascaded controller into attitude() ----------
+import './evolved.js';  /* first: the evolved levels (bots/evolved.json) join DIFF before anything lists it */
 import {DIFF,GD,GH,GW,H,HL,HW,UP,V3,cl} from '../config/constants.js';
 import {hyp2} from '../core/hypot.js';
 import {LL,hoopMode,hoops,ropeLen} from '../modes/longline.js';

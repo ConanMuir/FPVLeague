@@ -126,6 +126,10 @@ jobs:
           - check: flight-golden
             area: interceptor
             run: node tools/flight-golden.mjs
+          # the bot self-play ladder: one tiny generation (one archetype, one child, 1 sim minute) twice, and its file through the loader
+          - check: bot-ladder-check
+            area: league
+            run: node tools/bot-ladder-check.mjs
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
