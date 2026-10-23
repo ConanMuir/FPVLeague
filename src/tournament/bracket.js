@@ -80,6 +80,10 @@ export function roundsOf(T){const out=[],k=log2(T.size),cap=s=>s[0].toUpperCase(
 export function teamsOf(T,m){const keys=[[],[]],skill={},play=matchKind(T,m)==='play';
  for(const t of[0,1]){const e=T.entrants[t?m.b:m.a],me=play&&e.kind==='human';
   for(let i=0;i<T.team;i++){const k=me&&i===0?'h':`b${t}${i}`;keys[t].push(k);if(k!=='h')skill[k]=e.kind==='bot'?e.skill:T.mates}}return{keys,skill}}
+/** the longest a simulated match stays level past its clock (s of play); then settle() decides it */
+export const OT_MAX=300;
+/** the score of a simulated match as the clock and OT_MAX leave it: a level score goes to the team whose attacking half the ball is in, by one goal (team 0 attacks -z; on the halfway line team 0, the first entrant); a score with a lead stands */
+export const settle=(score,ballZ)=>score[0]!==score[1]?[score[0],score[1]]:ballZ>0?[score[0],score[1]+1]:[score[0]+1,score[1]];
 /** a name for an entrant: the human's, or the bot's level with a letter when that level is in the list more than once */
 export function entrantName(T,i){const e=T.entrants[i];if(!e)return'?';if(e.kind==='human')return e.name||(e.pilot==='p2'?'Player 2':'You');const same=T.entrants.filter(x=>x.kind==='bot'&&x.lv===e.lv);
  return same.length>1?`${e.lv} ${String.fromCharCode(65+same.indexOf(e))}`:e.lv}

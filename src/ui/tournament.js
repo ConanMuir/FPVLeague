@@ -44,7 +44,7 @@ function table(T){const Sx=B.standings(T),sw=T.format==='swiss';
  return`<table class="rt tnt"><thead><tr><th>#</th><th>Entrant</th><th>P</th><th>W</th><th>L</th><th>GF</th><th>GA</th><th>GD</th>${sw?'<th title="opponents\' points">Opp</th>':''}<th>Pts</th></tr></thead><tbody>${Sx.map(r=>`<tr class="${T.done&&r.i===T.champion?'champ':''}${B.isHuman(T,r.i)?' hu':''}"><td>${r.rank}</td><td>${esc(B.entrantName(T,r.i))}</td><td>${r.p}</td><td>${r.w}</td><td>${r.l}</td><td>${r.gf}</td><td>${r.ga}</td><td>${r.gf-r.ga>0?'+':''}${r.gf-r.ga}</td>${sw?`<td>${r.opp}</td>`:''}<td><b>${r.pts}</b></td></tr>`).join('')}</tbody></table>`}
 function renderBracket(T){const pl=B.playable(T),R=B.roundsOf(T),elim=T.format==='single'||T.format==='double',nb=nextBots(),busy=!!(TN.cur||TN.sim),played=T.results.length,total=T.matches.filter(m=>!m.void).length-(T.format==='double'&&!T.done?1:0);
  const head=`<div class="tnbar"><span class="note">${esc(B.formatName(T.format))} · ${T.size} entrants · ${T.team}v${T.team} · ${esc(lenName(T.len))} · ${played} of ${total} matches played</span>
-  ${TN.queue?'<button class="sm" id="tnstopq">Stop after this match</button>':`<button class="sm" id="tnsimall"${nb&&!busy?'':' disabled'}>Simulate all bot matches</button>`}<button class="sm" id="tnquit"${busy?' disabled':''}>Abandon</button></div>`;
+  ${TN.queue?'<button class="sm" id="tnstopq">Stop after this match</button>':`<button class="sm" id="tnsimall"${nb&&!busy?'':' disabled'}>Simulate all bot matches</button>`}<button class="sm" id="tnquit"${TN.cur&&!TN.sim?' disabled':''}>Abandon</button></div>`;
  const body=elim?(T.format==='double'?`<h3 class="pfh">Winners bracket</h3>${cols(T,R.filter(r=>r.br==='w'||r.br==='f'),pl)}<h3 class="pfh">Losers bracket</h3>${cols(T,R.filter(r=>r.br==='l'),pl)}`:cols(T,R,pl)):`${table(T)}<h3 class="pfh">Matches</h3>${cols(T,R,pl)}`;
  return head+body}
 function renderResults(T){const c=T.champion,hu=B.isHuman(T,c),tr=TN.trophy,R=B.roundsOf(T),elim=T.format==='single'||T.format==='double';
@@ -66,7 +66,7 @@ function onClick(e){const b=e.target.closest('button');if(!b)return;const id=b.i
  else if(id==='tnreverse'){const h=D.entrants.slice(0,D.size).reverse();D.entrants.splice(0,D.size,...h);renderTournament()}
  else if(id==='tnrandom'){for(let i=0;i<D.size;i++)if(D.entrants[i].kind!=='human')D.entrants[i]=botAt(Math.floor(Math.random()*DIFF.length));renderTournament()}
  else if(id==='tnsimall'){tournSimAll();renderTournament()}else if(id==='tnstopq'){tournStopQueue();renderTournament()}
- else if(id==='tnquit'){if(TN.T&&confirm('Abandon this tournament? Its results are lost.')){tournAbandon();renderTournament()}}
+ else if(id==='tnquit'){if(TN.T&&confirm('Abandon this tournament? Its results are lost.')){tournAbandon();backToGame();renderTournament()}}  /* a simulation running behind the menu is cancelled with it (tournStop), and the world goes back to your own mode */
  else if(id==='tnnew'){tournAbandon();renderTournament()}}
 function onChange(e){const s=e.target;if(!(s instanceof HTMLSelectElement))return;
  if(s.dataset.slot!=null){setEntrant(+s.dataset.slot,s.value);renderTournament();return}
