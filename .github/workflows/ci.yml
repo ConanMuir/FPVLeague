@@ -164,6 +164,10 @@ jobs:
           - check: zombies-test (radio)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=radio
+          # the one-time first-wave guide (zonboard.js): the prompts in order on the actions, Skip, the flag across reloads, a second run, bots / co-op / benches, nothing left at wave end
+          - check: zombies-test (onboard)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=onboard
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
