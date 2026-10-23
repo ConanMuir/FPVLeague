@@ -216,11 +216,13 @@ async function motes(b, iorigin, lorigin) {
 // in-page: the drawing buffer size against every composer target and pass that keeps one (bloom mips scale down from it)
 function rtSizes(T) {
   const {renderer, composer} = T, gl = renderer.getContext(), W = gl.drawingBufferWidth, H = gl.drawingBufferHeight, bad = [];
-  for (const [n, t] of [['rt1', composer.renderTarget1], ['rt2', composer.renderTarget2]]) if (t.width !== W || t.height !== H) bad.push(`${n} ${t.width}x${t.height}`);
+  /* targets are sized W*pixelRatio unrounded (691.2 at a .54 ratio) while the drawing buffer is whole pixels: under a pixel apart is the same size */
+  const same = t => Math.abs(t.width - W) < 1 && Math.abs(t.height - H) < 1;
+  for (const [n, t] of [['rt1', composer.renderTarget1], ['rt2', composer.renderTarget2]]) if (!same(t)) bad.push(`${n} ${t.width}x${t.height}`);
   for (const p of composer.passes) {
     if (!p.enabled) continue;
     if (p.renderTargetsHorizontal?.[0]) { const t = p.renderTargetsHorizontal[0]; if (Math.abs(t.width - Math.round(W / 2)) > 1 || Math.abs(t.height - Math.round(H / 2)) > 1) bad.push(`bloom ${t.width}x${t.height}`); }
-    if (p.edgesRT) { const t = p.edgesRT; if (t.width !== W || t.height !== H) bad.push(`smaa ${t.width}x${t.height}`); }
+    if (p.edgesRT) { const t = p.edgesRT; if (!same(t)) bad.push(`smaa ${t.width}x${t.height}`); }
   }
   return {W, H, bad};
 }
