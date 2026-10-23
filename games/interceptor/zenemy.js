@@ -5,7 +5,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {dot,glow} from '../../engine/render.js';
 import {fbm,sm} from '../../engine/util.js';
 import {KIND,EVADE_SOME} from './zdata.js';
-import {warmers} from '../../engine/idle.js';
+import {warmers,ownRandom} from '../../engine/idle.js';
 import {hyp} from '../../engine/hot.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initEnemies(api,G,Z){
@@ -100,7 +100,10 @@ export function initEnemies(api,G,Z){
 
  // ---------- far field: a ring of coarse terrain from the edge of the 9 km map out to ~58 km, seamless with the detailed terrain ----------
  let ring=null;
- function farRing(){if(ring)return ring;const H=4500,NS=360,P=NS*4,K=22,pos=new Float32Array(P*(K+1)*3),col=new Float32Array(P*(K+1)*3),idx=[];
+ /* built on the idle tasks' own random stream (engine/idle.js ownRandom): the warm-up may build it first or Z.start does, and three.js draws
+  every uuid from Math.random, so the game's sequence is the same either way (a seeded wave played twice diverged on which had happened) */
+ function farRing(){return ring||ownRandom(buildRing)}
+ function buildRing(){const H=4500,NS=360,P=NS*4,K=22,pos=new Float32Array(P*(K+1)*3),col=new Float32Array(P*(K+1)*3),idx=[];
   const FC=[[.77,.68,.37],[.72,.64,.35],[.49,.55,.28],[.40,.47,.23],[.30,.24,.18],[.37,.29,.21],[.62,.6,.36],[.35,.45,.23]].map(c=>c.map(v=>v*.82));
   const y0=new Float32Array(P);
   for(let k=0;k<=K;k++){const h=H*(1+((k/K)**1.8)*12);for(let i=0;i<P;i++){const s=i/NS|0,f=(i%NS)/NS*2-1,ux=s===0?f:s===1?1:s===2?-f:-1,uz=s===0?-1:s===1?f:s===2?1:-f;
