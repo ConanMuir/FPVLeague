@@ -20,7 +20,7 @@ function model(C,R,k){const T=C.THREE,M=mats(C),g=C.group(),H=R*.38;
  for(let i=0;i<(k?2:6);i++){const a=i*Math.PI*2/(k?2:6);bays.push(C.mesh(g,new T.CircleGeometry(R*.12,6).rotateX(Math.PI/2),M.bay,Math.cos(a)*R*.45,-H*.92,Math.sin(a)*R*.45,false))}
  Object.assign(g.userData,{props,bays});return g}
 function swarmFrom(C,t,n){const{api,G}=C,live=api.TH.reduce((a,u)=>a+(u.k==='swarm'&&api.live(u)?1:0),0);if(live>=160)return;const g=++G.gid;
- for(let i=0;i<n;i++){const u=C.Z.make('swarm',t.p.x+C.rnd(-14,14),t.p.z+C.rnd(-14,14));if(u){u.p.y=t.p.y-8;u.grp=g}}api.feed(`<span class="cr">${t.k==='hive'?'The Hive':'A brood carrier'} launched a swarm (${n})</span>`)}
+ for(let i=0;i<n;i++){const u=C.Z.make('swarm',t.p.x+C.rnd(-14,14),t.p.z+C.rnd(-14,14));if(u){u.p.y=t.p.y-8;u.grp=g}}(C.Z.team||api.feed)(`<span class="cr">${t.k==='hive'?'The Hive':'A brood carrier'} launched a swarm (${n})</span>`)}
 const _hz={x:0,y:0,z:0};  // haze emit point (reused)
 const hiveAtmos=(K)=>(C,t,o)=>{const c=C.api.camera.position,d=Math.hypot(c.x-t.p.x,c.z-t.p.z);o.fog=.48;o.fogC.set(0x352d1a);o.fogMix=.6;o.light=.4;o.dark=.42;o.tint.set(0xffb850);o.tintA=.16;o.vign=.38;o.desat=.15;
  return K*(.4+.6*C.cl(1-d/2600,0,1))};
@@ -54,7 +54,7 @@ registerBoss({id:'hive',n:'The Hive',tag:'HIVE',col:'#ffb21e',spd:24,alt:[580,62
  loop(S){const o=S.out(0),lp=S.filt('lowpass',700,1.2);lp.connect(o);const X=[];for(let i=0;i<4;i++){const x=S.osc('sawtooth',118+i*11,S.t,0);x.connect(lp);X.push(x)}return{g:o,stop(){for(const x of X)x.stop()}}},
  reward:{id:'hive',n:'Captured Hive',short:'a counter-swarm hits the first FPV swarm near your sites each wave',txt:'Each wave, when the first enemy FPV swarm comes within 2.5 km of a site, the captured hive launches six friendly FPVs at it from the radar pad (80% each).',
   step(C){const{G,api}=C;if(G.state!=='wave'||G.hvw===G.wave||!C.auth())return;const S=C.sites(),sw=api.TH.filter(t=>t.k==='swarm'&&api.live(t)&&S.some(s=>Math.hypot(s.x-t.p.x,s.z-t.p.z)<2500));if(!sw.length)return;G.hvw=G.wave;
-   const p=new C.V3(api.PADP.x,api.PADP.y+15,api.PADP.z),nx=()=>api.TH.find(t=>t.k==='swarm'&&api.live(t));for(let i=0;i<6;i++){const b=C.bolt(p,sw[i%sw.length],{spd:120,pk:.8,col:[1,.75,.2],trail:.3});if(b)b.retarget=nx}api.feed('<span class="cg">Captured hive: counter-swarm away</span>')}}});
+   const p=new C.V3(api.PADP.x,api.PADP.y+15,api.PADP.z),nx=()=>api.TH.find(t=>t.k==='swarm'&&api.live(t));for(let i=0;i<6;i++){const b=C.bolt(p,sw[i%sw.length],{spd:120,pk:.8,col:[1,.75,.2],trail:.3});if(b)b.retarget=nx}(C.Z.team||api.feed)('<span class="cg">Captured hive: counter-swarm away</span>')}}});
 registerBoss({id:'brood',child:1,n:'Brood carrier',tag:'BROOD',col:'#ffb21e',spd:36,alt:[430,470],hitR:5,det:12000,cash:700,resist:{rack:.35,gepard:.5,sam:.9,mpads:.4,idome:.5,hflak:.5,flak:.3},hp:2,
  build:C=>model(C,7,1),introFn:()=>{},
  tick:(C,t,dt)=>carry(C,t,dt,{every:14,n:3+Math.floor(C.G.wave/10),spd:36,alt:450,r:140,dmg:120,pick:()=>t.bs.site&&t.bs.site.hp>0?t.bs.site:near(C,t.p)}),

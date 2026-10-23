@@ -16,6 +16,9 @@
 //   defences D (zdef.js netOut), events ev [id, type, ...] (b explosion, k kill + who, i impact, g gun burst, f team feed, m note to one pilot),
 //   per-pilot perks, detonation results dr, acks ak, roster pl, the next wave's plan nx, rejected pilots rj, the kill chain and warning state kc
 //   (zchain.js netOut). Client requests include W (a warning action: harden / evacuate / decoy, any time in a wave) and K (a kill chain purchase), U (take a sale back) and q (close a position you opened); sl in the snapshot carries the sales to undo (zsell.js).
+//  Later additions: g.bw (the trophies' ids: zbosses.js), g.cx (the host's boss pool: zcodex.js), g.sc (the scar records; a client's sr is the revision it applied, and a pilot with none gets
+//   them every third of a second), events B (a boss fight won: kind, bounty, trophy), H (a boss hit on one pilot's interceptor), I (a boss strike on a site: site, damage, aim); Z.stateSync() when the
+//   mirrored state opens the base or game-over screen (modules that watch the state in a sim step register in Z.stateHooks).
 // Clients dead-reckon tracks and shots from position + velocity and pull toward each snapshot; other pilots' drones are interpolated the same way.
 //
 // Loadouts (zmeta.js): the host's doctrine is the team's (it shapes the shared base: positions, purse, sites); each pilot brings their own kit
@@ -50,6 +53,9 @@ export function initNet(api,G,Z){
  Z.pilotsK=()=>net?[[net.me||'host',api.player],...[...net.pil].filter(([,r])=>r.seen).map(([k,r])=>[k,r.d])]:null;
  Z.netMe=()=>net?net.me||'host':null;Z.netRole=()=>net?(net.host?'host':'client'):null;Z.isReady=()=>!!net&&net.rd===G.wave+1;
  Z.netEv=e=>{if(net?.host)ev(e)};Z.netName=k=>nameOf(k);
+ /* a boss hit on another pilot's interceptor: the host tells that pilot's screen, which loses it there (zbosses.js ctx.shoot); the key names a pilot (this one, or a mirrored drone) */
+ Z.netHit=(d,why)=>{if(!net?.host)return false;for(const[k,r]of net.pil)if(r.d===d&&r.seen&&!r.dead){ev(['H',k,String(why).replace(/[<>&"'`]/g,'').slice(0,60)]);return true}return false};
+ Z.pilotKey=d=>{if(!net||!d)return null;if(d===api.player)return net.me||'host';for(const[k,r]of net.pil)if(r.d===d)return k;return null};
  Z.netPlan=()=>net&&!net.host?net.nx:null;  /* a client's copy of the host's plan for the wave (zbosses.js: the boss warning) */
 
  // ---------- lobby on the Zombies start menu: name, Host co-op, code + Join (and open games, in a claude.ai room) ----------
@@ -77,7 +83,7 @@ export function initNet(api,G,Z){
   try{r=await(room.p2p?room.join('z'+code,isHost):room.join('dlz-'+code))}catch(e){const c=e?.code||'error';if(isHost&&c==='taken')return enter(Math.random().toString(36).slice(2,6),true);
    msg(c==='not_found'?'No game found with that code.':c==='timeout'?'Could not reach that game. Check the code and your connection.':c==='load_failed'?'Could not load the online library. Check your internet connection.':`Could not open that game (${c}). Try again.`,1);return}
   const n=net={r,code,host:isHost,me:null,hostPeer:null,peers:[],last:{},t0:performance.now(),gone:0,tk:0,sendT:0,vt:0,
-   eid:0,evs:[],hk:{},ak:{},esv:{},rdv:{},ltv:{},skv:{},ktv:{},kt:{},perks:{},kc:{},dr:{},names:{},order:[],rj:[],gid:1,sn:0,snapIv:100,mute:0,
+   eid:0,evs:[],hk:{},ak:{},esv:{},rdv:{},ltv:{},skv:{},srv:{},ktv:{},kt:{},perks:{},kc:{},dr:{},names:{},order:[],rj:[],gid:1,sn:0,snapIv:100,mute:0,
    out:[],oseq:Date.now(),evSeen:-1,drSeen:0,ts:new Map(),tm:new Map(),pl:[],gid0:0,late:false,rd:0,pil:new Map(),sig:'',nx:null,nxJ:'',pkJ:''};
   r.onPeers(ch=>{if(net!==n)return;n.peers=ch.peers;const me=ch.peers.find(p=>p.sameTab);if(me)n.me=me.peer},
    e=>{if(net===n)ended(e.code==='host_left'?'The host left the game. Co-op game over.':`Lost connection to the game (${e.code}).`)});
@@ -99,7 +105,7 @@ export function initNet(api,G,Z){
  function tick(){if(!net)return;const now=performance.now();if(now-net.tk<15)return;net.tk=now;recv(now);if(net)send(now)}
  setInterval(()=>{if(net&&performance.now()-net.tk>150)tick()},100);
  const pack=d=>[+d.p.x.toFixed(2),+d.p.y.toFixed(2),+d.p.z.toFixed(2),+d.q.x.toFixed(3),+d.q.y.toFixed(3),+d.q.z.toFixed(3),+d.q.w.toFixed(3),+d.v.x.toFixed(1),+d.v.y.toFixed(1),+d.v.z.toFixed(1)];
- function send(now,force){const n=net;if(!n||!force&&now-n.sendT<(n.host?n.snapIv:50))return;n.sendT=now;const me=api.player,P={z:1,n:myName(),rd:n.rd|0,es:n.evSeen,lt:n.late?1:0,sk:G.streak|0,kt:Z.meta.load().kit};
+ function send(now,force){const n=net;if(!n||!force&&now-n.sendT<(n.host?n.snapIv:50))return;n.sendT=now;const me=api.player,P={z:1,n:myName(),rd:n.rd|0,es:n.evSeen,sr:Z.sc?.cRev??-1,lt:n.late?1:0,sk:G.streak|0,kt:Z.meta.load().kit};
   if(me&&G.on&&!api.demo){P.s=pack(me);P.d=me.dead>0?1:0;P.rk=(me.boost||0)>1?1:0;const s=api.selT();P.sl=s&&me.dead<=0&&me.v.lengthSq()>64&&api.live(s)&&s.p.distanceTo(me.p)<1500?s.id:0;const sw=Z.swOut?.();if(sw)P.sw=sw;const bd=Z.bdOut?.();if(bd)P.bd=bd}  /* P.bd: my Little Buddy's garage loadout (zbuddy.js) */
   if(n.host){if(G.on)P.g=snap(now)}else P.ev=n.out.slice(-32);
   n.r.presence(P).catch(()=>{});
@@ -140,10 +146,10 @@ export function initNet(api,G,Z){
  function hostPeer(k,pr){const n=net;if(n.rj.includes(k))return false;
   if(!n.names[k]){if(Object.keys(n.names).length>=MAXP-1){n.rj.push(k);return false}n.names[k]=clean(pr.n);n.order.push(k);n.kc[k]=n.kc[k]|0;n.hk[k]=0;
    team(`<b>${n.names[k]}</b> joined${G.state==='base'||G.state==='over'?'':' · in at the next base screen'}`)}
-  n.names[k]=clean(pr.n);n.skv[k]=pr.sk|0;n.rdv[k]=pr.rd|0;n.ltv[k]=pr.lt?1:0;n.esv[k]=Number.isFinite(+pr.es)?+pr.es:-1;n.ktv[k]=kitOf(pr.kt);
+  n.names[k]=clean(pr.n);n.skv[k]=pr.sk|0;n.srv[k]=Number.isFinite(+pr.sr)?+pr.sr:-1;n.rdv[k]=pr.rd|0;n.ltv[k]=pr.lt?1:0;n.esv[k]=Number.isFinite(+pr.es)?+pr.es:-1;n.ktv[k]=kitOf(pr.kt);
   if(Array.isArray(pr.ev))for(const e of pr.ev){if(!Array.isArray(e)||!(+e[0]>(n.hk[k]||0)))continue;n.hk[k]=+e[0];try{apply(k,e.slice(1),+e[0])}catch(err){console.warn('co-op request',err)}}
   n.ak[k]=n.hk[k];return true}
- function gone(k){const n=net,nm=n.names[k];if(!nm)return;for(const o of[n.names,n.esv,n.rdv,n.ltv,n.skv,n.ktv,n.hk,n.ak,n.dr])delete o[k];n.order=n.order.filter(x=>x!==k);team(`<b>${nm}</b> left the game`)}
+ function gone(k){const n=net,nm=n.names[k];if(!nm)return;for(const o of[n.names,n.esv,n.rdv,n.ltv,n.skv,n.srv,n.ktv,n.hk,n.ak,n.dr])delete o[k];n.order=n.order.filter(x=>x!==k);team(`<b>${nm}</b> left the game`)}
  const ev=e=>{const n=net;n.evs.push([++n.eid,...e]);if(n.evs.length>240)n.evs.splice(0,n.evs.length-240)};
  const team=h=>{feed(h);if(net?.host)ev(['f',h])};
  Z.team=team;  // the kill chain and warning actions announce through it (zchain.js, zwarn.js)
@@ -187,7 +193,7 @@ export function initNet(api,G,Z){
  // kills, impacts, explosions and gun bursts become events for the clients
  const k0=Z.kill;Z.kill=(t,cat)=>{const was=t.paid;k0(t,cat);if(!net||!net.host||was||!t.paid||!G.on)return;const by=t.by==='p'?net.me:t.by==='o'?t.byN:'';if(by)net.kc[by]=(net.kc[by]|0)+1;
   ev(['k',t.id,cat?1:0,by||'']);if(t.by==='o')feed(`<b>${nameOf(by)}</b> · <span class="cg">${Z.tname(t)} down</span>`)};
- const i0=Z.impact;Z.impact=t=>{i0(t);if(net&&net.host&&G.on)ev(['i',t.id])};
+ const i0=Z.impact;Z.impact=t=>{i0(t);if(net&&net.host&&G.on&&t.id!=null)ev(['i',t.id])};  /* a boss strike on a site has no track: its own event (I) */
  const f0=Z.flash;Z.flash=(p,k)=>{f0(p,k);if(net&&net.host&&G.on&&!net.mute&&p!==api.player?.p)ev(['b',Math.round(p.x),Math.round(p.y),Math.round(p.z),Math.round(k*10)])};
  Z.onGun=(d,t)=>{if(net&&net.host)ev(['g',d.id,t.id])};
  const q10=v=>Math.round(v*10);
@@ -201,8 +207,8 @@ export function initNet(api,G,Z){
   return{v:1,gid:n.gid,st:G.state,w:G.wave,c:Math.round(G.cash),e:Math.round(G.earned),k:[G.kills.p,G.kills.h],df:cl(Z.dfi?.()??S.zdiff??1,0,3),cp:Z.cpNet?.()||null,wt:+(G.wt||0).toFixed(1),iq:G.wq.length,
    sh:SITES.map(s=>Math.ceil(s.hp)),sm:SITES.map(s=>s.max),bk:SITES.length>3?1:0,wb:[+api.WB.x.toFixed(1),+api.WB.z.toFixed(1)],T,TS,S:D.S,D:D.D,
    ev:n.evs.filter(e=>e[0]>mn).slice(-120),eid:n.eid,pk:n.perks,tp:{radar:G.perks.radar|0,aid:G.perks.aid|0},dr:n.dr,ak:n.ak,pl:rows(),nx,rj:n.rj,
-   sw:Z.swSnap?.(n.me||'host'),bd:Z.bdSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),sl:Z.sell?.netOut(),
-    so:Z.so?.netOut?.(now),sc:Z.sc?.netOut?.(now)}}  // sorties: the enemy's side of the map (zsortie.js); the living map's scars (zscars.js)
+   bw:Object.keys(G.brw||{}),cx:Z.codexNet?.(),sw:Z.swSnap?.(n.me||'host'),bd:Z.bdSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),sl:Z.sell?.netOut(),
+    so:Z.so?.netOut?.(now),sc:Z.sc?.netOut?.(now,Object.values(n.srv))}}  // sorties: the enemy's side of the map (zsortie.js); the living map's scars (zscars.js)
  // roster rows [key, name, kills, ready for the next wave, joined mid-wave]; a client shows its own ready state at once
  function rows(){const n=net;if(!n)return[];const nw=G.wave+1;
   if(n.host)return[[n.me||'host',myName(),n.kc[n.me||'host']|0,n.rd===nw?1:0,0],...n.order.filter(k=>n.names[k]).map(k=>[k,n.names[k],n.kc[k]|0,n.rdv[k]===nw?1:0,n.ltv[k]|0])];
@@ -235,7 +241,7 @@ export function initNet(api,G,Z){
   if(!!g.bk!==SITES.length>3)Z.bunker(!!g.bk);
   if(Array.isArray(g.sh))SITES.forEach((s,i)=>{if(Number.isFinite(g.sm?.[i]))s.max=g.sm[i];if(Number.isFinite(g.sh[i]))s.hp=g.sh[i]});
   if(okArr(g.wb,2))api.WB.set(g.wb[0],0,g.wb[1]);
-  perksIn(g);Z.def.netIn(null,g.D,byId);Z.swHost?.(g.sw,n.me);Z.bdHost?.(g.bd,n.me);
+  perksIn(g);Z.brwIn?.(g.bw);Z.codexIn?.(g.cx);Z.def.netIn(null,g.D,byId);Z.swHost?.(g.sw,n.me);Z.bdHost?.(g.bd,n.me);
   n.tm=new Map(TH.map(t=>[t.id,t]));
   if(Array.isArray(g.ev)){if(n.evSeen<0)n.evSeen=g.eid|0;for(const e of g.ev)if(Array.isArray(e)&&e[0]>n.evSeen){n.evSeen=e[0];try{event(e)}catch(err){console.warn('co-op event',err)}}}
   tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.chain?.netIn(g.kc);Z.so?.netIn?.(g.so);Z.sc?.netIn?.(g.sc);
@@ -247,12 +253,12 @@ export function initNet(api,G,Z){
  function stateIn(g){const n=net,st=g.st,w=g.w|0;
   if(g.nx&&typeof g.nx==='object'&&Array.isArray(g.nx.list)){const j=JSON.stringify(g.nx);if(j!==n.nxJ){n.nxJ=j;n.nx={list:g.nx.list.map(String).filter(q=>KIND[q.split(':')[0]]),brgs:(g.nx.brgs||[]).map(Number).filter(Number.isFinite),q:[],wx:g.nx.wx&&Z.wx.T[g.nx.wx.id]?g.nx.wx:null,
    cuts:Array.isArray(g.nx.ct)?g.nx.ct.slice(0,12):null};if(G.state==='base')G.next=n.nx}}
-  if(st==='base'){n.late=false;if(G.state!=='base'){$('zover').hidden=true;G.wave=w;api.wave=w;Z.rk.stop();G.next=n.nx||Z.plan(w+1);Z.base.open();Z.bossTrans?.()}else G.wave=w}  /* bossTrans: the boss director sees the wave end now, not at a step the paused base screen will never run */
+  if(st==='base'){n.late=false;if(G.state!=='base'){$('zover').hidden=true;G.wave=w;api.wave=w;Z.rk.stop();G.next=n.nx||Z.plan(w+1);Z.base.open();Z.stateSync()}else G.wave=w}  /* stateSync: the modules that watch the state in a step see the wave end now, not at a step the paused base screen will never run */
   else if(st==='wave'){if(G.state==='base'&&!n.late){G.wave=w-1;G.next=n.nx||{list:[],brgs:[],q:[],wx:null};cont()}
    else if(G.state!=='wave'&&G.state!=='clear'){Z.base.close();G.state='wave';G.wave=w;api.wave=w;n.late=true;Z.def.deploy();banner(`WAVE ${w} IN PROGRESS`,'co',2.4);feed('You join at the next base screen. Watch the radar meanwhile.')}
    else{G.wave=w;if(G.state==='clear')G.state='wave'}}
   else if(st==='clear'){if(G.state==='wave'){G.state='clear';if(!n.late)banner(`WAVE ${G.wave} CLEAR`,'cg',2.6)}}
-  else if(st==='over'){if(G.state!=='over'){G.wave=w;Z.base.close();Z.gameOver();Z.bossTrans?.()}}}
+  else if(st==='over'){if(G.state!=='over'){G.wave=w;Z.base.close();Z.gameOver();Z.stateSync()}}}
  // perks: the host keeps each pilot's own levels; the team perks (radar, Foreign Aid) are the host's
  function perksIn(g){const mine=g.pk&&typeof g.pk==='object'&&g.pk[net.me]||{},tp=g.tp||{},P={};
   for(const k of Object.keys(PERK)){const v=cl((TEAM.includes(k)?tp[k]:mine[k])|0,0,PERK[k].cost.length);if(v)P[k]=v}
@@ -266,7 +272,9 @@ export function initNet(api,G,Z){
   if(T==='m'){if(e[2]===net.me)feed(`<span class="co">${String(e[3]).replace(/[<>&]/g,'').slice(0,200)}</span>`);return}
   if(T==='g'){const d=Z.def.D.find(x=>x.id===e[2]),t=byId(e[3]);if(d&&t&&d.mesh)Z.def.burst(d,t);return}
   if(T==='S'){Z.so?.netEv?.(e.slice(2));return}  // sorties (zsortie.js): AA bursts, hits on this pilot, salvage carried, calls
-  if(T==='B'){Z.bossWon?.(e.slice(2));return}  /* the host won a boss fight: the banner and the sting (zbosses.js) */
+  if(T==='H'){if(e[2]===net.me)Z.shootMe?.(String(e[3]??'a boss').slice(0,60));return}  /* a boss hit on this pilot's interceptor (Z.netHit) */
+  if(T==='B'){Z.bossWon?.(e.slice(2));return}
+  if(T==='I'){Z.bossStrike?.(e.slice(2));return}  /* the host won a boss fight: the banner and the sting (zbosses.js) */
   const t=byId(e[2]);if(!t||t.st==='dead')return;
   if(T==='k'){if(t.paid)return;const by=String(e[4]||'');t.by=by===net.me?'p':by?'o':'h';t.byN=by;if(e[3])t.st='dead';else{t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3)}
    Z.kill(t,!!e[3]);if(by&&by!==net.me)feed(`<b>${nameOf(by)}</b> · <span class="cg">${Z.tname(t)} down</span>`)}

@@ -319,6 +319,7 @@ export function initScars(api,G,Z){
  const z1=Z.stop;Z.stop=()=>{persist();clear();z1()};
  const p1=Z.step;Z.step=dt=>{p1(dt);watch()};
  // ---------- co-op: every snapshot carries the revision, the records go out when it changed (at most about once a second) and now and then ----------
- sc.netOut=now=>{if(!sc.ready||!Z.online||Z.mirror)return null;const due=rev!==sent&&now-sentT>900||now-sentT>5000;if(!due)return{r:rev};sentT=now;sent=rev;return{r:rev,d:encode()}};
+ /* acks: the revisions the pilots in the game have applied (-1: none yet). A pilot with nothing yet gets the records every third of a second until they are applied, instead of waiting for the next regular send (one snapshot he misses would make that five seconds) */
+ sc.netOut=(now,acks)=>{if(!sc.ready||!Z.online||Z.mirror)return null;const due=rev!==sent&&now-sentT>900||now-sentT>5000||!!acks&&acks.some(a=>a<0)&&now-sentT>300;if(!due)return{r:rev};sentT=now;sent=rev;return{r:rev,d:encode()}};
  sc.netIn=o=>{if(!Z.mirror||!o||typeof o!=='object')return;if(typeof o.d==='string'&&o.r!==sc.cRev){sc.cRev=o.r;apply(o.d)}};
  return sc}
