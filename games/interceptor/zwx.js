@@ -14,6 +14,7 @@ import {dot,tex} from '../../engine/render.js';
 import {NIGHT} from './buildings.js';
 import {SNOW} from '../../engine/render.js';
 import {gfx} from '../../engine/gfx.js';
+import {nearFade} from '../../engine/nearfade.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initWeather(api,G,Z){
  const {THREE,scene,S,TH}=api,_c1=new THREE.Color(),_c2=new THREE.Color(),_a=new THREE.Vector3();
@@ -63,10 +64,10 @@ export function initWeather(api,G,Z){
  const add=o=>{o.frustumCulled=false;o.visible=false;scene.add(o);return o};
  const pts=(n,mat)=>{const P=new Float32Array(n*3),g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));return{P,g,o:add(new THREE.Points(g,mat))}};
  // snow: flakes in a 70 m box around the camera, drifting with the wind
- const SN=2400,SB=48,snow=pts(SN,new THREE.PointsMaterial({size:.3,map:dot,color:0xffffff,transparent:true,opacity:1,depthWrite:false}));
+ const SN=2400,SB=48,snow=pts(SN,nearFade(new THREE.PointsMaterial({size:.3,map:dot,color:0xffffff,transparent:true,opacity:1,depthWrite:false}),.8,3));  /* nearFade (engine/nearfade.js): flakes and motes passing the lens fade instead of blotting the screen */
  for(let i=0;i<SN*3;i++)snow.P[i]=(Math.random()-.5)*SB;const SW=new Float32Array(128);
  // dust: big soft motes in a 220 m box
- const DN=500,DB=220,dust=pts(DN,new THREE.PointsMaterial({size:3.4,map:dot,color:0xc4a477,transparent:true,opacity:.35,depthWrite:false}));
+ const DN=500,DB=220,dust=pts(DN,nearFade(new THREE.PointsMaterial({size:3.4,map:dot,color:0xc4a477,transparent:true,opacity:.35,depthWrite:false}),6,20));
  for(let i=0;i<DN*3;i++)dust.P[i]=(Math.random()-.5)*DB;
  // stars: a fixed dome that follows the camera
  const stars=pts(900,new THREE.PointsMaterial({size:1.7,sizeAttenuation:false,vertexColors:true,fog:false,transparent:true,depthWrite:false,toneMapped:false}));
