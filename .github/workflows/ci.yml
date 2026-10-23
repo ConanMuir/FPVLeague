@@ -126,6 +126,14 @@ jobs:
           - check: flight-golden
             area: interceptor
             run: node tools/flight-golden.mjs
+          # the QA sweep (tools/qa-sweep.mjs): every mode played with scripted inputs, then NaN scans, layout / keyboard, leak, save and hardware-oddity probes (fast pass)
+          - check: qa-sweep (League, fast)
+            area: league
+            build: true
+            run: node tools/qa-sweep.mjs --fast --area=league
+          - check: qa-sweep (Zombies, fast)
+            area: interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

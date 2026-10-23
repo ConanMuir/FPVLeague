@@ -16,14 +16,14 @@ import {GSPD,applyTune} from './config/tune.js';
 import {calib,initCalib} from './input/calibration.js';
 import {padEdges} from './input/input.js';
 import {setGame} from './modes/dogfight.js';
-import {startDemo} from './modes/match.js';
+import {endMatch,goal,startDemo} from './modes/match.js';
 import {step} from './modes/step.js';
 import {connectRoom,netSend,netSync} from './net/net.js';
 import {ball} from './physics/ball.js';
 import {setBall} from './render/ball.js';
 import {updateCam} from './render/camera.js';
-import {compileFor,draw,keepPrograms,scene} from './render/renderer.js';
-import {warmIdle,warmQueue} from './render/warm.js';
+import {compileFor,draw,keepPrograms,renderer,scene} from './render/renderer.js';
+import {warmIdle,warmLeft,warmQueue} from './render/warm.js';
 import {warmDFPhys} from './physics/world.js';
 import {buildDF} from './world/highlands.js';
 import {warmOutdoor} from './world/outdoor.js';
@@ -71,4 +71,4 @@ warmQueue('shaders',()=>compileFor(scene));warmQueue('outdoor textures',warmOutd
 warmIdle(()=>GS.menuOpen&&GS.demo&&!GS.net&&!document.hidden);
 connectRoom()});
 // read-only snapshot for tools/smoke.mjs; nothing in the game reads it
-window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo,train:trainSnap,prof:profSnap,replay:rpState};
+window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo,train:trainSnap,prof:profSnap,replay:rpState,dbg:()=>({GS,S,ball,scene,renderer,goal,endMatch,warmLeft})};  /* dbg: the live objects, for tools/qa-sweep.mjs (deep NaN scan, scene child counts, forcing a goal or the end) */
