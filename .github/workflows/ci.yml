@@ -126,6 +126,15 @@ jobs:
           - check: intercept-check
             area: interceptor
             run: node tools/intercept-check.mjs
+          # visual glitch guards (tools/glitch-check.mjs): the river below its banks, weather motes at the lens, dynamic-resolution target
+          # sizes, the Dogfight cave-mouth trim over its seam
+          - check: glitch-check (Interceptor)
+            area: interceptor
+            run: node tools/glitch-check.mjs river motes dynres --only=interceptor
+          - check: glitch-check (League)
+            area: league
+            build: true
+            run: node tools/glitch-check.mjs motes dynres mouths --only=league
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor
@@ -134,6 +143,10 @@ jobs:
           - check: zombies-test (ew)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=ew
+          # the bot self-play ladder: one tiny generation (one archetype, one child, 1 sim minute) twice, and its file through the loader
+          - check: bot-ladder-check
+            area: league
+            run: node tools/bot-ladder-check.mjs
           # the Bot Spectator explores: roams the map, flies the sorties, uses its systems, never sticks, holds the benchmark's wave (one visual run, four headless)
           - check: zombies-test (explore)
             area: interceptor
