@@ -70,6 +70,7 @@ if (want('zombies')) {
   const {p, errs} = await page();
   ok(await p.$eval('#play', b => b.textContent) === 'Quick defence', 'Zombies: the start button reads Quick defence (the campaign has its own card)');
   ok(await p.evaluate(() => !document.getElementById('zdiff').hidden && document.querySelectorAll('#zdiff button').length === 4 && document.querySelector('#zdiff button.on')?.textContent === 'Normal'), 'Zombies menu: difficulty selector Easy / Normal / Hard / Nightmare, Normal by default');
+  ok(await p.evaluate(() => { const pl = document.getElementById('play'), b = pl.getBoundingClientRect(); return document.getElementById('zdiff').nextElementSibling === pl.parentNode && b.top > 0 && b.bottom <= innerHeight; }), 'Zombies menu: the Quick defence / Campaign button row sits right under the difficulty tabs, on screen without scrolling (not below six cards)');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-menu.png'});
   await p.click('#zdiff button[data-d="3"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '3', {timeout: 5000}).catch(() => {});
   const dm = await p.evaluate(() => ({on: document.querySelector('#zdiff button.on')?.textContent, desc: document.getElementById('gmdesc').textContent, zd: JSON.parse(localStorage.getItem('dl-interceptor')).zdiff}));
