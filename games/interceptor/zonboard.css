@@ -1,0 +1,13 @@
+/* Interceptor Zombies first-wave guide (zonboard.js): one small prompt card at the top right (bottom right over the base panel on the base screen), a glow on the button it points at. */
+#zob{position:fixed;right:16px;top:calc(62px + env(safe-area-inset-top,0px));z-index:6;box-sizing:border-box;width:min(430px,calc(100vw - 32px));padding:7px 12px 9px;border:1px solid rgba(95,227,255,.55);border-left:4px solid #5fe3ff;border-radius:6px;background:rgba(4,14,24,.9);color:#e8f6ff;font:600 13.5px/1.45 var(--mono);text-shadow:0 0 3px #000;pointer-events:none;animation:zobin .25s ease-out both}
+body.zb-open #zob{top:auto;right:28px;bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+#zob .h{display:flex;align-items:center;gap:10px;margin-bottom:2px;font-size:10.5px;letter-spacing:.16em;color:#5fe3ff}
+#zob .h button{pointer-events:auto;margin-left:auto;padding:2px 9px;font:700 10.5px var(--mono);letter-spacing:.06em;border-radius:4px}
+#zob .t{margin:0}#zob .t b{color:var(--amber)}
+#zob kbd{display:inline-block;margin:0 3px 0 0;padding:0 5px;border:1px solid var(--edge);border-radius:3px;font:700 11.5px var(--mono);color:var(--amber)}
+#zob.ok{border-color:rgba(61,220,132,.6);border-left-color:#3ddc84}#zob.ok .h{color:#3ddc84}#zob.ok .t{color:#c9f7da}
+.zob-hl{outline:3px solid #5fe3ff!important;outline-offset:2px;animation:zobp 1.2s ease-in-out infinite}
+@keyframes zobin{from{opacity:0;transform:translateY(-6px)}}
+@keyframes zobp{50%{box-shadow:0 0 16px #5fe3ff}}
+@media (max-width:760px){#zob{font-size:12px;top:calc(96px + env(safe-area-inset-top,0px))}body.zb-open #zob{right:16px}}
+@media (prefers-reduced-motion:reduce){#zob{animation:none}.zob-hl{animation:none}}

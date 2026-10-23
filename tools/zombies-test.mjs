@@ -1,7 +1,7 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,radio   run only those sections (CI shards them across jobs); default all
-import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,radio,onboard   run only those sections (CI shards them across jobs); default all
+import {serve, launch, open, sleep, frames, drawFrames, newWindow} from './zlib.mjs';
 import {front as campFront} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
@@ -1377,6 +1377,8 @@ if (want('ew')) {
   ok(bot.noise > .5 && bot.lockJam > 2 && bot.hud > 0 && bot.bot > 0 && bot.botOff > 5 && bot.hudOff > 5, `EW, bot: the Legend flies its lock-on through the jamming (lock-on x${bot.lockJam.toFixed(1)}); the HUD's pip is moved ${bot.hud}x (up to ${bot.hudOff.toFixed(0)} m) and the pip the bot flies to ${bot.bot}x (up to ${bot.botOff.toFixed(0)} m) by the same skew() (${bot.t} s)`);
   ok(!errs.length, 'EW: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
+}
+
 // ---------- radio chatter (zradio.js): callouts from the game's state, merged and rate-limited; the HUD log, a modest squelch, speech through
 // speechSynthesis (and without it); the old subtitle taken over and given back; muted in menus; nothing left behind when a wave ends ----------
 if (want('radio')) {
@@ -1595,6 +1597,149 @@ if (want('radio')) {
     await p2.evaluate(() => localStorage.removeItem('dl-interceptor')); await p2.close();
   }
   ok(!bad.length, 'Radio saves: odd saved values load as defaults and play' + (bad.length ? '\n  ' + bad.join('\n  ') : ''));
+}
+
+// ---------- onboard: the one-time first-wave guide (zonboard.js) ----------
+if (want('onboard')) {
+  const GURL = origin + '/games/interceptor/', errs = [];
+  /* a page on a fresh save (the harness is an automated browser, so the guide only runs when the URL says ?guide=1) */
+  const fresh = async (p, qs) => {
+    await p.evaluate(() => { sessionStorage.setItem('zbossRoster', '0'); localStorage.setItem('dl-interceptor', JSON.stringify({wx: 'clear'})); });
+    await p.goto(GURL + qs, {waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3);
+    await p.evaluate(() => {
+      window.__u = (fn, max = 20) => { for (let i = 0; i < max * 4 && !fn(); i++) __z.sim(.25); return !!fn(); };  /* sim until fn() or max seconds */
+      window.__key = (code, down = true) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', {code}));
+      window.__hold = (n, fn) => { for (let i = 0; i < n; i++) { const t = __z.api.TH.find(__z.api.live); if (t) __z.Z.lk.force(t); __z.sim(.1); if (fn()) return true; } return !!fn(); };  /* keep the lock on the first track while the sim runs */
+      window.__clear = () => { const {api, G} = __z; for (const t of api.TH.filter(api.live)) { t.by = 'p'; api.killThreat(t, true); } G.wq.length = 0; let n = 0; while (G.state === 'wave' && n++ < 200) __z.sim(.5); __z.sim(5); };
+      window.__g = () => { const o = __z.Z.onboard; return {on: o.on, why: o.why, ended: o.ended, step: o.step, fin: o.fin, log: [...new Set(o.log)], st: {...o.st}, text: o.text, shown: o.shown, gentle: o.gentle, card: !!document.getElementById('zob'), flag: JSON.parse(localStorage.getItem('dl-interceptor') || '{}').zonb, hl: document.querySelectorAll('.zob-hl').length}; };
+    });
+  };
+  const ratio = () => { const {api, KIND} = __z, t = api.TH.find(u => api.live(u) && u.k === 'shahed'); return t ? +(t.spd / KIND.shahed.spd).toFixed(2) : null; };
+  const p = await open(browser, GURL, errs); await p.evaluate(() => sessionStorage.setItem('zbossRoster', '0'));
+
+  // an automated browser never gets the guide on its own (benches and every other harness run on fresh saves): wave 1 is the plain wave, nothing is saved
+  await fresh(p, '');
+  await play(p);
+  const a0 = await p.evaluate(() => ({wd: navigator.webdriver, api: !!__z.Z.onboard, g: __g(), at: __z.G.wq.map(q => q.at), n: __z.G.wq.length}));
+  await p.evaluate(() => { __z.cont(); __z.sim(6); });
+  const a1 = await p.evaluate(`(${ratio})()`);
+  ok(a0.wd === true && a0.api && !a0.g.on && a0.g.why === 'auto' && a0.g.flag === undefined && !a0.g.card, `Onboard: an automated browser gets no guide by default (why "${a0.g.why}"), no flag saved, no card`);
+  ok(a0.n === 2 && a0.at.join() === '0,25' && a1 >= .9, `Onboard: so wave 1 is the plain wave there (tracks at ${a0.at.join('/')} s, Shahed at ${a1} of its speed)`);
+
+  // ?guide=1 on a fresh save: the first run is guided, and the flag is saved the moment it starts
+  await fresh(p, '?guide=1');
+  const m0 = await p.evaluate(() => ({api: !!__z.Z.onboard, css: !!document.querySelector('link[href*="zonboard.css"]'), skip2: document.getElementById('zobskip2')?.hidden, g: __g()}));
+  ok(m0.api && m0.css && m0.skip2 === true && !m0.g.card && !m0.g.on, 'Onboard: the module is up with its stylesheet; nothing shows on the menu');
+  await play(p);
+  await p.evaluate(() => __u(() => __z.Z.onboard.step === 'brief', 3));
+  const b0 = await p.evaluate(() => ({g: __g(), skip: !!document.getElementById('zobskip'), skip2: document.getElementById('zobskip2').hidden, calls: __z.Z.radio.calls.filter(c => c.topic === 'guide').map(c => c.who), base: !document.getElementById('zbase').hidden}));
+  ok(b0.g.on && b0.g.why === '' && b0.g.flag === 1 && b0.g.step === 'brief' && b0.g.shown && /Briefing/.test(b0.g.text) && b0.skip && b0.base, `Onboard: the first run starts the guide at the Briefing and saves the flag at once (flag ${b0.g.flag}, step ${b0.g.step})`);
+  ok(b0.calls[0] === 'OVERLORD', `Onboard: OVERLORD says it on the radio too (${b0.calls.join()})`);
+  if (SHOTS) await p.screenshot({path: SHOTS + '/z-guide-brief.png'});
+  const w0 = await p.evaluate(() => { __z.cont(); const {G, Z} = __z; return {at: G.wq.map(q => q.at), n: G.wq.length, gentle: Z.onboard.gentle}; });
+  ok(w0.gentle && w0.n <= 3 && w0.at[0] === 3 && w0.at[1] > 25, `Onboard: wave 1 starts gentler: at most 3 tracks, the first at ${w0.at[0]} s, the rest spread (${w0.at.join('/')} s)`);
+  await p.evaluate(() => __u(() => __z.api.TH.some(__z.api.live), 10)); await p.evaluate(() => __z.sim(.5));
+  const sl = await p.evaluate(`(${ratio})()`);
+  ok(sl >= .65 && sl <= .85, `Onboard: and its tracks fly slower (Shahed at ${sl} of its speed, against ${a1} in the plain wave)`);
+  // prompts come in order, each when its action is due
+  await p.evaluate(() => __u(() => __z.Z.onboard.step === 'fly', 4));
+  const f0 = await p.evaluate(() => __g());
+  ok(f0.step === 'fly' && /take off/i.test(f0.text) && f0.log.join() === 'brief,fly' && f0.st.brief === 'done' && !f0.fin, `Onboard: wave 1 starts with the flying prompt ("${f0.text.slice(0, 40)}...")`);
+  await p.evaluate(() => { __key('KeyW'); __u(() => __z.Z.onboard.ev.fly, 25); __key('KeyW', false); });
+  const f1 = await p.evaluate(() => { __u(() => __z.Z.onboard.fin, 3); return __g(); });
+  ok(f1.fin && /^✓/.test(f1.text), `Onboard: taking off and flying away ticks the flying prompt ("${f1.text}")`);
+  await p.evaluate(() => __u(() => __z.Z.onboard.step === 'look', 6));
+  const l0 = await p.evaluate(() => __g()); ok(l0.step === 'look' && /camera/i.test(l0.text) && l0.st.fly === 'done', `Onboard: then the camera ("${l0.text.slice(0, 44)}...")`);
+  await p.evaluate(() => { __key('KeyL'); __z.sim(.3); __key('KeyL', false); __u(() => __z.Z.onboard.step === 'lock', 8); });
+  const k0 = await p.evaluate(() => __g()); ok(k0.step === 'lock' && /lock/i.test(k0.text) && k0.st.look === 'done', `Onboard: pressing L for the camera ticks it, a track is in radar range, so the lock-on prompt comes ("${k0.text.slice(0, 40)}...")`);
+  await p.evaluate(() => __hold(30, () => __z.Z.onboard.step === 'pip'));
+  const pp0 = await p.evaluate(() => __g()); ok(pp0.step === 'pip' && /pip/i.test(pp0.text) && pp0.st.lock === 'done', `Onboard: a lock ticks it and the pip is explained ("${pp0.text.slice(0, 44)}...")`);
+  if (SHOTS) await p.screenshot({path: SHOTS + '/z-guide-pip.png'});
+  await p.evaluate(() => { const {api} = __z, t = api.TH.find(api.live); api.player.p.set(t.p.x, t.p.y, t.p.z - 100); __hold(40, () => __z.Z.onboard.step === 'burst'); });
+  const bu0 = await p.evaluate(() => __g()); ok(bu0.step === 'burst' && /Detonate/i.test(bu0.text) && /fuse/i.test(bu0.text) && bu0.st.pip === 'done', `Onboard: closing on the locked track ends the pip prompt and the burst / proximity fuse one comes ("${bu0.text.slice(0, 30)}...")`);
+  await p.evaluate(() => { __key('KeyF'); __z.sim(.15); __key('KeyF', false); __z.sim(.1); __u(() => __z.Z.onboard.fin, 3); });
+  const bu1 = await p.evaluate(() => __g()); ok(bu1.fin && /^✓/.test(bu1.text), `Onboard: the burst ticks it ("${bu1.text}")`);
+  const lg = await p.evaluate(() => { __clear(); return {g: __g(), tr: __z.api.TH.filter(__z.api.live).length}; });
+  ok(lg.g.log.join().startsWith('brief,fly,look,lock,pip,burst') && ['fly', 'look', 'lock', 'pip', 'burst'].every(k => lg.g.st[k] === 'done'),`Onboard: the wave-1 prompts came in order (${lg.g.log.join(' > ')}) and all five were done`);
+  ok(!lg.g.gentle && lg.g.card && lg.g.ended === '', `Onboard: wave 1 over: the gentle wave is switched off, the guide goes on to the base screen`);
+  // the base screen: the first helper, then sorties
+  await p.evaluate(() => __u(() => __z.Z.onboard.step === 'helper', 6));
+  const h0 = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); return {g: __g(), hl: document.querySelector('.zob-hl')?.dataset.buy === String(i), base: document.body.classList.contains('zb-open')}; });
+  ok(h0.g.step === 'helper' && /Interceptor drone rack/.test(h0.g.text) && h0.hl && h0.base, `Onboard: on the base screen it asks for the first helper and glows the drone rack's button`);
+  if (SHOTS) await p.screenshot({path: SHOTS + '/z-guide-helper.png'});
+  await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); document.querySelector(`[data-buy="${i}"]`).click(); __z.sim(.3); });
+  const h1 = await p.evaluate(() => __g()); ok(h1.step === 'helper' && /free position/.test(h1.text), `Onboard: choosing it switches the prompt to picking a position ("${h1.text.slice(0, 30)}...")`);
+  await p.evaluate(() => { document.querySelector('[data-slot]').click(); __z.sim(.3); __u(() => __z.Z.onboard.fin, 3); });
+  const h2 = await p.evaluate(() => ({g: __g(), n: __z.Z.def.D.length})); ok(h2.n === 1 && h2.g.fin && /^✓/.test(h2.g.text), `Onboard: placing it ticks that (a rack is on the line)`);
+  await p.evaluate(() => __u(() => __z.Z.onboard.step === 'sortie', 6));
+  const s0 = await p.evaluate(() => ({g: __g(), hl: document.querySelector('.zob-hl')?.dataset.tab === __z.Z.xTab.id}));
+  ok(s0.g.step === 'sortie' && /Sortie/.test(s0.g.text) && s0.hl && s0.g.st.helper === 'done', `Onboard: sorties are open after wave 1, so the Sortie tab is pointed at`);
+  await p.evaluate(() => { document.querySelector(`[data-tab="${__z.Z.xTab.id}"]`).click(); __z.sim(.3); __u(() => __z.Z.onboard.fin, 3); });
+  const s1 = await p.evaluate(() => __g()); ok(s1.fin && /^✓/.test(s1.text), 'Onboard: opening the Sortie tab ticks it');
+  // later unlocks: Rocket Assist when the shop opens it, the swarm commands when a swarm is up
+  const r0 = await p.evaluate(() => { __u(() => !__z.Z.onboard.step, 4); const q = __g(); __z.jump(3, 9000); __z.Z.base.refresh(); __u(() => __z.Z.onboard.step === 'rocket', 4); return {q, g: __g(), hl: !!document.querySelector('.zob-hl')}; });
+  ok(!r0.q.step && r0.q.log.join().endsWith('sortie') && r0.g.step === 'rocket' && /Rocket Assist/.test(r0.g.text) && r0.hl, `Onboard: nothing more is asked until Rocket Assist opens in the shop, then it is pointed at (${r0.g.log.join(' > ')})`);
+  await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rocket'); document.querySelector(`[data-buy="${i}"]`).click(); __z.sim(.3); __u(() => __z.Z.onboard.fin, 3); });
+  const r1 = await p.evaluate(() => ({g: __g(), own: __z.Z.perkLevel('rocket')})); ok(r1.own === 1 && r1.g.fin, 'Onboard: buying Rocket Assist ticks it');
+  const r2 = await p.evaluate(() => { __z.cont(); const gw = __g().gentle; __z.sim(.3); __key('KeyW'); __u(() => __z.Z.rk.st.t > 0, 8); __key('KeyW', false); __u(() => __z.Z.onboard.step === 'rocketfly', 3); const g = __g(); __u(() => !__z.Z.onboard.step, 12); return {gw, g, after: __g()}; });
+  ok(r2.g.step === 'rocketfly' && /Rocket burn/.test(r2.g.text) && r2.after.st.rocketfly === 'done', `Onboard: the first rocket burn gets its line, which closes by itself`);
+  // wave 3 is the plain wave: nothing slowed, no gentle flag
+  const w3 = await p.evaluate(() => { const {api, KIND, G} = __z; __u(() => api.TH.some(t => api.live(t) && t.k === 'shahed'), 30); __z.sim(.3); const t = api.TH.find(u => api.live(u) && u.k === 'shahed'); return {wave: G.wave, ob: api.TH.some(u => u._ob), r: t ? +(t.spd / KIND.shahed.spd).toFixed(2) : null, gentle: __g().gentle}; });
+  ok(w3.wave === 3 && !w3.ob && !w3.gentle && (w3.r === null || w3.r >= .9), `Onboard: nothing leaks into the later waves (wave ${w3.wave}: no slowed track, Shahed at ${w3.r} of its speed, no gentle flag)`);
+  const sw = await p.evaluate(() => { __clear(); __z.Z.buyPerk('swarm'); __z.G.cash = 9000; __z.cont(); __u(() => __z.Z.onboard.step === 'swarm', 5); const g0 = __g(); __z.Z.sw.command('screen'); __z.sim(.3); __u(() => __z.Z.onboard.fin, 3); return {g0, g1: __g()}; });
+  ok(sw.g0.step === 'swarm' && /Swarm commands/.test(sw.g0.text) && sw.g1.fin, `Onboard: with a swarm up it lists the commands, and giving one ticks it`);
+  const en = await p.evaluate(() => { __u(() => !__z.Z.onboard.on, 5); return {g: __g(), skip2: document.getElementById('zobskip2').hidden}; });
+  ok(!en.g.on && en.g.ended === 'done' && !en.g.card && en.g.hl === 0 && en.skip2 && en.g.log.join() === 'brief,fly,look,lock,pip,burst,helper,sortie,rocket,rocketfly,swarm' && ['fly', 'look', 'lock', 'pip', 'burst', 'helper', 'sortie', 'rocket', 'swarm'].every(k => en.g.st[k] === 'done'),
+    `Onboard: every prompt ticked, the guide ends by itself and leaves nothing behind (${en.g.log.join(' > ')})`);
+
+  // never again: not in the same page, a new run, a campaign sector, after a settings reset or a reload (the flag is in the save)
+  const nv = await p.evaluate(() => { const {api, Z, G} = __z; api.startDemo(); const a = {}; Z.start(); a.again = __g();
+    Z.cp.start('factory', true); a.camp = __g(); a.cpOn = Z.cp.on; document.getElementById('mreset').click(); a.reset = {flag: __g().flag, S: api.S.zonb}; return a; });
+  ok(!nv.again.on && nv.again.why === 'seen' && !nv.again.card && !nv.camp.on && nv.cpOn && nv.camp.why === 'seen' && nv.reset.flag === 1 && nv.reset.S === 1, `Onboard: a second run and a campaign sector never show it (why "${nv.again.why}"), and the flag survives a settings reset`);
+  await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await play(p);
+  const rl = await p.evaluate(() => { __z.cont(); return {g: __g(), at: __z.G.wq.map(q => q.at)}; });
+  ok(!rl.g.on && rl.g.why === 'seen' && rl.g.flag === 1 && !rl.g.card && rl.at.join() === '0,25', `Onboard: after a reload it is still off, and wave 1 is the plain wave (${rl.at.join('/')} s)`);
+
+  // the save is the only place the flag lives: a wiped save is a new browser. Nothing is done here, so every prompt waits and times out, play is never blocked, and Skip ends it at once
+  await fresh(p, '?guide=1'); await play(p);
+  const t0 = await p.evaluate(() => { __z.cont(); __u(() => __z.Z.onboard.st.fly === 'timeout', 40); const g = __g(); __u(() => __z.Z.onboard.step === 'look', 5); return {g, g2: __g(), tracks: __z.api.TH.filter(__z.api.live).length, st: __z.G.state}; });
+  ok(t0.g.st.fly === 'timeout' && t0.g2.step === 'look' && t0.st === 'wave', `Onboard: a prompt nobody acts on times out (flying: ${t0.g.st.fly}) and the next one comes; the wave ran on meanwhile (${t0.tracks} track(s) live)`);
+  await p.click('#zobskip'); await frames(p, 2);
+  const sk = await p.evaluate(() => { const g = __g(); __z.sim(3); return {g, later: __g(), skip2: document.getElementById('zobskip2').hidden, st: __z.G.state}; });
+  ok(!sk.g.on && sk.g.ended === 'skip' && !sk.g.card && !sk.g.gentle && sk.later.step === null && sk.skip2 && sk.g.flag === 1 && sk.st === 'wave', 'Onboard: Skip guide ends it at once: card gone, gentle wave off, the pause-menu button hidden, the wave still running, the flag still set');
+
+  // bots and benches never get it and never use the flag up; the next human run still does. Skipping from the pause menu before wave 1 leaves the plain wave
+  await fresh(p, '?guide=1');
+  const bt = await p.evaluate(() => { const {api, Z, G, spec} = __z, o = {}; api.startDemo(); spec.bench.start('Legend', 1); o.bench = __g(); api.startDemo();
+    spec.start({lv: 'Legend', d: 1, doc: 'std', kit: [], sec: ''}); o.watch = __g(); spec.stop(); api.startDemo(); o.after = __g(); return o; });
+  ok(!bt.bench.on && bt.bench.why === 'bot' && !bt.watch.on && bt.watch.why === 'bot' && !bt.bench.card && !bt.watch.card && bt.bench.flag === undefined && bt.after.flag === undefined, `Onboard: the bot benchmark and Bot Spectator never get it, and leave the flag alone (why "${bt.bench.why}" / "${bt.watch.why}")`);
+  await play(p);
+  const me2 = await p.evaluate(() => { __u(() => __z.Z.onboard.step === 'brief', 3); __z.api.showMenu(true); __z.sim(.3); return {g: __g(), skip2: document.getElementById('zobskip2').hidden, shown: __z.Z.onboard.shown}; });
+  ok(me2.g.on && me2.g.flag === 1 && !me2.skip2 && !me2.shown, 'Onboard: the first human run after the bots still gets the guide; the pause menu shows Skip guide and the card steps aside');
+  await p.click('#zobskip2');
+  const sk2 = await p.evaluate(() => { __z.api.showMenu(false); __z.cont(); return {g: __g(), at: __z.G.wq.map(q => q.at), skip2: document.getElementById('zobskip2').hidden}; });
+  ok(!sk2.g.on && sk2.g.ended === 'skip' && !sk2.g.gentle && sk2.at.join() === '0,25' && sk2.skip2, `Onboard: skipping from the pause menu before wave 1 leaves wave 1 the plain wave (${sk2.at.join('/')} s)`);
+  ok(!errs.length, 'Onboard: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+  await p.close();
+
+  // co-op: the host and a client (a real lobby over ?netloop) get no guide and keep the flag unset
+  {
+    const cerrs = [], CU = `${origin}/games/interceptor/?mode=zombies&netloop=40&guide=1`;
+    const cp = async name => { const q = await open(browser, CU, cerrs, {page: await newWindow(browser, {noRender: !SHOTS})});
+      await q.evaluate(() => { sessionStorage.setItem('zbossRoster', '0'); localStorage.setItem('dl-interceptor', JSON.stringify({wx: 'clear', gmode: 'z', zdiff: 1})); }); await q.reload({waitUntil: 'load'});
+      await q.waitForFunction(() => window.__z && window.__z.net, {timeout: 60000}); await q.$eval('#zname', (e, n) => { e.value = n; }, name); return q; };
+    const H = await cp('Hosty'), C = await cp('Cleo');
+    await H.click('#zhost'); await H.waitForFunction(() => __z.G.on && __z.G.state === 'base' && __z.net.n?.code, {timeout: 60000});
+    const code = await H.evaluate(() => __z.net.n.code); await C.$eval('#zcode', (e, c) => { e.value = c; }, code); await C.click('#zjoin');
+    await C.waitForFunction(() => __z.G.on && __z.G.state === 'base' && __z.net.rows().length === 2, {timeout: 60000});
+    const cg = () => { const o = __z.Z.onboard; return {on: o.on, why: o.why, card: !!document.getElementById('zob'), flag: JSON.parse(localStorage.getItem('dl-interceptor') || '{}').zonb, role: __z.Z.netRole()}; };
+    await H.evaluate(() => __z.sim(.5)); await C.evaluate(() => __z.sim(.5));
+    const hg = await H.evaluate(cg), cg1 = await C.evaluate(cg);
+    ok(hg.role === 'host' && !hg.on && hg.why === 'coop' && !hg.card && hg.flag === undefined, `Onboard: a co-op host gets no guide and saves no flag (why "${hg.why}")`);
+    ok(cg1.role === 'client' && !cg1.on && cg1.why === 'coop' && !cg1.card && cg1.flag === undefined, `Onboard: a co-op client gets none either (why "${cg1.why}")`);
+    ok(!cerrs.length, 'Onboard co-op: no errors' + (cerrs.length ? '\n  ' + cerrs.slice(0, 5).join('\n  ') : ''));
+    await H.close(); await C.close();
+  }
 }
 
 // ---------- balance: a scripted player who shops sensibly and runs down a share of the tracks; how far does it get? ----------
