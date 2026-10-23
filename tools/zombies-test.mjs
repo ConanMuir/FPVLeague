@@ -1633,7 +1633,7 @@ if (want('briefing')) {
       foot: [...document.querySelectorAll('#zbase .zfk')].map(e => e.textContent.replace(/\s+/g, ' ').trim())}; };
     window.__spawn = squeeze => { const seen = new Set(), rec = [], at = G.next.q.map(e => e.at).sort((a, b) => a - b); __z.cont(); if (squeeze) for (const q of G.wq) q.at = Math.min(q.at, 1.5);
       const scan = () => { for (const t of api.TH) if (!seen.has(t.id)) { seen.add(t.id); rec.push({k: t.k, brg: Math.atan2(t.p.x, 1950 - t.p.z), t: G.wt}); } };
-      for (let i = 0; i < 4000 && G.state === 'wave' && G.wq.length; i++) { __z.sim(.25); scan(); } scan();
+      for (let i = 0; i < 20000 && G.state === 'wave' && G.wq.length; i++) { __z.sim(1 / 120); scan(); } scan();  /* one tick at a time: a track is read where it appeared, not a quarter second on (a bearing near a sector's edge could flip) */
       for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; return {rec, at}; };
     // the briefing against what spawned: kinds and numbers exactly, the share of threat by compass point and by launch sector, the launch times
     window.__cmp = (D, R, timed) => { const cnt = {}, bk = Object.fromEntries(D.kinds.map(k => [k.k, k.n])); for (const r of R.rec) cnt[r.k] = (cnt[r.k] | 0) + 1;
@@ -1653,7 +1653,7 @@ if (want('briefing')) {
     const foot = r.card.foot.reduce((a, t) => a + (+(t.match(/^(\d+)×/) || [0, 0])[1]), 0);
     ok(r.cmp.kinds && r.cmp.n === r.D.n && r.D.n > 0 && foot === r.D.n && r.card.text.includes(`${r.D.n} tracks`), `Briefing wave ${c.w}: ${r.D.n} tracks of ${r.D.kinds.map(k => k.k).join('/')} on the card = the footer list = what spawned (${r.cmp.n}: ${r.cmp.spawned})`);
     ok(r.cmp.dirDev <= .06 && r.cmp.secDev <= .06, `Briefing wave ${c.w}: the compass shares (${r.D.dirs.map(d => d.id + ' ' + Math.round(d.share * 100) + '%').join(' ')}) and launch sectors match where the tracks appeared (off by ${(r.cmp.dirDev * 100).toFixed(1)} / ${(r.cmp.secDev * 100).toFixed(1)} points)`);
-    if (!c.sq) ok(r.cmp.tdev <= .3 && r.D.t0 === 0 && Math.abs(r.D.t1 - 25) < .5, `Briefing wave ${c.w}: tracks launched when the plan said (launch window ${r.D.t0}-${r.D.t1} s, largest difference ${r.cmp.tdev.toFixed(2)} s)`);
+    if (!c.sq) ok(r.cmp.tdev <= .05 && r.D.t0 === 0 && Math.abs(r.D.t1 - 25) < .5,`Briefing wave ${c.w}: tracks launched when the plan said (launch window ${r.D.t0}-${r.D.t1} s, largest difference ${r.cmp.tdev.toFixed(2)} s)`);
     ok(r.D.tier === c.tier && r.card.text.includes('INTEL ' + TN[c.tier]) && r.card.rows >= 3 && r.card.rows <= 5 && r.card.icons, `Briefing wave ${c.w}: INTEL ${TN[r.D.tier]} (${r.D.warn} s of warning), ${r.card.rows} lines with an icon each`);
   }
   // ---- what each intel level shows (one plan with a ballistic missile in it, read at all four levels), and that nothing is said that the plan does not hold ----
