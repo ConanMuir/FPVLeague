@@ -186,7 +186,7 @@ await b.close(); server.close();
 const pct = (a, q) => { a = a.filter(x => x != null).sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(q * a.length))] : null; };
 const f1 = x => x == null ? '  -  ' : x.toFixed(1).padStart(5), f0 = x => x == null ? ' - ' : String(x).padStart(2);
 const N = out.res.length, dts = out.dts.filter(x => x < 200), mean = dts.reduce((a, c) => a + c, 0) / dts.length;
-const summary = {game: GAME, root: path.basename(ROOT), trials: N, frameMs: +mean.toFixed(2), fps: +(1000 / mean).toFixed(1), ticksPerFrame: +(out.tpf.reduce((a, c) => a + c, 0) / out.tpf.length).toFixed(2), rows: {}};
+const summary = {game: GAME, root: path.basename(ROOT), trials: N, frameMs: +mean.toFixed(2), frameSd: +Math.sqrt(dts.reduce((a, c) => a + (c - mean) ** 2, 0) / dts.length).toFixed(2), tpfMax: Math.max(...out.tpf), fps: +(1000 / mean).toFixed(1), ticksPerFrame: +(out.tpf.reduce((a, c) => a + c, 0) / out.tpf.length).toFixed(2), rows: {}};
 for (const th of cfg.th) for (const w of ['sim', 'draw']) {
   const g = k => out.res.map(r => r[w][th][k]);
   const ms = g('ms').filter(x => x != null);
@@ -199,7 +199,7 @@ for (const th of cfg.th) { const d = out.res.filter(r => r.sim[th].ms != null &&
   summary.lag[th] = {meanMs: +(d.reduce((a, c) => a + c, 0) / Math.max(1, d.length)).toFixed(1), later: +(d.filter(x => x > 1).length / Math.max(1, d.length)).toFixed(2), n: d.length}; }
 if (has('--json')) console.log(JSON.stringify(summary));
 else {
-  console.log(`${GAME} ${path.basename(ROOT)}  trials ${N}  frames ${summary.frameMs} ms (${summary.fps} fps)  ticks/frame ${summary.ticksPerFrame}  scale ${SCALE}  cam ${CAM}`);
+  console.log(`${GAME} ${path.basename(ROOT)}  trials ${N}  frames ${summary.frameMs} ms sd ${summary.frameSd} (${summary.fps} fps)  ticks/frame ${summary.ticksPerFrame} (max ${summary.tpfMax})  scale ${SCALE}  cam ${CAM}`);
   console.log('                     ticks  frames   ms mean  med   p90    min    max');
   for (const [k, r] of Object.entries(summary.rows)) console.log(`${k.padEnd(18)}  ${f0(r.ticksMed)}     ${f0(r.framesMed)}     ${f1(r.msMean)} ${f1(r.msMed)} ${f1(r.msP90)} ${f1(r.msMin)} ${f1(r.msMax)}   (n ${r.n})`);
   console.log(`steady turn, drawn pose behind the newest sim state: ${summary.steadyLag.meanMs} ms (sd ${summary.steadyLag.sdMs}, n ${summary.steadyLag.n})`);

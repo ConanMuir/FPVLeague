@@ -269,8 +269,10 @@ if (want('weather')) {
     out.ids = [...new Set(Array.from({length: 80}, (_, i) => w.plan(8 + i % 10).id))].sort().join(',');
     out.early = [...new Set(Array.from({length: 40}, () => w.plan(1).id))].sort().join(',');
     __z.cont(); out.bad = Object.keys(w.T).filter(id => { w.set(id); __z.sim(.5); return api.WX.id !== id || !api.WX.z; }).join(',');
-    w.start({id: 'rain', to: 'storm', why: 'storm building', at: G.wt + 1, dur: 4}); __z.sim(3); out.mid = {n: api.WX.n, mix: !!api.WX.mix};
-    __z.sim(4); out.end = {id: api.WX.id, mix: !!api.WX.mix, done: w.cur.done};
+    w.start({id: 'rain', to: 'storm', why: 'storm building', at: G.wt + 1, dur: 4}); const wbs = [api.WB.length()];
+    for (let i = 0; i < 70; i++) { __z.sim(.1); wbs.push(api.WB.length()); if (i === 29) out.mid = {n: api.WX.n, mix: !!api.WX.mix}; }
+    out.end = {id: api.WX.id, mix: !!api.WX.mix, done: w.cur.done};
+    out.wb = {last: wbs[wbs.length - 1], step: Math.max(...wbs.slice(1).map((v, i) => Math.abs(v - wbs[i])))};  /* the base wind vector: biggest change in 0.1 s */
     return out; });
   ok(r.strela, 'Look: Zombies flies the Strela-2 body, with a nozzle attach point');
   ok(r.forecast, 'Weather: the base screen shows the next wave\'s forecast');
@@ -278,6 +280,7 @@ if (want('weather')) {
   ok(!/night|storm|snow|fog|dust/.test(r.early), `Weather: wave 1 stays gentle (${r.early})`);
   ok(!r.bad, 'Weather: every Zombies weather applies' + (r.bad ? ` (failed: ${r.bad})` : ''));
   ok(r.mid.mix && r.end.id === 'storm' && !r.end.mix && r.end.done, `Weather: mid-wave change blends (${r.mid.n}) and ends on the new weather (${r.end.id})`);
+  ok(r.wb.step < .5 && Math.abs(r.wb.last - 17 * .95) < .05, `Weather: the wind ramps along with the blend, no jump at its end (biggest change in 0.1 s ${r.wb.step.toFixed(2)} m/s, ends at ${r.wb.last.toFixed(2)})`);
   ok(!errs.length, 'Weather: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
