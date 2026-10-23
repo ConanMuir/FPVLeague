@@ -1897,6 +1897,14 @@ if (want('radio')) {
     const b2 = __z.make('boss', 5000, 1950, api.SITES[1]); __z.sim(.6); R.hush(); R.calls.length = 0; api.killThreat(b2, true); __rf(); out.down = R.calls.map(c => c.txt); __clr(); out.err = R.err && String(R.err.stack || R.err); return out; });
   ok(/Heavy contact.*Mothership|Mothership/.test(bs.arr[0] || '') && /Stage down\. Two left/.test(bs.stage[0] || '') && /Mothership|carrier/.test(bs.down[0] || ''), `Radio bosses: arrival ("${bs.arr[0]}"), a stage ("${bs.stage[0]}"), the kill ("${bs.down[0]}")`);
   ok(/breached/i.test(bs.phase.join(' ')) && !bs.err, `Radio bosses: a phase change is called ("${bs.phase.find(t => /breached/i.test(t)) || bs.phase[0]}")`);
+  /* a boss the pilot cannot see is an unknown contact (no name, bearing or time: the call would do the hunting); Little Buddy's bump is the Buddy's kill; the site has its article */
+  const hw = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, out = {}; __clr(); R.hush(); R.calls.length = 0;
+    const h = Z.bosses.spawn('hush', {brg: 1}); __z.sim(.6); __rf(); for (let i = 0; i < 4; i++) R.step(2); out.hush = R.calls.map(c => c.txt); out.hid = Z.hid(h); out.hushName = R.calls.some(c => /Hush|Heavy contact|north|south|east|west|minute|seconds/.test(c.txt)); Z.bossClear('test'); Z.fxTest?.endCine(); __clr(); R.hush(); R.calls.length = 0;
+    const m = __z.make('shahed', 3000, 1000, api.SITES[1]); __z.sim(.3); R.hush(); R.calls.length = 0; m.bd = 1; Z.helperKill(m); __rf(); out.buddy = R.calls.map(c => c.who + '|' + c.txt); __clr(); R.hush(); R.calls.length = 0;
+    const t = __z.make('shahed', 3000, 1000, api.SITES[2]); const L = new Set(); for (let i = 0; i < 80; i++) for (const c of R.GEN.trk([{t, k: 'shahed', id: 5, dir: 'east', site: 'apartments', eta: 60, n: 1}], {over: 0})) L.add(c.txt); out.trk = [...L]; __clr(); return out; });
+  ok(hw.hid && hw.hush.some(s => /unknown contact/i.test(s)) && !hw.hushName, `Radio bosses: the Hush is an unknown contact, no name, bearing or time ("${hw.hush.join(' / ')}")`);
+  ok(hw.buddy.length === 1 && /^BUDDY\|/.test(hw.buddy[0]), `Radio kills: Little Buddy's bump is called by BUDDY ("${hw.buddy[0]}")`);
+  ok(hw.trk.length >= 2 && hw.trk.every(s => /the apartments/.test(s)), `Radio tracks: every phrasing of a track for the apartments says "the apartments" (${hw.trk.length} phrasings)`);
 
   // co-op partners, from the state a client has (pilots, their drones' dead flags, the kill credit)
   const co = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}, k0 = [Z.pilotsK, Z.netMe, Z.netName]; __clr(); R.hush(); R.calls.length = 0;

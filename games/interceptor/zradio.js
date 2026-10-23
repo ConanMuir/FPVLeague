@@ -29,7 +29,7 @@ const NM={shahed:['Shahed','Shaheds'],decoy:['Shahed','Shaheds'],jet:['Geran-3 j
 const noun=(k,n)=>NM[k]?NM[k][n>1?1:0]:n>1?'tracks':'track';
 const HNAME={rack:'HORNET',lrack:'HORNET',flak:'ANVIL',hflak:'ANVIL',gepard:'GEPARD',sam:'LANCE',mpads:'SPEAR',idome:'IRON DOME',gdome:'GOLDEN DOME',ew:'SPARKY',laser:'BEAM',mwave:'SIZZLE',barrage:'WEB',smoke:'VEIL',carrier:'HIVE'};
 const BASE='OVERLORD',EW='EARLY WARNING',ME='DART ONE';
-const FRIENDLY=new Set([BASE,EW,ME,'DEFENCE',...Object.values(HNAME)]);
+const FRIENDLY=new Set([BASE,EW,ME,'DEFENCE','BUDDY',...Object.values(HNAME)]);
 /* [pitch, rate] of the speech for each kind of voice: the base is low and calm, the early warning brisk, the defences high and quick, a boss slow and low */
 const VOICE={base:[.8,1.2],ew:[.95,1.3],me:[1.1,1.25],help:[1.25,1.3],peer:[1,1.25],foe:[.5,.9]};
 const vcOf=w=>w===BASE?'base':w===EW?'ew':w===ME?'me':FRIENDLY.has(w)?'help':'foe';
@@ -106,7 +106,7 @@ export function initRadio(api,G,Z){
   trk(it,p){it=it.filter(a=>api.live(a.t));for(const a of it)a.eta=eta(a.t);const n=it.length+p.over;if(!it.length)return[];
    if(n===1){const a=it[0],nn=noun(a.k,a.n),e=etaP(a.eta);
     return[C(1,BASE,a.k==='swarm'?pick([`FPV swarm, ${num(a.n)} drones, ${a.dir}, going for the ${a.site}.`,`Swarm of ${num(a.n)} from the ${a.dir}, ${e} to the ${a.site}.`]):
-     pick([`Track ${a.id}, ${nn}, ${e}, heading for the ${a.site}.`,`New contact, track ${a.id}. ${Cap(nn)} from the ${a.dir}, ${a.site} in ${e}.`,`${Cap(nn)} from the ${a.dir}, track ${a.id}. Target is the ${a.site}, ${e}.`]))]}
+     pick([`Track ${a.id}, ${nn}, ${e}, heading for the ${a.site}.`,`New contact, track ${a.id}. ${Cap(nn)} from the ${a.dir}, the ${a.site} in ${e}.`,`${Cap(nn)} from the ${a.dir}, track ${a.id}. Target is the ${a.site}, ${e}.`]))]}
    const g={};for(const a of it)(g[a.dir]||(g[a.dir]=[])).push(a);const gs=Object.entries(g).sort((x,y)=>y[1].length-x[1].length);
    if(gs.length===1){const[dir,L]=gs[0],ks=new Set(L.map(a=>a.k)),c=L.length+p.over,what=ks.size===1?noun(L[0].k,c):'tracks',st={};for(const a of L)st[a.site]=(st[a.site]|0)+1;
     const top=Object.entries(st).sort((x,y)=>y[1]-x[1])[0][0],to=Object.keys(st).length===1?`heading for the ${top}`:`mostly the ${top}`,e=etaP(Math.min(...L.map(a=>a.eta)));
@@ -145,7 +145,8 @@ export function initRadio(api,G,Z){
    return[C(2,BASE,a.n>1?pick([`The ${a.site} ${be(a.site)} taking hits, ${pc(a.f)} left.`,`More hits on the ${a.site}. ${Cap(pc(a.f))}.`]):
     pick([`The ${a.site} ${be(a.site)} hit, ${pc(a.f)} left.`,`Impact on the ${a.site}. ${Cap(pc(a.f))}.`,a.kind?`${Cap(noun(a.kind,1))} hit the ${a.site}, ${pc(a.f)} left.`:`The ${a.site} took a hit, ${pc(a.f)} left.`]))]},
   /* bosses */
-  boss(it){const out=[],arr=it.filter(a=>a.ev==='arr');
+  boss(it){const out=[],arr=it.filter(a=>a.ev==='arr'&&!a.hid);
+   if(it.some(a=>a.hid))out.push(C(2,BASE,pick(['Unknown contact on the net.','We have an unknown contact. Stay sharp.'])));
    if(arr.length)out.push(C(2,BASE,arr.length>1?`Heavy contacts from the ${arr[0].dir}: ${arr.map(a=>a.name).join(' and ')}.`:pick([`Heavy contact from the ${arr[0].dir}: ${arr[0].name}. ${Cap(etaP(arr[0].eta))} out.`,`Big one coming in from the ${arr[0].dir}. It's ${art(arr[0].name)}.`])));
    for(const a of it){if(a.ev==='ph')out.push(C(2,BASE,pick([`${a.name} is changing: ${a.txt.toLowerCase()}.`,`${a.name}, ${a.txt.toLowerCase()}. Stay on it.`])));
     else if(a.ev==='stage')out.push(C(1,BASE,a.n>0?`Stage down. ${Cap(num(a.n))} left.`:'Last stage is gone. Finish it!'));
@@ -187,7 +188,7 @@ export function initRadio(api,G,Z){
   if(k.pd==='miss'&&!t._rpd){t._rpd=1;note('chain',{...it,st:'tmiss',u:1})}
   if(!t._rbr&&e<=12&&t.st!=='fall'&&!t.dcy){t._rbr=1;note('chain',{...it,st:'brace',eta:e,u:1})}}
  function boss(t,K){const D=Z.bosses?.BOSSES?.[t.k];
-  if(!t._rz){t._rz=1;note('boss',{ev:'arr',name:K.n,dir:dirOf(t.p),eta:eta(t)})}
+  if(!t._rz){t._rz=1;note('boss',Z.hid?.(t)?{ev:'arr',hid:1}:{ev:'arr',name:K.n,dir:dirOf(t.p),eta:eta(t)})}  /* one the pilot cannot see (the Hush, the Ghost, the disguised Puppeteer): no name, bearing or time, or the call would do the hunting */
   const ph=t.bs?.ph|0;if(t._rph==null)t._rph=ph;else if(ph!==t._rph){t._rph=ph;if(D?.phases?.[ph])note('boss',{ev:'ph',name:K.n,txt:D.phases[ph]})}
   if(t.k==='boss'&&Number.isFinite(t.stages)){if(t._rst==null)t._rst=t.stages;else if(t.stages<t._rst){t._rst=t.stages;note('boss',{ev:'stage',n:t.stages})}}}
  const SH=[],SA=[],SN=[];
@@ -227,7 +228,7 @@ export function initRadio(api,G,Z){
   if(K.bossy)return;
   if(FAST.includes(t.k)){const k=t.kc||{},ty=claim&&(claim.type||claim.d?.type)||'';
    note('chain',{id:t.id,site:site0(t),sec:k.sec,k:t.k,st:k.b==='kill'?'bkill':k.pd==='kill'?'tkill':/dome/.test(ty)?'mkill':t.by==='p'||t.by==='o'?'dkill':'xkill'});return}
-  const src=t.by==='o'?'o:'+(Z.netName?.(t.byN)||'Pilot'):t.by==='h'?'h:'+hcall(claim):'p';
+  const src=t.by==='o'?'o:'+(Z.netName?.(t.byN)||'Pilot'):t.by==='h'?'h:'+(t.bd?'BUDDY':hcall(claim)):'p';  /* t.bd: Little Buddy's bump (zbuddy.js) */
   note('kill',{src,id:t.id,clutch:!!K.dmg&&Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)<600,site:site0(t)})}
  const k0=Z.kill;Z.kill=(t,cat)=>{const was=t.paid,cl0=t.claim;k0(t,cat);if(!was&&t.paid&&G.on&&!api.demo&&G.state!=='trial'&&on())noteKill(t,cl0)};
 
