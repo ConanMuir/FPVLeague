@@ -389,6 +389,10 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   /* the trophy is the team's: the pilot-local part of the Acoustic Array (radar +10 %) works on the clients too, and their base screens list it */
   const rk = await ev(H, () => +__z.Z.radarK().toFixed(3));
   for (const C of [A, B]) ok(await until(C, rk => !!__z.G.brw?.array && +__z.Z.radarK().toFixed(3) === rk && /Acoustic Array/.test(__z.Z.tacNote()), rk), `Boss fight: ${C.name} holds the Acoustic Array too (radar x${rk}, listed on the base screen)`);
+  /* the boss pool that counts is the host's, which the Hush has just joined: a client's base bar and Enemies screen show it, read-only (its own save would say the Mothership alone) */
+  for (const C of [A, B]) { ok(await until(C, () => /The Hush/.test(__z.Z.cpHTML())), `Boss fight: ${C.name}'s base bar lists the host's boss pool with the Hush`);
+    const e = await ev(C, () => { __z.Z.codex.open(); const bs = [...document.querySelectorAll('#zcdx [data-allow],#zcdx [data-all],#zcdxrs')], r = {n: bs.length, off: bs.filter(b => b.disabled).length, note: /host's pool/.test(document.querySelector('#zcdx .zhint').textContent), pool: /The Hush/.test(document.querySelector('#zcdx .zhint').textContent)}; __z.Z.codex.close(); return r; });
+    ok(e.n >= 3 && e.off === e.n && e.note && e.pool, `Boss fight: ${C.name}'s Enemies screen shows the host's pool and its ${e.n} switches are off`); }
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }
 

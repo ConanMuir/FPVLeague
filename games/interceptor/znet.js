@@ -204,7 +204,7 @@ export function initNet(api,G,Z){
   return{v:1,gid:n.gid,st:G.state,w:G.wave,c:Math.round(G.cash),e:Math.round(G.earned),k:[G.kills.p,G.kills.h],df:cl(Z.dfi?.()??S.zdiff??1,0,3),cp:Z.cpNet?.()||null,wt:+(G.wt||0).toFixed(1),iq:G.wq.length,
    sh:SITES.map(s=>Math.ceil(s.hp)),sm:SITES.map(s=>s.max),bk:SITES.length>3?1:0,wb:[+api.WB.x.toFixed(1),+api.WB.z.toFixed(1)],T,TS,S:D.S,D:D.D,
    ev:n.evs.filter(e=>e[0]>mn).slice(-120),eid:n.eid,pk:n.perks,tp:{radar:G.perks.radar|0,aid:G.perks.aid|0},dr:n.dr,ak:n.ak,pl:rows(),nx,rj:n.rj,
-   bw:Object.keys(G.brw||{}),sw:Z.swSnap?.(n.me||'host'),bd:Z.bdSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),sl:Z.sell?.netOut(),
+   bw:Object.keys(G.brw||{}),cx:Z.codexNet?.(),sw:Z.swSnap?.(n.me||'host'),bd:Z.bdSnap?.(n.me||'host'),doc:G.doc||'std',kt:{...n.ktv,[n.me||'host']:G.kit||[]},op:(G.open||[]).reduce((m,o,j)=>o?m+2**j:m,0),ex:G.exp|0,rb:G.rebuilds|0,sup:Object.keys(G.sup||{}),lu:G.lastUp|0,rp:G.run?.rep|0,kc:Z.chain?.netOut(),sl:Z.sell?.netOut(),
     so:Z.so?.netOut?.(now),sc:Z.sc?.netOut?.(now)}}  // sorties: the enemy's side of the map (zsortie.js); the living map's scars (zscars.js)
  // roster rows [key, name, kills, ready for the next wave, joined mid-wave]; a client shows its own ready state at once
  function rows(){const n=net;if(!n)return[];const nw=G.wave+1;
@@ -238,7 +238,7 @@ export function initNet(api,G,Z){
   if(!!g.bk!==SITES.length>3)Z.bunker(!!g.bk);
   if(Array.isArray(g.sh))SITES.forEach((s,i)=>{if(Number.isFinite(g.sm?.[i]))s.max=g.sm[i];if(Number.isFinite(g.sh[i]))s.hp=g.sh[i]});
   if(okArr(g.wb,2))api.WB.set(g.wb[0],0,g.wb[1]);
-  perksIn(g);Z.brwIn?.(g.bw);Z.def.netIn(null,g.D,byId);Z.swHost?.(g.sw,n.me);Z.bdHost?.(g.bd,n.me);
+  perksIn(g);Z.brwIn?.(g.bw);Z.codexIn?.(g.cx);Z.def.netIn(null,g.D,byId);Z.swHost?.(g.sw,n.me);Z.bdHost?.(g.bd,n.me);
   n.tm=new Map(TH.map(t=>[t.id,t]));
   if(Array.isArray(g.ev)){if(n.evSeen<0)n.evSeen=g.eid|0;for(const e of g.ev)if(Array.isArray(e)&&e[0]>n.evSeen){n.evSeen=e[0];try{event(e)}catch(err){console.warn('co-op event',err)}}}
   tracksIn(g.T,g.TS);Z.def.netIn(g.S,null,byId);Z.chain?.netIn(g.kc);Z.so?.netIn?.(g.so);Z.sc?.netIn?.(g.sc);
