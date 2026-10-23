@@ -125,5 +125,7 @@ export function initBrief(api,G,Z){
  B.toggle=()=>{S.zbrief=collapsed()?0:1;save();Z.base.refresh?.();return collapsed()};
  Z.base.el.addEventListener('click',e=>{if(e.target.closest?.('#zbtog'))B.toggle()});
  /* the radio: the one line, when the wave starts (the old subtitle channel; a radio module that takes it over reads it out) */
- const c0=Z.continue;Z.continue=()=>{const l=!Z.online&&G.on&&G.state==='base'?B.line():'';c0();if(l)Z.an?.radio?.('OVERLORD',l,1)};
+ /* with the radio chatter on (zradio.js, which takes the announcer's radio over) it has just called the wave itself: this one then reads "Intel: ..." instead of "Wave N: ..." */
+ B.radio=l=>Z.radio&&S.zradio!==false?l.replace(/^Wave \d+: /,'Intel: '):l;
+ const c0=Z.continue;Z.continue=()=>{const l=!Z.online&&G.on&&G.state==='base'?B.line():'';c0();if(l)Z.an?.radio?.('OVERLORD',B.radio(l),1)};
  return B}

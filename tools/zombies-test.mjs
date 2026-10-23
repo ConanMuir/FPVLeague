@@ -2262,8 +2262,10 @@ if (want('briefing')) {
   ok(CO.n === CO.nFull && CO.kinds && CO.t0 === null && CO.html && CO.card && CO.empty && CO.nul, 'Briefing from a plan without the timed queue (a co-op client), an empty plan and no plan: the same counts, no timing, nothing thrown');
   // ---- the radio line when the wave starts, through the announcer's radio (Z.an.radio) ----
   const RD = await p.evaluate(() => { const {Z, G, api} = __z, calls = [], r0 = Z.an.radio; Z.an.radio = (who, txt, pri) => { calls.push([who, txt, pri]); }; __brk(7, 0, 0); const line = Z.brief.line(); __z.cont();
-    Z.an.radio = r0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; return {line, calls: calls.filter(c => c[0] === 'OVERLORD' && /^Wave 7:/.test(c[1])).length, one: calls.find(c => c[0] === 'OVERLORD' && /^Wave 7:/.test(c[1]))?.[1] === line}; });
-  ok(/^Wave 7: \d+ tracks?, .+, from the [a-z -]+\.$/.test(RD.line) && RD.calls === 1 && RD.one, `Radio: one line at the start of the wave, through the announcer ("${RD.line}")`);
+    Z.an.radio = r0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; const mine = calls.filter(c => c[0] === 'OVERLORD' && /^(Wave 7|Intel): /.test(c[1]));
+    return {line, calls: mine.length, text: mine[0]?.[1] || '', radioOn: !!Z.radio && api.S.zradio !== false}; });
+  /* with the radio chatter on (zradio.js) it calls the wave itself, so this one reads "Intel: ..."; without it, "Wave 7: ..." */
+  ok(/^Wave 7: \d+ tracks?, .+, from the [a-z -]+\.$/.test(RD.line) && RD.calls === 1 && RD.text === (RD.radioOn ? RD.line.replace(/^Wave 7: /, 'Intel: ') : RD.line), `Radio: one line at the start of the wave, through the announcer's radio (${RD.radioOn ? 'the radio chatter is on, so "Intel: ..."' : 'plain'}: "${RD.text}")`);
   // ---- collapse: one line instead of the rows, kept in the settings ----
   const CL = await p.evaluate(() => { const {Z, G, api} = __z, S = api.S; __brk(12, 3, 0); const q = () => { const c = document.getElementById('zbrief'); return {col: c.classList.contains('col'), rows: c.querySelectorAll('.zbrows').length, line: c.querySelector('.zbl')?.textContent || '', exp: c.querySelector('#zbtog').getAttribute('aria-expanded'), btn: c.querySelector('#zbtog').textContent, s: S.zbrief | 0}; };
     const a = q(); document.getElementById('zbtog').click(); const b = q(); document.getElementById('zbtog').click(); const c = q(); document.getElementById('zbtog').click(); return {a, b, c, d: q()}; });
