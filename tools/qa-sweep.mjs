@@ -806,14 +806,26 @@ section('zombies-spectator', async browser => {
   drain(S, 'spectator'); await p.close();
 });
 
-/* the arcade game's own counts: scene children, geometries and textures the renderer holds */
-const zExtra = () => { const z = window.__z, i = z.api.renderer.info; let n = 0; z.api.scene.traverse(() => n++); return {scene: z.api.scene.children.length, objs: n, geoms: i.memory.geometries, texs: i.memory.textures}; };  /* objs: the whole tree (a group that collects meshes does not change the top level) */
+/* the arcade game's own counts: scene children, objects and geometries the renderer holds. The enemies on the field (the menu demo keeps flying a wave behind the menu) are left
+   out of the scene counts: how many are in the air at the moment of counting is chance, and a page that happens to have a few more meshes is not a leak */
+const zExtra = () => { const z = window.__z, i = z.api.renderer.info; let n = 0, t = 0, top = z.api.scene.children.length; z.api.scene.traverse(() => n++);
+  for (const u of z.api.TH) if (u.mesh) { u.mesh.traverse(() => t++); if (u.mesh.parent === z.api.scene) top--; }
+  return {scene: top, objs: n - t, geoms: i.memory.geometries, texs: i.memory.textures}; };
+/* one of every enemy kind flown in front of the camera and drawn, then removed: the kinds' geometry is built the first time one is seen, and which kinds a wave or the demo
+   happens to bring is random, so the first appearances belong before the counting starts, not in the middle of it */
+async function zprime(S) {
+  const {p} = S, kinds = await p.evaluate(() => Object.keys(window.__z.KIND));
+  for (const k of kinds) await attempt(`prime ${k}`, async () => {
+    await p.evaluate(k => { const z = window.__z, c = z.api.camera, f = new z.api.THREE.Vector3(0, 0, -1).applyQuaternion(c.quaternion), t = z.make(k, c.position.x + f.x * 140, c.position.z + f.z * 140); if (t) { t.p.y = c.position.y + f.y * 140; t.mesh.position.copy(t.p); t.mesh.visible = true; } }, k);
+    await frames(p, 2); await zclear(p);
+  });
+}
 section('zombies-cycles', async browser => {
   const S = await zsession(browser, {save: {zwx: 'menu'}}); const {p} = S; if (!ok(S.up, 'Zombies boots (cycles)')) { await p.close(); return; }  /* zwx menu: the menu's weather, not a new random forecast per game (each weather builds its own effects the first time it shows up) */
   const N = FAST ? (LEAN ? 2 : 3) : 6, back = async () => { await key(p, 'Escape'); await click(p, '#leave'); await until(async () => (await zst(p)).demo, {timeout: 20000}); };
   /* the idle-time warm-up (zwarm.js: bosses, effects, textures, programs; the living map's and the codex's builds) uploads geometry for a while after boot, and a slow
      machine finishes it in the middle of the first cycles, which reads as growth: wait for it (Z.warmSt.done) before counting anything */
-  const warmed = await until(async () => p.evaluate(() => !window.__z.Z.warmSt || window.__z.Z.warmSt.done), {timeout: 240000, every: 500}); ok(warmed, 'the idle warm-up finishes while the menu demo runs');
+  const warmed = await until(async () => p.evaluate(() => !window.__z.Z.warmSt || window.__z.Z.warmSt.done), {timeout: 240000, every: 500}); ok(warmed, 'the idle warm-up finishes while the menu demo runs'); await zprime(S);
   await cycles(S, 'Zombies quick defence start / quit', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.G.cash = 5000; z.Z.base.setTab('shop'); const i = z.G.cards.findIndex(c => c.k === 'rack'); document.querySelector(`#zbase [data-buy="${i}"]`)?.click(); document.querySelector('[data-slot]')?.click(); z.cont(); z.sim(8); }); await frames(p, 3); await back(); }, N, zExtra, 5500);
   await cycles(S, 'Zombies game over / play again', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.cont(); z.sim(3); z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500);
   await cycles(S, 'Zombies campaign sector', async () => { await p.evaluate(() => { window.__z.Z.cp.openMap(); window.__z.Z.cp.select('mill'); }); await click(p, '#zcpgo'); await p.waitForFunction(() => window.__z.G.state === 'base' && !!window.__z.Z.cp.run, {timeout: 30000}); await p.evaluate(() => { window.__z.cont(); window.__z.sim(5); window.__z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500);
@@ -827,8 +839,8 @@ section('zombies-coop', async browser => {
     await S.p.goto(URLC, {waitUntil: 'load'}); S.up = await S.p.waitForFunction(() => window.__z?.net, {timeout: 120000}).then(() => true, () => false); await S.p.$eval('#zname', (e, n) => { e.value = n; }, name).catch(() => {}); S.name = name; return S; };
   const H = await mk('Hosty'), C = await mk('Cleo'); if (!ok(H.up && C.up, 'co-op: both pages boot')) { await H.p.close(); await C.p.close(); return; }
   const wait = (S, f, ms = 60000) => S.p.waitForFunction(f, {timeout: ms, polling: 50}).then(() => true, () => false), tap = (S, sel) => S.p.evaluate(sel => document.querySelector(sel)?.click(), sel);
-  for (const S of [H, C]) ok(await wait(S, () => !window.__z.Z.warmSt || window.__z.Z.warmSt.done, 240000), `co-op ${S.name}: the idle warm-up finishes before anything is counted`);
-  const N = FAST ? 2 : 4;
+  for (const S of [H, C]) { ok(await wait(S, () => !window.__z.Z.warmSt || window.__z.Z.warmSt.done, 240000), `co-op ${S.name}: the idle warm-up finishes before anything is counted`); await zprime(S); }
+  const N = +(argv.find(a => a.startsWith('--rounds='))?.slice(9) || 0) || (FAST ? 2 : 4);  /* --rounds=N: more join / leave rounds, to see whether a count settles or keeps growing */
   async function round(i) {
     await tap(H, '#zhost'); ok(await wait(H, () => window.__z.G.on && window.__z.G.state === 'base' && window.__z.net.n?.code), `co-op ${i}: the host starts a game`);
     const code = await H.p.evaluate(() => window.__z.net.n.code); await C.p.$eval('#zcode', (e, c) => { e.value = c; }, code); await tap(C, '#zjoin');
