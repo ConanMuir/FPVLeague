@@ -7,6 +7,7 @@
 
 /* in-wave HUD */
 #zhud{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:5px;pointer-events:none}
+#hud.z #feed{max-width:calc(var(--zhl,50vw) - 36px)}#hud.z.zfd #feed{top:calc(var(--zhb,44px) + 8px);max-width:46vw}
 #zhud .zt{display:flex;align-items:stretch;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.5);font:700 18px var(--mono)}
 #zhud .zt>span{padding:5px 12px;background:var(--panel);white-space:nowrap;display:flex;align-items:center}
 #zw{color:#fff}#zc{color:var(--green)}#zs{background:rgba(255,198,64,.22)!important;color:var(--amber)}

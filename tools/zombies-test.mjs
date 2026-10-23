@@ -78,6 +78,15 @@ if (want('zombies')) {
   await p.click('#zdiff button[data-d="1"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '1', {timeout: 5000}).catch(() => {});
   ok(dm.on === 'Nightmare' && dm.zd === 3 && /Nightmare/.test(dm.desc), `Zombies menu: picking Nightmare highlights it, saves it and describes it ("${dm.desc.split('Nightmare: ')[1]?.slice(0, 50)}")`);
   await play(p);
+  { const out = [];  /* the event feed (top left) never runs under the centred top bar, at a laptop, a 1080p and a short window */
+    for (const [w, h] of [[1280, 720], [1920, 1080], [900, 420], [1280, 720]]) {
+      await p.setViewport({width: w, height: h});
+      await p.evaluate(() => { for (const t of ['Inbound: 4× Shahed-136, 3× Geran-3 jet, 2× decoy, 1× Lancet', 'Wave 13 clear: <span class="cg">+$12,400</span> (perfect defence bonus included)', 'Upkeep: <span class="co">−$800</span>', 'Passed Shahed 14 m off']) __z.api.feed(t); });
+      await frames(p, 3);
+      out.push(await p.evaluate(() => { const f = document.getElementById('feed').getBoundingClientRect(), b = {left: 1e9, top: 1e9, right: 0, bottom: 0}; for (const c of document.getElementById('zhud').children) { const q = c.getBoundingClientRect(); if (q.width) { b.left = Math.min(b.left, q.left); b.top = Math.min(b.top, q.top); b.right = Math.max(b.right, q.right); b.bottom = Math.max(b.bottom, q.bottom); } }  /* the bar, the site row and a warning: wider than the grid box itself when the window is narrow */
+        return {vp: innerWidth + 'x' + innerHeight, hit: f.left < b.right && b.left < f.right && f.top < b.bottom && b.top < f.bottom, feed: [f.left, f.top, f.right, f.bottom].map(Math.round), bar: [b.left, b.top, b.right, b.bottom].map(Math.round), rows: document.getElementById('feed').children.length}; }));
+    }
+    ok(out.every(r => r.rows >= 3 && !r.hit), `Zombies HUD: the event feed keeps clear of the top bar at 1280x720, 1920x1080 and 900x420 (${out.map(r => r.vp + (r.hit ? ' OVERLAP ' + r.feed + ' / ' + r.bar : ' ok')).join(', ')})`); }
   const s0 = await p.evaluate(() => ({base: !document.getElementById('zbase').hidden, cash: __z.G.cash, st: __z.G.state, integ: __z.integrity()}));
   ok(s0.base && s0.st === 'base' && s0.cash === 1500, `Zombies: opens on the base screen with $${s0.cash}, integrity ${s0.integ.hp}/${s0.integ.max}`);
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-1.png'});
@@ -2780,6 +2789,15 @@ if (want('buddy')) {
       return {state: b.state, job: b.job, hp: b.hp / b.st.tuf, chg: b.chg / b.st.end, card: !c.hidden, text: c.textContent, title: c.title, fx: Z.bd.fx(), pos: b.p.toArray()}; });
     ok(r.state === 'pad' && r.hp === 1 && r.chg === 1 && r.card && /LITTLE BUDDY/.test(r.text) && /Motors/.test(r.title), `Buddy: at the wave start it is on the radar pad, full charge and health; the HUD card is up ("${r.text.replace(/\s+/g, ' ').slice(0, 60)}")`);
     ok(r.fx.models === 1 && r.fx.vis === 1, 'Buddy: its model is shown while the wave runs'); }
+  { const out = [];  /* the HUD card stays off the top bar and the FPS meter and the radar, short window or tall */
+    for (const [w, h] of [[1280, 720], [900, 420], [1280, 720]]) {
+      await p.setViewport({width: w, height: h}); await frames(p, 3);
+      out.push(await p.evaluate(() => { const r = e => e.getBoundingClientRect(), zt = document.querySelector('#zhud .zt'), pad = document.createElement('span');
+        pad.style.cssText = 'padding:0;width:' + Math.max(0, 772 - r(zt).width) + 'px'; zt.append(pad);  /* the bar as a flying pilot has it: weapon, battery and range readouts included, about 770 px */
+        const c = r(document.getElementById('zbd')), hit = [...document.querySelectorAll('#zhud .zt,#zsites,#fpsm,#radw,#feed')].filter(e => { const b = r(e); return b.width && c.left < b.right && b.left < c.right && c.top < b.bottom && b.top < c.bottom; }).map(e => e.id || e.className); pad.remove();
+        return {vp: innerWidth + 'x' + innerHeight, hit, shown: !document.getElementById('zbd').hidden, inside: c.left >= 0 && c.top >= 0 && c.right <= innerWidth && c.bottom <= innerHeight}; }));
+    }
+    ok(out.every(r => r.shown && r.inside && !r.hit.length), `Buddy: the HUD card overlaps no top bar, FPS meter, radar or feed at 1280x720 and 900x420 (${out.map(r => r.vp + (r.hit.length ? ' hits ' + r.hit : r.inside ? ' ok' : ' off screen')).join(', ')})`); }
   // no tracks and the pilot on the ground: it waits on the pad
   { const r = await p.evaluate(() => { const b = __z.Z.bd.mine; const c0 = b.chg; __bd.run(15); return {state: b.state, chg: b.chg - c0, job: b.job, s: __bd.sample(40)}; });
     ok(r.state === 'pad' && r.job === 'perch' && r.s.perch >= 38, `Buddy, nothing inbound: it perches on the pad and uses no charge (${JSON.stringify(r.s)})`); }
