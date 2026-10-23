@@ -1253,6 +1253,10 @@ if (want('arsenal')) {
 // ---------- the living map (zscars.js): craters, burns and rubble that stay; caps and recycling, the save, the campaign, co-op, no glitches, frame cost, no leaks ----------
 if (want('scars')) {
   const {p, errs} = await page('z');
+  /* nobody has played yet: the menu's idle time builds the textures and pools, a few ms a slice */
+  const idle = await p.waitForFunction(() => __z.Z.sc.ready, {timeout: 120000}).then(() => true, () => false), worst = await p.evaluate(() => __z.Z.sc.worst);
+  ok(idle, 'Scars: the textures and pools are built in idle time at the menu, before anyone plays');
+  timingCheck(worst < 30, `Scars: the longest slice of that build is ${worst.toFixed(1)} ms (budget 30 ms)`, ok);
   await play(p);
   // helpers inside the page: spots, a held-open wave, frame grabs (pixels read right after a direct render: scene -> canvas), a median
   await p.evaluate(() => {
@@ -1400,6 +1404,15 @@ if (want('scars')) {
   ok(K.client === 0, `Co-op: a client's own explosions make no scars (${K.client})`);
   ok(K.fadingOut === 2 && K.after.craters + K.after.burns === 29, `Co-op: what the host dropped fades out on the client (${K.fadingOut} fading, then ${K.after.craters + K.after.burns} left)`);
   ok(K.badIn && K.hostOut && K.mirrorOut === null, 'Co-op: junk in a snapshot is ignored; only the host sends scars');
+
+  // a full pool on the client: the host swaps ten scars for ten new ones, and the client swaps the same ten (a fading slot is reused, no other scar is let go)
+  const K2 = await p.evaluate(() => { const Z = __z.Z, S = Z.sc, o = {}, q = v => Math.round((v + 4500) / 9000 * 4095), as = (host, f) => { const od = Object.getOwnPropertyDescriptor(Z, 'online'), md = Object.getOwnPropertyDescriptor(Z, 'mirror');
+      Object.defineProperty(Z, 'online', {get: () => true, configurable: true}); Object.defineProperty(Z, 'mirror', {get: () => !host, configurable: true}); try { return f(); } finally { Object.defineProperty(Z, 'online', od); Object.defineProperty(Z, 'mirror', md); } };
+    S.clear(); for (let i = 0; i < 256; i++) S.add(0, -2000 + (i % 16) * 90, -2000 + (i >> 4) * 90, 3 + i % 5, {a: i % 16, fade: 1}); const s1 = S.encode(), keep = S.unpack(s1).slice(10);  /* on a grid: no two in one 2.2 m cell */
+    as(false, () => { S.clear(); S.netIn({r: 1, d: s1}); }); __z.sim(1); o.n0 = S.stats().craters;
+    for (let i = 0; i < 10; i++) keep.push([0, q(-1955 + i * 90), q(-2000 + 45), 10, 0, 0, 31, 0]);
+    as(false, () => S.netIn({r: 2, d: S.pack(keep)})); o.mid = S.list(0).length; __z.sim(3); o.after = S.stats().craters; o.same = __set(S.recs()) === __set(keep); o.q = S.pools[0].q.length; o.nd = S.pools[0].nd; S.clear(); return o; });
+  ok(K2.n0 === 256 && K2.after === 256 && K2.same && K2.q === 0 && K2.nd === 0, `Co-op: with every slot taken, a swap of ten scars on the host is the same ten on the client (${K2.n0} -> ${K2.after}, nothing pending)`);
 
   // ---- no glitches: the decal against the terrain, pixel by pixel ----
   // A = with the scars; B = the same frame with the depth test off (the scars drawn over everything in the same order); C = without scars. If a scar ever dips below the

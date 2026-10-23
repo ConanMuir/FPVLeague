@@ -4,7 +4,7 @@
 // co-op the host's scars are the truth: clients get them in the snapshot at a bounded rate (znet.js) and never make their own.
 //
 // How it stays glitch-free and cheap (the architecture):
-//  - one InstancedBufferGeometry draw per scar type (3 in all), each a small grid; instances are four 4-float attributes, no per-frame allocation,
+//  - one InstancedBufferGeometry draw per scar type (3 in all), each a small grid; instances are three 4-float attributes (centre and size, yaw and spread, height and fade), no per-frame allocation,
 //    every cap is hard (256 craters, 128 burns, 64 rubble) and when full the oldest and smallest scar fades and its slot is reused
 //  - the vertex shader lays every grid vertex on the terrain by reading the heightmap (an R32F texture of the terrain mesh's own heights, with the
 //    mesh's triangle split, so it lands exactly on what is drawn) and lifts it along the heightmap normal by a few centimetres plus a margin
@@ -117,16 +117,16 @@ const FS_PARS=`
 uniform sampler2D dTex;uniform float uSnow;uniform float uTime;uniform float uNS;
 varying vec2 vA;varying vec2 vR;varying vec4 vK;varying vec3 vT;varying vec3 vB;varying vec3 vWP;varying float vNS;`;
 const FS_MAP=`
+ float fq=max(length(dFdx(vWP.xz)),length(dFdy(vWP.xz))),gw=1.-smoothstep(.04,.14,fq);
+ float g1=mix(.5,texture2D(dTex,vWP.xz/7.).r,gw),g2=mix(.5,texture2D(dTex,vWP.xz/53.+.37).g,gw);  /* the terrain's own grain, so a scar is not smoother than the ground it lies on */
 #ifdef SC_BURN
  vec4 bt=texture2D(map,vA);float pe=vK.y*1.1,sc_ed=1.-smoothstep(.82,1.,length(vR));
  float burnt=1.-smoothstep(pe-.09,pe,bt.r),since=clamp((pe-bt.r)/.5,0.,1.);
- vec3 fresh=vec3(.1,.06,.035),old=vec3(.036,.032,.029),ash=vec3(.11,.105,.1);
- vec3 bc=mix(fresh,old,since);bc=mix(bc,ash,smoothstep(.62,.9,bt.g)*since*.4)*(.78+.44*bt.b);
- diffuseColor.rgb=bc;diffuseColor.a*=bt.a*burnt*sc_ed*(.9-.1*bt.b)*vK.x*(1.-.55*uSnow);
+ vec3 fresh=vec3(.11,.065,.035),old=vec3(.032,.028,.026),ash=vec3(.09,.085,.08);
+ vec3 bc=mix(fresh,old,since);bc=mix(bc,ash,smoothstep(.62,.9,bt.g)*since*.4)*(.78+.44*bt.b)*(.74+.52*g1)*(.88+.24*g2);
+ diffuseColor.rgb=bc;diffuseColor.a*=bt.a*burnt*sc_ed*(.84-.1*bt.b)*vK.x*(1.-.55*uSnow);
 #else
  vec4 tc=texture2D(map,vA);float sc_ed=1.-smoothstep(.8,1.,SC_EDGE);
- float fq=max(length(dFdx(vWP.xz)),length(dFdy(vWP.xz))),gw=1.-smoothstep(.04,.14,fq);
- float g1=mix(.5,texture2D(dTex,vWP.xz/7.).r,gw),g2=mix(.5,texture2D(dTex,vWP.xz/53.+.37).g,gw);
  diffuseColor.rgb*=tc.rgb*(.82+.36*g1)*(.88+.24*g2);diffuseColor.a*=tc.a*sc_ed*vK.x*(1.-.55*uSnow);
 #endif`;
 const FS_NORMAL=`
@@ -144,7 +144,7 @@ class Pool{
  constructor(kind,THREE,U,maps,hTex,nTex){const cap=this.cap=CAP[kind],res=RES[kind];this.kind=kind;this.res=res;
   this.st=new Uint8Array(cap);this.fade=new Float32Array(cap);this.want=new Float32Array(cap);this.pf=new Float32Array(cap);this.glow=new Float32Array(cap);this.ft=new Float32Array(cap);
   this.xq=new Uint16Array(cap);this.zq=new Uint16Array(cap);this.sq=new Uint8Array(cap);this.vq=new Uint8Array(cap);this.yq=new Uint8Array(cap);this.aq=new Uint8Array(cap);
-  this.aS=new Float32Array(cap*4);this.aP=new Float32Array(cap*4);this.aF=new Float32Array(cap*4);this.q=[];this.hw=0;this.n=0;this.sp=0;this.dirty=false;this.show=cap;
+  this.aS=new Float32Array(cap*4);this.aP=new Float32Array(cap*4);this.aF=new Float32Array(cap*4);this.q=[];this.hw=0;this.n=0;this.nd=0;this.sp=0;this.dirty=false;
   const n=res+1,P=new Float32Array(n*n*3),Uv=new Float32Array(n*n*2),I=new Uint16Array(res*res*6);
   for(let j=0;j<n;j++)for(let i=0;i<n;i++){const o=j*n+i;P[o*3]=i/res*2-1;P[o*3+1]=j/res*2-1;Uv[o*2]=i/res;Uv[o*2+1]=j/res}
   for(let j=0,k=0;j<res;j++)for(let i=0;i<res;i++){const a=j*n+i;I[k++]=a;I[k++]=a+n;I[k++]=a+1;I[k++]=a+1;I[k++]=a+n;I[k++]=a+n+1}
@@ -168,13 +168,15 @@ class Pool{
  // what to let go first: the oldest and smallest (a burn still spreading is spared); recycle score
  score(i){return this.aq[i]+(1-this.sq[i]/63)*4-(this.kind===1&&this.pf[i]<1?3:0)}
  victim(){let b=-1,bs=-1e9;for(let i=0;i<this.hw;i++)if(this.st[i]===1){const s=this.score(i);if(s>bs){bs=s;b=i}}return b}
- free(i){this.st[i]=0;this.aF[i*4+1]=0;this.n--;while(this.hw>0&&!this.st[this.hw-1])this.hw--;this.geo.instanceCount=this.hw;this.dirty=true;
+ free(i){if(this.st[i]===2)this.nd--;this.st[i]=0;this.aF[i*4+1]=0;this.n--;while(this.hw>0&&!this.st[this.hw-1])this.hw--;this.geo.instanceCount=this.hw;this.dirty=true;
   if(this.q.length){const a=this.q.shift();this.put(i,...a)}}
- // add; returns the slot, -2 when it waits for a victim to fade, -1 when refused (rubble is never recycled)
+ drop(i){this.st[i]=2;this.want[i]=0;this.nd++}  /* fades out; its slot is free when it is gone */
+ // add; returns the slot, -2 when it waits for a slot to fade out, -1 when refused (rubble is never recycled)
  add(xq,zq,sq,vq,yq,pq,aq,gh,fade=0){const i=this.slot();if(i>=0){this.put(i,xq,zq,sq,vq,yq,pq,aq,gh,fade);return i}
-  if(this.kind===2)return-1;const v=this.victim();if(v<0)return-1;this.st[v]=2;this.want[v]=0;
-  this.q.push([xq,zq,sq,vq,yq,pq,aq,gh,fade]);return-2}  /* one victim per waiting scar, so the queue can never outgrow the cap */
- clear(){this.st.fill(0);this.aF.fill(0);this.q.length=0;this.hw=this.n=this.sp=0;this.geo.instanceCount=0;this.dirty=true}
+  if(this.kind===2)return-1;
+  if(this.nd<=this.q.length){const v=this.victim();if(v<0)return-1;this.drop(v)}  /* a slot already fading is spoken for by whoever waits; else one more victim */
+  this.q.push([xq,zq,sq,vq,yq,pq,aq,gh,fade]);return-2}  /* one fading slot per waiting scar, so the queue can never outgrow the cap */
+ clear(){this.st.fill(0);this.aF.fill(0);this.q.length=0;this.hw=this.n=this.nd=this.sp=0;this.geo.instanceCount=0;this.dirty=true}
  // fade in / out, spread; dt in seconds, run: the spread advances; returns true when the ground state changed (a slot was released)
  update(dt,run){let ch=false;
   for(let i=0;i<this.hw;i++){if(!this.st[i])continue;const o=i*4;let f=this.fade[i];const w=this.want[i];
@@ -188,7 +190,7 @@ class Pool{
 export function initScars(api,G,Z){
  const {THREE,scene,camera,renderer,gh,S,SITES,FOBS,PADP}=api,V3=THREE.Vector3;
  const terrain=scene.children.find(o=>o.isMesh&&o.material?.userData?.snow);
- const sc=Z.sc={ready:false,off:!terrain,TYPES,CAP,cRev:-1};
+ const sc=Z.sc={ready:false,off:!terrain,TYPES,CAP,cRev:-1,worst:0};
  if(!terrain){console.warn('scars: no terrain mesh found');return sc}
  const U={dTex:{value:detailTex()},uSnow:terrain.material.userData.snow,uTime:{value:0},uNS:{value:1.1},uCam:{value:new THREE.Vector4(500,gfx.k.scFar||1100,0,0)}};
  let P=[],MAPS=null,hTex=null,nTex=null,jobs=null,built=false,inited=false,TWd=9000,N=361,rev=0,sent=-1,sentT=0;
@@ -209,7 +211,7 @@ export function initScars(api,G,Z){
   for(const p of P){p.uGrid.value.set(-TWd/2,(N-1)/TWd,N,p.res);scene.add(p.mesh)}sc.pools=P}
  /* one slice of the texture build (a few ms); true when finished */
  function pump(){if(built)return true;if(!jobs.length){built=true;NT=null;for(const m of MAPS)for(const t of m)if(t)t.needsUpdate=true;sc.ready=true;for(const p of P)p.dirty=true;rank();vis();return true}
-  if(jobs[0].next().done)jobs.shift();return false}
+  const t0=performance.now();if(jobs[0].next().done)jobs.shift();sc.worst=Math.max(sc.worst,performance.now()-t0);return false}  /* worst: the longest slice of the build, ms */
  const slice=()=>{if(!pump())later(slice,{heavy:true})};
  let started=false;const start=()=>{if(started)return;started=true;init();later(slice,{heavy:true})};
  const ensure=()=>{init();while(!pump());};
@@ -274,7 +276,7 @@ export function initScars(api,G,Z){
  /* merge a snapshot into the live set: what is there stays (no re-fade), what is new fades in, what is gone fades out */
  function apply(s){ensure();const R=unpack(s),key=(t,x,z)=>t<<24|x<<12|z,want=new Map();for(const r of R)want.set(key(r[0],r[1],r[2]),r);
   for(let t=0;t<3;t++){const p=P[t];for(let i=0;i<p.hw;i++)if(p.st[i]===1){const k=key(t,p.xq[i],p.zq[i]),r=want.get(k);
-   if(r){want.delete(k);if(t===1&&Math.abs(p.pf[i]-r[6]/31)>.2){p.pf[i]=p.aP[i*4+2]=r[6]/31;p.dirty=true}}else{p.st[i]=2;p.want[i]=0}}}
+   if(r){want.delete(k);if(t===1&&Math.abs(p.pf[i]-r[6]/31)>.2){p.pf[i]=p.aP[i*4+2]=r[6]/31;p.dirty=true}}else p.drop(i)}}
   for(const[t,x,z,sq,v,y,pq,aq]of want.values()){
    if(t===2){const i=houseNear(dpos(x),dpos(z),5);if(i>=0&&houseDown(i))P[2].add(qpos(houses().x[i]),qpos(houses().z[i]),sq,v,y,pq,aq,gh,0);continue}
    P[t].add(x,z,sq,v,y,pq,aq,gh,0)}
@@ -294,7 +296,7 @@ export function initScars(api,G,Z){
  const v0=Z.visuals;Z.visuals=dt=>{v0(dt);if(!sc.ready)return;
   if(G.state!==st0){const was=st0;st0=G.state;if((st0==='clear'||st0==='over')&&was)persist()}
   if(G.wave!==wave0){if(wave0>=0&&G.wave>wave0)for(const p of P)for(let i=0;i<p.hw;i++)if(p.st[i]&&p.aq[i]<15)p.aq[i]++;wave0=G.wave}
-  dt=Math.min(dt,.1);tok=Math.min(8,tok+dt*3);const run=!Z.hold?.();let ch=false;for(const p of P)ch=p.update(dt,run)||ch;if(ch)rank();
+  dt=Math.min(dt,.1);tok=Math.min(8,tok+dt*3);const run=!Z.hold?.()&&(!api.menuOpen||!!Z.online);let ch=false;  /* a fire waits while the game is paused or on the base screen (a co-op game keeps running behind its menu) */for(const p of P)ch=p.update(dt,run)||ch;if(ch)rank();
   U.uTime.value=performance.now()/1000%1000;U.uCam.value.x=camera.projectionMatrix.elements[5]*renderer.domElement.height*.5;
   if(run)fireFx(dt);
   for(const p of P)p.flush();vis()};
