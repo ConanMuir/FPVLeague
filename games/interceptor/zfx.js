@@ -255,6 +255,7 @@ export function initFX(api,G,Z){
  Z.flyPop=an.fly;  // money pops fly into the cash counter (zombies.js overlay)
  // ---------- sound settings in the menu: music and effects volume (zaudio.js reads S.zmusv / S.zsfxv) ----------
  const sndRows=[];
+ for(const k of['zmusv','zsfxv'])if(S[k]!==undefined)S[k]=typeof S[k]==='number'&&isFinite(S[k])?cl(S[k],0,1):undefined;  /* a hand-edited or foreign save: a string here threw in zaudio's gains (setTargetAtTime) and the sliders showed NaN% */
  {let after=document.getElementById('o_zwx');const set=document.getElementById('set');
   for(const[k,lab]of[['zmusv','Zombies music volume'],['zsfxv','Zombies effects volume']]){const l=document.createElement('label'),i=document.createElement('input'),o=document.createElement('output');
    l.textContent=lab;i.id=l.htmlFor='f_'+k;o.id='o_'+k;i.type='range';i.min=0;i.max=1;i.step=.05;
