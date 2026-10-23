@@ -15,7 +15,7 @@ import {ACH,achProg,packCounts} from './achievements.js';
 import {REC_KEYS,recCounts} from './match-rec.js';
 import {UNLOCK,cosKey} from './unlocks.js';
 export const PROFILE_KEY='droneleague.profile';
-export const STAT_KEYS=['m','w','l','xp',...REC_KEYS],BEST_KEYS=['goals','saves','chain','kills','xp'],FEAT_KEYS=['clean','comeback','ot','champ','gc'];
+export const STAT_KEYS=['m','w','l','xp',...REC_KEYS],BEST_KEYS=['goals','saves','chain','kills','xp'],FEAT_KEYS=['clean','comeback','ot','champ','gc','tourn'];  /* tourn: tournaments won (modes/tournament.js) */
 const MAXN=1e9,MAXT=1e13,HIST=10;
 const n0=v=>Number.isFinite(v)&&v>0?Math.min(MAXN,Math.floor(v)):0,ts=v=>Number.isFinite(v)&&v>0&&v<MAXT?Math.floor(v):0;
 const obj=v=>v&&typeof v==='object'&&!Array.isArray(v)?v:null;

@@ -1,8 +1,8 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew   run only those sections (CI shards them across jobs); default all
-import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
-import {front as campFront} from '../games/interceptor/zcampaign.js';
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell   run only those sections (CI shards them across jobs); default all
+import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
+import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
 const {server, origin} = await serve();
@@ -772,11 +772,11 @@ if (want('bosses')) {
     G.bevW = -99; Math.random = () => .001; try { out.ev = __z.plan(27).list.filter(k => B.BOSSES[k]); out.ev28 = __z.plan(28).list.filter(k => B.BOSSES[k]).length; G.bevW = -99; out.ev30 = __z.plan(30).list.filter(k => k === 'boss' || B.BOSSES[k]).length; } finally { Math.random = r0; }
     out.force = B.force('hive') && __z.plan(13).list.includes('hive'); G.bevW = -99; G.bseen = {}; return out; });
   console.log('  roster:', reg.ids.join(', '), '· wave 30 pool:', reg.pool.join(', '));
-  ok(['ace', 'gace', 'jammer', 'twins', 'jugg', 'ghost', 'hive', 'mirror', 'undertaker', 'siren', 'puppet'].every(k => reg.ids.includes(k)) && reg.kinds && reg.rewards >= 11, `Registry: ${reg.ids.length} bosses registered with registerBoss, each a KIND with ${reg.rewards} rewards`);
+  ok(['ace', 'gace', 'jammer', 'twins', 'jugg', 'ghost', 'hive', 'mirror', 'undertaker', 'siren', 'puppet', 'hush'].every(k => reg.ids.includes(k)) && reg.kinds && reg.rewards >= 12, `Registry: ${reg.ids.length} bosses registered with registerBoss, each a KIND with ${reg.rewards} rewards`);
   ok(reg.w10.join() === 'boss' && reg.pool.length >= 4 && reg.pool.includes('boss'), `Boss waves: wave 10 is the Mothership; wave 30 draws from ${reg.pool.length} bosses`);
   ok(reg.ev.length === 1 && reg.ev30 === 1 && reg.ev28 === 0 && reg.force, `Events: one rare boss on wave 27 (${reg.ev}), none on a boss wave, none the next wave (3 apart); force() puts one in the next plan`);
   // every boss: debug trigger, intro, model with canvas decals, sounds, phases, beaten through the real burst path, reward, record
-  const ids = ['twins', 'jugg', 'ghost', 'hive', 'mirror', 'siren', 'jammer'];
+  const ids = ['twins', 'jugg', 'ghost', 'hive', 'mirror', 'siren', 'jammer', 'hush'];
   const runs = await p.evaluate(ids => { const {api, Z, G} = __z, out = {};
     G.hab = {n: 400, alt: 300 * 400, spd: 90 * 400, L: 300, R: 100, asp: {'LEVEL SIX': 9, 'HIGH BEAM': 2}, side: {LEFT: 6, RIGHT: 5}, dets: 0, yaw: null, t: 0};  /* habits for the Mirror to copy */
     for (const id of ids) { __b.clear(); api.player.v.set(0, 0, -40); const t = Z.bosses.spawn(id), D = Z.bosses.BOSSES[id]; __z.sim(3);
@@ -882,6 +882,98 @@ if (want('bosses')) {
   ok(pp.wired && pp.boost > 1.2 && pp.trail >= 1, `Puppeteer: wires an enemy drone (x${pp.boost} speed); when it falls its wire leaves a trail on the ground`);
   ok(pp.hijack === 1 && pp.lost >= 1 && pp.moving, 'Puppeteer: hijacks one of your swarm drones (it turns on your base; your own escort may shoot it down); relocates as a truck');
   ok(pp.prox && pp.exposed && pp.dead && pp.reward, 'Puppeteer: a proximity burst does nothing; the first direct strike exposes it, the second kills it (Puppet Strings)');
+  // the Hush: near-total darkness while it lives and exactly the weather's after; radar and thermal go to static for it while ordinary drones keep a faint
+  // presence; the reveal windows (the flare and the moment after a pass) and nothing hurts it outside them; the sound (HRTF panner, doppler, whoosh, wind-shear,
+  // creak) under its gain cap; the audio-assist cue (off by default); co-op sync; the bots' hearing; nothing left behind
+  const hs1 = await p.evaluate(async () => { __b.clear(); const {api, Z, G} = __z, A = Z.atmos, snd = await import('./zhush-snd.js'), cm = await import('./zhush-cue.js'), out = {};
+    const wx = () => { const f = api.scene.fog; return {near: f.near, far: f.far, col: f.color.getHex(), sun: api.sun.intensity, hemi: api.hemi.intensity}; }; window.__hsW0 = wx();
+    A.clear(); __z.sim(.2); const o1 = Z.make('shahed', api.PADP.x + 200, api.PADP.z - 700); o1.p.y = api.gh(o1.p.x, o1.p.z) + 300; const rk0 = Z.radarK(); window.__hsRk = rk0; out.seen0 = Z.seen(o1); out.off = A.state();
+    const t = Z.bosses.spawn('hush'); window.__hsT = t; const me = api.player; me.v.set(0, 0, 0);
+    for (let i = 0; i < 80; i++) { api.camera.position.copy(me.p); api.camera.updateMatrixWorld(); __z.sim(.1); }
+    out.intro = !!t.bs.intro; const pr = A.probe(), st = A.state(), W0 = window.__hsW0; out.dark = {dark: st.dark, light: st.light, on: st.on, pass: st.pass, sources: st.sources, sun: +(pr.sun / W0.sun).toFixed(2), hemi: +(pr.hemi / W0.hemi).toFixed(2)};
+    out.radar = {seen: Z.seen(t), hid: Z.hid(t), other: Z.seen(o1), rk: +(Z.radarK() / rk0).toFixed(2)}; o1.st = 'dead';
+    out.fx = Z.bosses.fx(); const V = snd.live()[0]; out.voice = V ? {n: snd.voices(), model: V.pan.panningModel, dist: V.pan.distanceModel, ref: V.pan.refDistance, peak: +V.peak.toFixed(3), cap: V.cap} : null;
+    // the windows: until four passes have run, with the pilot out of the way (down, so nothing it flies near can burst it): the reveal and the after-pass window per pass,
+    // the voice levels against the cap, the panner on the boss
+    const RV = [], AF = []; let cr = 0, ca = 0; const mx = {hum: 0, blade: 0, whoosh: 0, shear: 0, creak: 0, now: 0}; let panErr = 0;
+    const hov = {x: me.p.x, y: me.p.y + 120, z: me.p.z}, down = () => { api.player.dead = 1e9; api.camera.position.copy(api.player.p); api.camera.updateMatrixWorld(); };
+    t.bs.age = 0;  /* (a short pass at a near site can end while its flare still burns: the two windows are counted on their own) */
+    for (let i = 0; i < 3000 && !(AF.length >= 4 && RV.length >= 4); i++) { down(); __z.sim(.1); const B = t.bs; if (i % 1000 === 999) B.age = 0;  /* until four passes have run (how long that takes depends on which sites it picks), not for a fixed time */
+
+      if (B.rv > 0) cr += .1; else if (cr) { RV.push(+cr.toFixed(1)); cr = 0; } if (B.af > 0) ca += .1; else if (ca) { AF.push(+ca.toFixed(1)); ca = 0; }
+      const v = snd.live()[0]; if (v) { for (const q in mx) mx[q] = Math.max(mx[q], q === 'now' ? v.now() : v.lvl[q]); panErr = Math.max(panErr, Math.abs(v.pan.positionX.value - t.p.x) + Math.abs(v.pan.positionZ.value - t.p.z)); } if (t.st === 'dead') break; }
+    out.rv = RV; out.af = AF; out.passes = t.bs.ps | 0;
+    out.mx = Object.fromEntries(Object.entries(mx).map(([k, v]) => [k, +v.toFixed(3)])); out.panErr = Math.round(panErr); out.caps = {sum: +(cm.GAIN.hum + cm.GAIN.blade + cm.GAIN.whoosh + cm.GAIN.shear + cm.GAIN.creak).toFixed(3), cap: cm.CAP};
+    out.alive = t.st !== 'dead'; out.hp = t.bs.hp; t.bs.age = 0;
+    // a pass at a site strikes it (the next target forced to a site, the pilot still down)
+    { const hp0 = api.SITES.reduce((a, s) => a + s.hp, 0), r0 = Math.random, ps0 = t.bs.ps; Math.random = () => .9; t.bs.md = 0; t.bs.tm = 0; t.bs.af = 0;
+      try { for (let i = 0; i < 500 && t.bs.ps === ps0; i++) { down(); __z.sim(.1); } for (let i = 0; i < 40; i++) { down(); __z.sim(.1); } } finally { Math.random = r0; }
+      out.siteHit = Math.round(hp0 - api.SITES.reduce((a, s) => a + s.hp, 0)); out.siteTg = t.bs.tg; }
+    // a pass at you in the air clips your interceptor: the pilot hovers 120 m up until it is lost (nothing else is near it; it is not relaunched in time to burst the boss)
+    { api.launch(); t.bs.age = 0; out.clipped = false; for (let i = 0; i < 2500; i++) { api.player.p.set(hov.x, hov.y, hov.z); api.player.v.set(0, 0, 0); api.camera.position.copy(api.player.p); __z.sim(.1); if (api.player.dead > 0) { out.clipped = true; out.clipAt = i / 10; break; } } }
+    out.hp2 = t.bs.hp; if (api.player.dead > 0) api.launch(); __z.sim(.2); return out; });
+  console.log('  hush:', JSON.stringify({dark: hs1.dark, radar: hs1.radar, rv: hs1.rv, af: hs1.af, mx: hs1.mx, clipped: hs1.clipped, siteHit: hs1.siteHit}));
+  ok(hs1.off.sources === 0 && !hs1.off.on && hs1.intro && hs1.dark.on && hs1.dark.pass && hs1.dark.dark >= .7 && hs1.dark.light <= .15 && hs1.dark.sun <= .15 && hs1.dark.hemi <= .15,
+    `Hush: its arrival drops the atmosphere to near-total darkness (dark ${hs1.dark.dark}, light ${hs1.dark.light}, the scene drawn at sun x${hs1.dark.sun} / sky x${hs1.dark.hemi}), through the atmosphere layer`);
+  ok(!hs1.radar.seen && hs1.radar.hid && hs1.seen0 && hs1.radar.other && hs1.radar.rk >= .8 && hs1.radar.rk < 1, `Hush: no radar track and no bracket for it; an ordinary drone keeps a faint presence (still on the scope, range x${hs1.radar.rk})`);
+  ok(hs1.rv.length >= 3 && hs1.af.length >= 3 && hs1.rv.every(n => n >= 1.5 && n <= 3.1) && hs1.af.every(n => n >= 1.5 && n <= 3.5) && hs1.passes >= 3 && hs1.clipped && hs1.siteHit > 0, `Hush: the reveal windows exist: ${hs1.rv.length} flares (${hs1.rv.join(', ')} s) and ${hs1.af.length} after-pass windows (${hs1.af.join(', ')} s) over ${hs1.passes} passes; a pass at your hovering interceptor clipped it after ${hs1.clipAt} s and a pass at a site struck it for ${hs1.siteHit}`);
+  ok(hs1.voice && hs1.voice.n === 1 && hs1.voice.model === 'HRTF' && hs1.voice.dist === 'inverse' && hs1.panErr < 60, `Hush: one spatial voice, an HRTF panner with distance rolloff, tracking the boss (within ${hs1.panErr} m)`);
+  ok(hs1.mx.hum > .02 && hs1.mx.whoosh > .02 && hs1.mx.creak > .02 && hs1.mx.shear > 0 && hs1.mx.now <= hs1.caps.cap && hs1.voice.peak <= hs1.caps.cap && hs1.caps.sum <= hs1.caps.cap,
+    `Hush: hum, whoosh, wind-shear and creak all played (peaks ${JSON.stringify(hs1.mx)}); the voices never add up past the gain cap ${hs1.caps.cap} (nominal ${hs1.caps.sum})`);
+  // the thermal camera (H): static for it, the picture fills with noise; ordinary drones are still there. The boss is held in its circling (no passes can clip the pilot
+  // or kill the camera feed) and the pilot is alive in the FPV camera; every toggle waits on the state, polled (the feed switches in the draw loop, slow on CI)
+  await p.evaluate(() => { const {api} = __z, B = __hsT.bs; B.md = 0; B.tm = 1e9; B.rv = B.af = 0; B.age = 0; if (api.player.dead > 0) api.launch(); __z.sim(.2); });
+  const feed = async want => { for (let k = 0; k < 3; k++) { if (await p.evaluate(w => __z.api.thermLook === w, want)) return true; await p.keyboard.press('KeyH'); if (await until(() => p.evaluate(w => __z.api.thermLook === w, want), {timeout: 30000, every: 100})) return true; } return false; };
+  const hsOn = await feed(true);
+  const hsT = await p.evaluate(() => { const {api, Z} = __z, t = __hsT, o = Z.make('shahed', api.PADP.x + 200, api.PADP.z - 700); o.p.y = api.gh(o.p.x, o.p.z) + 300; __z.sim(3); const r = {therm: api.thermLook, noise: Z.atmos.state().noise, hull: t.mesh.visible, seen: Z.seen(t), other: Z.seen(o), flare: t.mesh.userData.core.visible, dead: api.player.dead, cam: api.camMode, cine: !!Z.cine}; o.st = 'dead'; return r; });
+  const hsOff = await feed(false);
+  const hsT2 = await p.evaluate(() => { const {api, Z} = __z, t = __hsT; __z.sim(3); return {therm: api.thermLook, noise: Z.atmos.state().noise, hull: t.mesh.visible}; });
+  console.log('  hush thermal:', JSON.stringify([hsT, hsT2]));
+  ok(hsOn && hsOff && hsT.therm && hsT.noise >= .1 && !hsT.hull && !hsT.flare && !hsT.seen && hsT.other && !hsT2.therm && hsT2.noise === 0 && hsT2.hull, `Hush: thermal goes to static for it (picture noise ${hsT.noise} on the thermal camera, none on the day camera; hull and flare gone from it) while ordinary drones still show`);
+  const hs2 = await p.evaluate(async () => { const {api, Z, G} = __z, D = Z.bosses.BOSSES.hush, C = Z.bosses.ctx, t = __hsT, B = t.bs, cm = await import('./zhush-cue.js'), out = {};
+    const rec = () => { let n = 0; return {get n() { return n; }, oc: new Proxy({}, {get: (o, k) => k in o ? o[k] : (...a) => { n++; }, set: (o, k, v) => { o[k] = v; return true; }})}; };
+    const me = api.player; if (me.dead > 0) api.launch(); me.p.set(0, api.gh(0, 600) + 300, 600); me.v.set(0, 0, 0); api.camera.position.copy(me.p); api.camera.quaternion.identity(); api.camera.updateMatrixWorld();
+    t.p.set(300, me.p.y, 600); t.v.set(-120, 0, 0); B.md = 2; B.rv = 2; B.af = 0;
+    // the radar scope: static, heavier near it
+    { const r = rec(); D.radar(C, r.oc, null, t); out.radarN = r.n; }
+    // audio assist: off by default, nothing drawn; on, a faint cue; far away (inaudible), nothing
+    out.assist0 = api.S.zassist ?? 0; { const r = rec(); D.overlay(C, r.oc, t, 1280, 720); out.assistOff = r.n; }
+    api.S.zassist = 1; { const r = rec(); D.overlay(C, r.oc, t, 1280, 720); out.assistOn = r.n; } const p0 = t.p.clone(); t.p.set(400000, me.p.y, 600); { const r = rec(); D.overlay(C, r.oc, t, 1280, 720); out.assistFar = r.n; } t.p.copy(p0); delete api.S.zassist;
+    const sel = document.getElementById('f_zassist'); out.ui = !!sel && sel.value === '0' && getComputedStyle(sel).display !== 'none' && /Hush audio assist/.test(sel.previousElementSibling?.textContent || '');
+    if (sel) { sel.value = '1'; sel.dispatchEvent(new Event('input')); out.saved = JSON.parse(localStorage.getItem('dl-interceptor')).zassist === 1 && api.S.zassist === 1; sel.value = '0'; sel.dispatchEvent(new Event('input')); out.back = api.S.zassist === 0; }
+    // the sound picture: doppler, whoosh rising as it closes and falling after, panning, distance, shear on a bank, creak in the windup only, silence between passes in the last phase
+    const L = {p: {x: 0, y: 0, z: 0}, v: {x: 0, y: 0, z: 0}, f: {x: 0, y: 0, z: -1}, u: {x: 0, y: 1, z: 0}}, bs = (x, vz, md = 2, ph = 0, yr = 0, wf = 0, z = -500) => ({p: {x, y: 0, z}, v: {x: 0, y: 0, z: vz}, md, ph, yr, wf}), cue = b => ({...cm.cue({}, b, L)});
+    const ap = cue(bs(0, 150)), re = cue(bs(0, -150)), rt = cue(bs(300, 0, 0)), lf = cue(bs(-300, 0, 0)), far = cue(bs(0, 150, 2, 0, 0, 0, -3000)), bank = cue(bs(0, 150, 2, 0, .6)), wind = cue(bs(0, 0, 1, 0, 0, 1)), idle = cue(bs(0, 0, 0)), quiet = cue(bs(0, 0, 0, 2));
+    out.cue = {dop: [+ap.dop.toFixed(2), +re.dop.toFixed(2)], cs: [Math.round(ap.cs), Math.round(re.cs)], whoosh: [+ap.whoosh.toFixed(3), +re.whoosh.toFixed(3)], sweep: [+ap.sweep.toFixed(2), +re.sweep.toFixed(2)], az: [+rt.az.toFixed(2), +lf.az.toFixed(2)], loud: [+ap.loud.toFixed(2), +far.loud.toFixed(2)], shear: [+bank.shear.toFixed(3), +cue(bs(0, 150)).shear.toFixed(3)], creak: [+wind.creak.toFixed(3), idle.creak], hum: [+idle.hum.toFixed(3), +quiet.hum.toFixed(3)]};
+    // what a client computes from the synced track and the extras
+    const t2 = {bs: {ph: B.ph}}; D.netIn(C, t2, D.netOut(C, t)); const bsOf = (x, b) => ({p: x.p, v: x.v, yr: 0, md: b.md, wf: b.wf, ph: b.ph});
+    out.net = ['md', 'rv', 'af', 'ps', 'wf'].every(k => Math.abs((t2.bs[k] || 0) - (B[k] || 0)) < .06) && D.netOut(C, t).every(Number.isFinite); out.netCue = Math.abs(cue(bsOf(t, B)).loud - cue(bsOf(t, t2.bs)).loud) < .01;
+    // the bots hear what the speakers play; the tells (flare, the moment after, the creak) have their attention
+    const h = o => D.hear(C, t, me)[o]; B.md = 2; B.rv = 2; const open = h('attn'), loud = h('loud'); B.rv = 0; B.af = 0; B.md = 0; const idle2 = h('attn'); B.md = 1; const creak = h('attn'); B.md = 2;
+    out.ear = {open: +open.toFixed(2), creak: +creak.toFixed(2), idle: +idle2.toFixed(2), loud: +loud.toFixed(2)};
+    let a1 = 0, a2 = 0; B.rv = 2; for (let i = 0; i < 300; i++) if (D.aim(C, t, 1)) a1++; B.rv = 0; B.af = 0; for (let i = 0; i < 300; i++) if (D.aim(C, t, 1)) a2++; out.aim = [a1, a2];
+    // nothing hurts it outside the flare and the moment after a pass; a hit inside snaps the windows shut
+    const hv = (q, rv, af) => { B.rv = rv; B.af = af; const k = {q, txt: ''}; return [D.hit(C, t, k), k.txt]; }; const k0 = hv('kill', 0, 0); out.hit = [k0[0], hv('kill', 1, 0)[0], hv('damage', 0, 1)[0], hv('damage', 0, 0)[0]]; out.txt = /NO CONTACT/.test(k0[1]);
+    const hp0 = B.hp; B.rv = B.af = 0; Z.bosses.hitAt(t, 'kill', t.p.clone()); out.closedHp = B.hp - hp0; B.rv = 1.5; B.md = 2; Z.bosses.hitAt(t, 'kill', t.p.clone()); out.openHp = B.hp - hp0; out.shut = B.rv === 0 && B.af === 0 && B.md === 0; out.ph = B.ph;
+    return out; });
+  console.log('  hush:', JSON.stringify(hs2));
+  ok(hs2.radarN >= 24 && hs2.assist0 === 0 && hs2.assistOff === 0 && hs2.assistOn > 0 && hs2.assistFar === 0 && hs2.ui && hs2.saved && hs2.back, `Hush: radar static for it (${hs2.radarN} specks); the audio-assist cue is off by default (nothing drawn), on in the settings it draws a faint cue (${hs2.assistOn} calls), none when it is out of earshot`);
+  { const c = hs2.cue; ok(c.dop[0] > 1.1 && c.dop[1] < .9 && c.cs[0] > 100 && c.cs[1] < -100 && c.whoosh[0] > c.whoosh[1] && c.sweep[0] > c.sweep[1] && c.az[0] > 0 && c.az[1] < 0 && c.loud[0] > c.loud[1] && c.shear[0] > 0 && c.shear[1] === 0 && c.creak[0] > 0 && c.creak[1] === 0 && c.hum[0] > c.hum[1] * 3,
+    'Hush: the sound picture: doppler up as it closes and down as it leaves, the whoosh louder and brighter approaching, panned to the side it is on, quieter far away, wind-shear only when it banks, the creak only in the windup, the engine cut in the last phase ' + JSON.stringify(c)); }
+  ok(hs2.net && hs2.netCue, 'Hush: co-op: the pass state rides on the snapshot extras and a client computes the same sound picture from the synced position');
+  ok(hs2.ear.open > .1 && hs2.ear.open > 3 * hs2.ear.idle && hs2.ear.creak > hs2.ear.idle && hs2.aim[0] > 60 && hs2.aim[1] < 75, `Hush: the bots hear what the speakers play: attention ${hs2.ear.open} on the flare, ${hs2.ear.creak} on the creak, ${hs2.ear.idle} idle; its aim finds it ${hs2.aim[0]}/300 open and ${hs2.aim[1]}/300 closed`);
+  ok(hs2.hit[0] === 0 && hs2.hit[1] === 2 && hs2.hit[2] === 1 && hs2.hit[3] === 0 && hs2.txt && hs2.closedHp === 0 && hs2.openHp === -2 && hs2.shut && hs2.ph === 1, 'Hush: a burst outside the flare and the after-pass window finds nothing; inside, a direct hit does 2 and snaps the windows shut (and moves it to HUSH)');
+  // the wave ends: darkness, radar, thermal, the voice, the listener all back exactly
+  await until(() => p.evaluate(() => { const f = __z.api.scene.fog, W = window.__hsW0; return !__z.api.thermLook && f.near === W.near && f.far === W.far && f.color.getHex() === W.col; }), {timeout: 30000, every: 100});  /* the day look is back and the fog is the weather's again (the draw loop did it), only then compare */
+  const hs3 = await p.evaluate(async () => { const {api, Z, G} = __z, snd = await import('./zhush-snd.js'), A = Z.atmos, out = {}, W0 = window.__hsW0, V = snd.live()[0];
+    const wx = () => { const f = api.scene.fog; return {near: f.near, far: f.far, col: f.color.getHex(), sun: api.sun.intensity, hemi: api.hemi.intensity}; }, same = (a, b) => ['near', 'far', 'col', 'sun', 'hemi'].filter(k => a[k] !== b[k]);
+    out.therm = api.thermLook; out.during = {voices: snd.voices(), dark: A.state().dark, grade: A.state().pass}; const aud = await import('/engine/audio.js');
+    G.wq.length = 0; for (const u of api.TH) u.st = 'dead'; G.state = 'clear'; G.clearT = 3; __z.sim(.5);
+    const pr = A.probe(), st = A.state(), l = aud.AC?.listener; out.after = {voices: snd.voices(), now: V ? V.now() : 0, on: st.on, pass: st.pass, sources: st.sources, dark: st.dark, noise: st.noise}; out.fx = Z.bosses.fx(); out.rk = +(Z.radarK() / window.__hsRk).toFixed(2);
+    out.diff = [...same(W0, wx()), ...same(W0, {near: pr.fogNear, far: pr.fogFar, col: pr.fogCol, sun: pr.sun, hemi: pr.hemi})]; out.lis = l && l.positionX ? [l.positionX.value, l.positionY.value, l.positionZ.value, l.forwardZ.value, l.upY.value] : null;
+    __z.sim(4); if (G.state === 'base') G.bkeep = {}; __z.cont(); __b.clear(); return out; });
+  ok(!hs3.therm && !hs3.after.voices && !hs3.after.now && !hs3.after.on && !hs3.after.pass && !hs3.after.sources && !hs3.after.dark && !hs3.after.noise && hs3.rk === 1 && !hs3.diff.length && Object.values(hs3.fx).every(v => !v) && (!hs3.lis || hs3.lis.join() === '0,0,0,-1,1'),
+    'Hush: after the wave the darkness, the static, the voice and the listener are back exactly (fog, fog colour and light the weather\'s own; radar range x1; no sound left) ' + JSON.stringify({therm: hs3.therm, after: hs3.after, diff: hs3.diff, rk: hs3.rk, lis: hs3.lis, fx: Object.entries(hs3.fx).filter(([, v]) => v).map(([k]) => k)}));
   // the end of a wave ends every boss effect: models, particles, wires and tethers, trails, debris, missiles, sound loops, the bar, false IFF,
   // jamming; a boss still up when the wave ends is gone (the two that outlive a wave withdraw with their run state). Same at game over and quit.
   const ends = await p.evaluate(() => { const {api, Z, G} = __z, out = {}, other = () => Z.make('shahed', 0, -2500), base = {lj: 0, rk: 0};
@@ -910,7 +1002,7 @@ if (want('bosses')) {
     Object.entries(ends).filter(([k, o]) => k !== 'over' && o.left.length).map(([k, o]) => `\n  ${k}: ${o.left.join(' ')}`).join(''));
   ok(ends.jammer.jam >= 2 && /loops=\d|smoke=\d|fx=\d/.test(ends.jugg.during + ends.ghost.during) && /wires=\d|trails=\d/.test(ends.puppet.during) && /tether/.test(ends.twins.during), 'Wave end: the effects were really running before it (jamming, smoke, wires, tether) ' + JSON.stringify([ends.jammer.jam, ends.puppet.during]));
   ok(Object.values(ends.over).every(v => !v), 'Game over: the bosses and their effects are cleared ' + JSON.stringify(ends.over));
-  { const A = ['gace', 'jammer', 'ghost', 'hive', 'jugg', 'undertaker'].map(k => [k, ends[k].atm]);
+  { const A = ['gace', 'jammer', 'ghost', 'hive', 'jugg', 'undertaker', 'hush'].map(k => [k, ends[k].atm]);
     ok(A.every(([, a]) => a && a.grade && (a.fog < .9 || a.light < .9)) && /shadows=1/.test(ends.mothership.during), 'Atmosphere: while they live the battlefield changes (fog / light: ' + A.map(([k, a]) => k + ' ' + (a ? a.fog + ' / ' + a.light : 'off')).join(', ') + '; the grade on; the Mothership casts its shadow); after the wave the fog, its colour and the light are the weather\'s again, exactly'); }
   await p.evaluate(() => { document.getElementById('zover').hidden = true; __z.api.startDemo(); }); await play(p);
   await p.evaluate(() => { const {G} = __z; G.cash = 1e5; __z.jump(24); G.next = __z.plan(24); __z.cont(); __b.clear(); __z.sim(.3); });
@@ -1377,6 +1469,116 @@ if (want('ew')) {
   ok(bot.noise > .5 && bot.lockJam > 2 && bot.hud > 0 && bot.bot > 0 && bot.botOff > 5 && bot.hudOff > 5, `EW, bot: the Legend flies its lock-on through the jamming (lock-on x${bot.lockJam.toFixed(1)}); the HUD's pip is moved ${bot.hud}x (up to ${bot.hudOff.toFixed(0)} m) and the pip the bot flies to ${bot.bot}x (up to ${bot.botOff.toFixed(0)} m) by the same skew() (${bot.t} s)`);
   ok(!errs.length, 'EW: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
+}
+
+/* ---------- sell (zsell.js, zbase.js, zchain.js, znet.js) and the campaign map's modifier cap (zcampaign.js). Anything you own sells for money on the base
+   screen and its card keeps an Undo until the wave starts: a defence, a dome, a position you paid to open, a kill chain battery. A sale pays everything
+   spent on it this base screen plus half (the doctrine's share) of the earlier spending; the standard positions, the sites and free positions never
+   sell. A co-op client's sale and undo are requests to the host. The map shows a sector's three strongest modifiers and a "+n" chip that opens the rest ---------- */
+if (want('sell')) {
+  const {p, errs} = await page();
+  await play(p);
+  // 1. the rule at the briefing: a defence bought and upgraded this base screen sells back in full, and its card stays with an Undo
+  const a1 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const d = B.place('flak', 0); B.upgrade(d.id, 'lvl'); const id = d.id, spent = d.spent;
+    document.querySelector('[data-tab="armory"]').click(); const label = document.querySelector(`[data-sell="${id}"]`).textContent, why = document.querySelector('.zrf')?.textContent;
+    document.querySelector(`[data-sell="${id}"]`).click();
+    return {spent, label, why, cash: G.cash, left: Z.def.D.length, sold: G.sold.length, ghost: !!document.querySelector('.zsold [data-undo]'), freed: Z.def.slotFree(0, 'flak')}; });
+  ok(a1.spent === 900 && a1.label === 'Sell +$900' && /Full refund/.test(a1.why) && a1.cash === 20000 && !a1.left && a1.sold === 1 && a1.ghost && a1.freed, `Sell: bought and upgraded this base screen sells back in full (${a1.label}: "${a1.why}"), the position is free, the card keeps an Undo`);
+  const a2 = await p.evaluate(() => { const {G, Z} = __z; document.querySelector('.zsold [data-undo]').click(); const d = Z.def.D[0];
+    return {cash: G.cash, n: Z.def.D.length, type: d?.type, lvl: d?.lvl, spent: d?.spent, slot: d?.slot, sold: G.sold.length, ghost: !!document.querySelector('.zsold'), card: !!document.querySelector(`[data-sell="${d?.id}"]`)}; });
+  ok(a2.cash === 19100 && a2.n === 1 && a2.type === 'flak' && a2.lvl === 1 && a2.spent === 900 && a2.slot === 0 && !a2.sold && !a2.ghost && a2.card, `Sell: Undo takes the $900 back and the flak mortar returns as it was (level ${a2.lvl + 1}, position ${a2.slot}, cash $${a2.cash})`);
+  // 2. a position opened now (older by the next base screen) and a second flak sold; the wave starting ends the Undo
+  const a3 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const j = Z.def.SLOTS.findIndex((s, i) => Z.def.canOpen(i, Z.meta.doc())), paid = B.expand(j), d2 = B.place('flak', 1), r = B.sell(d2.id), id = G.sold[0]?.id;
+    __z.cont(); return {j, paid, r, id, ledger: G.sold.length, undo: Z.sell.undo(id), st: G.state}; });
+  ok(a3.paid === 1800 && a3.r === 450 && a3.id && a3.ledger === 0 && a3.undo === null && a3.st === 'wave', `Sell: a position opened for $${a3.paid}; a flak bought and sold at once pays $${a3.r}; starting the wave clears the Undo (ledger ${a3.ledger}, undo ${a3.undo})`);
+  const w1 = await p.evaluate(() => { for (let i = 0; i < 4000 && __z.G.state !== 'base' && __z.G.state !== 'over'; i++) __z.sim(1); return {st: __z.G.state, wave: __z.G.wave}; });
+  ok(w1.st === 'base' && w1.wave === 1, 'Sell: wave 1 played out, the base screen is back');
+  // 3. at the next base screen the flak is older: half of its $900, plus everything spent on it since this screen opened
+  const b1 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act, d = Z.def.D[0]; G.cash = 20000; const half = Z.sell.dval(d); B.upgrade(d.id, 'lvl'); const mixed = Z.sell.dval(d), why = Z.sell.dwhy(d);
+    document.querySelector('[data-tab="armory"]').click(); const b = document.querySelector(`[data-sell="${d.id}"]`), label = b.textContent, c0 = G.cash; b.click(); const after = G.cash; document.querySelector('.zsold [data-undo]').click();
+    return {half, mixed, why, label, gain: after - c0, back: G.cash - c0, n: Z.def.D.length, lvl: Z.def.D[0]?.lvl}; });
+  ok(b1.half === 450 && b1.mixed === 1200 && b1.label === 'Sell +$1,200' && b1.gain === 1200 && b1.back === 0 && b1.n === 1 && b1.lvl === 2 && /\$750/.test(b1.why) && /50%/.test(b1.why), `Sell: an older flak pays half of its $900 ($${b1.half}); after a $750 upgrade this screen it pays $${b1.mixed} ("${b1.why}"); Undo restores it`);
+  // 4. the opened position: half of its $1,800 now; closing it frees nothing in use, and it can't close under a defence
+  const x1 = await p.evaluate(j => { const {G, Z} = __z; G.cash = 20000; const val = Z.sell.xval(j), why = Z.sell.xwhy(j); document.querySelector('[data-tab="sites"]').click();
+    const b = document.querySelector(`[data-xs="${j}"]`), label = b?.textContent, c0 = G.cash, e0 = G.exp; b.click(); const closed = {open: Z.def.slotOpen(j), exp: G.exp, gain: G.cash - c0, xp: !!G.xp[j], ghost: !!document.querySelector('.zsold [data-undo]')};
+    document.querySelector('.zsold [data-undo]').click(); return {val, why, label, e0, closed, back: {open: Z.def.slotOpen(j), exp: G.exp, cash: G.cash - c0, xp: !!G.xp[j]}}; }, a3.j);
+  ok(x1.val === 900 && /50%/.test(x1.why) && x1.label === 'Close +$900' && !x1.closed.open && x1.closed.exp === x1.e0 - 1 && x1.closed.gain === 900 && !x1.closed.xp && x1.closed.ghost && x1.back.open && x1.back.exp === x1.e0 && x1.back.cash === 0 && x1.back.xp,
+    `Sell: the position you opened pays half ($${x1.val}) to close and goes dormant; Undo reopens it at the same price (exp ${x1.e0} -> ${x1.closed.exp} -> ${x1.back.exp})`);
+  const x2 = await p.evaluate(j => { const {G, Z} = __z; Z.base.act.place('flak', j); document.querySelector('[data-tab="sites"]').click(); const b = document.querySelector(`[data-xs="${j}"]`), r = Z.sell.closeX(j), open = Z.def.slotOpen(j), why = Z.sell.xcan(j);
+    Z.base.act.sell(Z.def.D.find(d => d.slot === j).id); return {dis: b.disabled, r, open, why}; }, a3.j);
+  ok(x2.dis && x2.r === null && x2.open && /Sell or move/.test(x2.why), `Sell: a position with a defence on it can't close (button disabled, closeX refused: "${x2.why}")`);
+  // 5. never below the minimum: the standard positions and the sites can't be sold, free positions have no price; with everything sold the base still plays a wave
+  const s1 = await p.evaluate(j => { const {G, Z, api} = __z, std = Z.def.SLOTS.map((s, i) => i).filter(i => !Z.def.SLOTS[i].ex && !Z.def.SLOTS[i].park), hp0 = api.SITES.map(s => s.hp).join(), integ0 = __z.integrity().hp;
+    const stdSold = std.filter(i => Z.sell.closeX(i) !== null).length; for (const d of [...Z.def.D]) Z.base.act.sell(d.id); const xr = Z.sell.closeX(j), cash = G.cash;
+    return {stdN: std.length, stdSold, stdOpen: std.every(i => Z.def.slotOpen(i)), defs: Z.def.D.length, ledger: G.sold.length, xr, hp: api.SITES.map(s => s.hp).join() === hp0, integ: __z.integrity().hp === integ0, openNow: Z.def.SLOTS.filter((s, i) => !s.park && Z.def.slotOpen(i)).length, cash}; }, a3.j);
+  ok(s1.stdN === 14 && !s1.stdSold && s1.stdOpen && !s1.defs && s1.ledger >= 1 && s1.xr === 900 && s1.hp && s1.integ && s1.openNow === 14, `Sell: ${s1.stdN} standard positions can't be sold (${s1.stdSold} sold), sites untouched, defences all sold (${s1.ledger} Undo cards), ${s1.openNow} positions open after closing the one I opened`);
+  const w2 = await p.evaluate(() => { __z.cont(); for (let i = 0; i < 4000 && __z.G.state !== 'base' && __z.G.state !== 'over'; i++) __z.sim(1); return {st: __z.G.state, wave: __z.G.wave, ledger: __z.G.sold.length}; });
+  ok((w2.st === 'base' || w2.st === 'over') && w2.wave === 2 && !w2.ledger, `Sell: the base with nothing left still plays wave 2 (${w2.st})`);
+  // 6. the doctrine's share (Quartermaster pays a quarter) and the kill chain / dome
+  const q1 = await p.evaluate(() => { const {Z} = __z, k0 = Z.meta.k; Z.meta.k = (key, d) => key === 'sellK' ? .25 : k0(key, d); const r = [Z.sell.val(1000, 1000), Z.sell.val(1000, 0), Z.sell.val(1000, 600)]; Z.meta.k = k0; return r; });
+  ok(q1.join() === '250,1000,550', `Sell: under the Quartermaster's quarter, $1,000 old pays ${q1[0]}, new pays ${q1[1]}, $600 old + $400 new pays ${q1[2]}`);
+  const c1 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; if (G.state !== 'base') return null; __z.jump(30, 80000); const j = Z.def.SLOTS.findIndex((s, i) => Z.def.slotFree(i, 'gdome')), d = B.place('gdome', j), c0 = G.cash;
+    Z.chain.act('st', 2); const stock = G.kc.stock, c1 = G.cash; const r = B.sell(d.id), after = {stock: G.kc.stock, gain: G.cash - c1, gone: !Z.def.D.includes(d)}; const u = Z.sell.undo(G.sold[0].id);
+    return {c0, stock, after, undo: !!u, stock2: G.kc.stock, cash: G.cash, type: Z.def.D.at(-1)?.type, r}; });
+  ok(c1 && c1.stock === 2 && c1.after.stock === 0 && c1.after.gain === 10600 && c1.after.gone && c1.undo && c1.stock2 === 2 && c1.cash === c1.c0 - 1600 && c1.type === 'gdome', `Sell: a Golden Dome ($9,000, new) pays $${c1?.after.gain} with the ${c1?.stock} space interceptors it can no longer hold; Undo puts both back`);
+  const c2 = await p.evaluate(() => { const {G, Z} = __z, K = Z.chain; K.act('bb', 0); const c0 = G.cash; const r = K.act('bs', 0); document.querySelector('[data-tab="chain"]').click(); const btn = document.querySelector('.ztab [data-undo]'), label = btn?.textContent, rec = G.sold.find(q => q.k === 'b');
+    const out = {gain: G.cash - c0, none: !G.kc.boost[0], msg: r?.msg, label, rec: !!rec}; btn?.click(); out.back = !!G.kc.boost[0]; out.cash = G.cash - c0; return out; });
+  ok(c2.gain === 6000 && c2.none && c2.rec && /Undo sale/.test(c2.label) && c2.back && c2.cash === 0, `Sell: a boost battery bought now sells back for $${c2.gain}, its empty card offers "${c2.label}", and Undo rebuilds it (${c2.msg})`);
+  // 7. the campaign map: the three strongest modifiers per sector, a "+n" chip opens the rest, nothing leaves the rules
+  const sortF = await p.evaluate(() => !!(__z.Z.feat?.sorties || __z.Z.sorties)), feat = () => sortF;  /* the Enemy launch sites modifier needs the sorties feature, else it falls back to Heavy pressure */
+  const rk = rankMods(modsOf('gate', 0, feat)).map(modName), rd = rankMods(modsOf('dam', 0, feat)).map(modName);
+  ok(rk.slice(0, MAP_MODS).join() === 'Missile front,Mothership escort,Coordinated raids' && rd.slice(0, MAP_MODS).join() === 'Coordinated raids,Heavy pressure,Swarm-heavy' && rd[3] === 'Storm season', `Map: modifiers rank by impact (Launch Complex shows ${rk.slice(0, 3).join(' / ')}, hides ${rk.slice(3).join(' / ')}; The Dam hides ${rd[3]})`);
+  const mp = await p.evaluate(() => { __z.Z.cp.openMap(); const ov = document.getElementById('zcamp');
+    return [...ov.querySelectorAll('.zc-n')].map(n => { const id = n.dataset.sec, chip = n.querySelector('.zc-more'); return {id, icons: n.querySelectorAll('.zc-mi').length, shown: [...n.querySelectorAll('.zc-mi title')].map(t => t.textContent), chip: chip ? chip.querySelector('text').textContent : '',
+      rest: [...ov.querySelectorAll(`[data-pop="${id}"] .zc-pn`)].map(t => t.textContent), vis: ov.querySelector(`[data-pop="${id}"]`) ? getComputedStyle(ov.querySelector(`[data-pop="${id}"]`)).visibility : ''}; }); });
+  const want3 = CAMP_SECTORS.map(s => { const n = s.mods.length; return {id: s.id, icons: Math.min(3, n), chip: n > 3 ? '+' + (n - 3) : '', rest: Math.max(0, n - 3)}; });
+  const mapOk = mp.length === 12 && want3.every(w => { const m = mp.find(q => q.id === w.id); return m && m.icons === w.icons && m.chip === w.chip && m.rest.length === w.rest && (!w.rest || m.vis === 'hidden'); });
+  const tot = mp.reduce((a, m) => a + m.icons + (m.rest.length || 0), 0);
+  ok(mapOk && tot === 29 && mp.every(m => m.icons <= 3), `Map: ${mp.reduce((a, m) => a + m.icons, 0)} icons on the map (was ${tot}), none over 3 per sector, chips ${mp.filter(m => m.chip).map(m => m.id + ' ' + m.chip).join(', ')}; the lists hold the other ${mp.reduce((a, m) => a + m.rest.length, 0)}, hidden until asked`);
+  ok(mp.find(m => m.id === 'gate').shown.join() === rk.slice(0, 3).join() && mp.find(m => m.id === 'gate').rest.join() === rk.slice(3).join() && mp.find(m => m.id === 'dam').rest.join() === 'Storm season', `Map: the expander lists exactly the hidden ones (Launch Complex: ${mp.find(m => m.id === 'gate').rest.join(', ')}; The Dam: ${mp.find(m => m.id === 'dam').rest.join(', ')})`);
+  const hv = await p.evaluate(() => { const ov = document.getElementById('zcamp'), vis = id => getComputedStyle(ov.querySelector(`[data-pop="${id}"]`)).visibility, chip = ov.querySelector('[data-more="gate"]'), sel0 = ov.querySelector('.zc-n.sel')?.dataset.sec, out = {rest: vis('gate')};
+    chip.dispatchEvent(new MouseEvent('mouseenter')); out.hover = vis('gate'); chip.dispatchEvent(new MouseEvent('mouseleave')); out.left = vis('gate');
+    chip.dispatchEvent(new MouseEvent('click', {bubbles: true})); out.pin = vis('gate'); chip.dispatchEvent(new MouseEvent('mouseleave')); out.pinLeft = vis('gate'); out.sel = ov.querySelector('.zc-n.sel')?.dataset.sec === sel0;
+    chip.dispatchEvent(new MouseEvent('click', {bubbles: true})); out.unpin = vis('gate'); return out; });
+  ok(hv.rest === 'hidden' && hv.hover === 'visible' && hv.left === 'hidden' && hv.pin === 'visible' && hv.pinLeft === 'visible' && hv.unpin === 'hidden' && hv.sel, `Map: the "+2" chip shows its list on hover, holds it open on click, closes on a second click, and never changes the selected sector (${JSON.stringify(hv)})`);
+  if (SHOTS) { await p.evaluate(() => document.querySelector('[data-more="gate"]').dispatchEvent(new MouseEvent('click', {bubbles: true}))); await p.screenshot({path: SHOTS + '/z-camp-map-cap.png'}); }
+  const eff = await p.evaluate(() => { const Z = __z.Z; Z.cp.select('gate'); const li = document.querySelectorAll('#zcamp .zcpmods li').length; Z.cp.start('gate', true); const r = Z.cp.run;
+    return {li, mods: r.mods.length, wave: +r.K.wave.toFixed(3), shift: r.K.shift, tot: r.K.tac.tot, boss5: r.mix.has('boss5'), raid: Z.cp.has('raid')}; });
+  const waveK = +modsOf('gate', 0, feat).reduce((a, m) => a * (m.id === 'big' ? m.n : 1), 1).toFixed(3);  /* the Heavy pressure numbers multiply */
+  ok(eff.li === 5 && eff.mods === 5 && eff.wave === waveK && eff.shift === 8 && eff.tot === .7 && eff.boss5, `Map: all five Launch Complex modifiers are listed in the briefing and in effect in the run (waves x${eff.wave}, enemies ${eff.shift} waves early, raids timed, Mothership every 5)`);
+  ok(!errs.length, 'Sell: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+  await p.close();
+
+  // 8. co-op: a client's sale, Undo and position close are requests to the host (a host and a client over the ?netloop transport)
+  const URLN = origin + '/games/interceptor/?mode=zombies&netloop=40', cerrs = [];
+  const cpage = async name => { const q = await open(browser, URLN, cerrs, {page: await newWindow(browser, {noRender: !SHOTS})});
+    await q.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: 'z', wx: 'clear', zwx: 'menu', zdiff: 1, zcamp: undefined})));
+    await q.reload({waitUntil: 'load'}); await q.waitForFunction(() => window.__z && window.__z.net, {timeout: 60000}); await q.$eval('#zname', (e, n) => { e.value = n; }, name); return q; };
+  const until = (q, fn, arg) => q.waitForFunction(fn, {timeout: 60000, polling: 50}, arg).then(() => true, () => false);
+  const H = await cpage('Hosty'), C = await cpage('Ash');
+  await H.click('#zhost');
+  ok(await until(H, () => __z.G.on && __z.G.state === 'base' && __z.net.n?.code), 'Sell, co-op: the host is up on the base screen');
+  const code = await H.evaluate(() => __z.net.n.code);
+  await C.$eval('#zcode', (e, c) => { e.value = c; }, code); await C.click('#zjoin');
+  ok(await until(C, () => __z.G.on && __z.G.state === 'base' && __z.net.rows().length === 2 && !document.getElementById('zbase').hidden), 'Sell, co-op: the client joined the host\'s base screen');
+  await H.evaluate(() => { const {G, Z} = __z; G.cash = 20000; const d = Z.base.act.place('flak', 0, 'Hosty'); Z.base.act.upgrade(d.id, 'lvl'); Z.base.refresh(); });
+  ok(await until(C, () => __z.G.cash === 19100 && __z.Z.def.D.length === 1 && __z.Z.def.D[0].lvl === 1 && __z.Z.def.D[0].spent === 900), 'Sell, co-op: the client sees the host\'s flak mortar');
+  const k1 = await C.evaluate(() => { const {G, Z} = __z; document.querySelector('[data-tab="armory"]').click(); const b = document.querySelector('[data-sell]'), label = b.textContent; b.click(); return {label, n: Z.def.D.length, cash: G.cash, ghost: !!document.querySelector('.zsold')}; });
+  ok(k1.label === 'Sell +$900' && k1.n === 1 && k1.cash === 19100 && !k1.ghost, `Sell, co-op: the client's Sell button reads ${k1.label} and changes nothing on its own screen: it is a request to the host`);
+  ok(await until(H, () => __z.Z.def.D.length === 0 && __z.G.cash === 20000 && __z.G.sold.length === 1), 'Sell, co-op: the host applied the sale (defence gone, purse $20,000, one Undo)');
+  ok(await until(C, () => __z.Z.def.D.length === 0 && __z.G.cash === 20000 && !!document.querySelector('.zsold [data-undo]:not([disabled])')), 'Sell, co-op: the client sees the sale and an Undo on the card');
+  await C.evaluate(() => document.querySelector('.zsold [data-undo]').click());
+  ok(await until(H, () => __z.Z.def.D.length === 1 && __z.Z.def.D[0].lvl === 1 && __z.Z.def.D[0].spent === 900 && __z.G.cash === 19100 && !__z.G.sold.length), 'Sell, co-op: the client\'s Undo went to the host, which restored the flak mortar and took the $900 back');
+  ok(await until(C, () => __z.Z.def.D.length === 1 && __z.G.cash === 19100 && !document.querySelector('.zsold') && !!document.querySelector('[data-sell]')), 'Sell, co-op: the client\'s card is back');
+  const jx = await H.evaluate(() => { const {Z} = __z, j = Z.def.SLOTS.findIndex((s, i) => Z.def.canOpen(i, Z.meta.doc())); Z.base.act.expand(j); Z.base.refresh(); return j; });
+  ok(await until(C, j => !!__z.G.xp?.[j] && __z.Z.def.slotOpen(j), jx), 'Sell, co-op: the client sees the position the host opened and what it cost');
+  const k2 = await C.evaluate(j => { document.querySelector('[data-tab="sites"]').click(); const b = document.querySelector(`[data-xs="${j}"]`), label = b?.textContent; b?.click(); return {label, open: __z.Z.def.slotOpen(j)}; }, jx);
+  ok(k2.label === 'Close +$1,800' && k2.open, `Sell, co-op: the client's ${k2.label} is a request too (the position is still open on its screen)`);
+  ok(await until(H, j => !__z.Z.def.slotOpen(j) && __z.G.exp === 0, jx) && await until(C, j => !__z.Z.def.slotOpen(j) && !!document.querySelector('.zsold [data-undo]'), jx), 'Sell, co-op: the host closed the position; both screens show it dormant, with an Undo');
+  await C.evaluate(() => document.querySelector('.zsold [data-undo]').click());
+  ok(await until(H, j => __z.Z.def.slotOpen(j) && __z.G.exp === 1 && !__z.G.sold.length, jx), 'Sell, co-op: the client\'s Undo reopened the position on the host');
+  ok(!cerrs.length, 'Sell, co-op: no errors' + (cerrs.length ? '\n  ' + cerrs.slice(0, 5).join('\n  ') : ''));
+  await H.close(); await C.close();
 }
 
 // ---------- balance: a scripted player who shops sensibly and runs down a share of the tracks; how far does it get? ----------
