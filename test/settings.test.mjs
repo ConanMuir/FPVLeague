@@ -46,3 +46,11 @@ test('schema: field order is key order, DROP deletes, if skips, save writes, ver
   assert.deepEqual(log, ['{"b":1,"a":"x","z":5,"n":3}', 'm1', '{"b":1,"a":"x","n":3,"v":1}', 'm2:1', '{"b":1,"a":"x","n":3,"v":2}']);
   assert.equal(num(0, 100, 7, true)(42.6), 43); assert.equal(num(0, 100, 7)('5'), 7); assert.equal(num(-90, 90, 0)(-200), -90); assert.equal(int(0, 3, 9)(3), 9);
 });
+
+test('settings the game reads as they are are range-checked: a damaged save cannot hang, empty or NaN a match', () => {
+  const pick = S => [S.size, S.len, S.tilt, S.fov, S.cam, S.dz, S.mode, S.thrMode];
+  assert.deepEqual(pick(load(JSON.stringify({size: 1e9, len: 'x', tilt: {}, fov: 999, cam: 7, dz: -1, mode: 5, thrMode: null})).S), [2, 180, 30, 150, 0, 0, 'acro', 'full']);
+  assert.deepEqual(pick(load(JSON.stringify({size: null, len: null, tilt: 'x', fov: -5, cam: -1, dz: 'x', mode: [], thrMode: 'x'})).S), [2, 180, 30, 80, 0, .03, 'acro', 'full']);
+  const good = {size: 3, len: 300, tilt: 12.5, fov: 90, cam: 2, dz: .1, mode: 'angle', thrMode: 'spring'};
+  assert.deepEqual(pick(load(JSON.stringify(good)).S), Object.values(good));
+});
