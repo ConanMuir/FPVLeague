@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `bots-unstoppable`   Owner: Jared   Last updated: 2026-10-21 by Claude (Opus 5.5)
-Based on: origin/main (merged up to the PR's base)
-Doing: League bots from Legend up are out of a human's reach and Dribbler / Freestyler are the top levels. Legend, Champion and Grand Champion all fly the shot planner with a player's full thrust (DIFF[].full, bots/league.js thrOf), goal-side defence (shadow a foe who gets there first, race home past a ball heading for the goal, never push it in from behind, clear wide in front of the goal) and no flying into the ball when not striking; the ladder is reaction, noise, speed and extras. Dribbler / Freestyler add the quickest reactions, demolishing a lone keeper before a shot, winning collisions, and the possession game (carry, pops, evasive pops) only when the ball is safely theirs, with an open-goal shot taking priority. Their teammates now play (the planner) instead of standing aside.
-Touches: src/bots/league.js, src/bots/dribble.js (dribbleSupport removed, full thrust), src/bots/freestyle.js (header), src/config/constants.js (Legend .. Freestyler: one profile object per tier, every knob a tier reads is on its entry), src/progress/xp.js (difficulty factors), tools/bot-match.mjs (kickoffs, possession, goal context).
-Open items / help wanted: Dribbler vs Grand Champion in 1v1 is only a narrow win (25-20 over 50 min); the possession game itself still loses the ball more often than the planner, so it is kept to safe moments and the visible mechanics are modest in matches (~0.7 pops/min, few chains). The 'human' gauge is a scripted profile (Champion-like planner, 0.2 s reaction), not a person.
-Overlaps: another agent is on the battery/OSD (src/ui/osd.js, untouched here).
+Branch: `bot-ladder`   Owner: Jared   Last updated: 2026-10-22 by Claude (Fable 5.1)
+Based on: origin/main + origin/bots-unstoppable 28e2da6 (PR #87)
+Doing: a headless self-play ladder for the top bots (`tools/bot-ladder.mjs`): Legend, Dribbler and Freestyler play each other and mutated children of themselves bot vs bot (1v1 and 2v2, Elo ratings, Grand Champion as the yardstick), each generation's winners go to `src/bots/evolved.json`, and the game offers the latest generation per archetype as "Gen N Dribbler" levels above Freestyler (`src/bots/evolved.js`, nothing changes without the file). Deterministic given the seed; a promotion gate refuses wins without football (touches, possession, shots, own-touch goals, the ball never stuck outside the arena). `tools/bot-ladder-check.mjs` runs one tiny generation twice in CI.
+Touches: new tools/bot-ladder.mjs, tools/bot-ladder-lib.mjs, tools/bot-ladder-check.mjs, src/bots/evolved.js, src/bots/evolved-levels.js, src/bots/evolved.json (+ evolved-log.json); src/bots/league.js (one import line), tools/ci-scope.mjs, .github/workflows/ci.yml (the matrix entry), rebuilt games/drone-league.
+Open items / help wanted: the ladder's children only step the profiles' numbers (bounds in bot-ladder-lib.mjs BOUNDS); new behaviour still needs code. A 3 sim-minute match is noisy (a promotion needs +2 goals over three matches vs the parent plus no regression vs Grand Champion), so expect slow, conservative progress; longer runs (`--minutes 120`) resume from the file.
+Overlaps: none known; it merges the final bots-unstoppable (every tier's knobs explicit on its DIFF entry).
 
 ## How to play
 
@@ -78,7 +78,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request,
 | Job | What runs |
 |---|---|
 | **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/drone-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs --strict` |
-| **browser** | nine entries side by side, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, and `zombies-test` in three shards (`--sections=...`); last, `audio-levels --quick` per game (every sound rendered offline and measured against its peak cap; over a cap warns here, fails locally) |
+| **browser** | nine entries side by side, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, `bot-ladder-check`, and `zombies-test` in three shards (`--sections=...`); last, `audio-levels --quick` per game (every sound rendered offline and measured against its peak cap; over a cap warns here, fails locally) |
 
 - **No-render mode.** SwiftShader draws the games at about 1 fps on a runner, so in CI (`DL_NORENDER=1`) every page gets a WebGL stub that skips draw calls, clears and blits. Shaders still compile and link, buffers and textures still upload, and three.js still walks the scene, so GL errors still show; only the pixels are skipped, and the sim runs at full speed. Where a check wants real pixels it calls `drawFrames(page)`: smoke draws the menu demo, the garage view, League, Dogfight, every graphics quality, the Lab, a training pack and the artifact form; zombies-test draws each menu and each start of play.
 - **Only what changed.** Each browser entry first runs `tools/ci-scope.mjs`: the League checks are skipped when nothing under `src/`, `app.html`, `index.html`, `games/drone-league/`, `Drone League/` or their tools changed, and the zombies-test shards when nothing under `engine/`, `games/interceptor/`, `interceptor/` or their tools changed. Shared files (package-lock, the workflow, `tools/browser.mjs`) run both, and main always runs everything.
@@ -99,6 +99,18 @@ node tools/lint-comments.mjs --all           # every line (it is tuned to report
 node tools/lint-comments.mjs --strict        # exit 1 on findings (CI runs it this way: a finding fails the fast job)
 ```
 Fix a finding by moving the comment to the end of the line or using `/* */`. If a comment really means to quote code, put `lint-ok` in it.
+
+### Bot self-play ladder
+The top League bots face each other headless and get better from it (`tools/bot-ladder.mjs`, shared pieces in `tools/bot-ladder-lib.mjs`). Matches run through the real modules in a headless browser (Vite dev server on a free port, draw calls stubbed) at full sim speed, bot vs bot, half the match each way.
+```
+node tools/bot-ladder.mjs --minutes 30        # evolve for a wall-clock budget; resumes from src/bots/evolved.json
+node tools/bot-ladder.mjs --gens 2 --cands 2  # a fixed number of generations; --seed, --roster, --yardstick, --match-min, --parallel, --out, --fresh
+node tools/bot-ladder-check.mjs               # CI: one tiny generation twice (same results), the file valid, the loader's levels well formed
+```
+- **Ladder.** The roster (Legend, Dribbler, Freestyler by default) and the yardstick (Grand Champion) play a round robin (1v1 and 2v2) before the first generation and after the last; every match updates Elo ratings (K 24) and a W-D-L record, printed as a table at the end.
+- **Evolution.** Each generation, each archetype's champion gets 3 children: 1-3 of its tunables stepped by a gaussian of 8% of their range, inside the bounds in `BOUNDS` (the ranges the controllers were written for; the flight model and limits are the game's, so nothing can be stronger than a player's quad). A child plays its parent 1v1 and 2v2 (a confirmation 1v1 when ahead) and the yardstick 1v1; it becomes the champion when it is +2 goals over the parent with more wins than losses, does at least as well against the yardstick as the parent did that generation, and passes the gate. `src/bots/evolved.json` keeps the generation, ratings, champions and every promoted profile with its parent; `src/bots/evolved-log.json` the last 400 match logs. The game bundles `evolved.json` (`src/bots/evolved.js`: the latest generation per archetype goes on the end of DIFF, so the menu offers "Gen 4 Dribbler" above Freestyler; without the file nothing changes).
+- **Gate.** A child that wins without playing football is not promoted: under 3 touches a minute, under 20% possession, under 0.4 shots on target a minute, no goal from its own touch, more goals gifted by the opponent's own goals than scored, or the ball sitting outside the arena's free space (over 30 ticks in a row or 1.5 m deep: a physics exploit; hard contacts only spike a few ticks).
+- **Deterministic.** Every match's `Math.random` is reseeded at every tick from (seed, generation, archetype, child, match, tick), drones are rebuilt and the ball's spin and contact cleared per match, and the page's idle-time warm-ups (the Highlands colliders change the physics world) are done before the first match, so the same seed gives the same matches on any page.
 
 ## SOP for Claude agents working in this repo
 This section applies to **every Claude agent** (Claude Code, claude.ai projects, any session) that reads or changes this repository, whichever person it works for. At least two people (Riley and Jared) each run their own Claudes here, often at the same time, and none of those Claudes can see each other's conversations. The branches and their READMEs are the only shared memory, so follow these steps every time.

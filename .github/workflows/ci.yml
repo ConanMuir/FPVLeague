@@ -134,6 +134,10 @@ jobs:
           - check: zombies-test (ew)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=ew
+          # the bot self-play ladder: one tiny generation (one archetype, one child, 1 sim minute) twice, and its file through the loader
+          - check: bot-ladder-check
+            area: league
+            run: node tools/bot-ladder-check.mjs
           # audio levels: each game's sounds rendered offline and measured against their peak caps (over a cap only warns here, like the timing checks)
           - check: audio-levels (league)
             area: league
