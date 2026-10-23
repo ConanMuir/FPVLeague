@@ -1,6 +1,6 @@
 // CI: does this push / PR touch an area's files? Run-only-what-changed for the browser jobs.
 //   node tools/ci-scope.mjs <area> <base sha or ref>   ->  prints "run=true|false" (also to $GITHUB_OUTPUT) and why
-// Areas: league (Drone League: the Vite build in src/, built to games/drone-league; smoke and the *-check tools), interceptor (Riley's engine/ + games/interceptor: zombies-test).
+// Areas: league (Drone League: the Vite build in src/, built to games/drone-league; smoke and the *-check tools), interceptor (Zombies: engine/ + games/interceptor, zombies-test and its siblings).
 // Shared files (package-lock, the workflow, tools/browser.mjs) count for both. Always runs when the base is unknown (new branch,
 // force push, workflow_dispatch) or on main, so main is always fully checked.
 import fs from 'node:fs';

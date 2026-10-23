@@ -1,8 +1,8 @@
 // Zombies warm-up: what Zombies would otherwise build, compile and upload the first time it shows up (each boss and its effects, the
 // Mothership, the sites' damage stages, the far terrain ring, the weather's particles and cloud deck, explosions, the re-entry streak, the
-// camera-feed pass...) is done in idle time instead: from page load while Zombies is the chosen mode, or on the first base screen. Each first
+// camera-feed pass...) is done in idle time instead: from page load, while the menu is up. Each first
 // use of a material made three.js link a shader program inside the frame that drew it: 100-700 ms on an integrated GPU, so a boss arriving
-// or the first heavy impact froze the game. Classic never runs it (it starts only once Zombies is picked or running).
+// or the first heavy impact froze the game.
 // What runs, in order (engine/idle.js queue, a few ms a slice, the heavy steps only while the game is quiet: menu, pause, base screen):
 //   the modules' own warmers (engine/idle.js warmers: the sites' damage stages, a Mothership, the far ring); a sample of every boss and
 //   minor kind (def.build, plus def.warm(ctx) for the effects and variants a fight makes later: wrecks, other hulls, tethers, spectres); the
@@ -51,6 +51,5 @@ export function initWarm(api,G,Z){
   later(()=>{compile(scene);passes()},{heavy:true});
   later(()=>{for(const t of TX)later(()=>{if(upload(renderer,t))st.tex++},{heavy:true});
    later(()=>settle(()=>{st.done=true;st.ms=Math.round(performance.now()-t0)}),{heavy:true})},{heavy:true})}
- // start once Zombies is the chosen mode (menu) or running; Classic never starts it
- const poll=setInterval(()=>{if(S.gmode==='z'||Z.on){clearInterval(poll);start()}},500);
+ setTimeout(start,500);  /* from the menu, once the page has settled */
  Z.warmStart=start;return st}

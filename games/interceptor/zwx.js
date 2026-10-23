@@ -1,4 +1,4 @@
-// Zombies weather. A wider table than Classic's: golden hour, night (moon, stars, searchlights, site lamps), snow, dust haze and a heavy storm with
+// Zombies weather. A wider table than the Weather setting's (interceptor.js WXS): golden hour, night (moon, stars, searchlights, site lamps), snow, dust haze and a heavy storm with
 // lightning, on top of Riley's clear / scattered / overcast / rain / fog / dusk. Each wave gets a forecast when the base screen opens (shown in its
 // footer); from wave 3 some waves also change part-way through (rain moving in, fog lifting, the sun going down...), blended over about 35 s.
 // The menu's "Zombies weather" option can switch this off (then the normal Weather setting is used for every wave).
@@ -8,8 +8,8 @@
 // to night and haze, and the Optics perk (level 2) still lets thermal see through the cloud deck and fog. At night the threats show a dim red
 // engine / nav glow and the sites keep their lamps on, so you can still find things by eye.
 //
-// Cost: every particle set is a fixed, preallocated pool (rain 5000 streaks shared with Classic, snow 2400, dust 500, stars 900, glows 160,
-// two lightning bolts, four searchlight beams), and the per-frame counts halve when Zombies' performance governor sees slow frames and scale with Graphics quality (gfx.k.wx: Medium 60%, Low 30%; rain too, also in Classic).
+// Cost: every particle set is a fixed, preallocated pool (rain 5000 streaks shared with the Weather setting's, snow 2400, dust 500, stars 900, glows 160,
+// two lightning bolts, four searchlight beams), and the per-frame counts halve when Zombies' performance governor sees slow frames and scale with Graphics quality (gfx.k.wx: Medium 60%, Low 30%; rain too, also with the Weather setting's).
 import {dot,tex} from '../../engine/render.js';
 import {NIGHT} from './buildings.js';
 import {SNOW} from '../../engine/render.js';
