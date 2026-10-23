@@ -346,23 +346,34 @@ const lastBoss = kind => ev(H, kind => { const {G, api, Z} = __z; G.wq.length = 
 const burstAt = async (C, id) => { await ev(C, () => { if (__z.api.player.dead > 0) __z.api.launch(); __z.G.det = null; });
   await ev(C, id => { const {api, Z} = __z, me = api.player, t = api.TH.find(t => t.id === id); me.p.copy(t.p).addScaledVector(t.v.clone().normalize(), -1); me.v.copy(t.v); Z.detonate(); }, id);
   await until(C, () => __z.G.det?.txt); return ev(C, () => ({txt: __z.G.det.txt, feed: document.getElementById('feed').textContent})); };
+const hpOf = id => ev(H, id => __z.api.TH.find(t => t.id === id).bs.hp, id);
+const shut = id => ev(H, id => { const B = __z.api.TH.find(t => t.id === id).bs; B.rv = B.af = 0; B.md = 0; B.tm = 1e9; }, id);  /* the Hush circling, no flare, no pass coming */
+const lit = id => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); if (t) { t.bs.rv = 1e6; t.bs.af = 0; } }, id);  /* held open (the flare burning) before every burst: a hit snaps the flare out */
+const down = id => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); return !t || !__z.api.live(t); }, id);  /* a dead track leaves the list */
+const onScreens = id => Promise.all([A, B].map(C => until(C, id => __z.api.TH.some(t => t.id === id && __z.api.live(t)), id))).then(r => r.every(Boolean));
 { await ev(H, () => { __z.G.cash = 4000; });
-  await ev(A, () => __z.Z.ars.equip('std'));  /* the standard warhead back (the EMP of the arsenal section has its own readout) */
-  ok(await until(H, k => __z.Z.ars.P(k).cur === 'std', aKey), 'Boss fight: Ash carries the standard warhead again');
   await readyUp(3);
   const id = await lastBoss('hush');
-  ok(await until(A, id => __z.api.TH.some(t => t.id === id && __z.api.live(t)), id) && await until(B, id => __z.api.TH.some(t => t.id === id && __z.api.live(t)), id), `Boss fight: the Hush (T${id}) is the last track of wave 3 and on every screen`);
+  ok(await onScreens(id), `Boss fight: the Hush (T${id}) is the last track of wave 3 and on every screen`);
+  /* the arsenal's warheads count a boss as down only when it is: Ash still carries the EMP of the arsenal section, and the Hush loses hit points to it, it does not fall */
+  await lit(id); const hpE = await hpOf(id), rE = await burstAt(A, id);
+  ok(/^EMP/.test(rE.txt) && !/DOWN/.test(rE.txt) && await hpOf(id) < hpE && !await down(id), `Boss fight: the EMP burst on the lit Hush reads "${rE.txt}" (no DOWN), the Hush has ${await hpOf(id)} of ${hpE} left`);
+  await ev(H, id => { const t = __z.api.TH.find(t => t.id === id); __z.Z.bosses.ctx.vanish(t, 'gone'); }, id);  /* sent away, so that the wave ends */
+  for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
+}
+{ await ev(A, () => __z.Z.ars.equip('std'));  /* the standard warhead back, at the base screen */
+  ok(await until(H, k => __z.Z.ars.P(k).cur === 'std', aKey), 'Boss fight: Ash carries the standard warhead again');
+  await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(4);
+  const id = await lastBoss('hush');
+  ok(await onScreens(id), `Boss fight: the Hush (T${id}) is the last track of wave 4 and on every screen`);
   /* what the host does with a burst is what the readout says: a boss shrugs off a burst while it is dark, loses hit points to one while the flare burns, and is "down" only when it is */
-  const hpOf = () => ev(H, id => __z.api.TH.find(t => t.id === id).bs.hp, id);
-  const shut = () => ev(H, id => { const B = __z.api.TH.find(t => t.id === id).bs; B.rv = B.af = 0; B.md = 0; B.tm = 1e9; }, id);  /* circling, no flare, no pass coming */
-  const open = () => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); if (t) { t.bs.rv = 1e6; t.bs.af = 0; } }, id);  /* held open (the flare burning) before every burst: a hit snaps the flare out */
-  const down = () => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); return !t || !__z.api.live(t); }, id);  /* a dead track leaves the list */
-  const hp0 = await hpOf(); await shut(); const r0 = await burstAt(A, id);
-  ok(/^NO EFFECT/.test(r0.txt) && /no effect/.test(r0.feed) && !/Hush down/.test(r0.feed) && await hpOf() === hp0, `Boss fight: a burst on the dark Hush reads "${r0.txt}", not a hit (hit points stay ${hp0})`);
-  await open(); const r1 = await burstAt(A, id), hp1 = await hpOf();
+  const hp0 = await hpOf(id); await shut(id); const r0 = await burstAt(A, id);
+  ok(/^NO EFFECT/.test(r0.txt) && /no effect/.test(r0.feed) && !/Hush down/.test(r0.feed) && await hpOf(id) === hp0, `Boss fight: a burst on the dark Hush reads "${r0.txt}", not a hit (hit points stay ${hp0})`);
+  await lit(id); const r1 = await burstAt(A, id), hp1 = await hpOf(id);
   ok(/^HIT/.test(r1.txt) && /The Hush hit/.test(r1.feed) && !/Hush down/.test(r1.feed) && hp1 < hp0 && hp1 > 0, `Boss fight: a burst while the flare burns reads "${r1.txt}" and "hit", not "down": the Hush still has ${hp1} of ${hp0}`);
-  let last = r1, n = 1; for (; n < 8 && !await down(); n++) { await open(); last = await burstAt(A, id); }
-  ok(await down() && /The Hush down/.test(last.feed), `Boss fight: Ash's bursts bring the Hush down (${n} in all), and only the last one reads "down"`);
+  let last = r1, n = 1; for (; n < 8 && !await down(id); n++) { await lit(id); last = await burstAt(A, id); }
+  ok(await down(id) && /The Hush down/.test(last.feed), `Boss fight: Ash's bursts bring the Hush down (${n} in all), and only the last one reads "down"`);
   /* the wave ended with that kill: the win still counts (the cleanup of the wave used to close the fight unrecorded) */
   ok(await until(H, () => (__z.api.S.zboss?.b?.hush?.won | 0) === 1 && !!__z.G.brw?.array && __z.Z.codex.c.b.hush?.beaten === true), 'Boss fight: the Hush was the last track down, and the win is recorded all the same (record, Acoustic Array, the host\'s codex)');
   ok(await ev(A, () => !__z.Z.codex.c.b.hush), 'Boss fight: a client\'s own codex is left alone (the host\'s save moves)');
