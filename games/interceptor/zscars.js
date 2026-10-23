@@ -233,7 +233,7 @@ export function initScars(api,G,Z){
  /* how far the nearest enemy supply road (zsites.js, a ribbon 7.2 m wide laid .35 m above the ground) is: a scar under it would be cut off along its edge */
  const roadGap=(x,z)=>{let d=1e9;const L=Z.so?.W?.routes;if(L)for(const r of L){const X=r.X,Zs=r.Z;for(let i=0;i<X.length-1;i++){const ax=X[i],az=Zs[i],bx=X[i+1]-ax,bz=Zs[i+1]-az,l=bx*bx+bz*bz,t=l>0?cl(((x-ax)*bx+(z-az)*bz)/l,0,1):0,dx=x-ax-t*bx,dz=z-az-t*bz,q=dx*dx+dz*dz;if(q<d)d=q}}return Math.sqrt(d)};
  /* not on the river, a steep slope or the defended ground (the sites' own meshes are their rubble), nor outside the map, nor reaching an enemy road (R: how far it extends) */
- const bad=(x,z,R)=>{if(!(Math.abs(x)<=4400&&Math.abs(z)<=4400&&gh(x,z)>=-9.5&&nrmY(x,z)>=.82))return true;for(const s of sol())if(Math.hypot(x-s.x,z-s.z)<s.r+R*.7+3)return true;return roadGap(x,z)<3.6+R+1};
+ const bad=(x,z,R)=>{if(!(Math.abs(x)<=4400&&Math.abs(z)<=4400&&gh(x,z)>=-9.5&&nrmY(x,z)>=.82))return true;for(const s of sol())if(Math.hypot(x-s.x,z-s.z)<s.r+R*.7+3)return true;for(const q of Z.def?.SLOTS||[])if(!q.park&&Math.hypot(x-q.x,z-q.z)<12+R*.7)return true;return roadGap(x,z)<3.6+R+1};  /* nor under a position a defence can stand on */
  let tok=8;  /* scars allowed right now: refilled 3 a second of frame time, 8 at most */
  const live=()=>sc.ready&&G.on&&!api.demo&&!Z.mirror;
  const add=(t,x,z,r,v,yq,pq,aq,fade)=>P[t].add(qpos(x),qpos(z),qsz(r),v,yq,pq,aq,gh,fade);
@@ -285,10 +285,11 @@ export function initScars(api,G,Z){
    if(!bad(X,Z0,dsz(sq)*(t===1?1.3:1)))P[t].add(x,z,sq,v,y,t===1&&settle?31:pq,aq,gh,f)}
   rank();vis();rev++}
  /* merge a snapshot into the live set: what is there stays (no re-fade), what is new fades in, what is gone fades out */
- function apply(s){ensure();const R=unpack(s),key=(t,x,z)=>t<<24|x<<12|z,want=new Map();for(const r of R)want.set(key(r[0],r[1],r[2]),r);
-  for(let t=0;t<3;t++){const p=P[t];for(let i=0;i<p.hw;i++)if(p.st[i]===1){const k=key(t,p.xq[i],p.zq[i]),r=want.get(k);
-   if(r){want.delete(k);if(t===1&&Math.abs(p.pf[i]-r[6]/31)>.2){p.pf[i]=p.aP[i*4+2]=r[6]/31;p.dirty=true}}else p.drop(i)}}
-  for(const[t,x,z,sq,v,y,pq,aq]of want.values()){
+ /* a scar is told apart by its kind, its quantised spot and its size: a small crater inside a big one on the same 2 m cell is a scar of its own, and two alike are two */
+ function apply(s){ensure();const R=unpack(s),key=(t,x,z,q)=>((t*4096+x)*4096+z)*64+q,want=new Map();for(const r of R){const k=key(r[0],r[1],r[2],r[3]),a=want.get(k);if(a)a.push(r);else want.set(k,[r])}
+  for(let t=0;t<3;t++){const p=P[t];for(let i=0;i<p.hw;i++)if(p.st[i]===1){const k=key(t,p.xq[i],p.zq[i],p.sq[i]),a=want.get(k),r=a&&a.pop();
+   if(r){if(!a.length)want.delete(k);if(t===1&&Math.abs(p.pf[i]-r[6]/31)>.2){p.pf[i]=p.aP[i*4+2]=r[6]/31;p.dirty=true}}else p.drop(i)}}
+  for(const a of want.values())for(const[t,x,z,sq,v,y,pq,aq]of a){
    if(t===2){const i=houseNear(dpos(x),dpos(z),5);if(i>=0&&houseDown(i))P[2].add(qpos(houses().x[i]),qpos(houses().z[i]),sq,v,y,pq,aq,gh,0);continue}
    P[t].add(x,z,sq,v,y,pq,aq,gh,0)}
   rank();vis()}
@@ -316,7 +317,7 @@ export function initScars(api,G,Z){
  sc.tick=tick;  /* the scars' own part of a frame, for a harness that must not move the rest of the world (weather, clouds) between two frames it compares */
  // ---------- the run: a sector loads its scars, a quick defence starts clean; they are saved at the end of a wave and of the run ----------
  const camp=()=>Z.cp?.run?.id||null,client=()=>!!Z.isClient?.();
- function persist(){const id=camp();if(!id||client()||!sc.ready||!Z.cp?.put)return;const c=Z.cp.C(),str=encode();c.sc={...(c.sc||{})};if(str)c.sc[id]=str;else delete c.sc[id];Z.cp.put(c)}
+ function persist(){const id=camp();if(!id||client()||window.__z?.spec?.on||!sc.ready||!Z.cp?.put)return;  /* a Bot Spectator run on a sector never scars your map */const c=Z.cp.C(),str=encode();c.sc={...(c.sc||{})};if(str)c.sc[id]=str;else delete c.sc[id];Z.cp.put(c)}
  sc.persist=persist;sc.refill=()=>{tok=8};
  Z.cpNew=()=>clear();  /* a new campaign (zcampaign.js): what the last run left must not be saved into it */
  const s0=Z.start;Z.start=()=>{if(G.on)persist();  /* a restart on the same sector keeps what the last run left */
@@ -325,6 +326,7 @@ export function initScars(api,G,Z){
  const z1=Z.stop;Z.stop=()=>{persist();clear();z1()};
  const p1=Z.step;Z.step=dt=>{p1(dt);watch()};
  // ---------- co-op: every snapshot carries the revision, the records go out when it changed (at most about once a second) and now and then ----------
- sc.netOut=now=>{if(!sc.ready||!Z.online||Z.mirror)return null;const due=rev!==sent&&now-sentT>900||now-sentT>5000;if(!due)return{r:rev};sentT=now;sent=rev;return{r:rev,d:encode()}};
+ /* acks: the revisions the pilots in the game have applied (-1: none yet). A pilot with nothing yet gets the records every third of a second until they are applied, instead of waiting for the next regular send (one snapshot he misses would make that five seconds) */
+ sc.netOut=(now,acks)=>{if(!sc.ready||!Z.online||Z.mirror)return null;const due=rev!==sent&&now-sentT>900||now-sentT>5000||!!acks&&acks.some(a=>a<0)&&now-sentT>300;if(!due)return{r:rev};sentT=now;sent=rev;return{r:rev,d:encode()}};
  sc.netIn=o=>{if(!Z.mirror||!o||typeof o!=='object')return;if(typeof o.d==='string'&&o.r!==sc.cRev){sc.cRev=o.r;apply(o.d)}};
  return sc}

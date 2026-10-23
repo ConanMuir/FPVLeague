@@ -25,6 +25,7 @@ import {ball} from '../physics/ball.js';
 import {GS,auth,isBot} from '../state.js';
 import {rpBadge,rpMenu,rpUIInit} from '../ui/replay.js';
 import {dfHt} from '../world/highlands.js';
+import {sdf} from '../physics/sdf.js';
 import {ballMesh} from './ball.js';
 import {CAM} from './camera.js';
 import {TN} from './drone-mesh.js';
@@ -185,7 +186,10 @@ function rpCam(cam,dt,setFov){const c=RP.c,s=c.kind==='kill'?(c.killer?'killer':
  else if(s==='goal'){cp.set(c.gx,7,c.side*(HL-16));_t.set(0,GH*.4,c.side*HL);if(ballMesh.visible)_t.lerp(ball.p,.6);cl3.lerp(_t,k(6));setFov(55,false)}  // beside the goal mouth, looking between the ball and the goal
  else if(s==='killer'){const K=c.killer;if(K.isTurret){cp.copy(K.p).add(_a.set(0,2.5,0));cl3.lerp(c.victim.p,k(10));setFov(50,false)}
   else{_tq.setFromAxisAngle(_x,(K.tilt??30)*Math.PI/180).premultiply(K.q);cam.position.copy(K.p).add(_t.set(0,.25,-.38).multiplyScalar(DRAD/.6).applyQuaternion(K.q));_cq.slerp(_tq,cut?1:k(25));cam.quaternion.copy(_cq);setFov(100,false);return}}
- else{const d=c.victim;_f.copy(d.v).setY(0);if(_f.lengthSq()<1)_f.set(0,0,-1).applyQuaternion(d.q).setY(0);fw.lerp(_f.normalize(),k(4)).normalize();_t.copy(d.p).addScaledVector(fw,-12).add(_a.set(0,4,0));_t.y=Math.max(_t.y,dfHt(_t.x,_t.z)+2);cp.lerp(_t,k(6));cl3.lerp(d.p,k(10));setFov(85,false)}
+ else{const d=c.victim;_f.copy(d.v).setY(0);if(_f.lengthSq()<1)_f.set(0,0,-1).applyQuaternion(d.q).setY(0);fw.lerp(_f.normalize(),k(4)).normalize();_t.copy(d.p).addScaledVector(fw,-12).add(_a.set(0,4,0));
+  /* shot down in a cave: the seat stays in the cave, between the quad and the rock (lifted to the surface it looked down at the quad through 60 m of rock); in the open it stays above the ground */
+  if(d.p.y<dfHt(d.p.x,d.p.z)){let q=1;for(let i=1;i<=10;i++){const t=i/10;if(sdf(d.p.x+(_t.x-d.p.x)*t,d.p.y+(_t.y-d.p.y)*t,d.p.z+(_t.z-d.p.z)*t)>-1.5){q=(i-1)/10;break}}if(q<1)_t.lerpVectors(d.p,_t,q)}else _t.y=Math.max(_t.y,dfHt(_t.x,_t.z)+2);
+  cp.lerp(_t,k(6));cl3.lerp(d.p,k(10));setFov(85,false)}
  cam.position.copy(cp);cam.lookAt(cl3)}
 // ---------- setup (main.js, before the menu is built) ----------
 export function rpInit(){if(!['on','fast','off'].includes(S.replay))S.replay='on';if(typeof S.killcam!=='boolean')S.killcam=true;BH.shot=shotRec;BH.end=shotEnd;rpUIInit();

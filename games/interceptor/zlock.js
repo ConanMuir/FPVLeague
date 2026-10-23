@@ -38,7 +38,7 @@ export function initLock(api,G,Z){
  /* where to fly to meet it: lead.js, on sim state every tick of the lock. The point is where you actually meet
     the track flying straight at your speed (at least 40 m/s; flat out when you can't catch it at that), allowing for its turn; L.unc says
     how far that could move if it changes what it is doing. */
- function intercept(t,me,dt){const ld=leadTrack(t,dt,V3),O=L.sol,s=Math.max(me.v.length(),40);leadSolve(O,t.p,t.v,ld.a,me.p,s,V3);
+ function intercept(t,me,dt){const ld=leadTrack(t,dt,V3,api.tick),O=L.sol,s=Math.max(me.v.length(),40);leadSolve(O,t.p,t.v,ld.a,me.p,s,V3);
   if(!O.ok)leadSolve(O,t.p,t.v,ld.a,me.p,Math.max(s,(S.mod?.maxv||115)+(me.bmax||0)),V3);L.ip.copy(O.p);L.tti=O.tau;L.unc=O.unc;
   /* what the HUD draws: the true point, moved by the jamming (zew.js) while an emitter is up; L.eu = the ring that holds the truth */
   L.dp.copy(L.ip);L.eu=Z.ew?Z.ew.skew(L.dp,me.p,t.p.distanceTo(me.p)):0}

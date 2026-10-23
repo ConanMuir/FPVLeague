@@ -36,9 +36,9 @@ const armor=t=>Math.max(0,(t.bs.hp|0)-2);
 const rate=t=>.5+.12*armor(t);
 const drained=(C,t)=>t.bs.on?C.sites().filter(s=>s!==t.bs.anchor&&s.hp>1):[];
 const victim=C=>{const L=C.api.SITES.filter(s=>s.hp<=0||s.hp<s.max*.3);return L.sort((a,b)=>a.hp-b.hp)[0]||null};
-function grow(C,t,n,why){const B=t.bs,a0=armor(t),add=Math.min(n,MAXA-a0);if(add<=0)return;B.hp+=add;B.max=Math.max(B.max,B.hp);C.Z.pop?.(t.p,`ARMOUR +${add}`,'#ff6a50');if(why)C.api.feed(`<span class="cr">The Undertaker ${why}: armour ${armor(t)}/${MAXA}</span>`)}
+function grow(C,t,n,why){const B=t.bs,a0=armor(t),add=Math.min(n,MAXA-a0);if(add<=0)return;B.hp+=add;B.max=Math.max(B.max,B.hp);C.Z.pop?.(t.p,`ARMOUR +${add}`,'#ff6a50');if(why)(C.Z.team||C.api.feed)(`<span class="cr">The Undertaker ${why}: armour ${armor(t)}/${MAXA}</span>`)}
 function starve(C,t){const B=t.bs,a=armor(t),k=Math.min(3,a);if(k){B.hp-=k;C.Z.pop?.(t.p,`−${k} PLATES`,'#9fe8ff')}B.anchor=null;B.on=0;const v=victim(C);
- if(v){B.anchor=v;C.api.feed(`<span class="cg">Repaired: the Undertaker is starved and moves to the ${v.n.toLowerCase()}</span>`)}else{C.api.feed('<span class="cg">Nothing left to strip: the Undertaker leaves.</span>');B.leave=1}}
+ if(v){B.anchor=v;(C.Z.team||C.api.feed)(`<span class="cg">Repaired: the Undertaker is starved and moves to the ${v.n.toLowerCase()}</span>`)}else{(C.Z.team||C.api.feed)('<span class="cg">Nothing left to strip: the Undertaker leaves.</span>');B.leave=1}}
 registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',spd:45,alt:[25,40],hitR:5,det:9000,cash:1000,bounty:3500,far:5200,persist:1,
  resist:{rack:.45,lrack:.45,gepard:.5,sam:.7,mpads:.4,flak:.35,hflak:.45,idome:.3},hp:C=>2/C.hpK(),
  note:'a salvage drone that strips a wrecked or neglected site and leeches the others, growing armour while you leave it. Repair the site it strips, or kill it early.',warn:'a scavenger over your wreck',
@@ -57,7 +57,7 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
   B.on=1;t.p.lerp(P,Math.min(1,dt));t.v.set(Math.sin(B.age*.3),0,Math.cos(B.age*.3));
   B.gt+=dt;if(B.gt>=20){B.gt=0;grow(C,t,1)}
   if((B.dr=(B.dr||0)+dt)>=1){B.dr-=1;const r=rate(t),L=drained(C,t);for(const s of L)s.hp=Math.max(1,s.hp-r);B.tot=(B.tot||0)+r*L.length;
-   if((B.al=(B.al||0)-1)<=0&&L.length){B.al=12;const msg=`Undertaker draining ${L.map(s=>s.n.toLowerCase()).join(', ')} · −${r.toFixed(1)}/s each`;api.feed(`<span class="cr">${msg}</span>`);C.Z.an?.radio('OVERLORD',msg+'!',1)}}
+   if((B.al=(B.al||0)-1)<=0&&L.length){B.al=12;const msg=`Undertaker draining ${L.map(s=>s.n.toLowerCase()).join(', ')} · −${r.toFixed(1)}/s each`;(C.Z.team||api.feed)(`<span class="cr">${msg}</span>`);C.Z.an?.radio('OVERLORD',msg+'!',1)}}
   return true},
  hit(C,t,h){if(armor(t)>=7&&h.q==='damage'&&Math.random()<.5){h.txt='IRONCLAD';return 0}return h.q==='kill'?2:1},
  phaseName:(C,e)=>{const a=armor(e.main);return a<3?'STRIPPING':a<7?'ENTRENCHED':'IRONCLAD'},
@@ -79,7 +79,7 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
  loop(S){const o=S.out(0),x=S.osc('triangle',55,S.t,0),y=S.osc('sine',82.5,S.t,0);x.connect(o);y.connect(o);return{g:o,stop(){x.stop();y.stop()}}},
  loopVol:(C,t)=>C.cl(1-t.p.distanceTo(C.api.camera.position)/2500,0,1)**2*.12+(t.bs.on?.02:0),
  reward:{id:'ledger',n:'Undertaker\'s Ledger',short:'every base screen, damaged sites get 4% back',txt:'At every base screen each damaged (not destroyed) site gets 4% of its hit points back for free.',
-  base(C){for(const s of C.api.SITES)if(s.hp>0&&s.hp<s.max)s.hp=Math.min(s.max,s.hp+Math.round(s.max*.04))}},
+  base(C){if(!C.auth())return;for(const s of C.api.SITES)if(s.hp>0&&s.hp<s.max)s.hp=Math.min(s.max,s.hp+Math.round(s.max*.04))}},
  g:{start(C){C.G.utq=null;C.G.utW=-99;C.G.uthp=null},stop(){if(TG)TG.visible=false},
   step(C,dt){const{G,api}=C;if(!C.auth()||!G.on)return;const prev=G.uthp||[];G.uthp=api.SITES.map(s=>s.hp);
    if(G.state==='wave'&&G.wave>=6-(C.Z.diff?.().shift|0)){api.SITES.forEach((s,i)=>{if(prev[i]>0&&s.hp<=0&&!G.utq)G.utq={s,t:8}})}
@@ -89,4 +89,4 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
   note(C){const K=C.G.bkeep?.undertaker;if(!K)return'';const A=C.api.SITES[K.anchor],a=Math.max(0,(K.hp|0)-2),n=C.api.SITES.filter(s=>s!==A&&s.hp>1).length;
    return`<p class="zhint"><b style="color:#ff5a40">UNDERTAKER</b> waits in the ${A?A.n.toLowerCase()+' wreck':'ground'}: armour <b>${a}/${MAXA}</b>, <b>+2</b> when the wave starts, then draining about ${(.5+.12*Math.min(MAXA,a+2)).toFixed(1)} hp/s from each of ${n} sites. Repair or rebuild the ${A?A.n.toLowerCase():'wreck'} above ${STARVE*100}% to starve it, or kill it early.</p>`}}});
 function summon(C,s){const{G,api}=C;if(api.TH.some(t=>t.k==='undertaker'&&t.st!=='dead')||G.bkeep?.undertaker||G.wave-(G.utW??-99)<3)return;G.utW=G.wave;const t=C.spawn('undertaker',{x:s.x,z:s.z-1600,set:{anchor:s}});
- if(t)api.feed(`<span class="cr">Something is coming for the ${s.n.toLowerCase()} wreck…</span>`)}
+ if(t)(C.Z.team||api.feed)(`<span class="cr">Something is coming for the ${s.n.toLowerCase()} wreck…</span>`)}

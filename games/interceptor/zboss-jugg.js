@@ -49,7 +49,7 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
  tick(C,t,dt){const B=t.bs,s=B.site;if(!s||s.hp<=0){let b=null;for(const q of C.sites())if(!b||q.hp>b.hp)b=q;B.site=b;if(!b)return true}
   const S=B.site,dh=Math.hypot(S.x-t.p.x,S.z-t.p.z),spd=34*(1-.08*stageOf(t));
   if(dh<160||B.dive){B.dive=1;C.steer(t,C.dirTo(t,new C.V3(S.x,S.y+2,S.z)),spd*1.6,.6,dt,0);if(t.p.distanceTo(new C.V3(S.x,S.y+2,S.z))<14||t.p.y<S.y+6){C.strike(t,S,350);C.api.boom(t.p,8);C.api.shake=1;
-   C.api.feed(`<span class="cr">The Juggernaut hit the ${S.n.toLowerCase()}</span>`);C.vanish(t,'impacted')}return true}
+   (C.Z.team||C.api.feed)(`<span class="cr">The Juggernaut hit the ${S.n.toLowerCase()}</span>`);C.vanish(t,'impacted')}return true}
   C.steer(t,C.levelTo(t,new C.V3(S.x,0,S.z),150),spd,.22,dt,90);return true},
  hit(C,t,h){const E=exposed(t);if(!E.length)return 0;let i=-1;
   if(h.src==='h'){if(Math.random()<.5)i=C.pick(E);else{h.txt='ARMOUR';return 0}}
@@ -70,7 +70,7 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
   for(const i of exposed(t)){const q=wpWorld(C,t,i).project(cam);if(q.z>1||Math.abs(q.x)>1||Math.abs(q.y)>1)continue;const X=(q.x*.5+.5)*W,Y=(-q.y*.5+.5)*H,R=12+4*Math.sin(performance.now()/120);oc.beginPath();oc.arc(X,Y,R,0,7);oc.stroke();oc.fillText('WEAK POINT',X,Y-R-6)}
   const S=t.bs.site;if(S){const q=t.p.clone().project(cam);if(q.z<1)oc.fillText(`→ ${S.n} ${Math.ceil(Math.hypot(S.x-t.p.x,S.z-t.p.z)/Math.max(1,t.spd))} s`,(q.x*.5+.5)*W,(-q.y*.5+.5)*H+46)}},
  atmos(C,t,o){const B=t.bs,f=1-(B.hp??6)/(B.max||6);o.fog=.5-.25*f;o.fogC.set(0x37322d);o.fogMix=.5+.3*f;o.light=.75-.25*f;o.dark=.15+.3*f;o.desat=.15+.2*f;o.vign=.2+.2*f;o.tint.set(0xd8b890);o.tintA=.08+.08*f;return .6+.4*f},
- status(C,e){const t=e.main,E=exposed(t),S=t.bs.site;return`weak points <b>${E.length}</b> glowing · ${Math.max(0,t.bs.hp)} left in all${S?` · → ${S.n} in <b>${Math.ceil(Math.hypot(S.x-t.p.x,S.z-t.p.z)/Math.max(1,t.spd))} s</b>`:''} · only weak-point hits count`},
+ status(C,e){const t=e.main,E=exposed(t),S=t.bs.site||t.tgt;  /* a co-op client's copy has the target from the snapshot's statics, not the host's bs.site */return`weak points <b>${E.length}</b> glowing · ${Math.max(0,t.bs.hp)} left in all${S?` · → ${S.n} in <b>${Math.ceil(Math.hypot(S.x-t.p.x,S.z-t.p.z)/Math.max(1,t.spd))} s</b>`:''} · only weak-point hits count`},
  netOut:(C,t)=>[alive(t)],netIn(C,t,a){if(Number.isFinite(a[0]))t.bs.wm=a[0]},
  aim(C,t,s){const E=exposed(t);if(!E.length)return null;const p=wpWorld(C,t,C.pick(E));if(Math.random()>s)p.add(new C.V3(0,8,0));return{p,v:t.v}},
  winTxt:'The Juggernaut is down. Scrap metal everywhere.',
@@ -83,4 +83,4 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
  loop(S){const o=S.out(0),x=S.osc('sawtooth',38,S.t,0),lp=S.filt('lowpass',180,2),am=S.osc('sine',2,S.t,0),ag=x.context.createGain(),vg=x.context.createGain();ag.gain.value=.5;vg.gain.value=.6;am.connect(ag).connect(vg.gain);x.connect(lp).connect(vg).connect(o);return{g:o,stop(){x.stop();am.stop()}}},
  loopVol:(C,t)=>C.cl(1-t.p.distanceTo(C.api.camera.position)/3500,0,1)**2*.12,
  reward:{id:'plating',n:'Salvaged Plating',short:'sites take 15% less damage',txt:'The Juggernaut\'s armour, bolted onto your sites: every hit on a site does 15% less damage for the rest of the run.',
-  impact(C,s,lost){if(lost>0)s.hp=Math.min(s.max,s.hp+Math.round(lost*.15))}}});
+  impact(C,s,lost){if(C.auth()&&lost>0)s.hp=Math.min(s.max,s.hp+Math.round(lost*.15))}}});

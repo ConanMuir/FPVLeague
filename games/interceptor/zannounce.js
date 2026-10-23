@@ -41,7 +41,7 @@ export function initAnnounce(api,G,au){
  // ---------- cash: rolls up to the new total and bumps (with a chink) when money comes in. A kill's money flies into the counter first
  // (fly, drawn by zombies.js's overlay): it only counts here once it lands, so the roll and the bump happen as it arrives ----------
  let shown=null,lastCash=0;
- function hudTick(dt){const el=$('zc');if(!el)return;let fl=0;if(G.state!=='base')for(const p of G.pops)fl+=p.amt||0;const cash=G.cash-fl;if(shown==null||cash<shown||G.state==='base'){shown=cash}
+ function hudTick(dt){const el=$('zc');if(!el)return;let fl=0;if(G.state!=='base')for(const p of G.pops)fl+=p.amt||0;const cash=Math.max(0,G.cash-fl);if(shown==null||cash<shown||G.state==='base'){shown=cash}
   if(cash>lastCash+.5){restart(el,'bump');if(G.state==='wave'||G.state==='clear')au.coin()}lastCash=cash;
   if(shown<cash)shown=Math.min(cash,shown+Math.max(1,(cash-shown)*Math.min(1,dt*7)));const r=Math.round(shown);if(r!==shownR){shownR=r;txt(el,money(r))}
   const lo=G.state==='wave'&&Z_integ()<.3;if(lo!==vigLo){vigLo=lo;vig.classList.toggle('lo',lo)}}

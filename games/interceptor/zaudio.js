@@ -56,9 +56,12 @@ export function initAudio(api){
  // ---------- air-raid siren: a two-tone rotary wail, rising and falling twice, heard across town ----------
  function siren(boss){if(!bus())return;const t0=now()+.15,L=boss?13:10.5,cyc=L/2,g=AC.createGain(),lp=filt('lowpass',1500,.6),pk=boss?.05:.04;  /* a bed under the wave start, 3 dB down */
   g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(pk,t0+1.2);g.gain.setValueAtTime(pk,t0+L-2.2);g.gain.exponentialRampToValueAtTime(.0001,t0+L);
-  for(const k of[1,1.26]){const o=osc('sawtooth',t0,L);for(let c=0;c<2;c++){const t=t0+c*cyc;o.frequency.setValueAtTime(150*k,t);o.frequency.exponentialRampToValueAtTime(560*k,t+cyc*.42);o.frequency.setValueAtTime(560*k,t+cyc*.58);o.frequency.exponentialRampToValueAtTime(170*k,t+cyc)}
-   const v=osc('sine',t0,L),vg=AC.createGain();v.frequency.value=6.5;vg.gain.value=5*k;v.connect(vg).connect(o.frequency);o.connect(lp)}
-  lp.connect(g);if(AC.createStereoPanner){const pn=AC.createStereoPanner();pn.pan.value=-.35;g.connect(pn).connect(A.ui)}else g.connect(A.ui);const e=AC.createGain();e.gain.value=.9;g.connect(e).connect(A.echo)}
+  const os=[];for(const k of[1,1.26]){const o=osc('sawtooth',t0,L);os.push(o);for(let c=0;c<2;c++){const t=t0+c*cyc;o.frequency.setValueAtTime(150*k,t);o.frequency.exponentialRampToValueAtTime(560*k,t+cyc*.42);o.frequency.setValueAtTime(560*k,t+cyc*.58);o.frequency.exponentialRampToValueAtTime(170*k,t+cyc)}
+   const v=osc('sine',t0,L),vg=AC.createGain();os.push(v);v.frequency.value=6.5;vg.gain.value=5*k;v.connect(vg).connect(o.frequency);o.connect(lp)}
+  lp.connect(g);if(AC.createStereoPanner){const pn=AC.createStereoPanner();pn.pan.value=-.35;g.connect(pn).connect(A.ui)}else g.connect(A.ui);const e=AC.createGain();e.gain.value=.9;g.connect(e).connect(A.echo);const s={g,os};SIR.add(s);setTimeout(()=>SIR.delete(s),(L+1)*1e3)}
+ /* the wave-start wail is one scheduled bed of 10-13 s: a run that ends inside it (Quit to menu, game over) cuts it off, it used to play on over the menu */
+ const SIR=new Set();
+ function stopSiren(){const T=now();for(const s of SIR){try{s.g.gain.cancelScheduledValues(T);s.g.gain.setTargetAtTime(0,T,.05);for(const o of s.os)o.stop(T+.4)}catch(e){}}SIR.clear()}
 
  // ---------- radio: squelch, garbled band-limited voice (syllables through moving formants), roger beep ----------
  function squelch(t0,v=.07){const s=nsrc(t0,.09),h=filt('highpass',1800,.5);s.connect(h).connect(env(t0,v,.003,.09)).connect(A.ui)}
@@ -125,5 +128,5 @@ export function initAudio(api){
   if(M.next<T-.5)M.next=T+.05;while(M.next<T+.18){sched(M.step++,M.next);M.next+=SIX}}
  // slow-mo: the world goes muffled and comes back as time does
  let dl=1;function dilate(s){if(!A||Math.abs(s-dl)<.02)return;dl=s;A.dil.frequency.setTargetAtTime(s>=1?20000:500+s*s*9000,now(),s>=1?.25:.03)}
- function stopMusic(){if(!A)return;A.mus.gain.setTargetAtTime(0,now(),.2);M.I=0}
- return{dilate,coin,boom,rumble,gun,siren,radio,whoosh,kill,bossDown,sting,clearChord,star,siteHit,alarm,music,stopMusic,get ready(){return!!bus()},get bus(){return bus()},M,get dbg(){return{st:AC?.state,nv,step:M.step,I:+M.I.toFixed(2),lv:M.lv.map(v=>+v.toFixed(2))}}}}
+ function stopMusic(){if(!A)return;A.mus.gain.setTargetAtTime(0,now(),.2);M.I=0;stopSiren()}
+ return{dilate,coin,boom,rumble,gun,siren,radio,whoosh,kill,bossDown,sting,clearChord,star,siteHit,alarm,music,stopMusic,get sirens(){return SIR.size},get ready(){return!!bus()},get bus(){return bus()},M,get dbg(){return{st:AC?.state,nv,step:M.step,I:+M.I.toFixed(2),lv:M.lv.map(v=>+v.toFixed(2))}}}}

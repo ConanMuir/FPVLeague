@@ -105,11 +105,11 @@ export function initChain(api,G,Z){
  function act(a,x){const K=G.kc,B=K.boost,c0=G.cash,lock=G.wave+1<from();let msg='';
   const pay=c=>{if(G.cash<c)return false;G.cash-=c;Z.tally?.('chain',c);return true};
   if(lock&&a!=='bs'&&a!=='ps')return null;
-  if(a==='bb'){const i=x|0;if(!SECTORS[i]||B[i]||!pay(BOOST.price))return null;B[i]={lvl:0,ammo:0,spent:BOOST.price};msg=`built a boost battery at the ${SECTORS[i].n.toLowerCase()} edge`}
+  if(a==='bb'){const i=x|0;if(!SECTORS[i]||B[i]||!pay(BOOST.price))return null;B[i]={lvl:0,ammo:0,spent:BOOST.price,s0:0};msg=`built a boost battery at the ${SECTORS[i].n.toLowerCase()} edge`}
   else if(a==='bu'){const i=x|0,b=B[i],n=b&&BOOST.lv[b.lvl+1];if(!n||!pay(n.cost))return null;b.lvl++;b.spent+=n.cost;msg=`upgraded the ${SECTORS[i].n.toLowerCase()} boost battery`}
   else if(a==='bm'){const[f,t]=String(x).split('>').map(Number);if(!B[f]||!SECTORS[t]||B[t]||!pay(BOOST.move))return null;B[t]=B[f];B[f]=null;msg=`moved the boost battery from the ${SECTORS[f].n.toLowerCase()} to the ${SECTORS[t].n.toLowerCase()} edge`}
   else if(a==='bs'){const i=x|0,b=B[i];if(!b)return null;const r=Z.sell.logChain('b',i,`${SECTORS[i].n} edge boost battery`,b);G.cash+=r;B[i]=null;msg=`sold the ${SECTORS[i].n.toLowerCase()} boost battery · +${money(r)} (Undo on its card)`}  /* the figure and the Undo: zsell.js */
-  else if(a==='pb'){const s=SITES[x|0];if(!s||s.hp<=0||K.pd[s.n]||!pay(PDEF.price))return null;K.pd[s.n]={lvl:0,ch:0,spent:PDEF.price};msg=`built point defence at the ${s.n.toLowerCase()}`}
+  else if(a==='pb'){const s=SITES[x|0];if(!s||s.hp<=0||K.pd[s.n]||!pay(PDEF.price))return null;K.pd[s.n]={lvl:0,ch:0,spent:PDEF.price,s0:0};msg=`built point defence at the ${s.n.toLowerCase()}`}
   else if(a==='pu'){const s=SITES[x|0],P=s&&K.pd[s.n],n=P&&PDEF.lv[P.lvl+1];if(!n||!pay(n.cost))return null;P.lvl++;P.spent+=n.cost;msg=`upgraded the ${s.n.toLowerCase()} point defence`}
   else if(a==='ps'){const s=SITES[x|0],P=s&&K.pd[s.n];if(!P)return null;const r=Z.sell.logChain('p',x|0,`${s.n} point defence`,P);G.cash+=r;delete K.pd[s.n];msg=`sold the ${s.n.toLowerCase()} point defence · +${money(r)} (Undo on its card)`}
   else if(a==='st'){const n=cl(x|0,1,8),room=stockCap()-K.stock,m=Math.min(n,room);if(m<=0||!pay(STOCK.per*m))return null;K.stock+=m;msg=`bought ${m} space interceptor${m>1?'s':''} for the Golden Dome`}

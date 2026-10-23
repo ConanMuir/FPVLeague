@@ -32,7 +32,7 @@ export function initWeapons(api,G,Z,A){
  function resolve(w,p,v,M,key){const lv=lvW(key),out=[];let kills=0,dmg=0,txt='',col='cg';G.burst={n:0};
   const blast=LE=>{for(const m of M){const t=m.t,K=kOf(t);if(!live(t)||m.r>30)continue;who(t,key);
    if(m.r<K.hitR&&K.armor!=='boss'){api.killThreat(t,true);kills++;out.push(`<span class="cg">${Z.tname(t)} direct hit</span>`);continue}if(K.armor==='hard'||t.k==='boss')continue;
-   if(Math.random()<pkR(m.r,m.cv,LE)){if(K.armor===1){api.damage(t);dmg++}else{api.killThreat(t,m.r<2.4&&Math.random()<.55);kills++;out.push(`<span class="cg">${Z.tname(t)} down</span> (${m.r.toFixed(1)} m)`)}}}};
+   if(Math.random()<pkR(m.r,m.cv,LE)){if(K.armor===1){api.damage(t);dmg++}else{api.killThreat(t,m.r<2.4&&Math.random()<.55);if(live(t))out.push(`<span class="co">${Z.tname(t)} hit</span> (${m.r.toFixed(1)} m)`);else{kills++;out.push(`<span class="cg">${Z.tname(t)} down</span> (${m.r.toFixed(1)} m)`)}}}}};  /* a boss that took the hit and still flies is not "down" */
   if(w==='net'){const R=NET.r+NET.rK*lv,near=M.filter(m=>live(m.t)&&m.r<R).sort((a,b)=>a.r-b.r),ok=near.find(m=>netOK(m.t));
    if(ok){capture(ok.t,key,v);kills=1;txt=`NETTED — ${kOf(ok.t).tag}`;out.push(`<span class="cg">${Z.tname(ok.t)} captured intact</span> (+${Math.round(NET.bonus*100)}%)`)}
    else if(near.length){txt=`NET CAN'T HOLD A ${kOf(near[0].t).tag}`;col='cr';out.push(`<span class="co">${Z.tname(near[0].t)} is too ${near[0].t.spd>NET.spd?'fast':'big'} for the net</span>`)}
@@ -42,9 +42,9 @@ export function initWeapons(api,G,Z,A){
    for(const m of M){const t=m.t,K=kOf(t);if(!live(t)||m.r>R)continue;who(t,key);const contact=m.r<K.hitR;
     if(!contact&&m.c<cc)continue;if(K.armor==='hard'||t.k==='boss'){if(contact&&K.armor==='hard'){api.killThreat(t,true);kills++}continue}
     const p0=contact||m.r<=FLECH.near?FLECH.pNear:FLECH.pNear+(FLECH.pFar-FLECH.pNear)*(m.r-FLECH.near)/(R-FLECH.near);
-    if(Math.random()<p0){if(K.armor===1){if(!t.dmg){api.damage(t);dmg++}out.push(`<span class="co">${Z.tname(t)}: the darts bounce off the armor</span>`)}else{api.killThreat(t,Math.random()<.3);kills++;out.push(`<span class="cg">${Z.tname(t)} shredded</span> (${m.r.toFixed(1)} m)`)}}}
+    if(Math.random()<p0){if(K.armor===1){if(!t.dmg){api.damage(t);dmg++}out.push(`<span class="co">${Z.tname(t)}: the darts bounce off the armor</span>`)}else{api.killThreat(t,Math.random()<.3);if(live(t))out.push(`<span class="co">${Z.tname(t)} hit</span> (${m.r.toFixed(1)} m)`);else{kills++;out.push(`<span class="cg">${Z.tname(t)} shredded</span> (${m.r.toFixed(1)} m)`)}}}}
    txt=kills?`FLECHETTE — ${kills} DOWN`:dmg?'FLECHETTE — ARMOR HELD':'FLECHETTE MISSED';col=kills?'cg':dmg?'co':'cr'}
-  else if(w==='dart'){const m=M.filter(m=>live(m.t)).sort((a,b)=>a.r-b.r)[0];if(m){const t=m.t;who(t,key);if(t.k==='boss'){Z.bossHit(t);txt='DART — STAGE DOWN'}else{api.killThreat(t,true);txt=`DART — ${kOf(t).tag} DESTROYED`}kills=1;out.push(`<span class="cg">${Z.tname(t)}: kinetic kill</span>`)}else{txt='DART: NO CONTACT';col='cr'}}
+  else if(w==='dart'){const m=M.filter(m=>live(m.t)).sort((a,b)=>a.r-b.r)[0];if(m){const t=m.t;who(t,key);let dn=true;if(t.k==='boss'){Z.bossHit(t);txt='DART — STAGE DOWN'}else{api.killThreat(t,true);dn=!live(t);txt=`DART — ${kOf(t).tag} ${dn?'DESTROYED':'HIT'}`}kills=dn?1:0;out.push(`<span class="cg">${Z.tname(t)}: kinetic ${dn?'kill':'hit'}</span>`)}else{txt='DART: NO CONTACT';col='cr'}}
   else if(w==='cluster'){blast(api.LETH*CLUSTER.kill);const n=bomblets(p,v,key);txt=`CLUSTER — ${n} BOMBLET${n===1?'':'S'} ON TARGET${kills?` · ${kills} DOWN`:''}`;col=n||kills?'cg':'cr';if(n)kills=Math.max(kills,.5)}
   const k=G.burst.n;G.burst=null;if(!txt)txt=k?`HIT — ${k}`:'MISSED';
   return{txt,col,kills,dmg,out}}

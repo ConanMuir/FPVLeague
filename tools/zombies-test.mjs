@@ -37,7 +37,7 @@ async function play(p) { await p.click('#play'); await p.waitForFunction(() => !
 // ---------- saves: hand-edited or foreign values must not break the start menu or a game ----------
 if (want('saves')) {
   const errs = [], p = await open(browser, origin + '/games/interceptor/', errs), bad = [];
-  for (const save of [{gmode: 'z', zdiff: 'x'}, {gmode: 'z', zdiff: 9}, {gmode: 'z', zdiff: 1.5, zbests: 'oops'}, {gmode: 'z', zmusv: 'loud', zname: {a: 1}}, {gmode: 7, wx: 'nope', cam: 'x'},
+  for (const save of [{gmode: 'z', zdiff: 'x'}, {gmode: 'z', zdiff: 9}, {gmode: 'z', zdiff: 1.5, zbests: 'oops'}, {gmode: 'z', zmusv: 'loud', zname: {a: 1}}, {zsfxv: 'loud', zmusv: {}}, {zsfxv: [1, 2], zmusv: 9},{gmode: 7, wx: 'nope', cam: 'x'},
     {gmode: 'z', zmeta: 'x', zload: 5}, {gmode: 'z', zmeta: {g: [1, 2]}, zload: {doc: 'fortress', kit: 'lure'}}, {gmode: 'z', zmeta: {v: 1, g: {w10: '15', norep: 99, bogus: 3, boss: -1}}, zload: {doc: {}, kit: [null, 'lure', 'lure', 7]}},
     {gmode: 'z', zmeta: null, zload: {doc: 'qm', kit: ['lrack', 'hflak', 'mpads']}}, {gmode: 'z', zmeta: {v: 1, g: {w10: 2, helpers: 1, boss: 4}}, zload: {doc: 'fortress', kit: ['lrack', 'lure', 'mpads', 'toString']}}, {gmode: 'z', zruns: 'x'}, {gmode: 'z', zruns: [{d: 9, w: 'a'}, null, {d: 1, w: 5, doc: 7}, {d: 2, w: 1e9}]},
     {gmode: 'classic', diff: 2, fuse: 'manual', skin: 'strela', guide: 0, guideSw: 3, setV: 4, mod: {tspd: 2, tcnt: 3, bcap: 20000}}]) {  /* an old Classic save, with the Threats panel values */
@@ -72,6 +72,12 @@ if (want('zombies')) {
   ok(s0.base && s0.st === 'base' && s0.cash === 1500, `Zombies: opens on the base screen with $${s0.cash}, integrity ${s0.integ.hp}/${s0.integ.max}`);
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-1.png'});
   await p.click('#zgo'); await p.waitForFunction(() => __z.G.state === 'wave', {timeout: 10000}).catch(() => {});
+  /* a bounty still flying into the counter while the purse is spent (a hardening, a swarm's upkeep): the counter never reads negative */
+  const neg = await p.evaluate(() => { const {G, Z, api} = __z, g0 = G.cash; Z.pop(api.player.p.clone(), '+$900', '#3ddc84', 900); G.cash = 40; Z.hud(.016); const t = document.getElementById('zc').textContent; G.pops.length = 0; G.cash = g0; Z.hud(.016); return t; });
+  ok(neg === '$0', `Zombies: spending while a bounty is still flying never makes the purse read negative (counter "${neg}")`);
+  /* the wave-start siren is one scheduled 10 s bed: leaving the run (Quit to menu, game over) cuts it off */
+  const sir = await p.evaluate(() => { const au = __z.Z.au, n0 = au.sirens; au.siren(false); const n1 = au.sirens; au.stopMusic(); return [n0, n1, au.sirens]; });  /* stopMusic is what leaving the run calls (zfx.js Z.stop) */
+  ok(sir[0] === 1 && sir[1] === 2 && sir[2] === 0, `Zombies: the wave-start siren (the wave's own, then one more) is cut when the run ends (sirens sounding: ${sir.join(' -> ')})`);
   // wave 1 with a scripted player that runs down every track
   const w1 = await p.evaluate(() => { const out = []; for (let i = 0; i < 400 && __z.G.state === 'wave'; i++) { __z.sim(.5); const pl = __z.api.player; if (pl.dead <= 0 && Math.random() < .5) { const k = __z.botKill(.8); if (k) out.push(k); } } return {out, st: __z.G.state, cash: __z.G.cash, kills: __z.G.kills, streak: __z.G.streak}; });
   ok(w1.kills.p >= 2 && w1.cash > 1500, `Zombies wave 1: scripted player killed ${w1.kills.p} (${w1.out}), cash $${w1.cash}, streak ${w1.streak}`);
@@ -84,6 +90,9 @@ if (want('zombies')) {
   ok(cat.n === cat.all && !cat.kit && cat.groups === 'Helpers/Supplies for the next wave/Active perks/Passive perks' && !cat.reroll, `Shop lists every item but kit (${cat.n}) in groups ${cat.groups}, no reroll`);
   const bought = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); if (i < 0) return 'no rack'; document.querySelector(`[data-buy="${i}"]`).click(); return !!document.querySelector('[data-slot]'); });
   ok(bought === true, 'Base: buying the rack card asks for a position');
+  await p.keyboard.press('Escape'); const esc1 = await p.evaluate(() => ({menu: __z.api.menuOpen, placing: !!__z.G.placing})); await p.keyboard.press('Escape');
+  const esc2 = await p.evaluate(() => ({menu: __z.api.menuOpen, placing: !!__z.G.placing, slots: document.querySelectorAll('[data-slot]').length}));
+  ok(esc1.menu && esc1.placing && !esc2.menu && esc2.placing && esc2.slots > 0, 'Base: Esc opens the menu and Esc closes it again with the placement still pending (Cancel backs out of it)');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-place.png'});
   await p.click('[data-slot]');
   const arm = await p.evaluate(() => ({n: __z.Z.def.D.length, cash: __z.G.cash, armory: !!document.querySelector('[data-up]')}));
@@ -971,6 +980,14 @@ if (want('bosses')) {
   ok(hs2.net && hs2.netCue, 'Hush: co-op: the pass state rides on the snapshot extras and a client computes the same sound picture from the synced position');
   ok(hs2.ear.open > .1 && hs2.ear.open > 3 * hs2.ear.idle && hs2.ear.creak > hs2.ear.idle && hs2.aim[0] > 60 && hs2.aim[1] < 75, `Hush: the bots hear what the speakers play: attention ${hs2.ear.open} on the flare, ${hs2.ear.creak} on the creak, ${hs2.ear.idle} idle; its aim finds it ${hs2.aim[0]}/300 open and ${hs2.aim[1]}/300 closed`);
   ok(hs2.hit[0] === 0 && hs2.hit[1] === 2 && hs2.hit[2] === 1 && hs2.hit[3] === 0 && hs2.txt && hs2.closedHp === 0 && hs2.openHp === -2 && hs2.shut && hs2.ph === 1, 'Hush: a burst outside the flare and the after-pass window finds nothing; inside, a direct hit does 2 and snaps the windows shut (and moves it to HUSH)');
+  // what is drawn and heard each frame (the Hush's and the Jammer King's radar static, the creak's pitch) is on its own stream: the frames drawn never move the game's Math.random
+  const hr = await p.evaluate(async () => { const {Z, api} = __z, C = Z.bosses.ctx, t = __hsT, snd = await import('./zhush-snd.js'), V = snd.live()[0], R0 = Math.random, rc = document.createElement('canvas').getContext('2d'), P = (x, z) => [250 + x / 40, 250 + z / 40];
+    const E = Z.ew.E, e0 = [E.on, E.neff]; let n = 0, calls = 0, ink = 0; Math.random = () => { n++; return R0(); };
+    try { for (let i = 0; i < 5; i++) { Z.bosses.BOSSES.hush.radar(C, rc, P, t); calls++; }
+      if (V) { const b = {p: t.p, v: t.v, yr: .5, md: 1, wf: .6, ph: 1}, me = {p: api.camera.position, v: api.player.v, f: new C.V3(0, 0, -1), u: new C.V3(0, 1, 0)}; for (let i = 0; i < 5; i++) { if (V.set(b, me)?.creak > 0) ink++; } }
+      E.on = true; E.neff = .9; for (let i = 0; i < 5; i++) { Z.bosses.BOSSES.jammer.radar(C, rc, P, {bs: {}, p: new C.V3()}); calls++; } } finally { Math.random = R0; E.on = e0[0]; E.neff = e0[1]; }
+    return {n, calls, ink, voice: !!V}; });
+  ok(hr.n === 0 && hr.calls === 10 && hr.voice && hr.ink === 5, `Boss draws: the Hush's radar static, its creak (${hr.ink} of 5 updates sounding) and the Jammer King's radar static used ${hr.n} Math.random calls over ${hr.calls} radar draws`);
   // the wave ends: darkness, radar, thermal, the voice, the listener all back exactly
   await until(() => p.evaluate(() => { const f = __z.api.scene.fog, W = window.__hsW0; return !__z.api.thermLook && f.near === W.near && f.far === W.far && f.color.getHex() === W.col; }), {timeout: 30000, every: 100});  /* the day look is back and the fog is the weather's again (the draw loop did it), only then compare */
   const hs3 = await p.evaluate(async () => { const {api, Z, G} = __z, snd = await import('./zhush-snd.js'), A = Z.atmos, out = {}, W0 = window.__hsW0, V = snd.live()[0];
@@ -1085,6 +1102,11 @@ if (want('spectator')) {
   await p.click('#zmenu');
   const off = await p.evaluate(() => ({on: __z.spec.on, menu: !document.getElementById('menu').hidden, bar: !!document.getElementById('zspbar'), bot: typeof __z.Z.botIn, cam: __z.api.camMode === (__z.api.S.cam | 0)}));
   ok(!off.on && off.menu && !off.bar && off.bot === 'undefined' && off.cam, 'Spectator: Menu ends it (hooks off, your camera back)');
+  /* the boss record (the Ace's tally, the wreck it unlocks, the wear on the bosses) and a sector's scars are yours too: a bot's run on a sector writes neither */
+  const bz = await p.evaluate(() => { const {api, Z, spec} = __z, ctx = Z.bosses.ctx, rd = () => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); return JSON.stringify([s.zboss?.b ?? {}, s.zboss?.ace ?? {}, s.zboss?.ghost ?? {}, s.zcamp?.sc ?? {}]); };
+    const r0 = rd(); spec.bench.start('Rookie', 1, {sec: 'mill'}); __z.cont(); ctx.bump('mirror', 'won'); ctx.recAdd('ace', 'kills'); ctx.recAdd('ace', 'beaten'); Z.sc.add(0, 40, -300, 6); Z.sc.persist(); __z.sim(2);
+    const out = {r0, r1: rd(), scars: Z.sc.stats().craters}; api.startDemo(); out.r2 = rd(); out.off = !spec.on; return out; });
+  ok(bz.r0 === bz.r1 && bz.r1 === bz.r2 && bz.scars >= 1 && bz.off, `Spectator: a bot's run on a sector writes no boss record and no scars into your saves (${bz.scars} crater in the run, save unchanged)`);
   // lock-on from the chase view: a player flying behind and below a track with the interceptor pointed at it locks it (the sights are the
   // airframe's boresight in the chase and threat views; the chase camera itself only follows the heading, so a track above could never be locked)
   await p.click('#play'); await p.waitForFunction(() => __z.G.state === 'base', {timeout: 30000});
@@ -1107,6 +1129,10 @@ if (want('spectator')) {
     const out = {s: +s.toFixed(1), held: +(held / 120).toFixed(1), close, kill: !api.live(t) && t.by === 'p', lockAtKill, t: +(i / 120).toFixed(1), lost: Z.lk.L.n.lost - n0.lost}; spec.stop(); return out; });
   ok(tail.s > 0 && tail.s < 6 && tail.held >= 3 && tail.close === true, `Lock-on, bot: coming up behind a Shahed, Legend locks it ${tail.s} s in, holds it ${tail.held} s and is still locked when it first closes within 30 m`
     + ` (then: ${tail.kill ? `killed ${tail.t} s in${tail.lockAtKill ? ' with the lock' : ' on a later pass'}` : 'no kill in 150 s'}, lock lost ${tail.lost}×)`);
+  /* a boss in the queue is worth 0 threat points: its bearing must not poison the roaming bot's picture of the raids (no station scored, the first one was null and the pilot threw) */
+  const rm = await p.evaluate(() => { const {api, G, Z, spec} = __z; api.startDemo(); spec.bench.start('Legend', 1); G.wave = 9; G.next = Z.plan(10); G.next.q = [{k: 'boss', at: 5, brg: .2}, {k: 'shahed', at: 8, brg: -1}]; G.next.list = ['boss', 'shahed']; __z.cont();
+    let err = ''; try { __z.sim(6); } catch (e) { err = String(e.message); } const o = {err, st: G.state}; spec.stop(); return o; });
+  ok(!rm.err && rm.st === 'wave', `Roaming, bot: a wave whose queue holds a boss does not stop the roaming pilot${rm.err ? ' (' + rm.err + ')' : ''}`);
   ok(!errs.length, 'Spectator: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
@@ -1495,6 +1521,14 @@ if (want('sell')) {
   const a2 = await p.evaluate(() => { const {G, Z} = __z; document.querySelector('.zsold [data-undo]').click(); const d = Z.def.D[0];
     return {cash: G.cash, n: Z.def.D.length, type: d?.type, lvl: d?.lvl, spent: d?.spent, slot: d?.slot, sold: G.sold.length, ghost: !!document.querySelector('.zsold'), card: !!document.querySelector(`[data-sell="${d?.id}"]`)}; });
   ok(a2.cash === 19100 && a2.n === 1 && a2.type === 'flak' && a2.lvl === 1 && a2.spent === 900 && a2.slot === 0 && !a2.sold && !a2.ghost && a2.card, `Sell: Undo takes the $900 back and the flak mortar returns as it was (level ${a2.lvl + 1}, position ${a2.slot}, cash $${a2.cash})`);
+  // 1b. a sortie closes the base screen and opens it again: still the same break, so a defence bought before it sells in full and a sale keeps its Undo
+  const a1b = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const f = Z.def.SLOTS.map((s, i) => i).filter(i => Z.def.slotFree(i, 'flak')), keep = B.place('flak', f[0]), gone = B.place('flak', f[1]);
+    const v0 = Z.sell.dval(keep); B.sell(gone.id); const n0 = G.sold.length, sid = G.sold[0]?.id;
+    Z.so.S.on = true; Z.base.close(); const mid = G.sold.length; Z.so.S.on = false; Z.base.open();  /* what a sortie does (zsortie.js start and end) */
+    const v1 = Z.sell.dval(Z.def.D.find(d => d.id === keep.id)), n1 = G.sold.length, undo = !!Z.sell.undo(sid), back = Z.def.D.find(d => d.slot === f[1]);
+    Z.def.remove(Z.def.D.find(d => d.id === keep.id)); if (back) Z.def.remove(back); G.sold.length = 0;
+    return {v0, v1, n0, mid, n1, undo, back: !!back}; });
+  ok(a1b.v0 === 450 && a1b.v1 === 450 && a1b.n0 === 1 && a1b.mid === 1 && a1b.n1 === 1 && a1b.undo && a1b.back, `Sell: a sortie round trip (base screen closed and opened) keeps the break: a flak bought before it still sells for $${a1b.v1} of $${a1b.v0}, the sale is still in the ledger (${a1b.n1}) and its Undo works`);
   // 2. a position opened now (older by the next base screen) and a second flak sold; the wave starting ends the Undo
   const a3 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const j = Z.def.SLOTS.findIndex((s, i) => Z.def.canOpen(i, Z.meta.doc())), paid = B.expand(j), d2 = B.place('flak', 1), r = B.sell(d2.id), id = G.sold[0]?.id;
     __z.cont(); return {j, paid, r, id, ledger: G.sold.length, undo: Z.sell.undo(id), st: G.state}; });
@@ -1758,9 +1792,9 @@ if (want('radio')) {
     window.__rf = () => { R.flush(); for (let i = 0; i < 5; i++) R.step(2); };  /* make the merged calls due and let the channel run */
     window.__at = (brg, k = 'shahed', site = 1, rr = 5000) => __z.make(k, Math.sin(brg) * rr, 1950 - Math.cos(brg) * rr, __z.api.SITES[site]);
     window.__clr = () => { for (const u of __z.api.TH) __z.api.scene.remove(u.mesh); __z.api.TH.length = 0; const k = __at(.3, 'shahed', 0, 5000); k._rz = 1; };  /* the sky is emptied but for one far track nobody calls: the page's own loop would end the wave between two checks */
-    return {has: !!R, rows: ['f_zradio', 'f_zrspeech', 'f_zradiov'].map(id => !!document.getElementById(id)), css: !!document.querySelector('link[href*="zradio.css"]'), chat: !!document.getElementById('zchat'),
+    return {has: !!R, rows: ['f_zradio', 'f_zrspeech', 'f_zradiov'].map(id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; }), css: !!document.querySelector('link[href*="zradio.css"]'), chat: !!document.getElementById('zchat'),
       def: [S.zradio, S.zrspeech, S.zradiov], cap: R.cap, ac: !!__z.api.AC}; });
-  ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean), 'Radio: the module is up with its HUD log, stylesheet and three settings rows (chatter, speech, volume)');
+  ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean), 'Radio: the module is up with its HUD log, stylesheet and three settings rows (chatter, speech, volume), none of them hidden');
   ok(r0.def[0] === true && r0.def[1] === true && r0.def[2] === .6 && r0.cap <= .1, `Radio: defaults are chatter on, speech on, volume ${r0.def[2]}; the sound cap is ${r0.cap}`);
 
   // new tracks: three Shaheds from the east are one call, with the direction and the site they threaten
@@ -2035,6 +2069,8 @@ if (want('onboard')) {
   await p.evaluate(() => __u(() => __z.Z.onboard.step === 'helper', 6));
   const h0 = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); return {g: __g(), hl: document.querySelector('.zob-hl')?.dataset.buy === String(i), base: document.body.classList.contains('zb-open')}; });
   ok(h0.g.step === 'helper' && /Interceptor drone rack/.test(h0.g.text) && h0.hl && h0.base, `Onboard: on the base screen it asks for the first helper and glows the drone rack's button`);
+  const cov = await p.evaluate(() => { const c = document.getElementById('zob').getBoundingClientRect(), r = document.querySelector('.zob-hl').getBoundingClientRect(); return {hidden: !(r.right <= c.left || r.left >= c.right || r.bottom <= c.top || r.top >= c.bottom), card: [c.left, c.top, c.right, c.bottom].map(Math.round), btn: [r.left, r.top, r.right, r.bottom].map(Math.round)}; });
+  ok(!cov.hidden, `Onboard: the glowing Buy button is not under the guide card (card ${cov.card}, button ${cov.btn})`);
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-guide-helper.png'});
   /* the sell cards (zsell.js: a Sold card with an Undo in the Armory) do not confuse the glow: with another tab open it is the Shop tab, back on the Shop it is the rack's Buy button */
   const sc = await p.evaluate(async () => { const {Z, G} = __z, wait = () => new Promise(r => setTimeout(r, 40)), d = Z.base.act.place('rack', Z.def.SLOTS.findIndex((_, j) => Z.def.slotFree(j, 'rack')));
@@ -2098,6 +2134,11 @@ if (want('onboard')) {
   const sk2 = await p.evaluate(() => { __z.cont(); return {g: __g(), at: __z.G.wq.map(q => q.at), skip2: document.getElementById('zobskip2').hidden}; });
   ok(!sk2.g.on && sk2.g.ended === 'skip' && !sk2.g.gentle && sk2.at.join() === '0,25' && sk2.skip2, `Onboard: skipping at the Briefing leaves wave 1 the plain wave (${sk2.at.join('/')} s)`);
   ok(!errs.length, 'Onboard: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+  // the guide always finishes: a pilot who never buys a helper, Rocket Assist or the swarm sees it end by itself, each step dropped after its wave
+  await fresh(p, '?guide=1'); await play(p);
+  const fin = await p.evaluate(() => { const {Z} = __z; __z.cont(); __clear(); const o = {on1: __g().on}; __z.jump(5); __z.sim(.5); const a = __g(); o.w4 = {on: a.on, st: {...a.st}}; __z.jump(Z.itemFrom('swarm') + 10); __z.sim(.5); const b = __g(); o.late = {on: b.on, ended: b.ended, st: {...b.st}, card: b.card}; return o; });
+  ok(fin.on1 && fin.w4.on && fin.w4.st.helper === 'timeout' && fin.w4.st.sortie === 'timeout' && !fin.w4.st.rocket && !fin.late.on && fin.late.ended === 'done' && !fin.late.card && ['helper', 'sortie', 'rocket', 'rocketfly', 'swarm'].every(k => fin.late.st[k] === 'timeout'),
+    `Onboard: a pilot who buys nothing still sees the guide end by itself: the helper and the sortie dropped after wave 3 (${fin.w4.st.helper}/${fin.w4.st.sortie}), Rocket Assist and the swarm a few waves after they open (${JSON.stringify(fin.late)})`);
   await p.close();
 
   // co-op: the host and a client (a real lobby over ?netloop) get no guide and keep the flag unset
@@ -2155,6 +2196,7 @@ if (want('scars')) {
     bm(new V(f.x, gh(f.x, f.z) + .5, f.z), 1.6); o.plough = {c: S.stats().craters, b: S.stats().burns};  /* a wreck on ploughed earth: a crater, it will not burn */
     for (const s of api.SITES) bm(new V(s.x + 10, gh(s.x, s.z) + 1, s.z), 6); o.site = S.stats().craters;  /* the defended ground has its own damage stages */
     bm(new V(w.x, gh(w.x, w.z) + .5, w.z), 3); o.wheat = {c: S.stats().craters, b: S.stats().burns};   /* a big hit on dry wheat: a crater and a fire */
+    const c2 = S.stats().craters; for (const q of Z.def.SLOTS) if (!q.park) bm(new V(q.x + 5, gh(q.x, q.z) + 1, q.z), 3); o.slots = S.stats().craters - c2;  /* nor under the positions a defence stands on */
     /* a downed Shahed falls on a field through the game's own path (threatStep -> boom -> Z.flash) */
     S.refill(); const w2 = __find(3) || __find(2) || w, c0 = S.stats().craters, t = __z.make('shahed', w2.x, w2.z); t.p.set(w2.x, gh(w2.x, w2.z) + 25, w2.z); t.v.set(0, -15, 0); t.st = 'fall'; t.spin = 2; __z.sim(4);
     o.fall = {dead: t.st === 'dead', craters: S.stats().craters - c0, near: S.list(0).some(r => Math.hypot(r.x - w2.x, r.z - w2.z) < 40)};
@@ -2170,6 +2212,7 @@ if (want('scars')) {
   ok(A.air === 0, 'Scars: an air burst high above the ground leaves nothing');
   ok(A.plough.c === 1 && A.plough.b === 0, `Scars: a wreck on ploughland leaves a crater and no fire (craters ${A.plough.c}, burns ${A.plough.b})`);
   ok(A.site === 1, 'Scars: hits on the defended sites add none (their damage stages are their rubble)');
+  ok(A.slots === 0, `Scars: nor do hits next to the positions a defence can stand on (${A.slots} new craters)`);
   ok(A.wheat.c === 2 && A.wheat.b === 1, `Scars: a big hit on dry wheat leaves a crater and a fire (craters ${A.wheat.c}, burns ${A.wheat.b})`);
   ok(A.fall.dead && A.fall.craters === 1 && A.fall.near, `Scars: a downed Shahed falling on a field leaves a crater where it lands (${A.fall.craters})`);
   ok(A.crash === 1, `Scars: the interceptor crashing into a field leaves a mark (${A.crash})`);
@@ -2435,6 +2478,11 @@ if (want('briefing')) {
   const BW = await p.evaluate(() => [1, 9, 10, 11, 19, 20].map(w => { const D = __brk(w, 0, 0), t = __card().text; return {w, boss: D.boss.map(b => b.k).join(), due: D.due, next: D.next, warn: /BOSS WAVE: Mothership/.test(t), look: (t.match(/next boss: wave \d+ \(\d+ waves? on\)/) || [''])[0]}; }));
   ok(BW.filter(b => b.warn).map(b => b.w).join() === '10,20' && BW.filter(b => b.boss).map(b => b.w).join() === '10,20' && BW.filter(b => b.due).map(b => b.w).join() === '10,20', `Boss: the warning is on the card for waves 10 and 20 and no other (${BW.map(b => b.w + (b.warn ? ' BOSS' : '')).join(', ')})`);
   ok(BW[0].look === 'next boss: wave 10 (9 waves on)' && BW[1].look === 'next boss: wave 10 (1 wave on)' && BW[3].look === 'next boss: wave 20 (9 waves on)', `Boss: otherwise the card says how far the next one is ("${BW[0].look}", "${BW[1].look}", "${BW[3].look}")`);
+  /* the look-ahead follows what decides the plan: with every boss blocked no boss is announced (a heavy raid comes), a campaign sector announces its set piece and not the every-10 Mothership */
+  const NB = await p.evaluate(() => { const {Z} = __z, B = Z.brief, run0 = Object.getOwnPropertyDescriptor(Z.cp, 'run'), sect = (id, mods) => Object.defineProperty(Z.cp, 'run', {get: () => ({id, endless: false, mods: mods.map(id => ({id}))}), configurable: true}), o = {};
+    o.quick = [B.bossDue(10), B.nextBoss(1)]; Z.codex.set('boss', 'allowed', false); o.blocked = [B.bossDue(10), B.nextBoss(1)]; Z.codex.set('boss', 'allowed', true);
+    sect('mill', ['clear']); o.mill = [B.bossDue(5), B.bossDue(10), B.nextBoss(0)]; sect('gate', ['boss5']); o.gate = [B.bossDue(15), B.bossDue(17), B.bossDue(20), B.nextBoss(10)]; Object.defineProperty(Z.cp, 'run', run0); return o; });
+  ok(NB.quick.join() === 'true,10' && NB.blocked.join() === 'false,0' && NB.mill.join() === 'true,false,5' && NB.gate.join() === 'true,true,true,15', `Boss look-ahead: ${JSON.stringify(NB)} (quick defence: wave 10; every boss blocked: none; Old Mill: its set piece at 5, not 10; Launch Complex: the escort every 5 and the Hush at 17)`);
   // ---- it follows the plan: a strike that cuts the fast missiles out of the wave changes the card ----
   const CU = await p.evaluate(() => { const {Z, G} = __z, D = __brk(25, 3, 0), a = D.fast.map(f => f.n).reduce((x, y) => x + y, 0);
     let cut = 0; for (let si = 0; si < 3; si++) cut += Z.cutFast(si, 99, 'ballistic'); Z.base.refresh(); const D2 = Z.brief.data(), t = __card().text; return {n0: D.n, n1: D2.n, a, cut, fast1: D2.fast.length, shown: /ballistic/.test(t), says: t.includes(`${D2.n} tracks`)}; });
@@ -2577,6 +2625,7 @@ if (want('endless')) {
     S.zcodex = dex([]); o.p0 = X.pool(25).join(); o.m0 = Object.keys(seen(25, 20)).join(); o.m23 = Object.keys(seen(23, 20)).join();
     S.zcodex = dex(['jammer', 'hive']); o.p1 = X.pool(54); o.m1 = Object.keys(seen(54, 80)).sort(); o.dup = 0; o.n54 = new Set();  /* wave 54: two bosses a wave (climb 34) */
     for (let i = 0; i < 40; i++) { const L = bs(__z.plan(54).list); o.n54.add(L.length); if (new Set(L).size !== L.length) o.dup++; } o.n54 = [...o.n54].join();
+    Z.bosses.roster = true; o.dupR = 0; for (let i = 0; i < 300; i++) { const L = bs(__z.plan(60).list); if (new Set(L).size !== L.length) o.dupR++; } Z.bosses.roster = R0;  /* wave 60 with the real rotation: it plans a boss first (a boss wave), the climb adds the second */
     S.zcodex = dex(['hive'], ['jammer']); o.p2 = X.pool(54); o.m2 = Object.keys(seen(54, 80)).sort();
     S.zcodex = dex([], ['boss', 'jammer', 'hive']); o.p3 = X.pool(25).length; const l3 = __z.plan(25).list; o.m3 = bs(l3).length; o.l3 = l3.length;  /* every boss switched off: the codex's heavy raid instead */
     S.zcodex = dex(['jammer']); Z.bosses.roster = true;  /* the real rotation, as a player has it: an Endless run is planned by the codex's Quick defence rotation, a campaign sector by its set piece (the every-10 Mothership goes) */
@@ -2585,7 +2634,7 @@ if (want('endless')) {
     Z.bosses.roster = R0; delete S.zcodex; Z.endless.start('gate');
     o.g = bs(__z.plan(25).list).length; o.g2 = bs(__z.plan(30).list).length; return o; });
   ok(CX.real && CX.p0 === 'boss' && CX.m0 === 'boss' && CX.m23 === '', 'Boss codex: with nothing beaten the pool is the Mothership alone, and the extra boss of Endless wave 25 is that; wave 23 has none (' + CX.p0 + ' / ' + CX.m0 + ')');
-  ok(CX.p1.includes('jammer') && CX.m1.includes('jammer') && CX.m1.every(k => CX.p1.includes(k)) && CX.m1.length >= 2 && CX.n54 === '2' && CX.dup === 0, 'Boss codex: with the Jammer King and the Hive beaten, wave 54\'s two Endless bosses come from the pool (' + CX.p1 + ') and from nowhere else (' + CX.m1 + '), never the same twice in a wave');
+  ok(CX.p1.includes('jammer') && CX.m1.includes('jammer') && CX.m1.every(k => CX.p1.includes(k)) && CX.m1.length >= 2 && CX.n54 === '2' && CX.dup === 0 && CX.dupR === 0, 'Boss codex: with the Jammer King and the Hive beaten, wave 54\'s two Endless bosses come from the pool (' + CX.p1 + ') and from nowhere else (' + CX.m1 + '), never the same twice in a wave');
   ok(CX.p2.length > 0 && !CX.p2.includes('jammer') && !CX.m2.includes('jammer') && CX.m2.every(k => CX.p2.includes(k)), 'Boss codex: with the Jammer King switched off (Allowed) it never comes (' + CX.m2 + ' of ' + CX.p2 + ')');
   ok(CX.p3 === 0 && CX.m3 === 0 && CX.l3 > 0, 'Boss codex: with every boss switched off Endless wave 25 brings the codex\'s heavy raid, no boss (' + CX.l3 + ' tracks)');
   ok(CX.endless10 === 1 && CX.camp && CX.camp10 === 0, 'Boss codex: an Endless run keeps its every-10 boss through the Quick defence rotation (' + CX.endless10 + '), a campaign sector\'s set piece takes the Mothership out (' + CX.camp10 + ')');
@@ -2716,9 +2765,11 @@ if (want('buddy')) {
     S('spot', () => { const a = __bd.hold('heavy', 600, gh(600, 1700) + 150, 1700), c = __bd.hold('heavy', 700, gh(700, 1700) + 150, 1700); api.pickT = a; });
     S('harass', () => { const t = __bd.hold('boss', 500, gh(500, 1300) + 300, 1300); });
     S('herd', () => { __bd.hold('heavy', 1500, gh(1500, 400) + 200, 400, 60); });
+    S('hidden', () => { __bd.hold('hush', 500, gh(500, 1300) + 300, 1300); });  /* a boss the pilot cannot see: the buddy must not circle it, its blip and its marks would give it away */
     S('recharge', () => { __bd.hold('decoy', 200, gh(200, 1450) + 60, 1450); }, () => { b.chg = 4; });
     __bd.clear(); api.pickT = null; return out; });
   console.log('  buddy job choice (60 looks each):', Object.entries(jobs).map(([k, v]) => `${k} ${JSON.stringify(v)}`).join('  '));
+  ok(!jobs.hidden.harass && jobs.hidden.perch >= 50, `Buddy: it leaves a boss the pilot cannot see alone (the Hush: ${JSON.stringify(jobs.hidden)})`);
   ok(jobs.bump.bump >= 50 && jobs.spot.spot >= 45 && jobs.harass.harass >= 50 && jobs.herd.herd >= 45 && jobs.recharge.recharge >= 55, 'Buddy: it picks its own job from what is going on: bump for small drones, spot the selected track, harass a boss, herd a straggler, recharge when low');
   // bump: it rams hovering decoys, loses health, slows them (and restores them), and with no kills yet in the run it is not allowed one
   { const r = await p.evaluate(() => { const {api, G, Z} = __z, gh = api.gh, b = Z.bd.mine; __bd.clear(); const D = []; for (let i = 0; i < 8; i++) D.push(__bd.hold('decoy', -160 + i * 45, gh(0, 1450) + 50 + (i % 3) * 8, 1450)); __bd.up(); Z.bd.think(b, b.src()); const j0 = b.job;

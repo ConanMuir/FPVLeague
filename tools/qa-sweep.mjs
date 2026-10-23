@@ -1,7 +1,7 @@
 // QA sweep: plays every mode of both games headless with scripted inputs and checks what no single feature test looks at.
 //   node tools/qa-sweep.mjs [--fast] [--area=league|interceptor] [--part=N] [--sections=league-tour,zombies-cycles,...] [--shots DIR] [--list]
 //                           (--part: CI runs the League fast pass as two parts and the Zombies one as four, so each job fits its time limit on a slow runner)
-//                           [--cycle=text] [--settle=ms]   (cycle: run only the leak tests whose name has the text, 12 cycles; settle: wait after each cycle)
+//                           [--cycle=text] [--settle=ms] [--why]   (cycle: run only the leak tests whose name has the text, 12 cycles; settle: wait after each cycle; why: always list what came in)
 // Sections (--list): league-* and zombies-* (tour, resize, saves, flow / content, cycles, monkey, input, display, ...); each belongs to a CI area
 // (tools/ci-scope.mjs: league = Drone League, interceptor = Zombies), and is in the fast pass or only in the full run.
 // Probes (the same ones for both games, each against the games' own test hooks: window.__dl.dbg() in Drone League, window.__z in Zombies):
@@ -12,6 +12,8 @@
 //            clipped text; keyboard: Tab never leaves the open screen, Escape closes it and focus lands on something visible
 //   leaks    start / stop cycles: scene children, geometries, textures, live WebGL objects, event listeners, DOM nodes and the JS heap must not grow
 //            (a cycle's timers get a settle time first: the HUD feed keeps a removed message 4.5 s, and a detached node is not a leaked one)
+//            The Zombies ones count after one full warm cycle and judge the next three with no allowance on objects and geometries; a geometry built before the baseline
+//            and drawn for the first time after it is not growth (the renderer counts on first draw); when a count grows the report names what came in (--why: always)
 //   saves    older and broken settings / saves load, migrate and play (every key set to junk, delta-debugged to the keys that break it)
 //   hardware gamepads that report NaN / nothing, tiny windows, 2x and 3x pixel ratios, no network; and a seeded random player (the monkey)
 // --fast runs a short pass of the probes (CI: the last matrix entries, the League pass in two parts and the Zombies pass in four); without it the sections run longer, with more
@@ -539,20 +541,38 @@ section('league-modes', async browser => {
 }, {fast: false});
 
 /* ---------- leaks: repeated start / stop cycles must not grow the scene, the GL objects, the audio nodes, the listeners or the heap ---------- */
-/* what is judged, with the growth allowed between the second and the last cycle (noise only). Everything else is printed for a look:
+/* what is judged, with the growth allowed between the baseline and the last cycle (noise only; the Zombies probes take scene, objs and geoms to 0, see leakVerdict). Everything else is printed for a look:
    GL buffers / VAOs move with the geometry cache (24 loadouts, least recently used out), audio nodes are created per sound (the live ones are counted) */
 const WATCH = {listeners: 12, nodes: 40, heapMB: 12, glTexture: 1, glFramebuffer: 1, glRenderbuffer: 1, glProgram: 20, scene: 0, objs: 12, geoms: 8, geomsC: 260, texs: 1, actx: 0};
 const SETTLE = +(argv.find(a => a.startsWith('--settle='))?.slice(9) || 0);  /* --settle=ms: wait that long after each cycle before counting (timers and GC catch up) */
 const ONLYC = argv.find(a => a.startsWith('--cycle='))?.slice(8);  /* --cycle=text: run only the cycle tests whose name contains it, and 12 of them */
-/* run once() n+1 times; the first is the warm-up (shaders, textures and sounds are built on first use), the second the baseline */
-async function cycles(S, name, once, n, extra, settle = 0) {  /* settle: ms to wait after each run before counting, for timers that retire things later (the HUD feed keeps a removed message 4.5 s) */
+/* run once() n+1 times; the first is the warm-up (shaders, textures and sounds are built on first use), the second the baseline.
+   opts.warm: the Zombies way, where first-use builds keep landing late on a slow machine: the baseline is the count after that many full cycles, and the n cycles after it are judged
+   opts.ready: an in-page test waited on before each count (nothing still queued in the idle-time builder); opts.watch: in-page functions that name what grew (see zWatchOn) */
+async function cycles(S, name, once, n, extra, settle = 0, {warm = 0, ready = null, watch = null} = {}) {  /* settle: ms to wait after each run before counting, for timers that retire things later (the HUD feed keeps a removed message 4.5 s) */
   if (ONLYC && !name.includes(ONLYC)) return; if (ONLYC) n = 12;
-  const rows = [];
-  for (let i = 0; i <= n; i++) { await once(i); if (SETTLE || settle) await sleep(SETTLE || settle); rows.push(await counters(S, extra)); }
-  const a = rows[1], z = rows[n], grew = Object.keys(WATCH).filter(k => k in z && z[k] - (a[k] ?? 0) > WATCH[k]);
-  note(`${name}: after ${n} cycles  ` + Object.keys(z).map(k => `${k} ${rows.map(r => r[k] ?? 0).join('>')}`).join('  '));
-  ok(!grew.length, `${name}: nothing grows over ${n} cycles` + (grew.length ? ': ' + grew.map(k => `${k} ${a[k] ?? 0} -> ${z[k]}`).join(', ') : ''));
+  const rows = [], b = warm ? warm - 1 : 1, last = warm ? b + n : n;  /* b: the baseline row, last: the last one judged */
+  for (let i = 0; i <= last; i++) {
+    if (watch && i > b) await S.p.evaluate(watch.mark, i);
+    await once(i); if (SETTLE || settle) await sleep(SETTLE || settle);
+    if (ready && !await until(() => S.p.evaluate(ready), {timeout: 30000, every: 250})) note(`${name}: the idle queue was still busy when cycle ${i} was counted`);
+    rows.push(await counters(S, extra)); if (watch && i === b) await S.p.evaluate(watch.on);
+  }
+  const z = await leakVerdict(S, name, `${n} cycles`, rows, b, last, watch);
   ok(z.actx <= 1, `${name}: one AudioContext (${z.actx})`);
+}
+/* the verdict of one page's leak probe: rows[b] is the baseline, rows[last] the end. With a watch (zWatchOn), the geometries built before the baseline that were drawn for the first time
+   after it are taken off the geometry count (the renderer counts a geometry when it first draws it, which is not growth), and what came in is listed when a count grew (--why: always) */
+const WHY = argv.includes('--why');
+async function leakVerdict(S, name, what, rows, b, last, watch) {
+  const a = rows[b], z = rows[last], w = watch ? await S.p.evaluate(watch.stat).catch(() => null) : null, late = w?.late ?? 0;
+  const lim = watch ? {...WATCH, scene: 0, objs: 0, geoms: 0} : WATCH;  /* with a watch (the Zombies probes) the scene's objects and geometries get no allowance at all */
+  const diff = k => z[k] - (a[k] ?? 0) - (k === 'geoms' ? late : 0), grew = Object.keys(lim).filter(k => k in z && diff(k) > lim[k]);
+  const more = watch ? await S.p.evaluate(watch.off, WHY || ['scene', 'objs', 'geoms', 'texs'].some(k => diff(k) > 0)).catch(() => []) : [], came = more.map(l => '\n  ' + l).join('');
+  note(`${name}: after ${what}  ` + Object.keys(z).map(k => `${k} ${rows.map(r => r[k] ?? 0).join('>')}`).join('  ') + (w ? `  | geometries since the baseline: ${w.fresh} built, ${w.freed} freed, ${late} built earlier and drawn for the first time` : ''));
+  if (more.length && !grew.length) note(`${name}: came in since the baseline (not a leak):${came}`);
+  ok(!grew.length, `${name}: nothing grows over ${what}` + (grew.length ? ': ' + grew.map(k => `${k} ${a[k] ?? 0} -> ${z[k]}` + (k === 'geoms' && late ? ` (${late} of them built before the baseline, drawn for the first time since)` : '')).join(', ') + (more.length ? '\n  came in since the baseline:' + came : '') : ''));
+  return z;
 }
 /* the League's own counts: scene children and objects, geometries and textures the renderer holds */
 const leagueExtra = () => { const D = window.__dl.dbg(); let n = 0; D.scene.traverse(() => n++); const i = D.renderer.info; return {scene: D.scene.children.length, objs: n, geomsC: i.memory.geometries, texs: i.memory.textures}; };  /* geomsC: the quads' parts geometry is a 24-loadout LRU cache that bots fill with random loadouts, so this one swings by a few hundred without any leak */
@@ -811,6 +831,52 @@ section('zombies-spectator', async browser => {
 const zExtra = () => { const z = window.__z, i = z.api.renderer.info; let n = 0, t = 0, top = z.api.scene.children.length; z.api.scene.traverse(() => n++);
   for (const u of z.api.TH) if (u.mesh) { u.mesh.traverse(() => t++); if (u.mesh.parent === z.api.scene) top--; }
   return {scene: top, objs: n - t, geoms: i.memory.geometries, texs: i.memory.textures}; };
+/* What the Zombies probes use to find out where a count came from, and to tell a leak from a first draw.
+   zIdle: nothing still queued in the idle-time builder (engine/idle.js: first-use builds that run between frames and, for the heavy ones, only while the game is quiet).
+   A renderer counts a geometry the first time it draws it, not when it is built, so a shared geometry that sat in the scene since boot (a site's hall, a prop) moves "geoms" by a few
+   when the camera first sees it, whenever that happens to be: on a slow machine in the middle of a count, after any number of warm cycles. That is not a leak; a geometry built after
+   the baseline and never freed is. zWatchOn runs in the page at the baseline and keeps both tallies (a geometry's id says which side of the baseline it was built on): zWatchStat gives them
+   (late: built earlier and drawn for the first time since; fresh: built since; freed: dropped by dispose()), zWatchMark(i) tags what follows with the cycle number, and
+   zWatchOff(report) puts the page back and, when asked, lists what came in by type, name, parent, the cycle and, for a geometry built since, the game file and line that made it
+   (enemy meshes left out of the objects, like in zExtra) */
+const zIdle = () => { const s = window.__z.Z.warmSt; return !s || !s.idle || !s.idle.left; };
+const zWatchOn = () => {
+  const z = window.__z, T = z.api.THREE, info = z.api.renderer.info, sc = z.api.scene, W = window.__qaW = {live: new Map(), made: new WeakMap(), objs: new WeakSet(), base: [], undo: [], cyc: 0, late: 0, fresh: 0, freed: 0, id0: new T.BufferGeometry().id};
+  const patch = (P, k, f) => { const own = Object.prototype.hasOwnProperty.call(P, k), o = P[k]; P[k] = function (...a) { return f(o, this, a); }; W.undo.push(() => { if (own) P[k] = o; else delete P[k]; }); };
+  const nm = W.nm = o => o.type + (o.name ? ' "' + o.name + '"' : ''), path = W.path = o => { const r = []; for (let a = o; a && r.length < 4; a = a.parent) r.push(nm(a)); return r.join(' < '); };
+  W.od = o => nm(o) + (o.geometry ? ' [' + o.geometry.type + ']' : '') + ' < ' + (o.parent ? path(o.parent) : '-');
+  const where = st => (st || '').split('\n').slice(1).map(l => l.match(/([\w.-]+\.js):(\d+)/)).filter(m => m && !/three|qa-sweep/i.test(m[1])).slice(0, 2).map(m => m[1] + ':' + m[2]).join(' < ');
+  /* what the renderer takes in is noted when it does (a geometry nobody holds any more is gone by the time the counts are read), and forgotten when it is disposed */
+  for (const [kind, K] of [['geom', T.BufferGeometry], ['tex', T.Texture]]) if (K) patch(K.prototype, 'addEventListener', (o, g, a) => {
+    if (a[0] === 'dispose' && !W.live.has(kind + g.id)) { const key = kind + g.id, old = kind === 'geom' && g.id <= W.id0;
+      const pr = g.parameters ? ' ' + Object.values(g.parameters).filter(v => typeof v === 'number').map(v => +v.toFixed(2)).join('x') : '';
+      W.live.set(key, {kind, ref: new WeakRef(g), cyc: W.cyc, old, built: kind === 'geom' && !old ? where(W.made.get(g)) || '?' : '',
+        d: kind === 'geom' ? `${nm(g)}${pr} ${g.attributes?.position?.count ?? '?'} v` : `${g.constructor.name}${g.name ? ' "' + g.name + '"' : ''} ${g.image?.width ?? '?'}x${g.image?.height ?? '?'}`});
+      if (kind === 'geom') W[old ? 'late' : 'fresh']++; o.call(g, 'dispose', () => W.live.delete(key)); }
+    return o.apply(g, a); });
+  patch(T.BufferGeometry.prototype, 'dispose', (o, g, a) => { const n = info.memory.geometries, r = o.apply(g, a); W.freed += n - info.memory.geometries; return r; });
+  patch(T.BufferGeometry.prototype, 'setAttribute', (o, g, a) => { if (!W.made.has(g)) { const l = Error.stackTraceLimit; Error.stackTraceLimit = 18; W.made.set(g, new Error().stack); Error.stackTraceLimit = l; } return o.apply(g, a); });
+  const th = new Set(z.api.TH.map(t => t.mesh)), inTh = W.inTh = (o, set) => { for (let a = o; a; a = a.parent) if (set.has(a)) return true; return false; };
+  sc.traverse(o => { W.objs.add(o); if (o !== sc && !inTh(o, th)) W.base.push([new WeakRef(o), W.od(o)]); });
+};
+const zWatchStat = () => { const W = window.__qaW; return W ? {late: W.late, fresh: W.fresh, freed: W.freed} : {late: 0, fresh: 0, freed: 0}; };
+const zWatchMark = i => { if (window.__qaW) window.__qaW.cyc = i; };
+const zWatchOff = report => {
+  const W = window.__qaW; if (!W) return [];
+  const z = window.__z, sc = z.api.scene, out = new Map(), add = s => out.set(s, (out.get(s) || 0) + 1);
+  if (report) {
+    const {nm, path} = W, own = new Map(), now = new Set(); sc.traverse(o => { now.add(o); for (const r of [o.geometry, o.material?.map]) if (r) (own.get(r) || own.set(r, []).get(r)).push(o); });
+    for (const e of W.live.values()) { const r = e.ref.deref(), os = r && own.get(r) || [], o = os[0];
+      add(`[cycle ${e.cyc}] +${e.kind} ${e.d} | ` + (o ? path(o) + ` at ${[o.position.x, o.position.y, o.position.z].map(Math.round)}${o.visible ? '' : ' hidden'}${W.objs.has(o) ? ', in the scene at the baseline' : ', added since'}` + (os.length > 1 ? ` (+${os.length - 1} more)` : '') : r ? 'not in the scene' : 'not held by anything any more')
+        + (e.kind === 'geom' ? (e.old ? ' | built before the baseline, first drawn since' : ' | built at ' + e.built) : '')); }
+    const th = new Set(z.api.TH.map(t => t.mesh));
+    sc.traverse(o => { if (o !== sc && !W.objs.has(o) && !W.inTh(o, th)) add('+obj ' + W.od(o)); });
+    for (const [ref, d] of W.base) { const o = ref.deref(); if (!o || !now.has(o)) add('-obj ' + d); }
+  }
+  for (const f of W.undo) f(); delete window.__qaW;
+  return [...out].map(([s, n]) => (n > 1 ? n + 'x ' : '') + s).slice(0, 60);
+};
+const ZCYC = {warm: 1, ready: zIdle, watch: {on: zWatchOn, stat: zWatchStat, mark: zWatchMark, off: zWatchOff}};  /* the Zombies leak probes: one full warm cycle, then the count */
 /* one of every enemy kind flown in front of the camera and drawn, then removed: the kinds' geometry is built the first time one is seen, and which kinds a wave or the demo
    happens to bring is random, so the first appearances belong before the counting starts, not in the middle of it */
 async function zprime(S) {
@@ -822,15 +888,15 @@ async function zprime(S) {
 }
 section('zombies-cycles', async browser => {
   const S = await zsession(browser, {save: {zwx: 'menu'}}); const {p} = S; if (!ok(S.up, 'Zombies boots (cycles)')) { await p.close(); return; }  /* zwx menu: the menu's weather, not a new random forecast per game (each weather builds its own effects the first time it shows up) */
-  const N = FAST ? (LEAN ? 2 : 3) : 6, back = async () => { await key(p, 'Escape'); await click(p, '#leave'); await until(async () => (await zst(p)).demo, {timeout: 20000}); };
+  const N = FAST ? 3 : 6, back = async () => { await key(p, 'Escape'); await click(p, '#leave'); await until(async () => (await zst(p)).demo, {timeout: 20000}); };
   /* the idle-time warm-up (zwarm.js: bosses, effects, textures, programs; the living map's and the codex's builds) uploads geometry for a while after boot, and a slow
-     machine finishes it in the middle of the first cycles, which reads as growth: wait for it (Z.warmSt.done) before counting anything */
+     machine finishes it in the middle of the first cycles, which reads as growth: wait for it (Z.warmSt.done) before counting anything. N: the cycles judged after the one warm cycle (ZCYC) */
   const warmed = await until(async () => p.evaluate(() => !window.__z.Z.warmSt || window.__z.Z.warmSt.done), {timeout: 240000, every: 500}); ok(warmed, 'the idle warm-up finishes while the menu demo runs'); await zprime(S);
-  await cycles(S, 'Zombies quick defence start / quit', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.G.cash = 5000; z.Z.base.setTab('shop'); const i = z.G.cards.findIndex(c => c.k === 'rack'); document.querySelector(`#zbase [data-buy="${i}"]`)?.click(); document.querySelector('[data-slot]')?.click(); z.cont(); z.sim(8); }); await frames(p, 3); await back(); }, N, zExtra, 5500);
-  await cycles(S, 'Zombies game over / play again', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.cont(); z.sim(3); z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500);
-  await cycles(S, 'Zombies campaign sector', async () => { await p.evaluate(() => { window.__z.Z.cp.openMap(); window.__z.Z.cp.select('mill'); }); await click(p, '#zcpgo'); await p.waitForFunction(() => window.__z.G.state === 'base' && !!window.__z.Z.cp.run, {timeout: 30000}); await p.evaluate(() => { window.__z.cont(); window.__z.sim(5); window.__z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500);
-  await cycles(S, 'Zombies bot spectator', async () => { await p.evaluate(() => { document.getElementById('zspc').open = true; }); await click(p, '#zspgo'); await p.waitForFunction(() => window.__z.spec.on && window.__z.G.state === 'base', {timeout: 30000}); await p.evaluate(() => window.__z.spec.setSpeed(8)); await sleep(2500); await back(); }, N, zExtra, 5500);
-  await cycles(S, 'Zombies menu screens', async () => { await click(p, '#modbtn'); await click(p, '#mclose'); if (await has(p, '#zcpopen')) { await click(p, '#zcpopen'); await key(p, 'Escape'); } }, N, zExtra, 5500);
+  await cycles(S, 'Zombies quick defence start / quit', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.G.cash = 5000; z.Z.base.setTab('shop'); const i = z.G.cards.findIndex(c => c.k === 'rack'); document.querySelector(`#zbase [data-buy="${i}"]`)?.click(); document.querySelector('[data-slot]')?.click(); z.cont(); z.sim(8); }); await frames(p, 3); await back(); }, N, zExtra, 5500, ZCYC);
+  await cycles(S, 'Zombies game over / play again', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.cont(); z.sim(3); z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500, ZCYC);
+  await cycles(S, 'Zombies campaign sector', async () => { await p.evaluate(() => { window.__z.Z.cp.openMap(); window.__z.Z.cp.select('mill'); }); await click(p, '#zcpgo'); await p.waitForFunction(() => window.__z.G.state === 'base' && !!window.__z.Z.cp.run, {timeout: 30000}); await p.evaluate(() => { window.__z.cont(); window.__z.sim(5); window.__z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500, ZCYC);
+  await cycles(S, 'Zombies bot spectator', async () => { await p.evaluate(() => { document.getElementById('zspc').open = true; }); await click(p, '#zspgo'); await p.waitForFunction(() => window.__z.spec.on && window.__z.G.state === 'base', {timeout: 30000}); await p.evaluate(() => window.__z.spec.setSpeed(8)); await sleep(2500); await back(); }, N, zExtra, 5500, ZCYC);
+  await cycles(S, 'Zombies menu screens', async () => { await click(p, '#modbtn'); await click(p, '#mclose'); if (await has(p, '#zcpopen')) { await click(p, '#zcpopen'); await key(p, 'Escape'); } }, N, zExtra, 5500, ZCYC);
   drain(S, 'Zombies cycles'); await p.close();
 }, {fast: true});
 section('zombies-coop', async browser => {
@@ -840,7 +906,7 @@ section('zombies-coop', async browser => {
   const H = await mk('Hosty'), C = await mk('Cleo'); if (!ok(H.up && C.up, 'co-op: both pages boot')) { await H.p.close(); await C.p.close(); return; }
   const wait = (S, f, ms = 60000) => S.p.waitForFunction(f, {timeout: ms, polling: 50}).then(() => true, () => false), tap = (S, sel) => S.p.evaluate(sel => document.querySelector(sel)?.click(), sel);
   for (const S of [H, C]) { ok(await wait(S, () => !window.__z.Z.warmSt || window.__z.Z.warmSt.done, 240000), `co-op ${S.name}: the idle warm-up finishes before anything is counted`); await zprime(S); }
-  const N = +(argv.find(a => a.startsWith('--rounds='))?.slice(9) || 0) || (FAST ? 2 : 4);  /* --rounds=N: more join / leave rounds, to see whether a count settles or keeps growing */
+  const N = +(argv.find(a => a.startsWith('--rounds='))?.slice(9) || 0) || (FAST ? 3 : 4);  /* --rounds=N: the join / leave rounds judged after the warm one (round 0); more of them show whether a count settles or keeps growing */
   async function round(i) {
     await tap(H, '#zhost'); ok(await wait(H, () => window.__z.G.on && window.__z.G.state === 'base' && window.__z.net.n?.code), `co-op ${i}: the host starts a game`);
     const code = await H.p.evaluate(() => window.__z.net.n.code); await C.p.$eval('#zcode', (e, c) => { e.value = c; }, code); await tap(C, '#zjoin');
@@ -853,14 +919,20 @@ section('zombies-coop', async browser => {
     for (const S of [H, C]) drain(S, `co-op ${i} ${S.name}`);
   }
   const rows = {H: [], C: []};
-  for (let i = 0; i <= N; i++) { await round(i); await sleep(5500); for (const [k, S] of [['H', H], ['C', C]]) rows[k].push(await counters(S, zExtra)); }
-  for (const [k, S] of [['H', H], ['C', C]]) { const r = rows[k], a = r[1], z = r[N], grew = Object.keys(WATCH).filter(x => x in z && z[x] - (a[x] ?? 0) > WATCH[x]);
-    note(`co-op ${S.name}: ` + Object.keys(z).map(x => `${x} ${r.map(q => q[x] ?? 0).join('>')}`).join('  ')); ok(!grew.length, `co-op ${S.name}: nothing grows over ${N} join / leave rounds` + (grew.length ? ': ' + grew.map(x => `${x} ${a[x] ?? 0} -> ${z[x]}`).join(', ') : '')); }
+  for (let i = 0; i <= N; i++) { if (i) for (const S of [H, C]) await S.p.evaluate(zWatchMark, i);
+    await round(i); await sleep(5500);
+    for (const [k, S] of [['H', H], ['C', C]]) {
+      if (!await until(() => S.p.evaluate(zIdle), {timeout: 30000, every: 250})) note(`co-op ${S.name}: the idle queue was still busy when round ${i} was counted`);
+      rows[k].push(await counters(S, zExtra)); if (i === 0) await S.p.evaluate(zWatchOn);  /* round 0 is the warm one on both pages: the baseline is the count after it */
+    } }
+  for (const [k, S] of [['H', H], ['C', C]]) await leakVerdict(S, `co-op ${S.name}`, `${N} join / leave rounds`, rows[k], 0, N, ZCYC.watch);
   await H.p.close(); await C.p.close();
 }, {fast: true});
 section('zombies-saves', async browser => {
   /* broken saves: every key of the arcade game's save set to the same odd value at once (a failure is narrowed to the keys), garbage text, storage that throws */
-  const S0 = await zsession(browser); const keys = S0.up ? await S0.p.evaluate(() => Object.keys(window.__z.api.S)) : []; await S0.p.close();
+  const S0 = await zsession(browser); const boot = S0.up ? await S0.p.evaluate(() => Object.keys(window.__z.api.S)) : []; await S0.p.close();
+  /* the keys the game only creates when something is first written (the codex, the guide's flag, the briefing's fold, the radio and audio-assist switches, volumes, the spectator's setup, the boss and run records) are not in S at boot, so they join the list by name */
+  const LAZY = ['zcodex', 'zend', 'zbrief', 'zonb', 'zassist', 'zradio', 'zrspeech', 'zradiov', 'zspec', 'zcamp', 'zboss', 'zruns', 'zbests', 'zload', 'zmeta', 'zname', 'zsfxv', 'zmusv', 'zmus', 'zwx', 'zdiff', 'zarsBan'], keys = [...new Set([...boot, ...LAZY])];
   log(`zombies-saves: ${keys.length} save keys`);
   const tryBoot = async (raw, pre = null, shared = null) => { let S; try { S = await zsession(await B(), {raw, pre, shared});
       if (S.up) { await click(S.p, '#play'); await S.p.evaluate(() => { const z = window.__z; if (z.G.on && z.G.state === 'base') z.cont(); z.sim(5); }); await frames(S.p, 3); }
