@@ -7,8 +7,10 @@
    also covers tracks faster than you (head-on). A turning one is iterated; the turn is capped at half a circle. unc = how far off the
    point could be if the track changes what it is doing (grows with its unexplained acceleration and the time to go), for drawing. */
 const TURN_MIN=.3,EMA=.25;
-/* t.__ld: {pv: previous velocity, a: smoothed acceleration, n: ticks seen}. Call once per sim tick for a track you solve for. */
-export function track(t,dt,V3){const L=t.__ld||(t.__ld={pv:new V3().copy(t.v),a:new V3(),n:0});if(dt>0){const k=Math.min(1,dt/EMA);
+/* t.__ld: {pv: previous velocity, a: smoothed acceleration, n: ticks seen, k: the tick of the last call}. Call once per sim tick for a track you solve for; tick (a counter that
+   goes up by one a tick) lets it see a gap: the lock on a track was dropped and taken again, and the velocity left from then is no basis for an acceleration. */
+export function track(t,dt,V3,tick){let L=t.__ld;if(!L)L=t.__ld={pv:new V3().copy(t.v),a:new V3(),n:0,k:tick};else if(tick!=null&&L.k!=null&&tick-L.k>2){L.pv.copy(t.v);L.a.set(0,0,0);L.n=0}  /* a gap: start again from now, or the whole change since then lands in one tick as a huge turn */
+  L.k=tick;if(dt>0){const k=Math.min(1,dt/EMA);
   L.a.x+=((t.v.x-L.pv.x)/dt-L.a.x)*k;L.a.y+=((t.v.y-L.pv.y)/dt-L.a.y)*k;L.a.z+=((t.v.z-L.pv.z)/dt-L.a.z)*k;L.n++}L.pv.copy(t.v);return L}
 /* the track's position tau seconds on: p + v tau when straight, else rotated about the turn axis at rate w */
 function ahead(o,p,v,ax,w,tau){if(w<1e-6)return o.copy(p).addScaledVector(v,tau);const th=Math.min(Math.PI,w*tau),te=th/w;
