@@ -9,8 +9,8 @@ import {execFileSync} from 'node:child_process';
 const [area, base] = process.argv.slice(2), E = process.env;
 const SHARED = [/^package(-lock)?\.json$/, /^\.github\//, /^tools\/browser\.mjs$/];
 const AREAS = {
-  league: [/^src\//, /^app\.html$/, /^index\.html$/, /^vite\.config\.js$/, /^Drone League\//, /^games\/(drone|jared)-league\//, /^tools\/(smoke|postbuild|check-build|physics-check|pop-check|sound-check|sound-level|spin-check|training-check|glitch-check|bot-ladder|bot-ladder-lib|bot-ladder-check|tournament-check|qa-sweep)\.mjs$/],
-  interceptor: [/^engine\//, /^games\/interceptor\//, /^interceptor\//, /^tools\/(zlib|zombies-[\w-]+|flight-golden|glitch-check|intercept-check|arsenal-stats|zbot|qa-sweep)\.mjs$/, /^src\/flight\/core\.js$/, /^src\/parts\//, /^src\/config\/settings\.js$/, /^src\/input\/sticks\.js$/, /^src\/ui\/fpsmeter\.js$/, /^src\/render\/dynres\.js$/]};  // the games import the shared flight core, stick maths, FPS meter and dynamic resolution from src/
+  league: [/^src\//, /^app\.html$/, /^index\.html$/, /^vite\.config\.js$/, /^Drone League\//, /^games\/(drone|jared)-league\//, /^tools\/(smoke|postbuild|check-build|physics-check|pop-check|sound-check|sound-level|spin-check|training-check|glitch-check|bot-ladder|bot-ladder-lib|bot-ladder-check|tournament-check|qa-sweep)\.mjs$/, /^tools\/audio-levels\.mjs$/],
+  interceptor: [/^engine\//, /^games\/interceptor\//, /^interceptor\//, /^tools\/(zlib|zombies-[\w-]+|flight-golden|glitch-check|intercept-check|arsenal-stats|zbot|qa-sweep)\.mjs$/, /^src\/flight\/core\.js$/, /^src\/parts\//, /^src\/config\/settings\.js$/, /^src\/input\/sticks\.js$/, /^src\/ui\/fpsmeter\.js$/, /^src\/render\/dynres\.js$/, /^tools\/audio-levels\.mjs$/]};  // the games import the shared flight core, stick maths, FPS meter and dynamic resolution from src/; audio-levels measures both games
 if (!AREAS[area]) { console.error('area must be one of ' + Object.keys(AREAS).join(', ')); process.exit(2); }
 const out = (run, why) => { console.log(`run=${run}  (${area}: ${why})`); if (E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, `run=${run}\n`); process.exit(0); };
 
