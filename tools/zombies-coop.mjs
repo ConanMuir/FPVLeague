@@ -384,6 +384,9 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   /* the wave ended with that kill: the win still counts (the cleanup of the wave used to close the fight unrecorded) */
   ok(await until(H, () => (__z.api.S.zboss?.b?.hush?.won | 0) === 1 && !!__z.G.brw?.array && __z.Z.codex.c.b.hush?.beaten === true), 'Boss fight: the Hush was the last track down, and the win is recorded all the same (record, Acoustic Array, the host\'s codex)');
   ok(await ev(A, () => !__z.Z.codex.c.b.hush), 'Boss fight: a client\'s own codex is left alone (the host\'s save moves)');
+  /* the trophy is the team's: the pilot-local part of the Acoustic Array (radar +10 %) works on the clients too, and their base screens list it */
+  const rk = await ev(H, () => +__z.Z.radarK().toFixed(3));
+  for (const C of [A, B]) ok(await until(C, rk => !!__z.G.brw?.array && +__z.Z.radarK().toFixed(3) === rk && /Acoustic Array/.test(__z.Z.tacNote()), rk), `Boss fight: ${C.name} holds the Acoustic Array too (radar x${rk}, listed on the base screen)`);
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }
 

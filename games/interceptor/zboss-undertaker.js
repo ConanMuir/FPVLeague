@@ -79,7 +79,7 @@ registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',
  loop(S){const o=S.out(0),x=S.osc('triangle',55,S.t,0),y=S.osc('sine',82.5,S.t,0);x.connect(o);y.connect(o);return{g:o,stop(){x.stop();y.stop()}}},
  loopVol:(C,t)=>C.cl(1-t.p.distanceTo(C.api.camera.position)/2500,0,1)**2*.12+(t.bs.on?.02:0),
  reward:{id:'ledger',n:'Undertaker\'s Ledger',short:'every base screen, damaged sites get 4% back',txt:'At every base screen each damaged (not destroyed) site gets 4% of its hit points back for free.',
-  base(C){for(const s of C.api.SITES)if(s.hp>0&&s.hp<s.max)s.hp=Math.min(s.max,s.hp+Math.round(s.max*.04))}},
+  base(C){if(!C.auth())return;for(const s of C.api.SITES)if(s.hp>0&&s.hp<s.max)s.hp=Math.min(s.max,s.hp+Math.round(s.max*.04))}},
  g:{start(C){C.G.utq=null;C.G.utW=-99;C.G.uthp=null},stop(){if(TG)TG.visible=false},
   step(C,dt){const{G,api}=C;if(!C.auth()||!G.on)return;const prev=G.uthp||[];G.uthp=api.SITES.map(s=>s.hp);
    if(G.state==='wave'&&G.wave>=6-(C.Z.diff?.().shift|0)){api.SITES.forEach((s,i)=>{if(prev[i]>0&&s.hp<=0&&!G.utq)G.utq={s,t:8}})}

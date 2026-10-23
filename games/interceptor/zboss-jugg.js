@@ -83,4 +83,4 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
  loop(S){const o=S.out(0),x=S.osc('sawtooth',38,S.t,0),lp=S.filt('lowpass',180,2),am=S.osc('sine',2,S.t,0),ag=x.context.createGain(),vg=x.context.createGain();ag.gain.value=.5;vg.gain.value=.6;am.connect(ag).connect(vg.gain);x.connect(lp).connect(vg).connect(o);return{g:o,stop(){x.stop();am.stop()}}},
  loopVol:(C,t)=>C.cl(1-t.p.distanceTo(C.api.camera.position)/3500,0,1)**2*.12,
  reward:{id:'plating',n:'Salvaged Plating',short:'sites take 15% less damage',txt:'The Juggernaut\'s armour, bolted onto your sites: every hit on a site does 15% less damage for the rest of the run.',
-  impact(C,s,lost){if(lost>0)s.hp=Math.min(s.max,s.hp+Math.round(lost*.15))}}});
+  impact(C,s,lost){if(C.auth()&&lost>0)s.hp=Math.min(s.max,s.hp+Math.round(lost*.15))}}});

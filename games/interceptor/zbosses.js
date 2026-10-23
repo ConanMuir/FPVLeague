@@ -289,6 +289,10 @@ export function initBosses(api,G,Z){
 
  // ---------- co-op: the host's boss state rides on each boss track in the snapshot (znet.js) ----------
  Z.bossOut=t=>{if(!t.bs)return[];const D=BOSSES[t.k];return[t.bs.hp|0,t.bs.max|0,t.bs.ph|0,...(D.netOut?.(ctx,t)||[])]};
+ /* a co-op client holds the trophies the host won (znet.js sends the ids). The pilot-local ones work there as they do solo (radar, lock-on, the Crown's immunity, the Array's ears, Deathless,
+    the Shard); the ones that run the host's world (the Hive's counter-swarm, the Darts, the Ledger, the Plating...) guard themselves with auth() */
+ Z.brwIn=ids=>{if(auth()||!Array.isArray(ids))return;const B=G.brw||(G.brw={});
+  for(const id of ids){const R=typeof id==='string'?REWARDS[id]:null;if(!R||B[id])continue;B[id]=1;try{R.grant?.(ctx)}catch(e){console.warn('trophy',e)}feed(`<span class="cg">Boss trophy: <b>${R.n}</b></span> · ${R.txt}`)}};
  /* a co-op client: the host's win over a boss (znet.js event B: kind, bounty, trophy), shown and heard like the host's own */
  Z.bossWon=a=>{const D=BOSSES[a[0]];if(!D||D.minor||auth())return;const nm=String(a[2]||'').replace(/[<>&"'`]/g,'').slice(0,40);
   Z.an?.say(`${D.tag||D.n.toUpperCase()} DEFEATED`,`+${money(+a[1]||0)}${nm?' · '+nm:''}`,D.col||'#ff9a3c',3);Z.an?.radio('OVERLORD',D.winTxt||`${D.n} is down. Outstanding.`,2);Z.au?.bossDown()};
