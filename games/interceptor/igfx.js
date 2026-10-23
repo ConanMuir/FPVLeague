@@ -13,7 +13,7 @@ import {LOD,DETD,GFAR} from '../../engine/render.js';
 import {mountFps,setCap} from '../../src/ui/fpsmeter.js';
 import {SMAAPass} from 'three/addons/postprocessing/SMAAPass.js';
 import {warmStats} from '../../engine/warm.js';
-import {warmers} from '../../engine/idle.js';
+import {warmers,ownRandom} from '../../engine/idle.js';
 const HAZE=.6;
 export function initGfx({renderer,composer,bloom,resize,scene,camera,sun,clouds,S,feed,rain,active,steps}){
  const forest=scene.children.filter(m=>m.userData.forest&&m.userData.tile),houses=scene.children.filter(m=>m.userData.house);
@@ -35,7 +35,7 @@ export function initGfx({renderer,composer,bloom,resize,scene,camera,sun,clouds,
   for(const t of[composer.renderTarget1,composer.renderTarget2])if(t.samples!==ms){t.samples=ms;t.dispose()}
   if(m==='smaa'&&!smaa)mkSmaa();
   if(smaa)smaa.enabled=m==='smaa'}
- function mkSmaa(){const s=new THREE.Vector2();renderer.getDrawingBufferSize(s);smaa=new SMAAPass(s.x,s.y);smaa.enabled=false;const i=composer.passes.findIndex(p=>p.constructor.name==='OutputPass');composer.insertPass(smaa,i<0?composer.passes.length:i+1)}
+ function mkSmaa(){ownRandom(()=>{const s=new THREE.Vector2();renderer.getDrawingBufferSize(s);smaa=new SMAAPass(s.x,s.y);smaa.enabled=false;const i=composer.passes.findIndex(p=>p.constructor.name==='OutputPass');composer.insertPass(smaa,i<0?composer.passes.length:i+1)})}  /* on the idle tasks' own random stream (engine/idle.js): built by the warm-up or at first use, the game's Math.random sequence is the same (three.js draws uuids from it) */
  warmers.push(()=>{if(!smaa)mkSmaa()});  /* Zombies' warm-up (zwarm.js): the pass is made ahead, off, so Auto stepping down to Medium mid-wave doesn't build and compile it then */
  function apply(g,why){const k=g.k,p=g.pixelRatio();
   if(Math.abs(p-pr)>1e-3){pr=p;renderer.setPixelRatio(p);composer.setPixelRatio(p);resize()}
