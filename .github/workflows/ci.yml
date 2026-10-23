@@ -151,6 +151,10 @@ jobs:
           - check: zombies-test (sell)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=sell
+          # Tournament mode: every format's bracket in node, then in the game a bot match simulated, one played, one watched, the save resumed
+          - check: tournament-check
+            area: league
+            run: node tools/tournament-check.mjs
           # the living map: scars from bursts, crashes and destroyed houses; caps, save, campaign, co-op, pixel checks against the terrain, frame cost
           - check: zombies-test (scars)
             area: interceptor

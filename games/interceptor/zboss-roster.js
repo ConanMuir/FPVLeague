@@ -12,5 +12,6 @@ import './zboss-mirror.js';
 import './zboss-undertaker.js';
 import './zboss-siren.js';
 import './zboss-puppet.js';
+import './zboss-hush.js';
 // the bots (benchmark and Bot Spectator) handle the bosses through the shared brain's hooks
 if (!hooks.includes(bossBrain)) hooks.push(bossBrain);
