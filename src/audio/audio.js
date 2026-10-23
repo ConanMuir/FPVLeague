@@ -8,7 +8,7 @@ import {sfxInit,sfxTick} from './sfx.js';
 export let AC=null,BUS=null,LIM=null,mg,mf,nbuf,mw,pf,pg,wf,wg,ov=null,awp=null;export const mo=[],aw=new V3(),_au=new V3(),_ar=new V3(),_ad=new V3();
 // master limiter (LIM, after the master volume): sounds that stack up (a goal with a hard hit, a landing and full motors) are held
 // under 0 dBFS instead of clipping. Fast attack, high ratio, threshold -3 dB: normal play stays below it and passes untouched.
-// The browsers' compressor adds its own make-up gain (about +1.45 dB at these settings, measured by tools/sound-level.mjs); the gain after it takes that back.
+// The browsers' compressor adds its own make-up gain (about +1.45 dB at these settings, measured by tools/audio-levels.mjs); the gain after it takes that back.
 function limiter(){const c=AC.createDynamicsCompressor();c.threshold.value=-3;c.knee.value=2;c.ratio.value=20;c.attack.value=.002;c.release.value=.15;const g=AC.createGain();g.gain.value=.846;c.connect(g);return{c,g}}
 // 4 motors, each a tri-blade prop buzz (blade-pass sawtooth + harmonic) over the shaft tone; a slight per-motor offset gives the real beating
 export function audioInit(){if(AC)return;try{AC=new(window.AudioContext||window.webkitAudioContext)();const mst=AC.createGain();try{const l=limiter();LIM=l.c;mst.connect(l.c);l.g.connect(AC.destination)}catch(e){LIM=null;mst.connect(AC.destination)}BUS={mst};for(const k of['mot','wind','oth','fx','crowd']){BUS[k]=AC.createGain();BUS[k].connect(mst)}  // Audio tab volumes: master, then own motors, wind, other quads, effects, crowd
