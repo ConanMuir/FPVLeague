@@ -1649,9 +1649,11 @@ if (want('director')) {
   /* the bot's own intent: the brain's Z.bot.intent {kind, target, why} when it exposes one */
   const it = await p.evaluate(() => { const {api, G, Z, spec} = __z, dir = spec.dir; api.launch(); for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
     const me = api.player; me.p.set(0, api.gh(0, 2600) + 300, 2600); me.v.set(0, 0, -60); const a = __z.make('shahed', 0, 100), b = __z.make('shahed', 150, 100); for (const u of [a, b]) { u.p.set(u.p.x, me.p.y, -1200); u.v.set(0, 0, 50); u.aim = new api.THREE.Vector3(0, 0, 1950); }
-    dir.score(); const was = dir.slots[0].a === a; Z.bot = {intent: {kind: 'intercept', target: b, why: 'test'}}; dir.score(); const now = dir.slots[0].a === b; Z.bot = {intent: {kind: 'intercept', target: b.id, why: 'by id'}}; dir.score(); const byId = dir.slots[0].a === b; delete Z.bot;
-    return {was, now, byId}; });
-  ok(it.now && it.byId, `Director: it reads Z.bot.intent (a track or its id) and follows the bot's pick when the brain exposes it`);
+    const B0 = Z.bot, set = (kind, target) => { Z.bot = {intent: {kind, target, why: 'test', sub: '', t: 0, w: 0}}; dir.score(); }, sl = dir.slots;
+    set('intercept', null); const was = sl[0].a === a, quiet0 = sl[10].s; set('intercept', b); const now = sl[0].a === b; set('intercept', b.id); const byId = sl[0].a === b;
+    set('transit', {x: 0, y: 300, z: 0, label: 'the north ridge'}); const quiet = sl[10].s; set('sortie', {x: 120, y: 200, z: -3000, label: 'a launch site'}); const run = [sl[8].s, sl[8].x, sl[8].z]; set('bomb', {x: 120, y: 200, z: -3000, label: 'a launch site'}); const bomb = [sl[8].s, sl[8].mag, sl[8].at];
+    Z.bot = B0; return {was, now, byId, quiet0, quiet, run, bomb}; });
+  ok(it.now && it.byId && it.quiet < it.quiet0 && it.run[0] > .4 && it.run[1] === 120 && it.run[2] === -3000 && it.bomb[0] > .9 && it.bomb[2], `Director: it reads the brain's Z.bot.intent: a target that is a track or its id is followed; roaming ("transit") is quiet (${it.quiet} against ${it.quiet0}); a sortie target place is a moment and bombing is a climax (${it.bomb[0]})`);
   /* cost: the scorer allocates nothing, and a frame is a fraction of a millisecond (a crowd of 80 tracks in the air) */
   const cdp = await p.createCDPSession(); await cdp.send('HeapProfiler.enable');
   await p.evaluate(() => { const {api, G, spec} = __z, dir = spec.dir, at = (b, R) => [Math.sin(b) * R, 1950 - Math.cos(b) * R]; 

@@ -3,8 +3,8 @@
    Moments: a scorer runs ten times a second (every frame at fast-forward) and gives each kind of moment a score from how soon it happens and
    what is at stake: the bot's coming intercept (time to meet from lead.js) and its proximity burst, enemies closing on a site (the weaker the
    site the better), boss entrances and deaths, personal-swarm strikes, site hits and losses, near misses, big explosions, a sortie run on a
-   target, wave starts, the bot's own flight (what it is chasing: the target of Z.bot.intent {kind, target, why} when the brain exposes
-   it, a track or its id, else the pilot's own target) and a quiet establishing shot as the floor. Each beat the best moment wins; the one on air gets a bonus so nothing flickers.
+   target, wave starts, the bot's own flight (Z.bot.intent {kind, target: {x, y, z, label}, why} from the brain: roaming and shopping are
+   quiet, bombing is a climax; the track it is chasing comes from its pilot, or from a target that is a track or its id) and a quiet establishing shot as the floor. Each beat the best moment wins; the one on air gets a bonus so nothing flickers.
    Shots: chase, pursuit (behind the bot, looking at its target), fpv (the bot's nose camera with the goggle look), orbit, wide establishing,
    low trackside, reverse angle, a slow push-in on a boss, the defender's view of a site under attack and a blast shot for the payoff. Each
    moment has its own list of shots, tried in turn and checked before use: camera clear of terrain, trees and buildings (api.sdf), a clear
@@ -41,7 +41,7 @@ export function initDirector(api,G,Z,opts={}){
     a and b the bodies it is about, at: x, y, z hold a place it is about */
  const C=KN.map((n,i)=>({i,n,s:0,s0:0,mag:0,a:null,b:null,x:0,y:0,z:0,at:false,ev:false,t0:-1e9,until:-1e9,tau:0,shown:-1e9}));
  for(const i of[BOSSX,SWM,SITE,MISS,BLAST,WAVE,LAUNCH])C[i].ev=true;
- const IN={t:null},gN=new Int16Array(64),glead=new Array(64).fill(null),SHP=new Float64Array(8).fill(-1);
+ const IN={t:null,k:''},gN=new Int16Array(64),glead=new Array(64).fill(null),SHP=new Float64Array(8).fill(-1);
  const BM={x:new Float64Array(16),y:new Float64Array(16),z:new Float64Array(16),k:new Float64Array(16),t:new Float64Array(16),n:0};
  const LOG=Array.from({length:64},()=>({type:'',kind:'',why:'',t0:0,t1:0,locked:false,lockPow:0,lx:0,ly:0,lz:0,key:0,dist:0}));
  const stats={shots:0,cuts:0,eases:0,interrupts:0,forced:0,kinds:{},types:{},rej:{}};
@@ -146,9 +146,9 @@ export function initDirector(api,G,Z,opts={}){
  function close(why,to){const c=cur,l=LOG[logN++%64];l.type=c.type;l.kind=KN[c.kind];l.why=why;l.t0=c.t0;l.t1=T[0];l.locked=T[0]<T[3];l.lockPow=T[4];l.lx=c.L.x;l.ly=c.L.y;l.lz=c.L.z;l.key=c.A.id|0;l.dist=to?cam.position.distanceTo(to):0;c.on=false}
 
  /* ---------- what is going on: the scorer ---------- */
- function readIntent(){const bi=Z.bot&&Z.bot.intent;let t=null;
-  if(bi){t=bi.target;if(t!=null&&!t.p){const id=t;t=null;for(let i=0;i<TH.length;i++)if(TH[i].id===id){t=TH[i];break}}}
-  else{const P=opts.pilot&&opts.pilot();if(P){const s=P.st;t=s.line||s.tgt}}
+ function readIntent(){const bi=Z.bot&&Z.bot.intent;let t=null;IN.k=bi&&bi.kind||'';
+  if(bi&&bi.target){t=bi.target;if(typeof t==='number'){const id=t;t=null;for(let i=0;i<TH.length;i++)if(TH[i].id===id){t=TH[i];break}}}
+  if(!(t&&t.p)){const P=opts.pilot&&opts.pilot();t=P?P.st.line||P.st.tgt:null}
   IN.t=t&&t.p&&api.live(t)?t:null}
  function ev(sl,s,mag,until,x,y,z,a,b){sl.s0=sl.s=s;sl.mag=mag;sl.t0=T[0];sl.until=until;sl.x=x;sl.y=y;sl.z=z;sl.at=true;sl.a=a||null;sl.b=b||null}
  function score(){const me=api.player,ok=botOK(),wave=G.state==='wave'||G.state==='clear',spd=Math.max(1,opts.speed?opts.speed():1);
@@ -173,7 +173,7 @@ export function initDirector(api,G,Z,opts={}){
       s=(.18+.82*w)*(.5+.32*stake+.18*race)+(t===bi?.2:0);
      if(s>I.s){I.s=s;I.mag=tau<2||d<60?2.6:1.6;I.a=t;I.b=me;I.tau=tau;I.at=false}}}}
   /* the bot itself, and a quiet establishing shot as the floor */
-  if(ok){const hunt=bi&&me.p.distanceToSquared(bi.p)<2250000,s=C[BOT];s.s=.2+(hunt?.22:0)+(wave?.05:0);s.mag=1;s.a=me;s.b=hunt?bi:null;s.at=false;
+  if(ok){const hunt=bi&&me.p.distanceToSquared(bi.p)<2250000,s=C[BOT];s.s=hunt?.47:IN.k==='station'||IN.k==='transit'||IN.k==='return'||IN.k==='idle'||IN.k==='shop'?.16:.25;s.mag=1;s.a=me;s.b=hunt?bi:null;s.at=false;
    if(me.t<T[2]-.5||(me.t<1&&T[2]>=1))ev(C[LAUNCH],.34,1,T[0]+4.5,me.p.x,me.p.y,me.p.z,me);T[2]=me.t}
   {const s=C[AMB];s.s=wave?.14:.3;s.mag=.5;s.a=null;s.x=SCN.x;s.y=SCN.y;s.z=SCN.z;s.at=true}
   /* sites hit or lost */
@@ -183,9 +183,11 @@ export function initDirector(api,G,Z,opts={}){
     const q=C[SWM];if(q.a===sw&&q.until>T[0]&&q.until<q.t0+14)for(let i=0;i<sw.d.length;i++)if(sw.d[i].st==='strike'||sw.d[i].st==='gnd'){q.until=Math.max(q.until,T[0]+1.2);break}}}
   /* a pass that missed */
   if(ok&&bi){const d=bi.p.distanceTo(me.p),m=bi._dd===undefined?1e9:bi._dd;if(d<m)bi._dd=d;else if(m<55&&d>m+7&&!bi._dn){bi._dn=1;ev(C[MISS],.62,2,T[0]+3.2,bi.p.x,bi.p.y,bi.p.z,bi,me)}if(d>260){bi._dd=1e9;bi._dn=0}}
-  /* a sortie run on a known target */
-  {const so=Z.so;if(ok&&so&&so.S&&so.S.on&&so.W){let bd=1400,bt=null;for(let i=0;i<so.W.list.length;i++){const t=so.W.list[i];if(t.dead||t.t==='convoy')continue;const d=Math.hypot(t.x-me.p.x,t.z-me.p.z);if(d<bd){bd=d;bt=t}}
-    if(bt){const s=C[SORT];s.s=.45+.45*(1-ramp(bd,200,1400));s.mag=3;s.a=me;s.b=null;s.x=bt.x;s.y=bt.y||gh(bt.x,bt.z);s.z=bt.z;s.at=true}}}
+  /* a sortie run on a target: the brain's intent (bomb: it is bombing now; sortie: it is heading for one), else the known target the bot is near */
+  {const so=Z.so,ib=Z.bot&&Z.bot.intent,sr=C[SORT];
+   if(ok&&ib&&ib.target&&(IN.k==='bomb'||IN.k==='sortie')){const g=ib.target,bomb=IN.k==='bomb';sr.s=bomb?.95:.5;sr.mag=bomb?3.4:3;sr.a=me;sr.b=null;sr.x=g.x;sr.y=g.y;sr.z=g.z;sr.at=true}
+   if(ok&&so&&so.S&&so.S.on&&so.W){let bd=1400,bt=null;for(let i=0;i<so.W.list.length;i++){const t=so.W.list[i];if(t.dead||t.t==='convoy')continue;const d=Math.hypot(t.x-me.p.x,t.z-me.p.z);if(d<bd){bd=d;bt=t}}
+    if(bt){const v=.45+.45*(1-ramp(bd,200,1400));if(v>sr.s){sr.s=v;sr.mag=3;sr.a=me;sr.b=null;sr.x=bt.x;sr.y=bt.y||gh(bt.x,bt.z);sr.z=bt.z;sr.at=true}}}}
   {const k=G.kills.p+G.kills.h;if(k!==lastKills){bugTick(k);lastKills=k}}
   T[1]=T[0]}
 
