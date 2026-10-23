@@ -5,8 +5,7 @@
 .gmode.zdiff{display:flex;margin:-4px 0 10px}.gmode.zdiff[hidden]{display:none}.gmode.zdiff button{flex:1;padding:6px 10px;font-size:13px}
 .gmdesc{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.45;max-width:52ch}.gmdesc b{color:var(--ink)}
 
-/* in-wave HUD: replaces Classic's score strip and site row */
-#hud.z #score,#hud.z #sites{display:none}
+/* in-wave HUD */
 #zhud{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:5px;pointer-events:none}
 #zhud .zt{display:flex;align-items:stretch;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.5);font:700 18px var(--mono)}
 #zhud .zt>span{padding:5px 12px;background:var(--panel);white-space:nowrap;display:flex;align-items:center}
