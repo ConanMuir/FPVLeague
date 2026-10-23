@@ -1,7 +1,7 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
 //   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew   run only those sections (CI shards them across jobs); default all
-import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
+import {serve, launch, open, sleep, frames, drawFrames, until} from './zlib.mjs';
 import {front as campFront} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
@@ -920,13 +920,16 @@ if (want('bosses')) {
   ok(hs1.voice && hs1.voice.n === 1 && hs1.voice.model === 'HRTF' && hs1.voice.dist === 'inverse' && hs1.panErr < 60, `Hush: one spatial voice, an HRTF panner with distance rolloff, tracking the boss (within ${hs1.panErr} m)`);
   ok(hs1.mx.hum > .02 && hs1.mx.whoosh > .02 && hs1.mx.creak > .02 && hs1.mx.shear > 0 && hs1.mx.now <= hs1.caps.cap && hs1.voice.peak <= hs1.caps.cap && hs1.caps.sum <= hs1.caps.cap,
     `Hush: hum, whoosh, wind-shear and creak all played (peaks ${JSON.stringify(hs1.mx)}); the voices never add up past the gain cap ${hs1.caps.cap} (nominal ${hs1.caps.sum})`);
-  // the thermal camera (H): static for it, the picture fills with noise; ordinary drones are still there
-  await p.keyboard.press('KeyH'); await p.waitForFunction(() => __z.api.thermLook === true, {timeout: 60000}).catch(() => {});  /* the camera feed switches in the draw loop: wait on the state, not on a frame count (slow frames in CI) */
-  const hsT = await p.evaluate(() => { const {api, Z} = __z, t = __hsT, o = Z.make('shahed', api.PADP.x + 200, api.PADP.z - 700); o.p.y = api.gh(o.p.x, o.p.z) + 300; __z.sim(3); const r = {therm: api.thermLook, noise: Z.atmos.state().noise, hull: t.mesh.visible, seen: Z.seen(t), other: Z.seen(o), flare: t.mesh.userData.core.visible}; o.st = 'dead'; return r; });
-  await p.keyboard.press('KeyH'); await p.waitForFunction(() => __z.api.thermLook === false, {timeout: 60000}).catch(() => {});
+  // the thermal camera (H): static for it, the picture fills with noise; ordinary drones are still there. The boss is held in its circling (no passes can clip the pilot
+  // or kill the camera feed) and the pilot is alive in the FPV camera; every toggle waits on the state, polled (the feed switches in the draw loop, slow on CI)
+  await p.evaluate(() => { const {api} = __z, B = __hsT.bs; B.md = 0; B.tm = 1e9; B.rv = B.af = 0; B.age = 0; if (api.player.dead > 0) api.launch(); __z.sim(.2); });
+  const feed = async want => { for (let k = 0; k < 3; k++) { if (await p.evaluate(w => __z.api.thermLook === w, want)) return true; await p.keyboard.press('KeyH'); if (await until(() => p.evaluate(w => __z.api.thermLook === w, want), {timeout: 30000, every: 100})) return true; } return false; };
+  const hsOn = await feed(true);
+  const hsT = await p.evaluate(() => { const {api, Z} = __z, t = __hsT, o = Z.make('shahed', api.PADP.x + 200, api.PADP.z - 700); o.p.y = api.gh(o.p.x, o.p.z) + 300; __z.sim(3); const r = {therm: api.thermLook, noise: Z.atmos.state().noise, hull: t.mesh.visible, seen: Z.seen(t), other: Z.seen(o), flare: t.mesh.userData.core.visible, dead: api.player.dead, cam: api.camMode, cine: !!Z.cine}; o.st = 'dead'; return r; });
+  const hsOff = await feed(false);
   const hsT2 = await p.evaluate(() => { const {api, Z} = __z, t = __hsT; __z.sim(3); return {therm: api.thermLook, noise: Z.atmos.state().noise, hull: t.mesh.visible}; });
   console.log('  hush thermal:', JSON.stringify([hsT, hsT2]));
-  ok(hsT.therm && hsT.noise >= .1 && !hsT.hull && !hsT.flare && !hsT.seen && hsT.other && !hsT2.therm && hsT2.noise === 0 && hsT2.hull, `Hush: thermal goes to static for it (picture noise ${hsT.noise} on the thermal camera, none on the day camera; hull and flare gone from it) while ordinary drones still show`);
+  ok(hsOn && hsOff && hsT.therm && hsT.noise >= .1 && !hsT.hull && !hsT.flare && !hsT.seen && hsT.other && !hsT2.therm && hsT2.noise === 0 && hsT2.hull, `Hush: thermal goes to static for it (picture noise ${hsT.noise} on the thermal camera, none on the day camera; hull and flare gone from it) while ordinary drones still show`);
   const hs2 = await p.evaluate(async () => { const {api, Z, G} = __z, D = Z.bosses.BOSSES.hush, C = Z.bosses.ctx, t = __hsT, B = t.bs, cm = await import('./zhush-cue.js'), out = {};
     const rec = () => { let n = 0; return {get n() { return n; }, oc: new Proxy({}, {get: (o, k) => k in o ? o[k] : (...a) => { n++; }, set: (o, k, v) => { o[k] = v; return true; }})}; };
     const me = api.player; if (me.dead > 0) api.launch(); me.p.set(0, api.gh(0, 600) + 300, 600); me.v.set(0, 0, 0); api.camera.position.copy(me.p); api.camera.quaternion.identity(); api.camera.updateMatrixWorld();
@@ -961,6 +964,7 @@ if (want('bosses')) {
   ok(hs2.ear.open > .1 && hs2.ear.open > 3 * hs2.ear.idle && hs2.ear.creak > hs2.ear.idle && hs2.aim[0] > 60 && hs2.aim[1] < 75, `Hush: the bots hear what the speakers play: attention ${hs2.ear.open} on the flare, ${hs2.ear.creak} on the creak, ${hs2.ear.idle} idle; its aim finds it ${hs2.aim[0]}/300 open and ${hs2.aim[1]}/300 closed`);
   ok(hs2.hit[0] === 0 && hs2.hit[1] === 2 && hs2.hit[2] === 1 && hs2.hit[3] === 0 && hs2.txt && hs2.closedHp === 0 && hs2.openHp === -2 && hs2.shut && hs2.ph === 1, 'Hush: a burst outside the flare and the after-pass window finds nothing; inside, a direct hit does 2 and snaps the windows shut (and moves it to HUSH)');
   // the wave ends: darkness, radar, thermal, the voice, the listener all back exactly
+  await until(() => p.evaluate(() => { const f = __z.api.scene.fog, W = window.__hsW0; return !__z.api.thermLook && f.near === W.near && f.far === W.far && f.color.getHex() === W.col; }), {timeout: 30000, every: 100});  /* the day look is back and the fog is the weather's again (the draw loop did it), only then compare */
   const hs3 = await p.evaluate(async () => { const {api, Z, G} = __z, snd = await import('./zhush-snd.js'), A = Z.atmos, out = {}, W0 = window.__hsW0, V = snd.live()[0];
     const wx = () => { const f = api.scene.fog; return {near: f.near, far: f.far, col: f.color.getHex(), sun: api.sun.intensity, hemi: api.hemi.intensity}; }, same = (a, b) => ['near', 'far', 'col', 'sun', 'hemi'].filter(k => a[k] !== b[k]);
     out.therm = api.thermLook; out.during = {voices: snd.voices(), dark: A.state().dark, grade: A.state().pass}; const aud = await import('/engine/audio.js');
