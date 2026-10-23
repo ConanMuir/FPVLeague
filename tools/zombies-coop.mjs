@@ -1,7 +1,7 @@
 // Zombies co-op harness: one headless Edge, three pages of the game (a host and two clients) talking over the ?netloop transport
 // (engine/net.js: a BroadcastChannel stand-in for the room, with a one-way delay), driven through the real menu, base screen and the
 // window.__z hooks. Checks: lobby (host / join by code), ready-up and forced start, waves and tracks in sync, a client's kill counts,
-// shared purse and shop requests (helper, personal perk, team perk, repair, kill chain), personal swarms (formation and strike over the wire),
+// shared purse and shop requests (helper, personal perk, team perk, repair, kill chain), personal swarms (formation and strike over the wire), Little Buddies (each pilot with a garage gets one, flown by the host, drawn on every screen),
 // the arsenal (a client's weapon purchase, loadout and EMP resolved on the host, the host's laser beam and a client-parked carrier on every screen),
 // site hit points in sync, launch alerts and warning actions from clients (harden, decoy), late join, a client leaving,
 // the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS] [--throttle N]  (N: CPU throttling per page, e.g. 4, to play a slow CI runner)
@@ -185,11 +185,39 @@ const aKey = await ev(H, () => Object.keys(__z.net.n.names).find(k => __z.net.n.
 const ashKey = await ev(H, () => Object.keys(__z.net.n.names).find(k => __z.net.n.names[k] === 'Ash'));
 await ev(H, k => { const n = __z.net.n; (n.perks[k] ||= {}).swarm = 2; __z.G.perks.swarm = 1; }, ashKey);
 ok(await until(A, () => __z.G.perks.swarm === 2), 'Swarm: Ash has Personal swarm level 2 (6 drones), the host level 1 (4)');
+// ---------- Little Buddy (zbuddy.js): a pilot with a Drone League garage gets a buddy at every wave start; the host flies all of them, every screen draws them.
+// The three windows share one browser's localStorage, so the garages are handed to the pages directly (Z.bd.force): the host and Ash have one, Bea none ----------
+await ev(H, () => { __z.Z.bd.force = {has: true, ids: ['stock', 'stock', 'stock', 'none'], cos: null}; });
+await ev(A, () => { __z.Z.bd.force = {has: true, ids: ['squash', 'pod', 'lr', 'armor'], cos: ['gold', null, null, null, 'cyan', null]}; });
 // ---------- forced start: the host starts wave 2 with nobody else ready ----------
 await tap(H, '#zforce');
 ok(await until(H, () => __z.G.state === 'wave' && __z.G.wave === 2), 'Host: Start now begins wave 2 without the others ready');
 for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'wave' && __z.G.wave === 2), `${C.name}: wave 2 started`);
 ok(await until(A, () => __z.Z.def.D[0]?.mesh?.parent != null), 'Ash: the rack is deployed on the client too');
+
+// Little Buddy: the host's buddy and Ash's are up on the host; Ash and Bea draw both from the host's snapshot and Ash's loadout; Bea has none of her own
+{ const hostKey = await ev(A, () => __z.net.n.hostPeer);
+  const live2 = (P, ks) => until(P, ks => { const B = __z.Z.bd.BD, o = k => B.get(k) && B.get(k).state !== 'off'; return ks.every(o); }, ks);
+  ok(await live2(H, ['me', aKey]), 'Buddy: the host flies its own buddy and Ash\'s (his loadout came over presence)');
+  ok(await live2(A, ['me', hostKey]), 'Buddy: Ash draws his own buddy and the host\'s');
+  ok(await live2(B, [aKey, hostKey]), 'Buddy: Bea draws both buddies from the host\'s snapshot');
+  const bea = await ev(B, () => ({own: __z.Z.bd.mine.has, out: __z.Z.bd.mine.state, card: document.getElementById('zbd').hidden}));
+  ok(!bea.own && bea.out === 'off' && bea.card, 'Buddy: Bea has no garage, so no buddy of her own and no card');
+  ok(await until(B, k => { const b = __z.Z.bd.BD.get(k); return b && b.ids.join() === 'squash,pod,lr,armor' && b.model?.kind === 'parts' && b.tag?.userData.text === 'Ash\'s Little Buddy'; }, aKey), 'Buddy: on Bea\'s screen Ash\'s buddy is built from his parts (Squash-H, Pod, Long-Range, Armor) with the tag "Ash\'s Little Buddy"');
+  const st2 = await ev(H, k => { const b = __z.Z.bd.BD.get(k); return {tuf: b.st.tuf, end: b.st.end, agi: b.st.agi}; }, aKey), bs = await ev(B, k => { const b = __z.Z.bd.BD.get(k); return {tuf: b.st.tuf, end: b.st.end, agi: b.st.agi}; }, aKey);
+  ok(st2.tuf === bs.tuf && st2.end === bs.end && st2.agi === bs.agi && st2.end > 100, `Buddy: the host and Bea work Ash's buddy out the same from his parts (charge ${Math.round(st2.end)} s, hp ${Math.round(st2.tuf)}, agility ${Math.round(st2.agi)})`);
+  // small drones near the pad send them out; Ash's buddy flies on the host, Bea's copy follows it
+  await ev(H, () => { const {api} = __z; for (let i = 0; i < 6; i++) { const x = 100 + i * 40, z = 1500, t = __z.make('decoy', x, z); t.p.set(x, api.gh(x, z) + 60, z); t.alt = 60; t.v.set(0, 0, 0); t.spd = t.cs = .5; t.wps.length = 0; t.cpb = 1; } __z.sim(6); });
+  ok(await until(H, k => __z.Z.bd.BD.get(k).state === 'fly', aKey) && await until(B, k => __z.Z.bd.BD.get(k).state === 'fly', aKey), 'Buddy: Ash\'s buddy takes off on the host and Bea sees it fly');
+  { const best = async () => { let w = 1e9; for (let i = 0; i < 8; i++) { const h = await ev(H, k => __z.Z.bd.BD.get(k).p.toArray(), aKey), c = await ev(B, k => __z.Z.bd.BD.get(k).p.toArray(), aKey); w = Math.min(w, Math.hypot(h[0] - c[0], h[1] - c[1], h[2] - c[2])); if (w < 120) break; await sleep(120); } return w; };
+    const w = await best(); ok(w < 150, `Buddy sync: Ash's buddy is ${w.toFixed(0)} m apart between the host and Bea (snapshots 10 Hz, ${DELAY} ms delay, dead reckoning, a buddy at 60 m/s)`); }
+  ok(await until(A, () => { const c = document.getElementById('zbd'); return !c.hidden && /LITTLE BUDDY/.test(c.textContent) && /HP/.test(c.textContent); }), `Buddy: Ash's HUD card is up ("${(await ev(A, () => document.getElementById('zbd').textContent)).replace(/\s+/g, ' ').slice(0, 50)}")`);
+  // a crash on the host shows on every screen, and the card says so
+  await ev(H, k => { __z.Z.bd.BD.get(k).hp = 0; __z.sim(1); }, aKey);
+  ok(await until(A, () => __z.Z.bd.mine.state === 'down' && /down until the next wave/.test(document.getElementById('zbd').textContent)) && await until(B, k => __z.Z.bd.BD.get(k).state === 'down', aKey), 'Buddy: a crash on the host (health gone) shows on Ash\'s card and on Bea\'s screen; it stays down for the wave');
+  // out of the way of the swarm checks below
+  await ev(H, () => { const {api} = __z; for (const t of api.TH.filter(t => t.cpb)) { api.scene.remove(t.mesh); api.TH.splice(api.TH.indexOf(t), 1); } for (const b of __z.Z.bd.BD.values()) b.state = 'off'; __z.Z.bd.force = null; });
+  await ev(A, () => { __z.Z.bd.force = null; }); }
 { const hostKey = await ev(A, () => __z.net.n.hostPeer);
   ok(await until(H, k => __z.Z.sw.SWS.get(k)?.d.length === 6 && __z.Z.sw.drones.length === 4 && __z.G.spend?.swarm === 300, ashKey), 'Swarm: the host flies its 4 drones and Ash’s 6, upkeep $300 from the purse');
   ok(await until(A, k => __z.Z.sw.drones.length === 6 && __z.Z.sw.SWS.get(k)?.d.length === 4, hostKey), 'Swarm: Ash flies his 6 and sees the host’s 4');

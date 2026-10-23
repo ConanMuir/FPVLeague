@@ -29,6 +29,7 @@ import {initReentry} from './zreentry.js';
 import {initStratRadar} from './zstratradar.js';
 import {initBosses} from './zbosses.js';
 import './zboss-roster.js';
+import {initBuddy} from './zbuddy.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 
@@ -327,4 +328,5 @@ export function initZombies(api){
  initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
  initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
+ initBuddy(api,G,Z);  /* Little Buddy (zbuddy.js): your Drone League garage quad flies as a free helper; it only adds to the step / visuals / overlay / radar / start / stop / lock hooks */
  return Z}

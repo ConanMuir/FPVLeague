@@ -1,9 +1,12 @@
 // Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
 // game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal   run only those sections (CI shards them across jobs); default all
+//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,buddy   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
 import {front as campFront} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
+import fs from 'node:fs';
+import {statsOf, tipOf, readGarage, cleanIds, cleanCos, PARTS, LEAGUE, BASE, K as BK, STOCK_IDS, SLOT_KEYS} from '../games/interceptor/zbuddata.js';
+import {ARMS, CHASSIS, POWER, ATTACH} from '../src/parts/index.js';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
 const {server, origin} = await serve();
 const browser = await launch();
@@ -1245,6 +1248,160 @@ if (want('arsenal')) {
   ok(bot.w !== 'std', `Bots: the Legend weighs the weapons against the next wave and loads the ${bot.w} for a swarm-heavy wave (owns ${bot.own})`);
   if (SHOTS) { await p.evaluate(() => { __z.Z.base.setTab('armory'); }); await p.screenshot({path: SHOTS + '/ars-armory.png'}); }
   ok(!errs.length, 'Arsenal: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+}
+
+// ---------- Little Buddy (zbuddy.js, zbuddata.js, zbudmodel.js): your Drone League garage quad flies in Zombies as a free helper. The data first (parts -> stats,
+// reading the League's save), then the game: absent without a save, present from every wave start with one, its stats follow the parts, it picks its
+// jobs, recharges on the pad, stays down after a crash until the next wave, never pushes the kill share over its cap or finishes a boss, leaves nothing behind ----------
+if (want('buddy')) {
+  // -- the data (no browser): the League's own part lists against the table, the stats, reading the save --
+  const SRC = fs.readFileSync(new URL('../src/config/settings.js', import.meta.url), 'utf8'), vs = [...SRC.matchAll(/\{v:(\d+),run/g)].map(m => +m[1]);
+  ok(LEAGUE.key === 'droneleague' && LEAGUE.v === vs.at(-1) && SRC.includes("localStorage.getItem('droneleague')"), `Buddy data: reads the League's key (${LEAGUE.key}) at its settings version (${LEAGUE.v}, the League's last migration is ${vs.at(-1)})`);
+  const LISTS = {arms: ARMS, chassis: CHASSIS, power: POWER, attach: ATTACH}, missing = [], stale = [], misnamed = [];
+  for (const s of SLOT_KEYS) { for (const x of LISTS[s]) { const r = PARTS[s][x.id]; if (!r) missing.push(s + '/' + x.id); else if (r.n !== x.name) misnamed.push(`${s}/${x.id} "${r.n}" != "${x.name}"`); }
+    for (const id of Object.keys(PARTS[s])) if (!LISTS[s].some(x => x.id === id)) stale.push(s + '/' + id); }
+  ok(!stale.length && !misnamed.length, `Buddy data: every row of the part table is a League part with its League name${stale.length ? ' (stale: ' + stale + ')' : ''}${misnamed.length ? ' (names: ' + misnamed + ')' : ''}`);
+  if (missing.length) console.log('  note: League parts with no Little Buddy row yet (they count as stock): ' + missing.join(', '));
+  const S0 = statsOf(STOCK_IDS), st = (a, c, p, t = 'none') => statsOf([a, c, p, t]), same = (s, ks) => ks.every(k => s[k] === S0[k]);
+  ok(['spd', 'acc', 'end', 'tuf', 'agi'].every(k => S0[k] === BASE[k]), `Buddy stats: the stock quad is the base numbers (${Object.entries(BASE).map(([k, v]) => k + ' ' + v).join(', ')})`);
+  ok(st('stock', 'stock', 'hikv').spd > S0.spd && st('stock', 'stock', 'hikv').end < S0.end && st('stock', 'stock', 'punch').acc > S0.acc && st('stock', 'stock', 'eff').end > S0.end && st('stock', 'stock', 'lr').end > 1.5 * S0.end,
+    'Buddy stats: motors set speed and accel, the pack sets charge (High-KV faster, Race Punch quicker, Efficient and Long-Range last longer)');
+  ok(st('stock', 'brick', 'stock').tuf > S0.tuf && st('stock', 'slim', 'stock').tuf < S0.tuf && st('stock', 'stock', 'stock', 'armor').tuf > S0.tuf && st('truex', 'stock', 'stock').agi > S0.agi && st('deadcat', 'stock', 'stock').agi < S0.agi,
+    'Buddy stats: the frame and attachment set toughness (Brick, Armor up; Slim down), the props set agility (True-X up; Dead-Cat down)');
+  ok(ARMS.every(a => same(st(a.id, 'stock', 'stock'), ['spd', 'acc', 'end', 'tuf'])) && CHASSIS.every(c => same(st('stock', c.id, 'stock'), ['spd', 'acc', 'end', 'agi'])) && POWER.every(p => same(st('stock', 'stock', p.id), ['tuf', 'agi'])),
+    'Buddy stats: each part only moves its own numbers (arms: agility; chassis: toughness; power: speed, accel and charge)');
+  const ex = statsOf(['squash', 'brick', 'lr', 'armor']), ex2 = statsOf(['deadcat', 'slim', 'punch', 'ducts']);
+  ok(ex.tuf <= 1.7 * BASE.tuf && ex2.end >= .6 * BASE.end && [ex, ex2].every(s => ['spd', 'acc', 'end', 'tuf', 'agi'].every(k => s[k] >= .6 * BASE[k] && s[k] <= 1.7 * BASE[k])), 'Buddy stats: any build stays within x0.6 .. x1.7 of the base');
+  { const u = statsOf(['zz', 'zz', 'zz', 'zz']); ok(['spd', 'acc', 'end', 'tuf', 'agi'].every(k => u[k] === S0[k]), 'Buddy stats: a part the table does not know counts as stock'); }
+  { const t = tipOf(['truex', 'brick', 'hikv', 'ram'], statsOf(['truex', 'brick', 'hikv', 'ram']));
+    ok(/Motors \(High-KV\)/.test(t) && /Pack \(High-KV\)/.test(t) && /Frame \(Brick \+ Ram Bumper\)/.test(t) && /Props \(True-X Freestyle\)/.test(t), `Buddy tooltip: names the part behind each number (${t.split('\n').length} lines)`); }
+  const rg = o => readGarage(k => k === 'droneleague' ? (typeof o === 'string' ? o : JSON.stringify(o)) : null), none = readGarage(() => null), thrower = readGarage(() => { throw new Error('no storage'); });
+  ok(!none.has && none.ids.join() === STOCK_IDS.join() && !thrower.has && !rg('{oops').has && !rg('[1]').has && !rg({mode: 'acro', fov: 110}).has && !rg({loadout: 'x'}).has && !rg({loadout: ['Stock!', 'stock', 'stock']}).has && !rg({loadout: [1, 2, 3]}).has,
+    'Buddy garage: no save, no storage, a League key without a loadout, junk and bad ids all read as "no garage" with the stock quad');
+  { const a = rg({loadout: ['truex', 'brick', 'hikv'], physV: 5}), b = rg({loadout: ['truex', 'brick', 'hikv', 'ram'], physV: 5, cos: {paint: 'cobalt', bell: 'x y', led: 'cyan'}}), c = rg({loadout: ['stock', 'stock', 'stock', 'none'], physV: 99, cos: {paint: 'gold'}});
+    ok(a.has && a.ids.join() === 'truex,brick,hikv,none' && b.has && b.cos.join() === 'cobalt,,,,cyan,' && c.has && c.cos === null && cleanIds(['a', 'b']) === null && cleanCos('x') === null,
+      'Buddy garage: a pre-attachment save (3 ids) gets none, cosmetics are cleaned id by id, a save from a newer League keeps its parts but not its cosmetics'); }
+
+  // -- the game --
+  const ZB = {loadout: ['truex', 'brick', 'hikv', 'ram'], cos: {paint: 'cobalt', props: 'ice', bell: 'gold', led: 'cyan'}, physV: 5};
+  async function bpage(save) {
+    const errs = [], p = await open(browser, origin + '/games/interceptor/', errs);
+    await p.evaluate(s => { sessionStorage.setItem('zbossRoster', '0'); localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu'})); if (s) localStorage.setItem('droneleague', JSON.stringify(s)); else localStorage.removeItem('droneleague'); }, save);
+    await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 5);
+    await play(p);
+    // a scripted arena: the wave kept open by a spawn that never comes, tracks that hover, the pilot held where it is told (v = 0 on the ground at the pad)
+    await p.evaluate(() => { const {api, G, Z} = __z; window.__bd = {pin: null,
+      clear() { for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); this.pin = {p: new api.THREE.Vector3(0, api.gh(0, 1000) + 1, 1000), v: new api.THREE.Vector3()}; },
+      hold(k, x, y, z, spd = .5, site) { const t = __z.make(k, x, z, site); t.p.set(x, y, z); t.alt = y - api.gh(x, z); t.v.set(0, 0, 0); t.spd = t.cs = spd; t.wps.length = 0; return t; },
+      up(x = 0, z = 1250, h = 60) { const b = Z.bd.mine; b.state = 'fly'; b.p.set(x, api.gh(x, z) + h, z); b.v.set(0, 0, 0); b.hp = b.st.tuf; b.chg = b.st.end; b.tgt = b.skip = null; b.job = 'perch'; b.jt = 1e9; b.low = false; api.interp.cut(b); return b; },
+      sample(n = 60) { const b = Z.bd.mine, c = {}; for (let i = 0; i < n; i++) { b.job = 'perch'; b.tgt = null; b.state = 'fly'; Z.bd.think(b, b.src()); c[b.job] = (c[b.job] | 0) + 1; } b.job = 'perch'; b.tgt = null; return c; },
+      run(sec, f) { const out = []; for (let i = 0; i < sec; i++) { __z.sim(1); out.push(f ? f(i) : null); } return out; } };
+      const s0 = Z.step; Z.step = dt => { s0(dt); const me = api.player, P = __bd.pin; if (P && me && me.dead <= 0) { me.p.copy(P.p); me.v.copy(P.v); me.w.set(0, 0, 0); } }; });
+    return {p, errs};
+  }
+  const start = p => p.evaluate(() => { __z.cont(); __bd.clear(); __z.sim(.1); return __z.G.state; });
+
+  // no League save: no buddy
+  { const {p, errs} = await bpage(null);
+    const r = await p.evaluate(() => { const {G, Z} = __z, bd = Z.bd; const g0 = bd.garage(); __z.cont(); __bd.clear(); __z.sim(20); const o = {has: g0.has, st: bd.mine.state, fx: bd.fx(), card: document.getElementById('zbd').hidden, row: document.querySelectorAll('.zbdr').length, wave: G.wave};
+      localStorage.setItem('droneleague', JSON.stringify({mode: 'acro', fov: 110})); o.keyOnly = bd.read().has; return o; });
+    ok(!r.has && r.st === 'off' && r.fx.models === 0 && r.fx.vis === 0 && r.card && !r.row && !r.keyOnly, `Buddy, no garage: no buddy in wave ${r.wave} (state ${r.st}, ${r.fx.models} models, card hidden, no base row); a League key without a loadout is no garage either`);
+    ok(!errs.length, 'Buddy, no garage: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : '')); await p.close(); }
+
+  // with a garage
+  const {p, errs} = await bpage(ZB);
+  await p.waitForFunction(() => __z.Z.bd.mine.model, {timeout: 30000}).catch(() => {});
+  { const r = await p.evaluate(() => { const bd = __z.Z.bd, b = bd.mine; return {has: bd.garage().has, kind: b.model?.kind, tag: b.tag?.userData.text, st: b.st, ids: b.ids, tip: b.tip, row: document.querySelector('.zbdr')?.title || ''}; });
+    const want = statsOf(ZB.loadout);
+    ok(r.has && r.kind === 'parts' && r.tag === 'Little Buddy', `Buddy: a League save is read, the model is built from its parts by the League's own builder (${r.kind}), name tag "${r.tag}"`);
+    ok(['spd', 'acc', 'end', 'tuf', 'agi'].every(k => Math.abs(r.st[k] - want[k]) < 1e-9) && r.ids.join() === ZB.loadout.join(), `Buddy: its numbers follow the garage parts (speed ${Math.round(r.st.spd)} m/s, accel ${Math.round(r.st.acc)}, charge ${Math.round(r.st.end)} s, hp ${Math.round(r.st.tuf)}, agility ${Math.round(r.st.agi)})`);
+    ok(/Motors/.test(r.tip) && /Pack/.test(r.tip) && /Frame/.test(r.tip) && /Props/.test(r.tip) && /Motors/.test(r.row), 'Buddy: the tooltip (HUD card and the base screen\'s row) shows which part drives which number'); }
+  // wave start: on the pad, charged, with the HUD card
+  { const r = await p.evaluate(() => { const {G, Z} = __z, b = Z.bd.mine; __z.cont(); __bd.clear(); __z.sim(.1); const c = document.getElementById('zbd');
+      return {state: b.state, job: b.job, hp: b.hp / b.st.tuf, chg: b.chg / b.st.end, card: !c.hidden, text: c.textContent, title: c.title, fx: Z.bd.fx(), pos: b.p.toArray()}; });
+    ok(r.state === 'pad' && r.hp === 1 && r.chg === 1 && r.card && /LITTLE BUDDY/.test(r.text) && /Motors/.test(r.title), `Buddy: at the wave start it is on the radar pad, full charge and health; the HUD card is up ("${r.text.replace(/\s+/g, ' ').slice(0, 60)}")`);
+    ok(r.fx.models === 1 && r.fx.vis === 1, 'Buddy: its model is shown while the wave runs'); }
+  // no tracks and the pilot on the ground: it waits on the pad
+  { const r = await p.evaluate(() => { const b = __z.Z.bd.mine; const c0 = b.chg; __bd.run(15); return {state: b.state, chg: b.chg - c0, job: b.job, s: __bd.sample(40)}; });
+    ok(r.state === 'pad' && r.job === 'perch' && r.s.perch >= 38, `Buddy, nothing inbound: it perches on the pad and uses no charge (${JSON.stringify(r.s)})`); }
+  // job choice: what it picks in each situation (60 looks at the same scene; the weights are 5 perch, 6.4 harass, ~3.8-5 bump, 3.5 spot, 2.9 herd, 9 recharge)
+  const jobs = await p.evaluate(() => { const {api, Z} = __z, b = Z.bd.mine, gh = api.gh, out = {}, S = (name, build, post) => { __bd.clear(); build(); __bd.up(); if (post) post(); out[name] = __bd.sample(60); };
+    S('bump', () => { for (let i = 0; i < 6; i++) __bd.hold('decoy', 150 + i * 40, gh(0, 1450) + 60, 1450); });
+    S('spot', () => { const a = __bd.hold('heavy', 600, gh(600, 1700) + 150, 1700), c = __bd.hold('heavy', 700, gh(700, 1700) + 150, 1700); api.pickT = a; });
+    S('harass', () => { const t = __bd.hold('boss', 500, gh(500, 1300) + 300, 1300); });
+    S('herd', () => { __bd.hold('heavy', 1500, gh(1500, 400) + 200, 400, 60); });
+    S('recharge', () => { __bd.hold('decoy', 200, gh(200, 1450) + 60, 1450); }, () => { b.chg = 4; });
+    __bd.clear(); api.pickT = null; return out; });
+  console.log('  buddy job choice (60 looks each):', Object.entries(jobs).map(([k, v]) => `${k} ${JSON.stringify(v)}`).join('  '));
+  ok(jobs.bump.bump >= 50 && jobs.spot.spot >= 45 && jobs.harass.harass >= 50 && jobs.herd.herd >= 45 && jobs.recharge.recharge >= 55, 'Buddy: it picks its own job from what is going on: bump for small drones, spot the selected track, harass a boss, herd a straggler, recharge when low');
+  // bump: it rams hovering decoys, loses health, slows them (and restores them), and with no kills yet in the run it is not allowed one
+  { const r = await p.evaluate(() => { const {api, G, Z} = __z, gh = api.gh, b = Z.bd.mine; __bd.clear(); const D = []; for (let i = 0; i < 8; i++) D.push(__bd.hold('decoy', -160 + i * 45, gh(0, 1450) + 50 + (i % 3) * 8, 1450)); __bd.up(); Z.bd.think(b, b.src()); const j0 = b.job;
+      let slowed = 0, hit = 0; for (let i = 0; i < 40 && b.bumps < 3; i++) { __z.sim(1); if (D.some(t => t.bdSl > 0)) slowed++; if (b.bumps) hit++; }
+      const o = {j0, bumps: b.bumps, hp: b.hp / b.st.tuf, slowed, kills: b.kills, gk: {...G.kills}, slows: Z.bd.fx().slows, spd0: D.map(t => t.spd.toFixed(2))};
+      b.job = 'perch'; b.state = 'pad'; b.jt = 1e9; __bd.run(12); o.after = {slows: Z.bd.fx().slows, spd: D.map(t => +t.spd.toFixed(2))}; return o; });
+    ok(r.j0 === 'bump' && r.bumps >= 1 && r.hp < 1 && r.slowed > 0, `Buddy bump: it went for the decoys (${r.bumps} bumps, health ${(100 * r.hp).toFixed(0)}%), and a bumped drone is slowed`);
+    ok(r.kills === 0 && r.gk.h === 0 && r.gk.p === 0, 'Buddy bump: no kills yet in the run, so none for the buddy (a kill needs room under the share cap)');
+    ok(r.after.slows === 0 && r.after.spd.every(s => s === .5), `Buddy bump: slowed drones get their speed back (${r.after.spd.join(' ')})`); }
+  // the kill share: with the run's kills at 40, 7% leaves room for 2; the dice are loaded, so it kills whenever it may
+  { const r = await p.evaluate(() => { const {api, G, Z} = __z, gh = api.gh, b = Z.bd.mine; const m = Math.random; Math.random = () => .01;
+      try { __bd.clear(); G.kills.p = 40; G.kills.h = 0; const bk0 = Z.bd.kills; for (let i = 0; i < 40; i++) __bd.hold('swarm', -150 + i * 8, gh(0, 1450) + 40 + (i % 4) * 5, 1450 + (i % 3) * 10); __bd.up(); b.wk = 0; Z.bd.think(b, b.src()); for (let i = 0; i < 50; i++) { b.jt = 0; __z.sim(1); }
+        const o = {k40: Z.bd.kills - bk0, tot: G.kills.p + G.kills.h, wk: b.wk, left: api.TH.filter(api.live).length};
+        G.kills.p = 600; b.hp = b.st.tuf; for (let i = 0; i < 40; i++) __bd.hold('swarm', -150 + i * 8, gh(0, 1450) + 40 + (i % 4) * 5, 1450 + (i % 3) * 10); b.job = 'perch'; for (let i = 0; i < 60; i++) { b.jt = 0; __z.sim(1); } o.k600 = Z.bd.kills - bk0; o.tot2 = G.kills.p + G.kills.h; o.wk2 = b.wk; o.share = Z.bd.kills / o.tot2; return o; } finally { Math.random = m; } });
+    console.log('  buddy kill share:', JSON.stringify(r));
+    let room = 0, tot = 40; while (room + 1 <= BK.cap * (tot + 1) && room < BK.waveMax) { room++; tot++; }
+    ok(r.k40 === room && r.k40 / r.tot <= BK.cap, `Buddy kill share: with 40 kills in the run and ${Math.round(100 * BK.cap)}% it may take ${room}: it took ${r.k40} (${(100 * r.k40 / r.tot).toFixed(1)}% of ${r.tot})`);
+    ok(r.wk2 === BK.waveMax && r.k600 - r.k40 >= 1 && r.share <= BK.cap, `Buddy kill share: plenty of room in the run, but a wave caps it at ${BK.waveMax} (${r.wk2} this wave, ${r.k600} in the run, ${(100 * r.share).toFixed(1)}% of all kills)`); }
+  // spot: the track you have selected gets marked, and a marked track locks in less time
+  { const r = await p.evaluate(() => { const {api, Z} = __z, gh = api.gh, b = Z.bd.mine; __bd.clear(); const a = __bd.hold('heavy', 300, gh(300, 1500) + 120, 1500), c = __bd.hold('heavy', 380, gh(380, 1500) + 120, 1500); api.pickT = a; __bd.up(); b.chg = b.st.end;
+      let marked = 0, jam = 1, seen = ''; for (let i = 0; i < 30; i++) { b.jt = 0; __z.sim(1); if (b.job === 'spot') seen = 'spot'; if (a.bdSp > 0) { marked++; jam = Z.lockJam(a); } }
+      const o = {seen, marked, jam, other: Z.lockJam(c)}; api.pickT = null; __bd.clear(); b.job = 'perch'; b.tgt = null; b.jt = 1e9; __bd.run(4); o.after = {sp: a.bdSp | 0, spots: Z.bd.fx().spots}; return o; });
+    ok(r.seen === 'spot' && r.marked > 0 && r.jam < 1 && r.other === 1, `Buddy spot: it hangs by the selected track (marked in ${r.marked} of 30 s) and the lock-on time there is x${r.jam}; an unmarked track keeps x${r.other}`);
+    ok(r.after.sp === 0 && r.after.spots === 0, 'Buddy spot: the mark fades once it stops'); }
+  // harass: a boss is circled and marked for the helpers, never damaged: the Mothership on its last stage is still there afterwards
+  { const r = await p.evaluate(() => { const {api, G, Z} = __z, gh = api.gh, b = Z.bd.mine; __bd.clear(); const t = __bd.hold('boss', 400, gh(400, 1250) + 220, 1250, 1); t.stages = 1; __bd.up(); b.chg = b.st.end; b.hp = b.st.tuf;
+      const gk = {...G.kills}, bk0 = Z.bd.kills; let marked = 0, harass = 0, minD = 1e9; for (let i = 0; i < 40; i++) { b.jt = 0; __z.sim(1); if (b.job === 'harass') harass++; if (t.mark > 0) marked++; minD = Math.min(minD, b.p.distanceTo(t.p)); if (!api.live(t)) break; }
+      return {alive: api.live(t), stages: t.stages, harass, marked, minD: Math.round(minD), bk: Z.bd.kills - bk0, gk0: gk, gk: {...G.kills}, hp: b.hp / b.st.tuf}; });
+    ok(r.alive && r.stages === 1 && r.bk === 0 && r.gk.p === r.gk0.p && r.gk.h === r.gk0.h, `Buddy harass: the Mothership on its last stage is still flying after 40 s with the buddy at it (stages ${r.stages}, buddy kills ${r.bk})`);
+    ok(r.harass >= 25 && r.marked > 0 && r.minD < 120, `Buddy harass: it circled the boss (${r.harass} of 40 s on the job, closest ${r.minD} m) and marked it for the helpers (${r.marked} s)`); }
+  // herd: a lone heavy is slowed and nudged, then restored
+  { const r = await p.evaluate(() => { const {api, G, Z} = __z, gh = api.gh, b = Z.bd.mine; __bd.clear(); const t = __bd.hold('heavy', 1000, gh(1000, 700) + 150, 700, 25, api.SITES[1]); __bd.pin.p.set(-3000, gh(-3000, 2500) + 1, 2500); __bd.up();  /* the pilot far off: the track is not the one it is spotting */ b.chg = b.st.end; const v0 = t.spd; let slowed = 0, spd = v0, job = '';
+      for (let i = 0; i < 80 && api.live(t); i++) { b.jt = 0; __z.sim(1); if (b.job === 'herd') job = 'herd'; if (t.bdSl > 0) { slowed++; spd = Math.min(spd, t.spd); } if (slowed >= 3) break; }
+      b.job = 'perch'; b.tgt = null; b.state = 'pad'; b.jt = 1e9; __bd.run(10); return {job, slowed, v0, spd, after: t.spd, slows: Z.bd.fx().slows, bdSl: t.bdSl | 0}; });
+    ok(r.job === 'herd' && r.slowed > 0 && r.spd < r.v0 * .8, `Buddy herd: a lone heavy was pushed (${r.v0} -> ${r.spd.toFixed(1)} m/s while slowed)`);
+    ok(r.after > r.spd * 1.2 && r.slows === 0 && r.bdSl === 0, `Buddy herd: its speed comes back afterwards (${r.spd.toFixed(1)} -> ${r.after.toFixed(1)} m/s)`); }
+  // recharge: out on a far errand with a low charge it flies home, lands on the pad, charges, then goes back to work
+  { const r = await p.evaluate(() => { const {api, G, Z} = __z, gh = api.gh, b = Z.bd.mine; __bd.clear(); for (let i = 0; i < 8; i++) __bd.hold('decoy', 1500 + i * 30, gh(1500, 1500) + 60, 1500); __bd.up(1500, 1450, 60); b.chg = b.st.end * .6; b.low = false; Z.bd.think(b, b.src());
+      const o = {j0: b.job}; let t = 0; for (; t < 90 && b.state !== 'pad'; t++) __z.sim(1); o.landed = b.state === 'pad'; o.tLand = t; o.chgLand = b.chg / b.st.end; o.dist = Math.hypot(b.p.x - api.PADP.x, b.p.z - api.PADP.z);
+      o.maxc = 0; for (let i = 0; i < 30 && b.state === 'pad'; i++) { b.jt = 0; __z.sim(1); o.maxc = Math.max(o.maxc, b.chg / b.st.end); } o.again = b.state + '/' + b.job; return o; });
+    ok(r.j0 === 'recharge' && r.landed && r.dist < 30 && r.chgLand > 0, `Buddy recharge: low on charge it went home and landed on the pad in ${r.tLand} s (${(100 * r.chgLand).toFixed(0)}% left)`);
+    ok(r.maxc >= .85 && /^fly\//.test(r.again), `Buddy recharge: charged on the pad (${(100 * r.maxc).toFixed(0)}% when it took off), then back to work (${r.again})`); }
+  // a crash keeps it down until the next wave (a flat battery too), then it is back, charged and mended
+  { const r = await p.evaluate(() => { const {api, G, Z} = __z, b = Z.bd.mine; __bd.clear(); __bd.hold('decoy', 200, api.gh(200, 1450) + 60, 1450); __bd.up(); b.hp = 0; __z.sim(1); const o = {st1: b.state, job: b.job}; __bd.run(20); o.st2 = b.state; o.vis = Z.bd.fx().vis; o.card = document.getElementById('zbd').textContent;
+      b.state = 'fly'; b.hp = b.st.tuf; b.chg = .05; b.v.set(0, 0, 0); b.p.set(0, api.gh(0, 1250) + 80, 1250); b.jt = 1e9; b.job = 'escort'; b.tgt = null; __z.sim(1); o.flat = b.state; return o; });
+    ok(r.st1 === 'down' && r.job === 'down' && r.st2 === 'down' && r.vis === 0 && /down until the next wave/.test(r.card), `Buddy crash: health gone, it falls and stays down for the rest of the wave (card: "${r.card.replace(/\s+/g, ' ').slice(-30)}")`);
+    ok(r.flat === 'down', 'Buddy crash: a flat battery in the air brings it down too');
+    const w = await p.evaluate(() => { const {api, G, Z} = __z, b = Z.bd.mine, w0 = G.wave; __bd.clear(); G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; let n = 0; while (G.state !== 'base' && n++ < 60) __z.sim(1);
+      const o = {base: G.state, off: b.state, fx: Z.bd.fx(), scene: api.scene.children.length, mem: [api.renderer.info.memory.geometries, api.renderer.info.memory.textures]}; __z.cont(); __z.sim(.2); o.next = {wave: G.wave - w0, st: b.state, hp: b.hp / b.st.tuf, chg: b.chg / b.st.end, job: b.job}; return o; });
+    ok(w.base === 'base' && w.off === 'off' && w.next.wave === 1 && w.next.st === 'pad' && w.next.hp === 1 && w.next.chg === 1, `Buddy respawn: the wave ends, the next wave starts and it is back on the pad at full health and charge (${JSON.stringify(w.next)})`);
+    // nothing left behind at the wave end: no visible model or tag, no marks, no slowed tracks, no new objects in the scene or on the GPU wave after wave
+    const seen = [];
+    for (let k = 0; k < 3; k++) {
+      const q = await p.evaluate(() => { const {api, G, Z} = __z, gh = api.gh, b = Z.bd.mine; __bd.clear(); const h = __bd.hold('heavy', 300, gh(300, 1500) + 100, 1500), d = []; for (let i = 0; i < 4; i++) d.push(__bd.hold('decoy', 100 + i * 30, gh(100, 1450) + 50, 1450)); api.pickT = h; __bd.up();
+        for (let i = 0; i < 30; i++) { b.jt = 0; __z.sim(1); } const mid = Z.bd.fx(); api.pickT = null; G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; let n = 0; while (G.state !== 'base' && n++ < 60) __z.sim(1);
+        const o = {mid, end: Z.bd.fx(), scene: api.scene.children.length, mem: [api.renderer.info.memory.geometries, api.renderer.info.memory.textures], bumps: b.bumps}; __z.cont(); __z.sim(.2); return o; });
+      seen.push(q); }
+    const e = seen.map(q => q.end), same2 = seen[1].scene === seen[2].scene && seen[1].mem[1] === seen[2].mem[1] && Math.abs(seen[1].mem[0] - seen[2].mem[0]) <= 2;  /* the game itself may upload a geometry now and then; a buddy leak would add objects every wave */
+    ok(e.every(x => x.vis === 0 && x.tags === 0 && x.spots === 0 && x.slows === 0 && x.marked === 0) && seen.every(q => q.mid.marked > 0 || q.mid.vis >= 1), `Buddy wave end: no visible model or tag, no marked or slowed track left behind (mid-wave it had ${seen.map(q => q.mid.marked).join('/')} marked)`);
+    ok(same2, `Buddy wave end: no new objects in the scene (${seen.map(q => q.scene).join('/')}) or on the GPU (geometries/textures ${seen.map(q => q.mem.join('/')).join(' | ')}) from wave to wave`); }
+  // the base screen: a row with the same tooltip on the Shop tab
+  { await p.evaluate(() => { const {G, Z} = __z; __bd.clear(); G.wq.length = 0; for (const t of __z.api.TH) __z.api.scene.remove(t.mesh); __z.api.TH.length = 0; let n = 0; while (G.state !== 'base' && n++ < 60) __z.sim(1); Z.base.setTab?.('shop'); Z.base.refresh?.(); });
+    const r = await p.evaluate(() => ({row: !!document.querySelector('#zbase .zbdr'), title: document.querySelector('#zbase .zbdr')?.title || '', card: document.getElementById('zbd').hidden, text: document.querySelector('#zbase .zbdr')?.textContent || ''}));
+    ok(r.row && /Pack/.test(r.title) && r.card, `Buddy base row: "${r.text.slice(0, 90)}" with the tooltip; the HUD card is hidden on the base screen`); }
+  // Stop / restart: the buddy is gone with the run
+  { const r = await p.evaluate(() => { const {G, Z} = __z; Z.stop(); const o = {fx: Z.bd.fx(), card: document.getElementById('zbd').hidden, st: Z.bd.mine.state}; return o; });
+    ok(r.st === 'off' && r.fx.vis === 0 && r.fx.tags === 0 && r.card, 'Buddy: leaving Zombies takes it down (no model, no tag, no card)'); }
+  ok(!errs.length, 'Buddy: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
 
