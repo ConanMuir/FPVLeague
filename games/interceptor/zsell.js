@@ -71,14 +71,15 @@ export function initSell(api,G,Z){
    G.sold.push({id:a[0]|0,k:a[1],name:safe(a[2]),r:Math.max(0,a[3]|0),a:a[4]|0,b:ITEMS[a[5]]?a[5]:'',at:Math.max(0,a[6]|0)})}
   if(o.x&&typeof o.x==='object')for(const[j,a]of Object.entries(o.x)){if(def.SLOTS[+j]&&Array.isArray(a)&&Number.isFinite(+a[0]))G.xp[+j]={c:Math.max(0,+a[0]),f:a[1]?1:0}}}
 
- // ---------- the ledger lives for one base screen: it starts empty at base.open and goes when the wave starts ----------
- const bo=Z.base.open;Z.base.open=()=>{G.sold=[];
+ // ---------- the ledger lives for one break: it starts empty at the first base.open of a wave and goes when the wave starts ----------
+ /* a sortie closes the base screen and opens it again, still the same break: what was bought and sold before it keeps its full refund and its Undo (G.sbk = the wave the break is for) */
+ const bo=Z.base.open;Z.base.open=()=>{if(G.sbk!==G.wave){G.sbk=G.wave;G.sold=[];
   for(const d of def.D)d.s0=d.spent||ITEMS[d.type].price;
-  for(const b of G.kc?.boost||[])if(b)b.s0=b.spent;for(const P of Object.values(G.kc?.pd||{}))P.s0=P.spent;
+  for(const b of G.kc?.boost||[])if(b)b.s0=b.spent;for(const P of Object.values(G.kc?.pd||{}))P.s0=P.spent}
   bo()};
- const bc=Z.base.close;Z.base.close=()=>{G.sold=[];bc()};
+ const bc=Z.base.close;Z.base.close=()=>{if(!Z.so?.S.on){G.sold=[];G.sbk=-1}bc()};
  /* what the positions cost (G.xp) lasts the run; a new run starts with none */
- const s0=Z.start;Z.start=()=>{G.xp={};s0()};
- const s1=Z.stop;Z.stop=()=>{s1();reset()};
+ const s0=Z.start;Z.start=()=>{G.xp={};G.sbk=-1;s0()};
+ const s1=Z.stop;Z.stop=()=>{s1();reset();G.sbk=-1};
  Z.sell={part,val,why,dval,dwhy,dpart,sellDef,xval,xwhy,xcan,owned,closeX,logChain,can,undo,undoBtn,list,glyph,say,netOut,netIn,pct};
  return Z.sell}
