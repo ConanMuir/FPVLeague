@@ -7,7 +7,7 @@ The repo holds two codebases that grew up side by side:
   (Zombies; its original Classic mode was removed). `games/league` was Riley's League and Dogfight; it was retired on 2026-10-19 (section 0).
 
 `engine/flight.js` began as a port of an older League flight model. The rule was "when League's flight model changes, port the
-changed lines" (`interceptor/interceptor-notes.md`), so every fix had to be made twice. The plan the user approved is one shared
+changed lines" (in the old single-file Interceptor's notes), so every fix had to be made twice. The plan the user approved is one shared
 engine and many games. This document records the audit, the first steps already taken (a shared flight core and shared stick
 code), how they were proven not to change any game's feel, and the steps that remain.
 
@@ -67,8 +67,7 @@ Dogfight, `games/league`, was deleted; it is in git history (the last commit wit
 Three is a bare import (`'three'`) everywhere. Vite resolves it from `node_modules` for `src/`. The games' import map resolves it
 to jsDelivr `three@0.160.0`, the same version. So a shared module can `import * as THREE from 'three'` and be loaded by both:
 Riley's files import it as `../../src/flight/core.js`. `serve.ps1`, GitHub Pages and the test servers (`tools/zlib.mjs`) all
-serve the whole repo, so `src/` is there for the games. The old single-file Interceptor in `interceptor/standalone` is not on
-the core; it is a frozen copy.
+serve the whole repo, so `src/` is there for the games.
 
 ## 2. Audit
 
@@ -287,5 +286,3 @@ for bit): node flight, node input, and the dart in the browser.
   `node tools/flight-golden.mjs`. They fail on any change, which is the point. Re-record them when the change is meant.
 - `setGroundFeel` in `engine/flight.js` has no callers. The Interceptor's `ground()` is a separate copy with the older bump
   values.
-- `interceptor/interceptor-notes.md` (the frozen single-file build) still says to port flight changes by hand. That applies only to
-  that frozen copy.
