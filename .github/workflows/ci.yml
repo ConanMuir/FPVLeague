@@ -142,6 +142,14 @@ jobs:
           - check: zombies-test (scars)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=scars
+          # the threat briefing: the base screen's card against the wave that then spawns (types, numbers, directions, timing), the intel levels, the boss warning, the toggle, the radio line
+          - check: zombies-test (briefing)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=briefing
+          # Endless: opens only after the capstone, climbs past the caps, milestones, scars across waves and a reload, the Endless table, leaks
+          - check: zombies-test (endless)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=endless
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

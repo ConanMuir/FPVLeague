@@ -11,7 +11,11 @@
 //   --real: the bots fly for real (games/interceptor/zbotfly.js, the Bot Spectator's pilot, headless at sim speed) instead of teleporting behind
 //           their tracks; never writes zbench.json. Each run also logs the pilot's detonations, pilot kills and interceptors lost.
 //           e.g. DL_NORENDER=1 node tools/zombies-bench.mjs --real --diff 1 --runs 3 --par 6
+//   --endless [sector]: off by default. The bots play Endless (games/interceptor/zendless.js) on a held sector (default gate, the Launch Complex) of a finished
+//           campaign instead of the Quick defence, to tune the climb past wave 20 (counts, speed, armour, bosses); use a higher --cap (say 100). Never writes zbench.json.
+//           e.g. DL_NORENDER=1 node tools/zombies-bench.mjs --endless --levels Pro --diff 1 --runs 3 --cap 100 --par 6
 import {serve, launch, open, root} from './zlib.mjs';
+import {SECTORS, fresh} from '../games/interceptor/zcampaign.js';
 import {LEVELS, DODGE, SHOP, WAVE, level} from './zbot.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,7 +25,10 @@ const LV = arg('--levels', null) ? arg('--levels').split(',').map(n => level(n) 
 const DIFFS = String(arg('--diff', '0,1,2,3')).split(',').map(Number), RUNS = +arg('--runs', 5), CAP = +arg('--cap', 60), PAR = +arg('--par', 12);
 const LOAD = arg('--load', null), META = arg('--meta', ''), RAW = arg('--raw', null), DIAG = argv.includes('--diag');
 const MERGE = arg('--merge', null), REAL = argv.includes('--real');  /* --merge RAW: earlier runs (a --raw file) of the levels not being run now, to re-run one level and keep the rest */
-const WRITE = !argv.includes('--no-write') && !REAL && !LOAD && !META && (LV === LEVELS || MERGE) && DIFFS.length === 4, OUT = arg('--out', path.join(root, 'games/interceptor/zbench.json'));
+const ENDLESS = argv.includes('--endless') ? (v => v && !v.startsWith('--') ? v : 'gate')(arg('--endless', '')) : null;  /* the sector the bots hold Endless on, or null */
+if (ENDLESS && (REAL || !SECTORS.some(s => s.id === ENDLESS))) throw new Error('--endless takes a sector id (' + SECTORS.map(s => s.id).join(', ') + ') and does not combine with --real');
+const campDone = zd => { const c = fresh(zd); c.held = SECTORS.map(s => s.id); c.done = 1; return c; };  /* a finished campaign: Endless is open on every sector */
+const WRITE = !argv.includes('--no-write') && !REAL && !LOAD && !META && !ENDLESS && (LV === LEVELS || MERGE) && DIFFS.length === 4, OUT = arg('--out', path.join(root, 'games/interceptor/zbench.json'));
 const DN = ['Easy', 'Normal', 'Hard', 'Nightmare'], GOALS = ['w10', 'helpers', 'streak', 'boss', 'clutch', 'norep', 'lean', 'perfect3', 'hard20', 'night15'];
 const {server, origin} = await serve();
 const browser = await launch({w: 640, h: 360});
@@ -30,14 +37,15 @@ async function run(L, zd, idx) {
   // each run in its own browser context: the pages share one origin, and a shared localStorage would let parallel runs read each other's difficulty
   const ctx = await browser.createBrowserContext(), errs = [], p = await open(browser, origin + '/games/interceptor/', errs, {w: 640, h: 360, page: await ctx.newPage()});
   try {
-    await p.evaluate((zd, load, meta, goals) => { const s = {gmode: 'z', zdiff: zd, wx: 'clear', zwx: 'menu', zmus: 0};
-      if (load) s.zload = JSON.parse(load); if (meta === 'full') s.zmeta = {v: 1, g: Object.fromEntries(goals.map(g => [g, 15]))};
-      localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, zd, LOAD, META, GOALS);
+    await p.evaluate((zd, load, meta, goals, camp) => { const s = {gmode: 'z', zdiff: zd, wx: 'clear', zwx: 'menu', zmus: 0};
+      if (load) s.zload = JSON.parse(load); if (meta === 'full') s.zmeta = {v: 1, g: Object.fromEntries(goals.map(g => [g, 15]))}; if (camp) s.zcamp = camp;
+      localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, zd, LOAD, META, GOALS, ENDLESS ? campDone(zd) : null);
     await p.reload({waitUntil: 'load', timeout: 180000}); await p.waitForFunction(() => window.__z, {timeout: 180000});
     if (LOAD) { const lo = await p.evaluate(() => JSON.stringify(__z.Z.meta.load())); if (lo !== JSON.stringify({doc: 'std', kit: [], ...JSON.parse(LOAD)})) throw new Error('loadout not accepted: ' + lo); }
     // site damage by wave and kind, and the kind of the last hit that did damage (the cause of a game over)
     await p.evaluate(() => { const Z = __z.Z, i0 = Z.impact; window.__dmg = {}; window.__last = null; Z.impact = t => { const s = t.tgt, h = s ? s.hp : 0; i0(t); const l = h - (s ? s.hp : 0); if (l > 0) { const w = __z.G.wave, D = __dmg[w] || (__dmg[w] = {}); D[t.k] = (D[t.k] | 0) + l; window.__last = t.k; } }; });
     if (REAL) await p.evaluate((n, zd, load) => __z.spec.bench.start(n, zd, load ? JSON.parse(load) : {}), L.n, zd, LOAD);
+    else if (ENDLESS) await p.evaluate(id => __z.Z.endless.start(id), ENDLESS);
     else await p.evaluate(() => { document.getElementById('play').click(); });
     await p.waitForFunction(() => __z.G.state === 'base', {timeout: 60000});
     const P = JSON.stringify(L), dodge = DODGE[['none', 'none', 'some', 'all'][zd]], log = [];

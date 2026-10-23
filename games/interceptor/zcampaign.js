@@ -14,7 +14,8 @@
 //
 // Hooks (small, all optional on the other side): zombies.js calls Z.dfMod (difficulty numbers), Z.cpCompose (wave roster), Z.cpWin (objective
 // met at a wave clear) and Z.cpOver (the end screen); zbase.js shows Z.cpHTML and asks Z.cpBan; znet.js carries Z.cpNet / Z.cpIn so a co-op
-// game plays the host's sector (the host's save is the one that moves). Other features can read the sector through Z.cp: Z.cp.has('raid'),
+// game plays the host's sector (the host's save is the one that moves); zendless.js starts a held sector as an Endless run (Z.cp.start(id, force, true):
+// run.endless, no objective) and shows its button on the briefing (Z.endless.btn). Other features can read the sector through Z.cp: Z.cp.has('raid'),
 // Z.cp.n('launchSites'). Modifiers that drive another branch's feature (need) only show up when that feature is there (Z.feat[need] or Z[need]).
 import {money} from '../../engine/hot.js';
 import {ZDIFF} from './zdata.js';
@@ -150,14 +151,14 @@ export function initCampaign(api,G,Z){
  const client=()=>!!Z.isClient?.();
  const N0=new Map(SITES.map(s=>[s,s.n])),hospital=()=>[...N0].find(([,n])=>n==='APARTMENTS')?.[0];
  // run: the sector being played (null in Quick defence). armed: the sector the next Z.start plays (set by Continue / Retry / Host in co-op)
- let run=null,armed=null;const pick={res:''};  // pick.res: the reserve committed on the briefing (or by Retry)
- function mkRun(id,pr,relic,res){const mods=modsOf(id,pr,feat),K=numbersOf(mods),has1=k=>mods.some(m=>m.id===k);
-  return{id,sec:SEC[id],obj:SEC[id].obj,pr,relic:has(RELICS,relic)?relic:'',res:has(RESERVES,res)?res:'',mods,K,mix:new Set(mods.map(m=>MODS[m.id]?.mix).filter(Boolean)),
+ let run=null,armed=null,armedEn=false;const pick={res:''};  // pick.res: the reserve committed on the briefing (or by Retry); armedEn: the armed sector plays as Endless (zendless.js)
+ function mkRun(id,pr,relic,res,en){const mods=modsOf(id,pr,feat),K=numbersOf(mods),has1=k=>mods.some(m=>m.id===k);
+  return{id,sec:SEC[id],obj:en?1e9:SEC[id].obj,endless:!!en,pr,relic:has(RELICS,relic)?relic:'',res:has(RESERVES,res)?res:'',mods,K,mix:new Set(mods.map(m=>MODS[m.id]?.mix).filter(Boolean)),
    wx:mods.map(m=>MODS[m.id]?.wx).find(Boolean)||null,nogd:has1('nogd'),fragile:has1('fragile'),used:0,res0:'',df:null,dfb:null}}
  const R=()=>run&&RELICS[run.relic];
  Z.cp={get on(){return!!run},get run(){return run},has:k=>!!run&&run.mods.some(m=>m.id===k),n:(k,d=0)=>{if(!run)return d;const m=run.mods.find(m=>m.id==='raid');return k==='launchSites'&&m?MODS.raid.launchSites:d},
   C,put,status:id=>status(C(),id),front:()=>front(C()),result,cleanCamp,SECTORS,MODS,RELICS,GEO,
-  start:(id,force)=>{const c=C();if(!force&&!playable(c,id))return false;armed=id;$('zover').hidden=true;closeMap();api.startMatch();return!!run}};
+  start:(id,force,en)=>{const c=C();if(!force&&!playable(c,id))return false;armed=id;armedEn=!!en;$('zover').hidden=true;closeMap();api.startMatch();return!!run}};
 
  // ---------- hooks into the run ----------
  // difficulty numbers: the campaign's difficulty with the sector's modifiers on top (a derived object, so ZDIFF itself never changes)
@@ -184,13 +185,13 @@ export function initCampaign(api,G,Z){
  const bo0=Z.base.open;Z.base.open=()=>{const s=R()?.sup;if(s&&G.on)(G.sup||(G.sup={}))[s]=1;bo0()};
  function restoreSites(){for(const[s,n]of N0)s.n=n}
  const s0=Z.start;Z.start=()=>{const cl0=client();restoreSites();G.cpRes='';
-  if(!cl0){const id=armed;armed=null;const c=C();run=id&&has(SEC,id)?mkRun(id,c.pr[id]|0,c.eq,c.res[pick.res]>0?pick.res:''):null;G.dfo=run?c.d:undefined}
+  if(!cl0){const id=armed,en=armedEn;armed=null;armedEn=false;const c=C();run=id&&has(SEC,id)?mkRun(id,en?0:c.pr[id]|0,c.eq,!en&&c.res[pick.res]>0?pick.res:'',en):null;G.dfo=run?c.d:undefined}
   s0();if(!run)return;
   if(run.fragile){const h=hospital();if(h){h.n='HOSPITAL';if(!cl0)h.max=h.hp=Math.round(h.max*.6)}}
   if(cl0)return;
   if(R()?.cash0)G.cash+=R().cash0;
   if(run.res==='slot'){const j=Z.def.SLOTS.findIndex((_,j)=>Z.def.canOpen(j,Z.meta.doc()));if(j>=0)G.open[j]=true;else run.res=''}
-  feed(`<span class="cg">Campaign: ${esc(run.sec.n)}</span>: hold ${run.obj} waves. ${run.mods.map(m=>modName(m)).join(' · ')}`);
+  feed(`<span class="cg">Campaign: ${esc(run.sec.n)}</span>: ${run.endless?'no objective, hold as long as you can':`hold ${run.obj} waves`}. ${run.mods.map(m=>modName(m)).join(' · ')}`);
   Z.base.refresh?.()};
  const sp0=Z.stop;Z.stop=()=>{const was=!!run;sp0();restoreSites();if(was&&!client())G.dfo=undefined;run=null};
  // the objective: the wave that makes it is cleared -> sector held (the host or a solo pilot decides; a co-op client mirrors it)
@@ -245,7 +246,7 @@ export function initCampaign(api,G,Z){
   $('zcpopen').onclick=()=>openMap()}
  syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};
  // Quick defence (the play button) never plays an armed sector
- $('play').addEventListener('click',()=>{armed=null},true);
+ $('play').addEventListener('click',()=>{armed=null;armedEn=false},true);
 
  // ---------- the campaign map ----------
  const ov=document.createElement('div');ov.id='zcamp';ov.hidden=true;$('menu').before(ov);
@@ -287,7 +288,7 @@ export function initCampaign(api,G,Z){
    <div class="zdocs">${c.relics.length?`<button class="sm ${c.eq?'':'on'}" data-crel="">No relic</button>${c.relics.map(id=>`<button class="sm ${c.eq===id?'on':''}" data-crel="${id}" title="${esc(RELICS[id].plus+' / '+RELICS[id].minus)}">${RELICS[id].g} ${RELICS[id].n}</button>`).join('')}`:'<span class="zhint">Relics: win sectors to earn them.</span>'}</div>
    ${c.eq?`<p class="zpm"><span class="cg">+ ${RELICS[c.eq].plus}</span> <span class="co">− ${RELICS[c.eq].minus}</span></p>`:''}
    <div class="zdocs">${RES_IDS.some(k=>c.res[k])?`<button class="sm ${pick.res?'':'on'}" data-cres="">No reserve</button>${RES_IDS.filter(k=>c.res[k]).map(k=>`<button class="sm ${pick.res===k?'on':''}" data-cres="${k}" title="${esc(RESERVES[k].txt)}">${RESERVES[k].g} ${RESERVES[k].n} ×${c.res[k]}</button>`).join('')}`:'<span class="zhint">Reserves: banked from some sector wins (at most 3).</span>'}</div>
-   <div class="btns"><button class="go" id="zcpgo" ${go&&!inGame?'':'disabled'}>Continue ▸<small>${t==='held'?'replay':t==='front'?'launch':'locked:'} ${esc(s.n)}</small></button>${$('zhost')&&!Z.online?`<button class="sm" id="zcphost" ${go?'':'disabled'} title="Host a co-op game of this sector: friends join with the code; your campaign save moves">Host in co-op</button>`:''}</div>
+   <div class="btns"><button class="go" id="zcpgo" ${go&&!inGame?'':'disabled'}>Continue ▸<small>${t==='held'?'replay':t==='front'?'launch':'locked:'} ${esc(s.n)}</small></button>${$('zhost')&&!Z.online?`<button class="sm" id="zcphost" ${go?'':'disabled'} title="Host a co-op game of this sector: friends join with the code; your campaign save moves">Host in co-op</button>`:''}${go&&!inGame?Z.endless?.btn?.(c,sel,t)||'':''}</div>
    ${inGame?'<p class="zhint">You are in someone else\'s co-op game: their campaign is the one in play.</p>':''}`}
  function render(){const c=C();if(!has(SEC,sel))sel=c.sel;if(pick.res&&!(c.res[pick.res]>0))pick.res='';
   const D=ZDIFF[c.d],f=front(c);
