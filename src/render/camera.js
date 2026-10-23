@@ -18,7 +18,7 @@ const camPos=new V3(0,20,60),camFwd=new V3(0,0,-1),tiltQ=new QT(),_cp=new V3(),_
    floor / ceiling fillets RF) and its end walls stand at HL outside the goal mouth, so along an end wall or into a corner that seat was
    inside the wall (up to 3 m, the ball cam with the quad by the backboard: the view through the stand). Push the seat, and the smoothed
    position after it, out along the surface normal to a metre of free space */
-function arenaFree(p){for(let i=0;i<2;i++){const s=sdf(p.x,p.y,p.z);if(s<=-1)return;sdN(p,_cn);p.addScaledVector(_cn,-(s+1))}}
+function arenaFree(p,m=1){for(let i=0;i<2;i++){const s=sdf(p.x,p.y,p.z);if(s<=-m)return;sdN(p,_cn);p.addScaledVector(_cn,-(s+m))}}  /* m: the free space kept (the FPV lens asks for less) */
 /* chaseOn: the chase / ball cam drew the last frame. Off (FPV, the menu orbit, a replay), camPos goes stale, and the next chase frame used to
    start the smoothing from there: a switch to the chase cam swooped in from the menu orbit's seat in the stands, 120 m away, through the
    stand for a frame or two. It now snaps to the chase position, as it does after a teleport (a respawn, a map switch: > 40 m away) */
@@ -35,7 +35,7 @@ export function updateCam(dt,now){const me=GS.player;bfov+=((me?.boostOn?14:0)-b
  if(!me&&GS.spect&&!GS.OBSON){chaseOn=false;tvCam(dt);camEnd(dt);return}
  if(GS.menuOpen&&GS.demo||!me){chaseOn=false;const t=now*4e-5;camPos.set(Math.sin(t)*W*.85,45+Math.sin(t*1.7)*10,Math.cos(t)*L*.75);camera.position.copy(camPos);camera.lookAt(ball.p.x*.5,6,ball.p.z*.5);setFov(55,false);return}
  const fpv=GS.camMode===0&&me.dead<=0;me.mesh.visible=!fpv&&me.dead<=0;me.mark.visible=!fpv;
- if(fpv){chaseOn=false;camera.position.copy(me.p).add(_cp.set(0,.25,-.38).multiplyScalar(DRAD/.6).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camTilt(dt)*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);
+ if(fpv){chaseOn=false;camera.position.copy(me.p).add(_cp.set(0,.25,-.38).multiplyScalar(DRAD/.6).applyQuaternion(me.q));if(!GS.OBSON)arenaFree(camera.position,.2);tiltQ.setFromAxisAngle(_x.set(1,0,0),camTilt(dt)*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);  /* the lens sits behind the quad's centre: with the tail against the goal net it was a few cm inside the net (the near plane is 0.15 m); nudged out to 0.2 m of free space */
   const look=!!(keys.KeyG||btnOn(pad(),S.lookBtn)),sl=!look&&S.longline&&LL.d===me&&S.llCam==='sling';lookK+=((look?1:0)-lookK)*Math.min(1,dt*8);slK+=((sl?1:0)-slK)*Math.min(1,dt*(sl?3:5));
   const f=_f.set(0,0,-1).applyQuaternion(me.q).setY(0);if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);camFwd.lerp(f.normalize(),1-Math.exp(-dt*4)).normalize();
   if(lookK>.01){_ld.copy(camera.position).y-=1;_lm.lookAt(camera.position,_ld,camFwd);_lq.setFromRotationMatrix(_lm);camera.quaternion.slerp(_lq,lookK*lookK*(3-2*lookK))}  // look-down: swing the lens straight down at the line, heading at the top of the screen
