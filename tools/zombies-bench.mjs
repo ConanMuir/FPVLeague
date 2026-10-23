@@ -39,7 +39,7 @@ async function run(L, zd, idx) {
   try {
     await p.evaluate((zd, load, meta, goals, camp) => { const s = {gmode: 'z', zdiff: zd, wx: 'clear', zwx: 'menu', zmus: 0};
       if (load) s.zload = JSON.parse(load); if (meta === 'full') s.zmeta = {v: 1, g: Object.fromEntries(goals.map(g => [g, 15]))}; if (camp) s.zcamp = camp;
-      localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, zd, LOAD, META, GOALS, ENDLESS ? campDone(zd) : null);
+      localStorage.setItem('dl-interceptor', JSON.stringify(s)); sessionStorage.setItem('zcodex', 'all'); }, zd, LOAD, META, GOALS, ENDLESS ? campDone(zd) : null);  /* the bots meet the whole boss roster (zcodex.js: every boss unlocked and allowed), as the leaderboard's tables always had */
     await p.reload({waitUntil: 'load', timeout: 180000}); await p.waitForFunction(() => window.__z, {timeout: 180000});
     if (LOAD) { const lo = await p.evaluate(() => JSON.stringify(__z.Z.meta.load())); if (lo !== JSON.stringify({doc: 'std', kit: [], ...JSON.parse(LOAD)})) throw new Error('loadout not accepted: ' + lo); }
     // site damage by wave and kind, and the kind of the last hit that did damage (the cause of a game over)

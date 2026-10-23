@@ -32,6 +32,7 @@ import {initScars} from './zscars.js';
 import './zboss-roster.js';
 import {initEW} from './zew.js';
 import {initSell} from './zsell.js';
+import {initCodex} from './zcodex.js';
 import {initBrief} from './zbrief.js';
 import {initEndless} from './zendless.js';
 
@@ -53,7 +54,7 @@ export function initZombies(api){
   dbox.innerHTML=ZDIFF.map((d,i)=>`<button data-d="${i}">${d.n}</button>`).join('');desc.before(dbox);
   const sync=()=>{const D=DF();G.best=bestOf(D);
    for(const b of dbox.querySelectorAll('button'))b.classList.toggle('on',+b.dataset.d===DFI());
-   desc.innerHTML=`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a boss every 10.<br><b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`};
+   desc.innerHTML=`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a Mothership every 10, and the other bosses you have beaten in the campaign join the boss waves (Enemies).<br><b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`};
   for(const b of dbox.querySelectorAll('button'))b.onclick=()=>{S.zdiff=+b.dataset.d;save();sync()};
   sync();Z.syncMode=sync}
  // doctrine & unlocks between runs (zmeta.js): the start-menu panel, the loadout, goals. DOC = the doctrine in play, dk = one of its numbers (default 1)
@@ -334,4 +335,5 @@ export function initZombies(api){
  initSell(api,G,Z);  // selling anything you own with an Undo until the wave starts (zsell.js); the base screen reads Z.sell, so it only wraps the base open / close and start / stop
  initBrief(api,G,Z);  /* the threat briefing on the base screen (zbrief.js): what the next wave brings, from the wave plan, and the radio line at its start */
  initEndless(api,G,Z);  /* Endless (zendless.js): after the campaign, a sector with no objective whose waves keep climbing; wraps the campaign's hooks, so it goes last */
+ initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
  return Z}
