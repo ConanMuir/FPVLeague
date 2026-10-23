@@ -75,6 +75,9 @@ if (want('zombies')) {
   /* a bounty still flying into the counter while the purse is spent (a hardening, a swarm's upkeep): the counter never reads negative */
   const neg = await p.evaluate(() => { const {G, Z, api} = __z, g0 = G.cash; Z.pop(api.player.p.clone(), '+$900', '#3ddc84', 900); G.cash = 40; Z.hud(.016); const t = document.getElementById('zc').textContent; G.pops.length = 0; G.cash = g0; Z.hud(.016); return t; });
   ok(neg === '$0', `Zombies: spending while a bounty is still flying never makes the purse read negative (counter "${neg}")`);
+  /* the wave-start siren is one scheduled 10 s bed: leaving the run (Quit to menu, game over) cuts it off */
+  const sir = await p.evaluate(() => { const au = __z.Z.au, n0 = au.sirens; au.siren(false); const n1 = au.sirens; au.stopMusic(); return [n0, n1, au.sirens]; });  /* stopMusic is what leaving the run calls (zfx.js Z.stop) */
+  ok(sir[0] === 1 && sir[1] === 2 && sir[2] === 0, `Zombies: the wave-start siren (the wave's own, then one more) is cut when the run ends (sirens sounding: ${sir.join(' -> ')})`);
   // wave 1 with a scripted player that runs down every track
   const w1 = await p.evaluate(() => { const out = []; for (let i = 0; i < 400 && __z.G.state === 'wave'; i++) { __z.sim(.5); const pl = __z.api.player; if (pl.dead <= 0 && Math.random() < .5) { const k = __z.botKill(.8); if (k) out.push(k); } } return {out, st: __z.G.state, cash: __z.G.cash, kills: __z.G.kills, streak: __z.G.streak}; });
   ok(w1.kills.p >= 2 && w1.cash > 1500, `Zombies wave 1: scripted player killed ${w1.kills.p} (${w1.out}), cash $${w1.cash}, streak ${w1.streak}`);
