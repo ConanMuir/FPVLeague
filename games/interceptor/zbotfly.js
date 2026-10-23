@@ -126,6 +126,7 @@ export function createPilot(api,G,Z,P,E){
    if(d>dTerm||fastT){const sp=fastT?Math.max(S0,s):S0;let tau=d/sp;const a2=t.v.lengthSq()-sp*sp,b2=2*rel.dot(t.v),c2=rel.lengthSq();
     if(Math.abs(a2)>1e-6){const q=b2*b2-4*a2*c2;if(q>=0){const r1=(-b2-Math.sqrt(q))/(2*a2),r2=(-b2+Math.sqrt(q))/(2*a2),m=Math.min(r1>0?r1:1e9,r2>0?r2:1e9);if(m<1e9)tau=m}}
     tau=Math.min(tau,60);ip.copy(t.p).addScaledVector(t.v,tau);if(!fastT&&t.v.lengthSq()>1){const f=_c.copy(t.v).normalize(),ahead=rel.dot(f)<0;ip.addScaledVector(f,-Math.min(ahead?420:220,d*(ahead?.35:.12)))}  /* slow tracks: come in toward their six, wider when meeting one head-on */
+    if(d>=dTerm&&Z.ew&&Z.lk?.t===t)Z.ew.skew(ip,me.p,d);  /* locked: it flies to the pip the HUD shows, so jamming (zew.js) moves what it flies to, as it moves the HUD's; the last run-in is by eye */
     if(d<dTerm)ip.add(st.aimN);Vd.subVectors(ip,me.p).setLength(sp);kv=d<dTerm?3.2:1.6;
     st.intent=`${d<dTerm?'closing on':'chasing'} ${name(t)} · ${rng(d)}`;
     // lock-on: a pilot who uses it holds its sights on a track it is coming up behind or abeam (one meeting it head-on it turns into the six of first)

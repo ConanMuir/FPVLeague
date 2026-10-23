@@ -29,6 +29,7 @@ import {initReentry} from './zreentry.js';
 import {initStratRadar} from './zstratradar.js';
 import {initBosses} from './zbosses.js';
 import './zboss-roster.js';
+import {initEW} from './zew.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 
@@ -320,6 +321,7 @@ export function initZombies(api){
  initCampaign(api,G,Z);  // the campaign map and its sectors (zcampaign.js): wraps the hooks above, before the effects and co-op wrap them
  initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
  initBosses(api,G,Z);  // the boss roster (zbosses.js + zboss-*.js): wraps the hooks above, before the effects and co-op layers
+ initEW(api,G,Z);  /* electronic warfare (zew.js): the Jammer King's noise-against-signal duel on the pip, radar and lock-on; the boss module feeds it */
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
  initNet(api,G,Z);  // co-op (znet.js): wraps them again

@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
 // game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal   run only those sections (CI shards them across jobs); default all
+//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
 import {front as campFront} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
@@ -1246,6 +1246,151 @@ if (want('arsenal')) {
   ok(bot.w !== 'std', `Bots: the Legend weighs the weapons against the next wave and loads the ${bot.w} for a swarm-heavy wave (owns ${bot.own})`);
   if (SHOTS) { await p.evaluate(() => { __z.Z.base.setTab('armory'); }); await p.screenshot({path: SHOTS + '/ars-armory.png'}); }
   ok(!errs.length, 'Arsenal: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+}
+
+/* ---------- electronic warfare (zew.js + the Jammer King in zboss-jammer.js): the noise-against-signal duel on the pip, the radar, the lock-on and the
+   helpers. The pip's error rises with the jamming and returns to the solver's exact point in a burn-through; distance and emitters scale it; ghosts,
+   the HUD bar, the bot pilot through the same function; everything is gone at the end of the wave ---------- */
+if (want('ew')) {
+  const {p, errs} = await page('z');
+  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); delete s.zboss; localStorage.setItem('dl-interceptor', JSON.stringify({...s, zwx: 'menu'})); sessionStorage.setItem('zbossRoster', '1'); });
+  await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3);
+  await play(p);
+  await p.evaluate(() => { const {api, Z, G} = __z, V = api.THREE.Vector3; G.cash = 1e5; __z.jump(24); G.next = __z.plan(24); __z.cont();
+    /* a rig: a static Shahed, the interceptor shadowing it at E.d metres (closing at 70 m/s, sights on it, the lock re-forced when it drops), the King and its four relay pods pinned where we say */
+    const E = window.__e = {V, dt: 1 / 120, d: 2000, relocks: 0, hold: true, ts0: Z.tstep, sc0: Z.sightCam, P: new V(), dir: new V(0, 0, 1), king: null, pods: [], kp: new V(), base: null};
+    E.clear = () => { for (const t of api.TH) t.st = 'dead'; __z.sim(.1); G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); G.benc = []; for (const s of api.SITES) s.hp = s.max; if (api.player.dead > 0) api.launch(); };
+    E.place = d => { E.d = d; E.P.copy(E.T).addScaledVector(E.dir, d); E.P.y = Math.max(E.T.y + 60, api.gh(E.P.x, E.P.z) + 250); };
+    E.setup = () => { E.clear(); E.T = new V(0, api.gh(0, -1200) + 300, -1200); E.relocks = 0; E.hold = true; E.king = null; E.pods = []; api.camUp = true;
+      const t = E.t = __z.make('shahed', 0, -1200); t.p.copy(E.T); t.v.set(0, 0, 0); t.__kin = () => {};
+      Z.tstep = (u, d) => u.__kin ? (u.__kin(d), true) : E.ts0(u, d);
+      const SQ = {position: E.P, quaternion: new api.THREE.Quaternion()}; Z.sightCam = () => (SQ.quaternion.setFromUnitVectors(new V(0, 0, -1), E.T.clone().sub(E.P).normalize()), SQ);
+      E.place(2000); return t; };
+    E.teardown = () => { Z.tstep = E.ts0; if (E.sc0) Z.sightCam = E.sc0; else delete Z.sightCam; };
+    /* the King at kd metres from the pilot (at range d from the target), the pods in a ring of radius pr round the pilot */
+    E.emit = (kd, pr, d = E.d) => { E.place(d); E.kp.set(E.P.x + kd * .8, 0, E.P.z - kd * .6); E.kp.y = api.gh(E.kp.x, E.kp.z) + 700;
+      E.pods.forEach((u, i) => { const a = i * Math.PI / 2 + Math.PI / 4; u.p.set(E.P.x + Math.sin(a) * pr, 0, E.P.z + Math.cos(a) * pr); u.p.y = u.bs.y0 = api.gh(u.p.x, u.p.z) + 250; }); };
+    E.king0 = (kd = 2600, pr = 1500) => { const K = E.king = Z.bosses.spawn('jammer'); __z.sim(.1); K.bs.sil = 0; E.pods = api.TH.filter(u => u.k === 'jpod' && api.live(u)); E.emit(kd, pr); return K; };
+    E.run = (sec, o = {}) => { const me = api.player, n = Math.round(sec / E.dt), d0 = E.d, d1 = o.d1 ?? E.d, er = [], ew = Z.ew.E;
+      const r = {rl0: E.relocks, over: -1e9, ghosts: 0, rg: 0, lockK: 0, helperK: 1, burnT: 0, burnErr: 0, burnGhosts: 0, burnLockK: 0, afterErr: 0, ampMax: 0};
+      for (let i = 0; i < n; i++) { E.place(d0 + (d1 - d0) * (i + 1) / n);
+        me.p.copy(E.P); me.v.copy(E.dir).multiplyScalar(-70); me.q.setFromUnitVectors(new V(0, 1, 0), E.dir.clone().multiplyScalar(-1)); me.w.set(0, 0, 0); me.dead = 0; api.camera.position.copy(E.P);
+        if (E.king) { E.king.p.copy(E.kp); E.king.bs.pt = o.win ? 9 : 1; }
+        api.step(E.dt); me.p.copy(E.P); if (i % 12 === 11) api.visuals(E.dt * 12, performance.now());
+        if (E.hold && api.live(E.t) && Z.lk.t !== E.t) { Z.lk.force(E.t); E.relocks++; }
+        const lk = Z.lk, e = lk.t === E.t ? lk.dp.distanceTo(lk.ip) : null;
+        if (e != null) { er.push(e); r.over = Math.max(r.over, e - lk.eu);
+          if (ew.burn > 0 && ew.age > .6) { r.burnErr = Math.max(r.burnErr, e); r.burnGhosts = Math.max(r.burnGhosts, Z.ew.ghostN() + Z.ew.radarN()); r.burnLockK = Math.max(r.burnLockK, Z.ew.lockK()); }
+          else if (ew.burn <= 0 && ew.cd > 0) r.afterErr = Math.max(r.afterErr, e); }
+        if (ew.burn > 0) r.burnT += E.dt;
+        r.ghosts = Math.max(r.ghosts, Z.ew.ghostN()); r.rg = Math.max(r.rg, Z.ew.radarN()); r.lockK = Math.max(r.lockK, Z.ew.lockK()); r.helperK = Math.min(r.helperK, Z.ew.helperK()); r.ampMax = Math.max(r.ampMax, ew.amp); }
+      r.rms = er.length ? +Math.sqrt(er.reduce((a, b) => a + b * b, 0) / er.length).toFixed(1) : 0; r.max = er.length ? +Math.max(...er).toFixed(1) : 0; r.n = er.length; r.relocks = E.relocks - r.rl0; r.st = Z.ew.state(); return r; };
+    /* the HUD as one frame draws it, onto an offscreen canvas: how many pixels of a colour are near the pip / in the bar's place */
+    E.px = (g, x0, y0, w, h, f) => { const d = g.getImageData(Math.max(0, x0 | 0), Math.max(0, y0 | 0), w, h).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 60 && f(d[i], d[i + 1], d[i + 2])) n++; return n; };
+    E.violet = (r, g, b) => r > 150 && g < 170 && b > 200; E.green = (r, g, b) => g > 170 && r < 150 && b < 190 && g > r + 70; E.red = (r, g, b) => r > 235 && g < 110 && b < 110; E.bg = (r, g, b) => b >= 12 && b <= 20 && r <= 12 && g <= 10;  /* the bar's own dark fill (text shadows are pure black) */
+    E.draw = () => { if (Z.lk.L.st !== 2) E.run(.03); const W = innerWidth, H = innerHeight, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d', {willReadFrequently: true});
+      api.camera.position.copy(E.P); api.camera.lookAt(E.T); api.camera.updateMatrixWorld(); Z.overlay(g);
+      const q = Z.lk.dp.clone().project(api.camera), X = (q.x * .5 + .5) * W, Y = (-q.y * .5 + .5) * H;
+      return {locked: Z.lk.t === E.t, near: f => E.px(g, X - 50, Y - 50, 100, 100, f), bar: f => E.px(g, W / 2 - 130, 185, 260, 65, f)}; };
+    E.radar = () => { const c = document.createElement('canvas'); c.width = c.height = 500; const g = c.getContext('2d', {willReadFrequently: true}), me = api.player; g.save(); g.beginPath(); g.arc(250, 250, 240, 0, 7); g.clip();
+      Z.radar(g, (x, z) => [250 + (x - me.p.x) * .05, 250 + (z - me.p.z) * .05], null, 1); g.restore(); return E.px(g, 0, 0, 500, 500, E.red); };
+  });
+  ok(await p.evaluate(() => !!__z.Z.ew), 'EW: the engine is loaded (Z.ew)');
+  /* 1. no jamming: the pip is the solver's point, exactly */
+  const base = await p.evaluate(() => { const {Z} = __z, E = __e, t = E.setup(), lj0 = Z.lockJam(t), r = E.run(2); E.base = {lj0, lt0: Z.lk.lockTime(t, __z.api.player)};
+    return {r, on: Z.ew.state().on, held: Z.lk.t === t, same: Z.lk.dp.distanceTo(Z.lk.ip), ghosts: Z.ew.ghostN(), lj0, lt0: E.base.lt0}; });
+  console.log('  ew baseline:', JSON.stringify({rms: base.r.rms, max: base.r.max, on: base.on, same: base.same}));
+  ok(!base.on && base.held && base.r.n > 200 && base.r.max === 0 && base.same === 0 && base.ghosts === 0, `EW: with no jammer the pip is the solver's point to the metre (error ${base.r.max} m over ${base.r.n} ticks with the lock held)`);
+  /* 2. the King lives, near, all four pods up: the pip drifts and jitters inside its ring, ghosts, slower and dropping lock, weaker helpers */
+  const jam = await p.evaluate(() => { const {api, Z} = __z, E = __e, t = E.t; E.king0(2600, 1500); const r = E.run(5), ew = Z.ew.E;
+    const lt = Z.lk.lockTime(t, api.player) / E.base.lt0, sk = Z.ew.state(), lj = Z.lockJam(t) / E.base.lj0, jk = Z.jink(t);
+    /* the bot's way to the same pip: skew() on the solver's point at the clock of the last HUD frame gives the HUD's point */
+    const ip = Z.lk.ip.clone(), c0 = ew.clock; ew.clock -= E.dt; Z.ew.skew(ip, api.player.p, t.p.distanceTo(api.player.p)); ew.clock = c0; const botOff = ip.distanceTo(Z.lk.dp);
+    /* the lock drops now and then (a private random stream), never near the target */
+    let drops = 0, near = 0; for (let i = 0; i < 7200; i++) drops += Z.ew.lockDrop(t, api.player, E.dt) ? 1 : 0;
+    const tp = t.p.clone(); t.p.copy(api.player.p).add(new E.V(0, 0, -300)); for (let i = 0; i < 7200; i++) near += Z.ew.lockDrop(t, api.player, E.dt) ? 1 : 0; t.p.copy(tp);
+    return {r, lt, lj, jk, sk, botOff, drops, near}; });
+  console.log('  ew jammed:', JSON.stringify({rms: jam.r.rms, max: jam.r.max, over: +jam.r.over.toFixed(1), amp: +jam.r.ampMax.toFixed(0), ghosts: jam.r.ghosts, rg: jam.r.rg, lockK: jam.r.lockK, helperK: jam.r.helperK, relocks: jam.r.relocks, lt: +jam.lt.toFixed(2), lj: +jam.lj.toFixed(2), jk: jam.jk, bot: +jam.botOff.toFixed(1), drops: jam.drops, near: jam.near}));
+  ok(jam.sk.on && jam.sk.neff > .6 && jam.r.rms >= .15 * jam.r.ampMax && jam.r.rms > 20 && jam.r.max > 20, `EW: with the King and its four pods near, the pip error rises from 0 to ${jam.r.rms} m rms (up to ${jam.r.max} m; noise scale ${jam.r.ampMax.toFixed(0)} m)`);
+  ok(jam.r.over <= .01 && jam.r.max <= 1.3 * jam.r.ampMax + .01, `EW: the uncertainty ring always holds the true point (the pip stays ${(-jam.r.over).toFixed(1)} m or more inside it) and the error stays within the noise scale`);
+  ok(jam.r.ghosts >= 1 && jam.r.rg >= 1, `EW: ghost pips (${jam.r.ghosts}) and ghost tracks on the radar (${jam.r.rg}) appear`);
+  ok(jam.lt >= 2 && jam.r.lockK <= 3.25 && jam.lj >= 2 && jam.r.helperK <= .7 && jam.r.helperK >= .6 && Math.abs(jam.jk - jam.sk.helperK) < .006, `EW: lock-on takes ${jam.lt.toFixed(1)}x as long (never worse than ${jam.r.lockK.toFixed(2)}x), helpers keep ${Math.round(jam.r.helperK * 100)}% of their odds (the Z.jink they already use)`);
+  ok(jam.drops >= 2 && jam.near === 0, `EW: the jamming drops the lock now and then (${jam.drops} in 60 s of ticks) but never inside 350 m (${jam.near})`);
+  ok(jam.botOff < Math.max(2, .12 * jam.r.ampMax), `EW: the bot's pip comes from the same function as the HUD's (skew() on the solver's point lands within ${jam.botOff.toFixed(1)} m of the HUD's)`);
+  /* 3. distance: the same pilot, the emitters further away */
+  const dist = await p.evaluate(() => { const E = __e, out = []; for (const [kd, pr] of [[2600, 1500], [4200, 2400], [5600, 3000], [9000, 4800]]) { E.emit(kd, pr); const r = E.run(.05); out.push({kd, nb: r.st.nb, amp: Math.round(r.ampMax), lockK: r.st.lockK}); } E.emit(2600, 1500); return out; });
+  console.log('  ew distance:', JSON.stringify(dist));
+  ok(dist.every((d, i) => !i || d.nb < dist[i - 1].nb) && dist[0].nb > .6 && dist[3].nb === 0 && dist[3].lockK === 1, `EW: the noise scales with distance to the emitters (${dist.map(d => d.nb).join(' > ')}) and is nothing out of their reach`);
+  /* 4. a pulse window: the King's quiet 4 s takes most of it away (and is not a burn-through) */
+  const win = await p.evaluate(() => { const E = __e, b0 = __z.Z.ew.E.burns; E.run(1.5); const a = E.run(3), w = E.run(3, {win: true}), back = E.run(3); return {a: a.st.neff, w: w.st.neff, amp: w.st.amp, burns: w.st.burns - b0, b: back.st.neff}; });
+  ok(win.w < .2 * win.a && win.amp < 30 && win.burns === 0 && win.b > .8 * win.a, `EW: in a pulse window the noise falls ${win.a} -> ${win.w} (pip error scale ${win.amp} m) without a burn-through, and is back at ${win.b} after`);
+  /* 5. burn-through: holding the lock and closing the range is not enough while the pods live; the pods going down is what lets it through */
+  const bt = await p.evaluate(() => { const {api} = __z, E = __e, out = {}; E.emit(2600, 1500, 1600); const a = E.run(5, {d1: 900}); out.alive = {burns: a.st.burns, snr: a.st.snr, nb: a.st.nb, hold: a.st.hold};
+    const seq = [], rs = []; let k = 0;
+    for (const u of E.pods) { u.by = 'p'; api.killThreat(u, true); k++; const r = E.run(4, {d1: Math.max(500, E.d - 100)}); seq.push({k, nb: r.st.nb, snr: r.st.snr, killed: r.st.killed, burns: r.st.burns, amp: Math.round(r.ampMax)}); rs.push(r); if (r.st.burns) break; }
+    const last = rs[rs.length - 1]; out.seq = seq; out.k = k; out.last = {burnErr: last.burnErr, burnGhosts: last.burnGhosts, burnLockK: last.burnLockK, burnT: +last.burnT.toFixed(1), ampBefore: Math.round(Math.max(...rs.map(r => r.ampMax)))};
+    return out; });
+  console.log('  ew burn-through:', JSON.stringify(bt));
+  ok(bt.alive.burns === 0 && bt.alive.snr < .58 && bt.alive.hold === 1, `EW: holding the lock and closing to 900 m is not enough with the pods up (SNR ${bt.alive.snr} of the 0.58 needed, noise ${bt.alive.nb})`);
+  ok(bt.seq.length >= 2 && bt.seq.every((s, i) => s.nb < (i ? bt.seq[i - 1].nb : bt.alive.nb) && (!i || s.killed > bt.seq[i - 1].killed)), `EW: each pod destroyed lowers the noise and raises the signal (noise ${bt.alive.nb} -> ${bt.seq.map(s => s.nb).join(' -> ')})`);
+  ok(bt.seq[bt.seq.length - 1].burns >= 1 && bt.k >= 2 && bt.k <= 4, `EW: with ${bt.k} of 4 pods down the signal burns through (SNR ${bt.seq[bt.seq.length - 1].snr} over the 0.58 level)`);
+  ok(bt.last.burnErr <= .01 && bt.last.burnGhosts === 0 && bt.last.burnLockK <= 1.02 && bt.last.ampBefore > 20, `EW: in the burn-through the pip is the solver's point again (error ${bt.last.burnErr} m; it was up to ${bt.last.ampBefore} m), no ghosts, lock-on at normal speed, for ${bt.last.burnT} s`);
+  /* the window ends and the King re-tunes: the noise comes back for a moment before the signal can burn through again */
+  const ret = await p.evaluate(() => { const r = __e.run(14); return {burns: r.st.burns, after: r.afterErr}; });
+  ok(ret.burns >= 2 && ret.after > 5, `EW: after the window it re-tunes (${ret.after.toFixed(0)} m of pip error comes back before the next burn-through; ${ret.burns} burn-throughs so far)`);
+  /* 6. the HUD: green and clean when burned through, static over the pip and in the bar when jammed, ghost blips on the radar; real frames meanwhile */
+  const seek = async (what, sec) => p.evaluate((what, sec) => { const E = __e, ew = __z.Z.ew.E, f = what === 'burn' ? () => ew.burn > 1.5 && ew.bk > .95 : () => ew.burn <= 0 && ew.neff > .3;
+    for (let i = 0; i < sec * 4; i++) { if (f()) return true; E.run(.25); } return f(); }, what, sec);
+  const hud = {};
+  hud.burnSeen = await seek('burn', 10);
+  if (SHOTS) { await drawFrames(p, 3); await p.screenshot({path: SHOTS + '/ew-burn-through.png'}); await seek('burn', 10); }
+  Object.assign(hud, await p.evaluate(() => { const d = __e.draw(), E = __e; return {burnLocked: d.locked, burnBar: d.bar(E.green), burnPip: d.near(E.green), burnStatic: d.near(E.violet)}; }));
+  hud.jamSeen = await seek('jam', 14);
+  if (SHOTS) { await drawFrames(p, 3); await p.screenshot({path: SHOTS + '/ew-jammed.png'}); await seek('jam', 14); }
+  Object.assign(hud, await p.evaluate(() => { const d = __e.draw(), E = __e, ew = __z.Z.ew.E; let red = 0; for (let i = 0; i < 24 && !red; i++) { ew.clock += .11; red = E.radar(); }
+    return {jamLocked: d.locked, jamBg: d.bar(E.bg), jamBar: d.bar(E.violet), jamBarGreen: d.bar(E.green), jamStatic: d.near(E.violet), radarRed: red}; }));
+  await frames(p, 12); await drawFrames(p, 2);
+  console.log('  ew hud:', JSON.stringify(hud));
+  ok(hud.burnSeen && hud.burnLocked && hud.burnBar > 150 && hud.burnPip > 6 && hud.burnStatic === 0, `EW HUD: burned through, the bar is green (${hud.burnBar} px), a green ring marks the pip and there is no static over it (${hud.burnStatic} px)`);
+  ok(hud.jamSeen && hud.jamLocked && hud.jamBg > 100 && hud.jamBar > 20 && hud.jamStatic > 6, `EW HUD: jammed, static (violet) fills the pip (${hud.jamStatic} px) and the bar's noise side (${hud.jamBar} px violet, ${hud.jamBarGreen} px green)`);
+  ok(hud.radarRed > 0, `EW HUD: ghost tracks blink on the radar scope (${hud.radarRed} px of blips drawn in one of 24 samples)`);
+  /* 7. the wave ends: everything the jamming did is put back exactly, at once */
+  const end = await p.evaluate(() => { const {api, Z, G} = __z, E = __e, ew = Z.ew.E, seekTo = f => { for (let i = 0; i < 80 && !f(); i++) E.run(.25); return f(); };
+    /* jammed (ghosts out), then mid burn-through (the window and its timers running): the wave ends in the second */
+    const jamOn = seekTo(() => ew.burn <= 0 && ew.neff > .3), jammed = {fx: Z.bosses.fx(), st: Z.ew.state()}; seekTo(() => ew.burn > 1.5 && ew.bk > .95); const before = {fx: Z.bosses.fx(), st: Z.ew.state(), jammed, jamOn};
+    E.teardown(); G.wq.length = 0; for (const u of api.TH) u.st = 'dead'; G.state = 'clear'; G.clearT = 3; __z.sim(.5);
+    const o = Z.make('shahed', 0, -2500), ip = new E.V(100, 300, -900), p0 = ip.clone(), ring = Z.ew.skew(ip, api.player.p, 1500), d = E.draw();
+    const after = {fx: Z.bosses.fx(), st: Z.ew.state(), lj: Z.lockJam(o) / E.base.lj0, jk: Z.jink(o), rk: Z.radarK(), off: ip.distanceTo(p0), ring, drop: Z.ew.lockDrop(o, api.player, 1), bar: d.bar(E.bg), radar: E.radar()};
+    o.st = 'dead'; return {before, after}; });
+  const left = Object.entries(end.after.fx).filter(([k, v]) => v && v !== 0).map(([k, v]) => k + '=' + v), A = end.after;
+  if (A.st.on || A.st.neff || A.st.amp || A.st.burn || A.st.snr || A.st.ghosts || A.st.rGhosts || A.st.lockK !== 1 || A.st.helperK !== 1) left.push('state ' + JSON.stringify(A.st));
+  if (A.lj !== 1) left.push('lockJam x' + A.lj); if (A.jk !== 1) left.push('jink x' + A.jk); if (A.rk !== 1) left.push('radar x' + A.rk); if (A.off || A.ring || A.drop) left.push('skew ' + A.off + ' ring ' + A.ring + ' drop ' + A.drop); if (A.bar) left.push('bar ' + A.bar + ' px'); if (A.radar) left.push('radar blips ' + A.radar + ' px');
+  console.log('  ew wave end: during', JSON.stringify(Object.entries(end.before.fx).filter(([k, v]) => v && k.startsWith('ew')).map(([k, v]) => k + '=' + v)), '-> left', JSON.stringify(left));
+  ok(end.before.jamOn && end.before.jammed.fx.ew === 1 && end.before.jammed.fx.ewGhost > 0 && end.before.fx.ewBurn === 1 && end.before.st.burn > 0, 'EW: the jamming was really running before the wave ended (jammed ' + JSON.stringify(end.before.jammed.st) + '; then in a burn-through ' + JSON.stringify(end.before.st) + ')');
+  ok(!left.length, "EW: at the end of the wave the noise, burn-through, ghost pips and tracks, lock-on time, helpers' odds, pip error, radar range and the bar are all back exactly, and the bosses' fx() is all zero" + (left.length ? ' (' + left.join('; ') + ')' : ''));
+  /* 8. the King dies: the jamming stops at once; its EW Crown makes you immune to the next one */
+  const kill = await p.evaluate(() => { const {api, Z, G} = __z, E = __e; __z.sim(4); if (G.state === 'base') { G.bkeep = {}; __z.cont(); }
+    const t = E.setup(); E.king0(2600, 1500); const r = E.run(2); Z.bosses.ctx.kill(E.king, 'p'); E.run(.1); const k1 = Z.ew.state(); E.run(1); const crown = !!G.brw.crown;
+    const K2 = E.king = Z.bosses.spawn('jammer'); __z.sim(.1); K2.bs.sil = 0; E.pods = api.TH.filter(u => u.k === 'jpod' && api.live(u)); E.emit(2600, 1500); const r2 = E.run(2);
+    return {nb: r.st.nb, on: r.st.on, k1, crown, imm: r2.st, lj: Z.lockJam(t) / E.base.lj0, jk: Z.jink(t), rg: r2.rg, g: r2.ghosts, pods: E.pods.length}; });
+  console.log('  ew king killed:', JSON.stringify({nb: kill.nb, k1: kill.k1.neff, crown: kill.crown, pods: kill.pods, imm: kill.imm.on, lj: kill.lj, jk: kill.jk, g: kill.g, rg: kill.rg}));
+  ok(kill.on && kill.nb > .5 && !kill.k1.on && kill.k1.neff === 0 && kill.k1.lockK === 1, `EW: killing the Jammer King ends the jamming at once (noise ${kill.nb} -> ${kill.k1.neff})`);
+  ok(kill.crown && kill.pods === 4 && !kill.imm.on && kill.lj <= 1 && kill.jk === 1 && kill.g === 0 && kill.rg === 0, 'EW: holding the EW Crown, a second Jammer King does nothing to you (no noise, ghosts or helper penalty; the Crown even builds lock-ons x' + (1 / kill.lj).toFixed(2) + ' faster)');
+  await p.evaluate(() => { const {api, G} = __z; __e.teardown(); delete G.brw.crown; for (const t of api.TH) t.st = 'dead'; });
+  /* 9. the bot pilot (Legend, the real flying pilot) in a wave with the King near: it flies its lock to the jammed pip through the same function */
+  const bot = await p.evaluate(() => { const {api, G, Z, spec} = __z, V = api.THREE.Vector3; api.startDemo(); spec.bench.start('Legend', 1); __z.cont(); const me = api.player;
+    for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); Z.lk.clear();
+    const f = me.home, t = __z.make('shahed', f.x, f.z + 2400); t.p.y = api.gh(t.p.x, t.p.z) + 300; t.alt = 300; t.wps.length = 0; t.aim = new V(f.x, 0, f.z + 9000);
+    const K = Z.bosses.spawn('jammer'); __z.sim(.1); K.bs.sil = 0; const kp = new V(f.x + 1700, 0, f.z - 400); kp.y = api.gh(kp.x, kp.z) + 700;
+    api.TH.filter(u => u.k === 'jpod' && api.live(u)).forEach((u, i) => { const a = i * Math.PI / 2 + .6; u.p.set(f.x + Math.sin(a) * 1900, 0, f.z + 400 + Math.cos(a) * 1900); u.p.y = u.bs.y0 = api.gh(u.p.x, u.p.z) + 250; });
+    const sk0 = Z.ew.skew, c = {hud: 0, bot: 0, hudOff: 0, botOff: 0, noise: 0, lockJam: 0}, b0 = new V();
+    Z.ew.skew = (q, fr, d) => { b0.copy(q); const r = sk0(q, fr, d); if (q === Z.lk.dp) { c.hud++; c.hudOff = Math.max(c.hudOff, q.distanceTo(b0)); } else { c.bot++; c.botOff = Math.max(c.botOff, q.distanceTo(b0)); } return r; };
+    let i = 0; for (; i < 120 * 140 && api.live(t) && !(c.bot >= 60 && c.hud >= 60); i++) { K.p.copy(kp); K.bs.pt = 1; api.step(1 / 120); if (i % 12 === 11) api.visuals(.1, performance.now()); c.noise = Math.max(c.noise, Z.ew.neff); c.lockJam = Math.max(c.lockJam, Z.lockJam(t)); }
+    Z.ew.skew = sk0; c.t = Math.round(i / 120); c.alive = api.live(t); spec.stop(); return c; });
+  console.log('  ew bot:', JSON.stringify(bot));
+  ok(bot.noise > .5 && bot.lockJam > 2 && bot.hud > 0 && bot.bot > 0 && bot.botOff > 5 && bot.hudOff > 5, `EW, bot: the Legend flies its lock-on through the jamming (lock-on x${bot.lockJam.toFixed(1)}); the HUD's pip is moved ${bot.hud}x (up to ${bot.hudOff.toFixed(0)} m) and the pip the bot flies to ${bot.bot}x (up to ${bot.botOff.toFixed(0)} m) by the same skew() (${bot.t} s)`);
+  ok(!errs.length, 'EW: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
 
