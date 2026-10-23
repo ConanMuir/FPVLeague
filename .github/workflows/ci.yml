@@ -122,10 +122,18 @@ jobs:
           - check: zombies-test (arsenal)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=arsenal
+          # the PIP / lock-on intercept point against where you actually meet the track, and where it is drawn in each view
+          - check: intercept-check
+            area: interceptor
+            run: node tools/intercept-check.mjs
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor
             run: node tools/flight-golden.mjs
+          # the Jammer King's electronic-warfare duel: the pip under jamming and after a burn-through, distance and emitters, the HUD, the bot, all cleared with the wave
+          - check: zombies-test (ew)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=ew
           # the bot self-play ladder: one tiny generation (one archetype, one child, 1 sim minute) twice, and its file through the loader
           - check: bot-ladder-check
             area: league
