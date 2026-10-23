@@ -200,12 +200,13 @@ export function initBosses(api,G,Z){
   const title=I.title||D.n.toUpperCase(),sub=typeof I.sub==='function'?I.sub(ctx,t):I.sub||'';Z.fxTest?.cine('boss',t,t.p,title,sub);
   Z.an?.say(title,sub,I.col||D.col||'#ff4d4d',3);if(I.radio)Z.an?.radio(I.who||'OVERLORD',typeof I.radio==='function'?I.radio(ctx,t):I.radio,2)}
  const s0=Z.step;Z.step=dt=>{s0(dt);if(!G.on)return;pctx=null;habits(dt);
+  /* the fights are judged before the wave-end cleanup below closes them all unrecorded: the boss that was the last track down wins in this very step */
+  if(auth())encTick();
   if(G.state!==st0){const was=st0;st0=G.state;if(was==='wave'&&G.state!=='wave')clearAll('wave over');if(G.state==='wave'&&was!=='wave')waveStart();if(G.state==='base'&&was!=='base'){for(const D of Object.values(BOSSES))D.g?.base?.(ctx);for(const R of rew())R.base?.(ctx)}}
   if(G.state==='wave'||G.state==='clear')for(const t of TH)if(mine(t)&&!t.bs.intro&&live(t))intro(t);
   for(const D of Object.values(BOSSES))D.g?.step?.(ctx,dt);
   for(const R of rew())R.step?.(ctx,dt);
-  if(auth()){encTick();
-   if(G.state==='wave'&&!G.wq.length){const L=TH.filter(live);if(L.length&&L.every(t=>mine(t)&&BOSSES[t.k].persist))for(const t of L)withdraw(t)}}};
+  if(auth()&&G.state==='wave'&&!G.wq.length){const L=TH.filter(live);if(L.length&&L.every(t=>mine(t)&&BOSSES[t.k].persist))for(const t of L)withdraw(t)}};
  // a boss that outlives the wave: its run state is kept (G.bkeep), the track and every effect go; it comes back next wave
  function withdraw(t){const D=BOSSES[t.k];(G.bkeep||(G.bkeep={}))[t.k]=D.save?D.save(ctx,t):{};const e=t.bs.enc;if(e)e.over=true;t.bs.dead=1;t.bs.gone='withdrew';t.st='dead';
   for(const u of TH)if(u.bs?.enc===e&&u!==t&&u.st!=='dead'){u.bs.dead=1;u.st='dead'}if(D.withdrawTxt)feed(D.withdrawTxt(ctx,t))}

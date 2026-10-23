@@ -337,6 +337,30 @@ ok(await ev(B, () => __z.Z.idle() && document.getElementById('zinb').textContent
 await ev(H, () => { __z.G.wq.length = 0; for (let i = 0; i < 600 && __z.G.state === 'wave'; i++) { __z.sim(.5); if (__z.api.player.dead <= 0) __z.botKill(.8); } __z.sim(4); });
 ok(await until(B, () => __z.G.state === 'base' && !__z.net.n.late && __z.net.rows().length === 3), 'Late join: at the base screen Bea is in, roster back to 3');
 
+// ---------- boss fights (zbosses.js, zcodex.js): the host runs the fight, a client's burst is rolled there; the boss is the only track left of its wave ----------
+const readyUp = async n => { for (const P of all) await tap(P, '#zgo'); for (const P of all) await until(P, n => __z.G.state === 'wave' && __z.G.wave === n, n); };
+/* the wave's raid gone and nothing queued, so the boss is the last live track: the moment it falls the wave is clear */
+const lastBoss = kind => ev(H, kind => { const {G, api, Z} = __z; G.wq.length = 0; for (const t of api.TH) if (api.live(t)) t.st = 'dead';
+  const t = kind === 'boss' ? Z.make('boss', 0, 150) : Z.bosses.spawn(kind, {R: 1800, brg: 0}); if (kind === 'boss') t.p.y = api.gh(0, 150) + 650; __z.sim(1); return t.id; }, kind);  /* a second of the host's sim: the boss starts with its real hit points on its first step */
+/* a burst from a client's interceptor parked 1 m behind the track as that client sees it; resolves with the readout the host sent back */
+const burstAt = async (C, id) => { await ev(C, () => { if (__z.api.player.dead > 0) __z.api.launch(); __z.G.det = null; });
+  await ev(C, id => { const {api, Z} = __z, me = api.player, t = api.TH.find(t => t.id === id); me.p.copy(t.p).addScaledVector(t.v.clone().normalize(), -1); me.v.copy(t.v); Z.detonate(); }, id);
+  await until(C, () => __z.G.det?.txt); return ev(C, () => ({txt: __z.G.det.txt, feed: document.getElementById('feed').textContent})); };
+{ await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(3);
+  const id = await lastBoss('hush');
+  ok(await until(A, id => __z.api.TH.some(t => t.id === id && __z.api.live(t)), id) && await until(B, id => __z.api.TH.some(t => t.id === id && __z.api.live(t)), id), `Boss fight: the Hush (T${id}) is the last track of wave 3 and on every screen`);
+  /* held open (the flare burning) before every burst: a hit snaps the flare out */
+  const open = () => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); if (t) { t.bs.rv = 1e6; t.bs.af = 0; } }, id);
+  const down = () => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); return !t || !__z.api.live(t); }, id);  /* a dead track leaves the list */
+  let last = null, n = 0; for (; n < 8 && !await down(); n++) { await open(); last = await burstAt(A, id); }
+  ok(await down(), `Boss fight: Ash's bursts bring the Hush down on the host (${n} bursts)`);
+  /* the wave ended with that kill: the win still counts (the cleanup of the wave used to close the fight unrecorded) */
+  ok(await until(H, () => (__z.api.S.zboss?.b?.hush?.won | 0) === 1 && !!__z.G.brw?.array && __z.Z.codex.c.b.hush?.beaten === true), 'Boss fight: the Hush was the last track down, and the win is recorded all the same (record, Acoustic Array, the host\'s codex)');
+  ok(await ev(A, () => !__z.Z.codex.c.b.hush), 'Boss fight: a client\'s own codex is left alone (the host\'s save moves)');
+  for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
+}
+
 // ---------- campaign (zcampaign.js): the host plays a sector of their campaign; the clients play it with them; only the host's save moves ----------
 { const c0 = await ev(A, () => JSON.stringify(__z.api.S.zcamp ?? null));
   await ev(H, () => __z.Z.cp.start('hosp', true));
