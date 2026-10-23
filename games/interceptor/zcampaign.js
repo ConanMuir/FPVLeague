@@ -42,6 +42,14 @@ export const MODS={
  blind:{g:'◌',n:'Blind early warning',txt:'Radar detection ranges 30% shorter.',radar:.7},
  boss5:{g:'⬢',n:'Mothership escort',txt:'A Mothership every 5 waves instead of every 10.',mix:'boss5'},
  raid:{g:'⌂',n:'Enemy launch sites',txt:'+2 enemy launch sites to raid.',need:'sorties',launchSites:2,alt:['big',1.1]}};
+// The map shows only a sector's MAP_MODS strongest modifiers (a "+n" chip opens the rest); all of them stay in effect and the briefing lists every one.
+// Strength = how much the modifier changes the run, 0-10 (arcade judgement): a lost sector, a boss, no Golden Dome and a hypersonic range top the list,
+// weather and fair skies are at the bottom. Numbered ones scale with their number; an unknown modifier ranks in the middle.
+export const IMPACT={boss5:9,fragile:9,nogd:8,hyper:8,tot:7,raid:6,armor:6,swarm:5.5,jets:5,blind:5,storm:4,dust:3.5,night:3,clear:1};
+export const MAP_MODS=3;
+export const impact=m=>m.id==='missile'?6+.5*(m.n|0):m.id==='big'?4+20*(m.n-1):m.id==='poor'?5+20*(1-m.n):IMPACT[m.id]??4;
+/* strongest first; equal strength keeps the sector's own order */
+export const rankMods=ms=>ms.map((m,i)=>({m,i,v:impact(m)})).sort((a,b)=>b.v-a.v||a.i-b.i).map(o=>o.m);
 // enemy pressure from lost neighbours: per level, waves +8% and starting cash −10%, at most PR_MAX levels
 export const PR_MAX=2,PR_WAVE=1.08,PR_START=.9;
 
@@ -154,7 +162,7 @@ export function initCampaign(api,G,Z){
  const R=()=>run&&RELICS[run.relic];
  Z.cp={get on(){return!!run},get run(){return run},has:k=>!!run&&run.mods.some(m=>m.id===k),n:(k,d=0)=>{if(!run)return d;const m=run.mods.find(m=>m.id==='raid');return k==='launchSites'&&m?MODS.raid.launchSites:d},
   C,put,status:id=>status(C(),id),front:()=>front(C()),result,cleanCamp,SECTORS,MODS,RELICS,GEO,
-  start:(id,force)=>{const c=C();if(!force&&!playable(c,id))return false;armed=id;S.gmode='z';$('zover').hidden=true;closeMap();api.startMatch();return!!run}};
+  start:(id,force)=>{const c=C();if(!force&&!playable(c,id))return false;armed=id;$('zover').hidden=true;closeMap();api.startMatch();return!!run}};
 
  // ---------- hooks into the run ----------
  // difficulty numbers: the campaign's difficulty with the sector's modifiers on top (a derived object, so ZDIFF itself never changes)
@@ -237,28 +245,33 @@ export function initCampaign(api,G,Z){
 
  // ---------- start menu: the campaign card next to the difficulty ----------
  const card=document.createElement('div');card.className='zcpm';card.id='zcpm';$('zdiff').after(card);
- function syncCard(){card.hidden=S.gmode!=='z';if(card.hidden)return;const c=C(),f=front(c),D=ZDIFF[c.d];
+ function syncCard(){const c=C(),f=front(c),D=ZDIFF[c.d];
   card.innerHTML=`<div><b>Campaign</b><span>${c.done?'Complete: every sector open for replays':`${c.held.length} of ${SECTORS.length} sectors held · ${D.n}${f.length?` · next: ${esc(SEC[c.sel]?.n||SEC[f[0]].n)}`:''}`}</span></div><button class="go" id="zcpopen">Campaign map ▸</button>`;
   $('zcpopen').onclick=()=>openMap()}
- syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};$('gmode').addEventListener('click',()=>setTimeout(syncCard,0));
+ syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};
  // Quick defence (the play button) never plays an armed sector
  $('play').addEventListener('click',()=>{armed=null},true);
 
  // ---------- the campaign map ----------
  const ov=document.createElement('div');ov.id='zcamp';ov.hidden=true;$('menu').before(ov);
- let sel=null,newArm=false;
+ let sel=null,newArm=false,pinned='';  /* pinned: the sector whose "+n" list is held open by a click */
+ const mapMods=id=>rankMods(modsOf(id,0,feat));
+ /* a sector's "+n" list: the modifiers the map hides, with names, drawn over the map (hover or click the chip) */
+ const pop=s=>{const rest=mapMods(s.id).slice(MAP_MODS);if(!rest.length)return'';const pw=Math.round(Math.max(...rest.map(m=>modName(m).length))*7.4+40),px=Math.min(MW-pw-6,Math.max(6,s.x-pw/2)),py=s.y+(s.cap?50:44)+26;
+  return`<g class="zc-pop${pinned===s.id?' pin':''}" data-pop="${s.id}"><rect x="${px}" y="${py}" width="${pw}" height="${rest.length*21+10}" rx="6"/>${rest.map((m,i)=>`<g class="zc-pi"><text class="zc-pg" x="${px+16}" y="${py+20+i*21}">${modGlyph(m)}</text><text class="zc-pn" x="${px+30}" y="${py+20+i*21}">${esc(modName(m))}</text></g>`).join('')}</g>`};
  const cellD=c=>'M'+c.poly.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join('L')+'Z';
  function svg(c){const st=id=>id==='home'?'home':id==='enemy'?'enemy':status(c,id);
   const cells=GEO.cells.map(g=>`<path class="zc-c ${st(g.id)}${g.id===sel?' sel':''}" d="${cellD(g)}" ${has(SEC,g.id)?`data-sec="${g.id}"`:''}/>`).join('');
   // the front line: every edge between a cell we hold (or home) and one we don't
   let fl='';for(const g of GEO.cells)if(ours(c,g.id))for(const e of g.edges)if(e.to&&!ours(c,e.to)&&Math.hypot(e.a[0]-e.b[0],e.a[1]-e.b[1])>1)fl+=`M${e.a[0].toFixed(1)},${e.a[1].toFixed(1)}L${e.b[0].toFixed(1)},${e.b[1].toFixed(1)}`;
   const roads=[];for(const s of SECTORS)for(const n of nbrs(s.id))if(has(SEC,n)&&n>s.id)roads.push(`M${s.x},${s.y}L${SEC[n].x},${SEC[n].y}`);
-  const nodes=SECTORS.map(s=>{const t=status(c,s.id),pr=c.pr[s.id]|0,ms=modsOf(s.id,0,feat),w=ms.length*24-3,x0=s.x-w/2,my=s.y+(s.cap?50:44);
+  const nodes=SECTORS.map(s=>{const t=status(c,s.id),pr=c.pr[s.id]|0,ms=mapMods(s.id),top=ms.slice(0,MAP_MODS),rest=ms.slice(MAP_MODS),w=(top.length+(rest.length?1:0))*24-3,x0=s.x-w/2,my=s.y+(s.cap?50:44);
    return`<g class="zc-n ${t}${s.id===sel?' sel':''}${s.cap?' cap':''}" data-sec="${s.id}" tabindex="-1">
     ${s.id===sel?`<circle class="zc-ring" cx="${s.x}" cy="${s.y}" r="${s.cap?34:28}"/>`:''}<circle class="zc-dot" cx="${s.x}" cy="${s.y}" r="${s.cap?25:19}"/>
     <text class="zc-ob" x="${s.x}" y="${s.y+5}">${t==='held'?'✓':s.obj}</text>
     <text class="zc-nm" x="${s.x}" y="${s.y+(s.cap?44:38)}">${esc(s.n.toUpperCase())}</text>
-    ${ms.map((m,i)=>`<g class="zc-mi"><title>${esc(modName(m))}</title><rect x="${x0+i*24}" y="${my}" width="21" height="21" rx="4"/><text x="${x0+i*24+10.5}" y="${my+15.5}">${modGlyph(m)}</text></g>`).join('')}
+    ${top.map((m,i)=>`<g class="zc-mi"><title>${esc(modName(m))}</title><rect x="${x0+i*24}" y="${my}" width="21" height="21" rx="4"/><text x="${x0+i*24+10.5}" y="${my+15.5}">${modGlyph(m)}</text></g>`).join('')}
+    ${rest.length?`<g class="zc-more" data-more="${s.id}"><title>${rest.length} more: ${esc(rest.map(modName).join(', '))}</title><rect x="${x0+top.length*24}" y="${my}" width="21" height="21" rx="4"/><text x="${x0+top.length*24+10.5}" y="${my+15.5}">+${rest.length}</text></g>`:''}
     ${pr?`<text class="zc-pr" x="${s.x+(s.cap?26:20)}" y="${s.y-14}">${'▲'.repeat(pr)}</text>`:''}</g>`}).join('');
   return`<svg id="zcsvg" viewBox="0 0 ${MW} ${MH}" role="img" aria-label="Campaign map: ${c.held.length} of ${SECTORS.length} sectors held">
    <defs><pattern id="zc-hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V10" stroke="rgba(255,77,77,.13)" stroke-width="3"/></pattern>
@@ -268,7 +281,7 @@ export function initCampaign(api,G,Z){
    <path class="zc-road" d="${roads.join('')}"/>
    <path class="zc-fl0" d="${fl}" filter="url(#zc-glow)"/><path class="zc-fl" d="${fl}"/>
    <text class="zc-lab" x="${MW/2}" y="${MH-14}">HOME · OUR LINES</text><text class="zc-lab en" x="${MW-16}" y="22" text-anchor="end">ENEMY TERRITORY</text>
-   ${nodes}</svg>`}
+   ${nodes}${SECTORS.map(pop).join('')}</svg>`}
  // the selected sector's briefing: status, objective, modifiers, reward, loadout (doctrine, kit, relic, reserve), Continue
  function briefing(c){const s=SEC[sel],t=status(c,sel),pr=c.pr[sel]|0,ms=modsOf(sel,pr,feat),rw=s.rw,lo=Z.meta.load(),open=Z.meta.open,inGame=client()&&G.on;
   const stTxt={held:'HELD · replay for practice, no reward',front:'ON THE FRONT',sealed:`CAPSTONE · hold ${CAP_NEED} sectors to open it (${c.held.length}/${CAP_NEED})`,locked:'BEHIND ENEMY LINES · push the front to reach it'}[t];
@@ -296,17 +309,19 @@ export function initCampaign(api,G,Z){
    <footer class="zcpf"><span class="zhint">Win a sector to hold it and push the front; a loss raises the pressure next door but never locks anything. The capstone opens at ${CAP_NEED} sectors held.</span>
    <button class="sm zsell ${newArm?'arm':''}" id="zcpnew">${newArm?`Confirm: wipe this campaign and start on ${ZDIFF[S.zdiff|0]?.n||'Normal'}`:'New campaign…'}</button></footer></div>`;
   for(const e of ov.querySelectorAll('[data-sec]'))e.onclick=()=>select(e.dataset.sec);
+  for(const b of ov.querySelectorAll('[data-more]')){const id=b.dataset.more,p=()=>ov.querySelector(`[data-pop="${id}"]`);b.onmouseenter=()=>p()?.classList.add('show');b.onmouseleave=()=>p()?.classList.remove('show');
+   b.onclick=e=>{e.stopPropagation();pinned=pinned===id?'':id;for(const q of ov.querySelectorAll('[data-pop]'))q.classList.toggle('pin',q.dataset.pop===pinned)}}  /* the chip opens its list; a click holds it open */
   $('zcpx').onclick=closeMap;$('zcpgo').onclick=()=>launch(false);if($('zcphost'))$('zcphost').onclick=()=>launch(true);
   $('zcpnew').onclick=()=>{if(!newArm){newArm=true;render();return}newArm=false;put(fresh(S.zdiff|0));sel=C().sel;pick.res='';render();syncCard()};
   for(const b of ov.querySelectorAll('[data-cdoc]'))b.onclick=()=>{const l=Z.meta.load();S.zload={...l,doc:b.dataset.cdoc};save();render();Z.syncMode?.()};
   for(const b of ov.querySelectorAll('[data-ckit]'))b.onclick=()=>{const l=Z.meta.load(),k=b.dataset.ckit;let kit=l.kit.includes(k)?l.kit.filter(x=>x!==k):[...l.kit,k];if(kit.length>KIT_MAX)kit=kit.slice(-KIT_MAX);S.zload={...l,kit};save();render();Z.syncMode?.()};
   for(const b of ov.querySelectorAll('[data-crel]'))b.onclick=()=>{const c=C();c.eq=b.dataset.crel;put(cleanCamp(c));render()};
   for(const b of ov.querySelectorAll('[data-cres]'))b.onclick=()=>{pick.res=b.dataset.cres;render()}}
- function select(id){if(!has(SEC,id))return;sel=id;newArm=false;const c=C();c.sel=id;put(c);render();$('zcpgo')?.focus({preventScroll:true})}
- function launch(coop){const c=C();if(!playable(c,sel)||client()&&G.on)return;armed=sel;c.sel=sel;put(c);S.gmode='z';save();closeMap();$('zover').hidden=true;
+ function select(id){if(!has(SEC,id))return;sel=id;newArm=false;pinned='';const c=C();c.sel=id;put(c);render();$('zcpgo')?.focus({preventScroll:true})}
+ function launch(coop){const c=C();if(!playable(c,sel)||client()&&G.on)return;armed=sel;c.sel=sel;put(c);save();closeMap();$('zover').hidden=true;
   if(coop){$('zhost').click();return}
   api.startMatch()}
- function openMap(){const c=C();if(S.zcamp?.v!==VER)put(c);sel=c.sel;newArm=false;ov.hidden=false;document.body.classList.add('zcp-open');render();setTimeout(()=>$('zcpgo')?.focus({preventScroll:true}),30)}
+ function openMap(){const c=C();if(S.zcamp?.v!==VER)put(c);sel=c.sel;newArm=false;pinned='';ov.hidden=false;document.body.classList.add('zcp-open');render();setTimeout(()=>$('zcpgo')?.focus({preventScroll:true}),30)}
  function closeMap(){ov.hidden=true;newArm=false;document.body.classList.remove('zcp-open');if(!$('zover').hidden)setTimeout(()=>$('zcpmap')?.focus(),0);else $('zcpopen')?.focus()}
  Z.cp.openMap=openMap;Z.cp.closeMap=closeMap;Z.cp.select=select;
  // keyboard on the map: arrows move to the nearest sector that way, Enter / Space continue, Esc back

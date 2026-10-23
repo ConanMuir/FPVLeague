@@ -54,6 +54,6 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
 .thr{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center}.tin{display:grid;grid-template-columns:auto 4.5em;gap:6px 8px;font-size:13px;align-items:center}.tin label{color:var(--dim)}
 #cli{width:100%;box-sizing:border-box;background:#0d1322;color:var(--ink);border:1px solid var(--edge);border-radius:4px;padding:8px;font:12px var(--mono);resize:vertical}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-/* FPS meter (src/ui/fpsmeter.js, #fpsm in #hud): top right, clear of the centred top bars (Classic score and sites, the Zombies bar); on narrower
+/* FPS meter (src/ui/fpsmeter.js, #fpsm in #hud): top right, clear of the centred top bar (the Zombies bar); on narrower
  screens those bars reach the corner, so it drops under them */
 @media (max-width:1180px){#hud #fpsm{top:calc(104px + env(safe-area-inset-top,0px))}}

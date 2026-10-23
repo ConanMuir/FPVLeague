@@ -1,4 +1,4 @@
-// Zombies weather. A wider table than Classic's: golden hour, night (moon, stars, searchlights, site lamps), snow, dust haze and a heavy storm with
+// Zombies weather. A wider table than the Weather setting's (interceptor.js WXS): golden hour, night (moon, stars, searchlights, site lamps), snow, dust haze and a heavy storm with
 // lightning, on top of Riley's clear / scattered / overcast / rain / fog / dusk. Each wave gets a forecast when the base screen opens (shown in its
 // footer); from wave 3 some waves also change part-way through (rain moving in, fog lifting, the sun going down...), blended over about 35 s.
 // The menu's "Zombies weather" option can switch this off (then the normal Weather setting is used for every wave).
@@ -8,12 +8,13 @@
 // to night and haze, and the Optics perk (level 2) still lets thermal see through the cloud deck and fog. At night the threats show a dim red
 // engine / nav glow and the sites keep their lamps on, so you can still find things by eye.
 //
-// Cost: every particle set is a fixed, preallocated pool (rain 5000 streaks shared with Classic, snow 2400, dust 500, stars 900, glows 160,
-// two lightning bolts, four searchlight beams), and the per-frame counts halve when Zombies' performance governor sees slow frames and scale with Graphics quality (gfx.k.wx: Medium 60%, Low 30%; rain too, also in Classic).
+// Cost: every particle set is a fixed, preallocated pool (rain 5000 streaks shared with the Weather setting's, snow 2400, dust 500, stars 900, glows 160,
+// two lightning bolts, four searchlight beams), and the per-frame counts halve when Zombies' performance governor sees slow frames and scale with Graphics quality (gfx.k.wx: Medium 60%, Low 30%; rain too, also with the Weather setting's).
 import {dot,tex} from '../../engine/render.js';
 import {NIGHT} from './buildings.js';
 import {SNOW} from '../../engine/render.js';
 import {gfx} from '../../engine/gfx.js';
+import {nearFade} from '../../engine/nearfade.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 export function initWeather(api,G,Z){
  const {THREE,scene,S,TH}=api,_c1=new THREE.Color(),_c2=new THREE.Color(),_a=new THREE.Vector3();
@@ -63,10 +64,10 @@ export function initWeather(api,G,Z){
  const add=o=>{o.frustumCulled=false;o.visible=false;scene.add(o);return o};
  const pts=(n,mat)=>{const P=new Float32Array(n*3),g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));return{P,g,o:add(new THREE.Points(g,mat))}};
  // snow: flakes in a 70 m box around the camera, drifting with the wind
- const SN=2400,SB=48,snow=pts(SN,new THREE.PointsMaterial({size:.3,map:dot,color:0xffffff,transparent:true,opacity:1,depthWrite:false}));
+ const SN=2400,SB=48,snow=pts(SN,nearFade(new THREE.PointsMaterial({size:.3,map:dot,color:0xffffff,transparent:true,opacity:1,depthWrite:false}),.8,3));  /* nearFade (engine/nearfade.js): flakes and motes passing the lens fade instead of blotting the screen */
  for(let i=0;i<SN*3;i++)snow.P[i]=(Math.random()-.5)*SB;const SW=new Float32Array(128);
  // dust: big soft motes in a 220 m box
- const DN=500,DB=220,dust=pts(DN,new THREE.PointsMaterial({size:3.4,map:dot,color:0xc4a477,transparent:true,opacity:.35,depthWrite:false}));
+ const DN=500,DB=220,dust=pts(DN,nearFade(new THREE.PointsMaterial({size:3.4,map:dot,color:0xc4a477,transparent:true,opacity:.35,depthWrite:false}),6,20));
  for(let i=0;i<DN*3;i++)dust.P[i]=(Math.random()-.5)*DB;
  // stars: a fixed dome that follows the camera
  const stars=pts(900,new THREE.PointsMaterial({size:1.7,sizeAttenuation:false,vertexColors:true,fog:false,transparent:true,depthWrite:false,toneMapped:false}));

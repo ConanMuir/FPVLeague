@@ -3,8 +3,8 @@
 The repo holds two codebases that grew up side by side:
 
 - **Jared's game, `src/`.** A Vite build: League, Dogfight, Freeplay, Training, the Calibration Lab. Rapier physics, drone parts.
-- **Riley's games, `engine/` + `games/`.** Raw ES modules served as they are (no build). `games/interceptor` is the Interceptor:
-  Classic, plus Zombies. `games/league` was Riley's League and Dogfight; it was retired on 2026-10-19 (section 0).
+- **Riley's games, `engine/` + `games/`.** Raw ES modules served as they are (no build). `games/interceptor` is the Interceptor
+  (Zombies; its original Classic mode was removed). `games/league` was Riley's League and Dogfight; it was retired on 2026-10-19 (section 0).
 
 `engine/flight.js` began as a port of an older League flight model. The rule was "when League's flight model changes, port the
 changed lines" (`interceptor/interceptor-notes.md`), so every fix had to be made twice. The plan the user approved is one shared
@@ -19,7 +19,7 @@ Dogfight, `games/league`, was deleted; it is in git history (the last commit wit
 - **Paths.** The build output moved from `games/jared-league/` to `games/drone-league/` (`tools/postbuild.mjs`, `serve.ps1`, both
   `Play Drone League.bat`, `tools/check-build.mjs`, `tools/ci-scope.mjs`). `games/jared-league/index.html` is now a tiny redirect,
   so old links and bookmarks still work (an online join code in the `#hash` is kept). The root `index.html` launcher has two cards:
-  Drone League and the Interceptor (Classic / Zombies). The Interceptor's "Back to Drone League" opens `../drone-league/`.
+  Drone League and the Interceptor (Zombies). The Interceptor's "Back to Drone League" opens `../drone-league/`.
 - **`engine/` code only Riley's League used was removed** (nothing else imported it; the Interceptor, Zombies and every tool and
   test were checked):
   - `engine/flight.js`: the League `Quad` (SDF ground contact, turtle pivots, self-righting, flip-over), its `humanControl`,
@@ -62,7 +62,7 @@ Dogfight, `games/league`, was deleted; it is in git history (the last commit wit
 | `engine/input.js` | axes, switches (Learn / Assign), calibration, controller panel | `games/interceptor`, `rates.js`, `loop.js`, `menu.js` |
 | `engine/settings.js` | per-game key plus a **pilot profile shared through Jared's `droneleague` key** | every engine module, the Interceptor |
 | `engine/audio.js` | the motor synth, parametrised per airframe (`motor: {rot, wind, phys}`) | `games/interceptor`, `zaudio.js` |
-| `games/interceptor/interceptor.js` `Drone` | the tail-sitter dart: its own step, ground, `humanControl` | Classic, Zombies (`newDrone`) |
+| `games/interceptor/interceptor.js` `Drone` | the tail-sitter dart: its own step, ground, `humanControl` | Zombies (`newDrone`) |
 
 Three is a bare import (`'three'`) everywhere. Vite resolves it from `node_modules` for `src/`. The games' import map resolves it
 to jsDelivr `three@0.160.0`, the same version. So a shared module can `import * as THREE from 'three'` and be loaded by both:
