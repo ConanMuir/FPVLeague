@@ -212,7 +212,7 @@ async function zombies() {
     /* a track parked near you (static, so it neither passes nor closes in); rm() takes it out again */
     const park = (k, d, n = 1) => { const L = []; for (let i = 0; i < n; i++) { const t = __z.make(k, cam.x, cam.z - 3000); if (!t) break; t.p.set(cam.x + i * 3, cam.y, cam.z - d); t.v.set(0, 0, 0); if (n > 1) t.grp = 'lv'; L.push(t); } return L; };
     const rm = L => { for (const t of L) { const i = TH.indexOf(t); if (i >= 0) TH.splice(i, 1); } L.length = 0; };
-    const BS = Z.bosses, SND = BS?.ctx?.SND, STING = {ace: 1.6, ghost: 4.2, hive: 4.2, jammer: 1.4, jugg: 4.2, mirror: 2.5, puppet: 2.8, siren: 3.6, twins: 3, undertaker: 5}, AS = Z.ars?.snd;
+    const BS = Z.bosses, SND = BS?.ctx?.SND, STING = {ace: 1.6, ghost: 4.2, hive: 4.2, jammer: 1.4, jugg: 4.2, mirror: 2.5, puppet: 2.8, siren: 3.6, twins: 3, undertaker: 5}, LOOPV = {jugg: .12, ghost: .18, jammer: .13, ace: .07}, AS = Z.ars?.snd;  /* window lengths and loop levels (loopVol at 0 m) of the bosses known here; others get 4 s and .1 */
     /* every sound once */
     const sounds = () => {
       one('wave start: sting (drum + brass stab)', 'big', 1.6, () => Z.au.sting(false));
@@ -258,8 +258,14 @@ async function zombies() {
       voice('threat voice: Shahed at 150 m (its reference distance)', 'shahed', 150); voice('threat voice: decoy at 110 m', 'decoy', 110); voice('threat voice: heavy at 190 m', 'heavy', 190);
       voice('threat voice: Mothership at 340 m', 'boss', 340); voice('threat voice: jet Geran at 260 m', 'jet', 260); voice('threat voice: cruise missile at 250 m', 'cruise', 250); voice('threat voice: swarm of 8 at 60 m', 'swarm', 60, 8);
       /* the bosses' own synth (zbosses.js SND, on the effects volume): stings and presence loops */
-      if (SND) { for (const [id, len] of Object.entries(STING)) if (BS.BOSSES[id]?.sting) one(`boss sting: ${id}`, 'mid', len, () => BS.BOSSES[id].sting(SND));
-        for (const [id, v] of [['jugg', .12], ['ghost', .18], ['jammer', .13], ['ace', .07]]) if (BS.BOSSES[id]?.loop) { let L = null; bed(`boss loop: ${id} overhead (loop level ${v})`, 'bed', 2.2, () => { if (!L) { L = BS.BOSSES[id].loop(SND); L.g.gain.setTargetAtTime(v * SND.vol(), now(), .15); } }, () => { L.g.gain.setTargetAtTime(0, now(), .1); setTimeout(() => L.stop?.(), 400); }, 1); } }
+      if (SND) { for (const id of Object.keys(BS.BOSSES)) if (BS.BOSSES[id]?.sting) one(`boss sting: ${id}`, 'mid', STING[id] || 4, () => BS.BOSSES[id].sting(SND));  /* every boss on the roster, new ones at a 4 s window */
+        for (const id of Object.keys(BS.BOSSES)) if (BS.BOSSES[id]?.loop && id !== 'hush') { const v = LOOPV[id] || .1;  /* the Hush's loop only speaks through set(): its own rows below */ let L = null; bed(`boss loop: ${id} overhead (loop level ${v})`, 'bed', 2.2, () => { if (!L) { L = BS.BOSSES[id].loop(SND); L.g.gain.setTargetAtTime(v * SND.vol(), now(), .15); } }, () => { L.g.gain.setTargetAtTime(0, now(), .1); setTimeout(() => L.stop?.(), 400); }, 1); } }
+      /* the Hush (zboss-hush.js, zhush-snd.js): the real boss spawned and driven by the game's own loops() (vis): its hum and blade whine parked
+         150 m off, then a pass at 80 m/s 100 m in front (the whoosh, the wind-shear, the creak); the loop's gain is the effects volume */
+      if (BS?.spawn && BS.BOSSES?.hush) { let H = null; const hush = (x, z, vx) => { H = BS.spawn('hush', {x: cam.x + x, z: cam.z + z, y: cam.y}); if (H) { H.v.set(vx, 0, 0); if (!vx) H.p.set(cam.x + x, cam.y, cam.z + z); } };
+        const clear = () => { Z.bossClear?.(); H = null; for (let i = 0; i < 4; i++) vis(); };
+        bed('Hush: presence 150 m off (hum, blade whine)', 'bed', 3, () => { if (!H) hush(0, -150, 0); vis(); }, clear, 1);
+        bed('Hush: a pass at 80 m/s, 100 m in front (whoosh, shear, creak)', 'bed', 5, () => { if (!H) hush(-200, -100, 80); else H.p.addScaledVector(H.v, .05); vis(); }, clear, .5); }
       /* the arsenal's synth (zarsenal.js) at 30 m */
       if (AS) for (const [n, f, len] of [['EMP', () => AS.emp(at(0, 0, -30)), 1.2], ['net launch', () => AS.netShot(at(0, 0, -30)), .8], ['net capture', () => AS.net(at(0, 0, -30)), .8], ['flechette', () => AS.flech(at(0, 0, -30)), .8], ['kinetic dart clang', () => AS.dart(at(0, 0, -30)), 1.2],
         ['cluster x6', () => AS.cluster(at(0, 0, -30), 6), 1.6], ['flares + chaff', () => AS.flares(at(0, 0, -30)), 1.6], ['shop click', () => AS.click(), .4], ['microwave pulse', () => AS.pulse(at(0, 0, -30)), 1.4], ['cable twang', () => AS.twang(at(0, 0, -30)), 1.2], ['carrier volley x4', () => AS.volley(at(0, 0, -30), 4), 1.4], ['smoke hiss', () => AS.hiss(at(0, 0, -30)), 3]])
