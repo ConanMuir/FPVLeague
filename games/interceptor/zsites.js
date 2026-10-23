@@ -79,7 +79,7 @@ export function initSites(api,G,Z,fog){
  // ---------- the world ----------
  // W.list: targets {id, t: 'convoy'|'launch'|'factory', x, z, y, sec, tier, parts, dead, known, ...}; a part {uid, t, main, aa, x, y, z, r, h, hp, max, alive, mesh}
  const W={seed:1,routes:[],list:[],nid:1,bombs:[],later:[],tr:[],auth:true,ver:0,on:false};
- const kill0=()=>{for(const t of W.list)drop(t);W.list.length=0;for(const r of W.routes)root.remove(r.mesh);W.routes.length=0;for(const b of W.bombs)root.remove(b.mesh);W.bombs.length=0;W.later.length=0};
+ const kill0=()=>{for(const t of W.list)drop(t);W.list.length=0;for(const r of W.routes){root.remove(r.mesh);r.mesh.geometry.dispose()}W.routes.length=0;  /* each game start builds three new roads (W.reset): the old ones' vertex buffers are freed with them */for(const b of W.bombs)root.remove(b.mesh);W.bombs.length=0;W.later.length=0};
  function drop(t){for(const p of t.parts){if(p.mesh)root.remove(p.mesh);if(p.tur)root.remove(p.tur)}for(const m of t.extra||[])root.remove(m);for(const q of t.pats||[])if(q.mesh)root.remove(q.mesh)}
  const part=(t,o)=>{const p={uid:t.id*16+t.parts.length,t:'',main:false,aa:false,x:0,y:0,z:0,r:3,h:3,hp:1,max:1,alive:true,yaw:0,lock:0,cd:rnd(0,1),los:false,losT:0,tk:null,seen:false,...o};t.parts.push(p);return p};
  // ---------- roads: one per sector, from beyond the map edge through a deep spot to a staging point near the front; 25 m samples ----------
