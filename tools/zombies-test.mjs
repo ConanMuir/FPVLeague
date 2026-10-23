@@ -1118,6 +1118,10 @@ if (want('spectator')) {
     const out = {s: +s.toFixed(1), held: +(held / 120).toFixed(1), close, kill: !api.live(t) && t.by === 'p', lockAtKill, t: +(i / 120).toFixed(1), lost: Z.lk.L.n.lost - n0.lost}; spec.stop(); return out; });
   ok(tail.s > 0 && tail.s < 6 && tail.held >= 3 && tail.close === true, `Lock-on, bot: coming up behind a Shahed, Legend locks it ${tail.s} s in, holds it ${tail.held} s and is still locked when it first closes within 30 m`
     + ` (then: ${tail.kill ? `killed ${tail.t} s in${tail.lockAtKill ? ' with the lock' : ' on a later pass'}` : 'no kill in 150 s'}, lock lost ${tail.lost}×)`);
+  /* a boss in the queue is worth 0 threat points: its bearing must not poison the roaming bot's picture of the raids (no station scored, the first one was null and the pilot threw) */
+  const rm = await p.evaluate(() => { const {api, G, Z, spec} = __z; api.startDemo(); spec.bench.start('Legend', 1); G.wave = 9; G.next = Z.plan(10); G.next.q = [{k: 'boss', at: 5, brg: .2}, {k: 'shahed', at: 8, brg: -1}]; G.next.list = ['boss', 'shahed']; __z.cont();
+    let err = ''; try { __z.sim(6); } catch (e) { err = String(e.message); } const o = {err, st: G.state}; spec.stop(); return o; });
+  ok(!rm.err && rm.st === 'wave', `Roaming, bot: a wave whose queue holds a boss does not stop the roaming pilot${rm.err ? ' (' + rm.err + ')' : ''}`);
   ok(!errs.length, 'Spectator: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
