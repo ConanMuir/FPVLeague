@@ -143,7 +143,7 @@ export function initZombies(api){
  Z.waves=dt=>{if(api.demo||Z.mirror)return;if(G.state==='wave'){G.wt+=dt;  /* Z.mirror: a co-op client, the host runs the director */
    while(G.wq.length&&G.wq[0].at<=G.wt){const q=G.wq.shift();spawn(q)}
    if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn((clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0))*dk('clearK')*(Z.incomeK?.()??1),null,null);  /* incomeK: evacuated sites earn nothing (zwarn.js) */
-    banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);feed(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`);payUpkeep()}}
+    banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);(Z.team||feed)(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`);payUpkeep()}}
   else if(G.state==='clear'&&(G.clearT-=dt)<=0){if(!Z.cpWin?.())openBase()}};  /* Z.cpWin: a campaign sector's objective is met (zcampaign.js) */
  // upkeep: from UPKEEP_FROM each defence costs UPKEEP_K of what was spent on it per wave (forward positions FWD_UPKEEP times; doctrines scale it).
  // w = the wave being paid for (default: the next one, for the base screen). per = each defence's share.
@@ -151,9 +151,9 @@ export function initZombies(api){
   for(const d of def.D){const c=Math.round((d.spent||ITEMS[d.type].price)*UPKEEP_K*k*(def.SLOTS[d.slot]?.fwd?fk:1));if(c>0){per.set(d,c);total+=c}}return{total,per}};
  // paid from the purse when a wave is cleared; what it can't cover leaves the dearest defences short of ammo (half load) next wave
  function payUpkeep(){for(const d of def.D)d.short=0;const U=Z.upkeep(G.wave);G.lastUp=0;if(!U.total)return;const paid=Math.min(Math.floor(G.cash),U.total);G.cash-=paid;G.lastUp=paid;Z.tally('upkeep',paid);let owe=U.total-paid;
-  if(owe<=0){feed(`Upkeep: <span class="co">−${money(paid)}</span>`);return}const sh=[];
+  if(owe<=0){(Z.team||feed)(`Upkeep: <span class="co">−${money(paid)}</span>`);return}const sh=[];
   for(const d of[...U.per.keys()].sort((a,b)=>U.per.get(b)-U.per.get(a))){if(owe<=0)break;d.short=1;owe-=U.per.get(d);sh.push(ITEMS[d.type].n)}
-  feed(`<span class="cr">Upkeep short by ${money(U.total-paid)}</span>: ${sh.join(', ')} go${sh.length>1?'':'es'} into the next wave with half a load`)}
+  (Z.team||feed)(`<span class="cr">Upkeep short by ${money(U.total-paid)}</span>: ${sh.join(', ')} go${sh.length>1?'':'es'} into the next wave with half a load`)}
 
  // spawn points sit on a ring around the defended area at the given bearing; fast kinds come from much farther out (the map extends past the AO)
  function spawn(q){const[k,n]=q.k.split(':'),K=KIND[k],R=K.far||5200,x=SITE_C.x+Math.sin(q.brg)*R,z=SITE_C.z-Math.cos(q.brg)*R;

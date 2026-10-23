@@ -452,7 +452,11 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   const pid = await ev(H, () => { const t = __z.Z.bosses.spawn('puppet', {x: 700, z: 400}); __z.sim(.5); t.p.set(700, __z.api.gh(700, 400) + .1, 400); t.bs.wt = 0; __z.sim(.5); return t.id; });  /* moved to where the drones are (its own first spot is random), a wire due now */
   ok(await until(H, () => (__z.Z.bosses.fx().wires | 0) > 0), 'Visuals: the Puppeteer has a wire strung on the host');
   for (const C of [A, B]) ok(await until(C, () => (__z.Z.bosses.fx().wires | 0) > 0, null, 15000), `Visuals: ${C.name} sees the wire`);
-  await ev(H, () => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; });  /* the wave is over */
+  /* a boss strike on a site has no track to name: its own event, so the clients get the hit line too */
+  await ev(H, () => __z.Z.bosses.ctx.strike(null, __z.api.SITES[1], 55));
+  for (const C of [A, B]) ok(await until(C, () => /hit the fuel depot/.test(document.getElementById('feed').textContent)), `Visuals: ${C.name} sees the boss strike on the fuel depot, a hit line as on the host`);
+  await ev(H, () => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; });  /* the wave is over: the clear bonus is told to everyone, not only to the host */
+  for (const C of [A, B]) ok(await until(C, () => /Wave 6 clear/.test(document.getElementById('feed').textContent)), `Visuals: ${C.name} reads the wave's clear bonus in the feed`);
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }
 

@@ -190,7 +190,7 @@ export function initNet(api,G,Z){
  // kills, impacts, explosions and gun bursts become events for the clients
  const k0=Z.kill;Z.kill=(t,cat)=>{const was=t.paid;k0(t,cat);if(!net||!net.host||was||!t.paid||!G.on)return;const by=t.by==='p'?net.me:t.by==='o'?t.byN:'';if(by)net.kc[by]=(net.kc[by]|0)+1;
   ev(['k',t.id,cat?1:0,by||'']);if(t.by==='o')feed(`<b>${nameOf(by)}</b> · <span class="cg">${Z.tname(t)} down</span>`)};
- const i0=Z.impact;Z.impact=t=>{i0(t);if(net&&net.host&&G.on)ev(['i',t.id])};
+ const i0=Z.impact;Z.impact=t=>{i0(t);if(net&&net.host&&G.on&&t.id!=null)ev(['i',t.id])};  /* a boss strike on a site has no track: its own event (I) */
  const f0=Z.flash;Z.flash=(p,k)=>{f0(p,k);if(net&&net.host&&G.on&&!net.mute&&p!==api.player?.p)ev(['b',Math.round(p.x),Math.round(p.y),Math.round(p.z),Math.round(k*10)])};
  Z.onGun=(d,t)=>{if(net&&net.host)ev(['g',d.id,t.id])};
  const q10=v=>Math.round(v*10);
@@ -270,7 +270,8 @@ export function initNet(api,G,Z){
   if(T==='g'){const d=Z.def.D.find(x=>x.id===e[2]),t=byId(e[3]);if(d&&t&&d.mesh)Z.def.burst(d,t);return}
   if(T==='S'){Z.so?.netEv?.(e.slice(2));return}  // sorties (zsortie.js): AA bursts, hits on this pilot, salvage carried, calls
   if(T==='H'){if(e[2]===net.me)Z.shootMe?.(String(e[3]??'a boss').slice(0,60));return}  /* a boss hit on this pilot's interceptor (Z.netHit) */
-  if(T==='B'){Z.bossWon?.(e.slice(2));return}  /* the host won a boss fight: the banner and the sting (zbosses.js) */
+  if(T==='B'){Z.bossWon?.(e.slice(2));return}
+  if(T==='I'){Z.bossStrike?.(e.slice(2));return}  /* the host won a boss fight: the banner and the sting (zbosses.js) */
   const t=byId(e[2]);if(!t||t.st==='dead')return;
   if(T==='k'){if(t.paid)return;const by=String(e[4]||'');t.by=by===net.me?'p':by?'o':'h';t.byN=by;if(e[3])t.st='dead';else{t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3)}
    Z.kill(t,!!e[3]);if(by&&by!==net.me)feed(`<b>${nameOf(by)}</b> · <span class="cg">${Z.tname(t)} down</span>`)}

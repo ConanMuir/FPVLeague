@@ -175,7 +175,7 @@ const ACE={id:'ace',n:'Ace of Aces',tag:KN,col:'#ff3b3b',spd:88,alt:[500,800],hi
  netOut:(C,t)=>[Math.round((t.bs.lock||0)*100),t.bs.flee?1:0,t.bs.tk||'',t.bs.gn|0,...netMs(t)],netIn(C,t,a){t.bs.lock=(a[0]|0)/100;t.bs.flee=a[1]|0;t.bs.tk=typeof a[2]==='string'?a[2].slice(0,40):'';netMsIn(C,t,a,3)},
  aim(C,t,s){const B=t.bs,pen=B.fav&&B.fav===B.last?.45*Math.min(1,(B.learn[B.fav]|0)/4):0,good=Math.random()<s*(1-pen)*(B.brkT>0?.5:1);B.learn['LEVEL SIX']=(B.learn['LEVEL SIX']|0)+1;B.last='LEVEL SIX';if(!B.fav&&B.learn['LEVEL SIX']>=3)B.fav='LEVEL SIX';
   return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),good?-.8:-7)}},
- won(C,e){C.recAdd('ace','beaten');C.Z.an?.radio(KN,'"…not… the needle…"',2);C.api.feed('<span class="cg">KOSCHEI is down.</span> Legends say he never stays dead.')},
+ won(C,e){C.recAdd('ace','beaten');C.Z.an?.radio(KN,'"…not… the needle…"',2);(C.Z.team||C.api.feed)('<span class="cg">KOSCHEI is down.</span> Legends say he never stays dead.')},
  winTxt:`Splash ${KN}! The Ace of Aces is down.`,escTxt:'broke off and escaped toward the border',
  sting(S){const t0=S.t+.05,o=S.out(.9);for(const[f,d]of[[1318,0],[1046,.22],[784,.44]]){const x=S.osc('sawtooth',f,t0+d,.5),fl=S.filt('bandpass',f*1.5,3);x.connect(fl).connect(S.env(t0+d,.07,.02,.5,o))}  // three falling notes: his call
   const n=S.nz(t0,2.2),f=S.filt('bandpass',900,.6);f.frequency.setValueAtTime(300,t0);f.frequency.exponentialRampToValueAtTime(3500,t0+1.4);n.connect(f).connect(S.env(t0,.18,.6,2.2,o))},  // jet scream

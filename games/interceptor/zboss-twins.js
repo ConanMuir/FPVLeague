@@ -84,7 +84,7 @@ registerBoss({id:'twins',n:'The Twins',tag:'TWINS',col:'#7fb2ff',spd:100,alt:[35
   wave(C){C.G.tdT=12},step(C,dt){const{G,api}=C;if(!(G.tdT>0)||G.state!=='wave'||!C.auth())return;if((G.tdT-=dt)>0)return;G.tdT=0;
    const L=api.TH.filter(t=>api.live(t)&&!C.BOSSES[t.k]&&C.Z.seen(t)&&(KIND_OK(t))).sort((a,b)=>score(b)-score(a)),f=api.FOBS[1],p=new C.V3(f.x,f.y+20,f.z);
    for(let i=0;i<2&&L.length;i++){const b=C.bolt(p,L[i%L.length],{spd:180,pk:.75,col:[1,.55,.3]});if(b)b.retarget=()=>api.TH.filter(t=>api.live(t)&&!C.BOSSES[t.k]&&KIND_OK(t)).sort((a,c)=>score(c)-score(a))[0]}
-   if(L.length)api.feed('<span class="cg">Twin Darts away</span>')}}});
+   if(L.length)(C.Z.team||api.feed)('<span class="cg">Twin Darts away</span>')}}});
 const swap=(C,t)=>{const o=t.mesh;o.parent?.remove(o);o.traverse(q=>q.geometry?.dispose());t.mesh=model(C,1);C.api.scene.add(t.mesh)};
 const KIND_OK=t=>t.k!=='ballistic'&&t.k!=='hyper'&&t.k!=='icbm'&&!(t.iff>0);
 const score=t=>(t.k==='jet'||t.k==='cruise'?100:0)-Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);

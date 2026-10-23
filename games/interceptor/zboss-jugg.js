@@ -49,7 +49,7 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
  tick(C,t,dt){const B=t.bs,s=B.site;if(!s||s.hp<=0){let b=null;for(const q of C.sites())if(!b||q.hp>b.hp)b=q;B.site=b;if(!b)return true}
   const S=B.site,dh=Math.hypot(S.x-t.p.x,S.z-t.p.z),spd=34*(1-.08*stageOf(t));
   if(dh<160||B.dive){B.dive=1;C.steer(t,C.dirTo(t,new C.V3(S.x,S.y+2,S.z)),spd*1.6,.6,dt,0);if(t.p.distanceTo(new C.V3(S.x,S.y+2,S.z))<14||t.p.y<S.y+6){C.strike(t,S,350);C.api.boom(t.p,8);C.api.shake=1;
-   C.api.feed(`<span class="cr">The Juggernaut hit the ${S.n.toLowerCase()}</span>`);C.vanish(t,'impacted')}return true}
+   (C.Z.team||C.api.feed)(`<span class="cr">The Juggernaut hit the ${S.n.toLowerCase()}</span>`);C.vanish(t,'impacted')}return true}
   C.steer(t,C.levelTo(t,new C.V3(S.x,0,S.z),150),spd,.22,dt,90);return true},
  hit(C,t,h){const E=exposed(t);if(!E.length)return 0;let i=-1;
   if(h.src==='h'){if(Math.random()<.5)i=C.pick(E);else{h.txt='ARMOUR';return 0}}

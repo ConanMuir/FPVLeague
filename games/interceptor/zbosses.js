@@ -158,9 +158,12 @@ export function initBosses(api,G,Z){
  function kill(t,by='p'){const B=t.bs;if(!B||B.dead)return;B.dead=1;t.by=by;const D=BOSSES[t.k];try{D.death?.(ctx,t)}catch(e){console.warn('boss death',e)}
   if(D.minor){kt0(t,true);return}api.boom(t.p,D.boomK||6);kt0(t,true);Z.fxTest?.slowmo(.18,.9,.8,.06);Z.au?.bossDown()}
  // gone without a kill (it escaped, impacted, or a split replaced it): no money, no reward
- function vanish(t,why){if(!t.bs||t.bs.dead)return;t.bs.dead=1;t.bs.gone=why||'gone';t.st='dead';if(why==='escaped'&&!BOSSES[t.k].minor){const D=BOSSES[t.k];feed(`<span class="co">${D.n} ${D.escTxt||'got away'}</span>`);Z.an?.say(`${D.tag||D.n.toUpperCase()} ESCAPED`,'no reward','#9fb3c8',2)}}
+ function vanish(t,why){if(!t.bs||t.bs.dead)return;t.bs.dead=1;t.bs.gone=why||'gone';t.st='dead';if(why==='escaped'&&!BOSSES[t.k].minor){const D=BOSSES[t.k];(Z.team||feed)(`<span class="co">${D.n} ${D.escTxt||'got away'}</span>`);Z.an?.say(`${D.tag||D.n.toUpperCase()} ESCAPED`,'no reward','#9fb3c8',2)}}
  // impact on a site (bosses that ram or bomb): through Z.impact so sandbags, fires, integrity and game over all apply
- function strike(t,site,dmg,aim){const fk={k:'shahed',tgt:site,aim:aim||site.aims[0],p:(aim||site.aims[0]).clone(),st:'cruise',_bdmg:dmg};Z.impact(fk);return fk}
+ function strike(t,site,dmg,aim){const a=aim||site.aims[0],fk={k:'shahed',tgt:site,aim:a,p:a.clone(),st:'cruise',_bdmg:dmg};
+  Z.netEv?.(['I',api.SITES.indexOf(site),dmg|0,Math.round(a.x),Math.round(a.y),Math.round(a.z)]);  /* the clients get the same impact (znet.js event I: the hit line, the tone; the site's hit points come with the snapshot) */
+  Z.impact(fk);return fk}
+ Z.bossStrike=a=>{if(auth())return;const s=api.SITES[a[0]|0];if(s&&a.slice(1,5).every(Number.isFinite))strike(null,s,a[1],new V3(a[2],a[3],a[4]))};
  const i0=Z.impact;Z.impact=t=>{if(t._bdmg!=null){const s=t.tgt,K=KIND.shahed,dm=K.dmg;K.dmg=t._bdmg;try{i0(t)}finally{K.dmg=dm}return}const s=t.tgt,h0=s?.hp;i0(t);if(s&&h0>0&&s.hp>0)for(const R of rew())R.impact?.(ctx,s,h0-s.hp)};
 
  // ---------- the reward: run-long, listed on the base screen. Effects are the reward's own hooks (rew() = what you hold) ----------
@@ -214,7 +217,7 @@ export function initBosses(api,G,Z){
   if(auth()&&G.state==='wave'&&!G.wq.length){const L=TH.filter(live);if(L.length&&L.every(t=>mine(t)&&BOSSES[t.k].persist))for(const t of L)withdraw(t)}};
  // a boss that outlives the wave: its run state is kept (G.bkeep), the track and every effect go; it comes back next wave
  function withdraw(t){const D=BOSSES[t.k];(G.bkeep||(G.bkeep={}))[t.k]=D.save?D.save(ctx,t):{};const e=t.bs.enc;if(e)e.over=true;t.bs.dead=1;t.bs.gone='withdrew';t.st='dead';
-  for(const u of TH)if(u.bs?.enc===e&&u!==t&&u.st!=='dead'){u.bs.dead=1;u.st='dead'}if(D.withdrawTxt)feed(D.withdrawTxt(ctx,t))}
+  for(const u of TH)if(u.bs?.enc===e&&u!==t&&u.st!=='dead'){u.bs.dead=1;u.st='dead'}if(D.withdrawTxt)(Z.team||feed)(D.withdrawTxt(ctx,t))}
  // ---------- the one cleanup path: every boss effect ends with the wave (and at game over, quit, restart). Kept: records, trophies, withdrawn
  // bosses' run state, the Ghost of the Ace's wreck (a map feature, not an effect). A boss still in the air here is simply gone. ----------
  function clearAll(why){for(const t of TH){if(mine(t)&&t.st!=='dead'){if(t.bs&&!t.bs.dead){t.bs.dead=1;t.bs.gone=why}t.st='dead'}if(t.iff)t.iff=0}
