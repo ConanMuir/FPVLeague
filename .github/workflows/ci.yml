@@ -155,6 +155,10 @@ jobs:
           - check: tournament-check
             area: league
             run: node tools/tournament-check.mjs
+          # the enemies codex: each campaign sector's boss set piece at its wave, beaten / seen in the save, silhouettes vs full entries, the Allowed switch and the Quick defence boss pool (a heavy raid with none unlocked), the save round-trip, bots and the bench with the whole roster
+          - check: zombies-test (codex)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=codex
           # the arsenal's kill ledger: one short bot run (Pro, Normal, 12 waves); the tool must run and book every kill to an item (the full table is docs/ARSENAL-STATS.md)
           - check: arsenal-stats (quick)
             area: interceptor
