@@ -91,7 +91,7 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
  introFn(C,t){C.Z.an?.say('JAMMER KING','a silhouette in the haze · then gone','#c77dff',3);C.api.feed('<span style="color:#c77dff">A huge silhouette slid through the haze… and vanished into the fog.</span> Hunt it: windows, signal, relay pods, overloads.')},
  tick(C,t,dt){const B=t.bs,{api}=C;if(B.sil>0){B.sil-=dt;t.p.addScaledVector(t.v,dt);if(B.sil<=0){t.p.set(B.home.x,api.gh(B.home.x,B.home.z)+800,B.home.z);t.v.set(55,0,0)}return true}
   B.pt=((B.pt||0)+dt)%(B.ph>=1?10:PER);if(B.surf>0)B.surf-=dt;
-  if(!B.exposed&&!api.TH.some(u=>u.k==='jpod'&&api.live(u))){B.exposed=1;C.Z.an?.say('NETWORK DOWN','the Jammer King is exposed','#c77dff',3);api.feed('<span class="cg">Every relay is down: the Jammer King is exposed.</span>')}
+  if(!B.exposed&&!api.TH.some(u=>u.k==='jpod'&&api.live(u))){B.exposed=1;C.Z.an?.say('NETWORK DOWN','the Jammer King is exposed','#c77dff',3);(C.Z.team||api.feed)('<span class="cg">Every relay is down: the Jammer King is exposed.</span>')}
   if(B.age>260&&!B.flee){B.flee=1}
   if(B.flee||B.ph===2){const e=new C.V3(C.cl(t.p.x*3,-5000,5000),0,-5000);C.steer(t,C.levelTo(t,e,B.surf>0?350:700),B.flee?75:62,.5,dt,120);if(Math.abs(t.p.x)>4400||t.p.z<-4400){C.vanish(t,'escaped');for(const u of api.TH)if(u.k==='jpod')C.vanish(u,'gone')}return true}
   const h=B.home,dx=t.p.x-h.x,dz=t.p.z-h.z,d=Math.hypot(dx,dz)||1,tan=new C.V3(-dz/d,0,dx/d),pull=new C.V3(-dx/d,0,-dz/d).multiplyScalar(C.cl((d-500)/300,-1,1));
@@ -107,7 +107,7 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
  lockK:(C,u)=>jamOn(C,u)?C.Z.ew.lockK():1,radarK:(C,u)=>jamOn(C,u)&&!C.Z.ew.burning?.55:1,jinkK:(C,u)=>jamOn(C,u)?C.Z.ew.helperK():1,lockSelf:()=>1.5,
  clear:C=>C.Z.ew?.clear(),fxLeft:C=>C.Z.ew?.left()||{},
  hit(C,t,h){return h.q==='kill'?2:h.q==='helper'?1:1},
- hurt(C,t){if(!t.bs.exposed&&t.bs.ph<2){relocate(C,t);C.api.feed('<span style="color:#c77dff">The Jammer King took a hit and relocated.</span>')}},
+ hurt(C,t){if(!t.bs.exposed&&t.bs.ph<2){relocate(C,t);(C.Z.team||C.api.feed)('<span style="color:#c77dff">The Jammer King took a hit and relocated.</span>')}},
  phase(C,t,i){if(i===2)C.api.feed('<span style="color:#c77dff">Its emitter is overheating: the King glows and runs for the edge.</span>')},
  death(C,t){C.Z.ew?.clear();for(const u of C.api.TH)if(u.k==='jpod'&&u.st!=='dead'){C.vanish(u,'gone');C.api.boom(u.p,1)}},
  status(C,e){const t=e.main,B=t.bs,w=winOf(B),per=B.ph>=1?10:PER,jam=B.ph>=1?6.5:JAM,left=w?per-B.pt:jam-B.pt,s=signal(C,t),pods=C.api.TH.filter(u=>u.k==='jpod'&&C.api.live(u)).length;
@@ -115,14 +115,14 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
   return`${B.exposed?'<b>EXPOSED</b>':B.surf>0?`<b>SURFACED ${Math.ceil(B.surf)} s</b>`:'HIDDEN'} · ${w?'<b>WINDOW</b>':'JAM'} ${Math.ceil(left)} s · HEAT ${bars} <b>${lab}</b><br>relays ${pods} · lines ${B.lines?.length|0} · overload ${B.cnt|0}/${need(C)}${C.Z.ew?.on?` · ${C.Z.ew.line()}`:''}`},
  vis(C,t,dt){const B=t.bs,U=t.mesh.userData,cam=C.api.camera.position,d=t.p.distanceTo(cam),M=mats(C),seen=C.Z.seen(t);
   for(const p of U.props)p.rotation.z+=dt*30;U.dome.rotation.y+=dt*.8;
-  if(!winOf(B)&&(B.hz=(B.hz||0)-dt)<=0){B.hz=.16;const c=cam,a=Math.random()*6.28,r=C.rnd(220,900);_hz.x=c.x+Math.cos(a)*r;_hz.z=c.z+Math.sin(a)*r;_hz.y=C.api.gh(_hz.x,_hz.z)+C.rnd(10,140);C.haze(_hz,0x5a5c3c,.32,14,2.5)}  // haze banks roll in
+  if(!winOf(B)&&(B.hz=(B.hz||0)-dt)<=0){B.hz=.16;const c=cam,a=C.drnd(0,6.28),r=C.drnd(220,900);_hz.x=c.x+Math.cos(a)*r;_hz.z=c.z+Math.sin(a)*r;_hz.y=C.api.gh(_hz.x,_hz.z)+C.drnd(10,140);C.haze(_hz,0x5a5c3c,.32,14,2.5)}  // haze banks roll in
   const sil=B.sil>0;t.mesh.visible=sil||seen||d<1100;if(U.sw!==sil){U.sw=sil;for(const m of U.all)if(m!==U.em){m.userData.m0=m.userData.m0||m.material;m.material=sil?M.sil:m.userData.m0}}
   const w=winOf(B),hot=B.ph>=2||B.surf>0||B.exposed;U.st.visible=!sil&&(w||hot)&&Math.sin(performance.now()/(w?70:160))>-.2;U.em.visible=w||hot;
   if(hot&&(B.sm=(B.sm||0)-dt)<=0){B.sm=.12;C.FX.emit(t.p.clone().add(new C.V3(0,-1.6,0)),0xc77dff,3,4,.5,null,2.5)}},
  radar(C,rc,P,t){const B=t.bs,{api}=C,pd=P(api.PADP.x,api.PADP.z);
   const nz=Math.min(1,(C.Z.ew?.neff||0)*1.6);  /* the static follows the engine's noise: thick near the emitters, gone in a window or a burn-through */
-  if(nz>.03){rc.fillStyle='rgba(150,160,80,'+(.12*nz).toFixed(3)+')';rc.fillRect(0,0,500,500);rc.fillStyle='rgba(199,125,255,.6)';for(let i=0,n=Math.round(240*nz);i<n;i++)rc.fillRect(C.rnd(0,500),C.rnd(0,500),C.rnd(1,5),1.5);
-   rc.strokeStyle='rgba(199,125,255,.22)';rc.lineWidth=3;for(let i=0,n=Math.round(9*nz);i<n;i++){const y=C.rnd(0,500);rc.beginPath();rc.moveTo(0,y);rc.lineTo(500,y+C.rnd(-20,20));rc.stroke()}}
+  if(nz>.03){rc.fillStyle='rgba(150,160,80,'+(.12*nz).toFixed(3)+')';rc.fillRect(0,0,500,500);rc.fillStyle='rgba(199,125,255,.6)';for(let i=0,n=Math.round(240*nz);i<n;i++)rc.fillRect(C.drnd(0,500),C.drnd(0,500),C.drnd(1,5),1.5);
+   rc.strokeStyle='rgba(199,125,255,.22)';rc.lineWidth=3;for(let i=0,n=Math.round(9*nz);i<n;i++){const y=C.drnd(0,500);rc.beginPath();rc.moveTo(0,y);rc.lineTo(500,y+C.drnd(-20,20));rc.stroke()}}
   rc.setLineDash([6,6]);rc.strokeStyle='rgba(199,125,255,.55)';rc.lineWidth=2;for(const u of api.TH)if(u.k==='jpod'&&api.live(u)){const a=Math.atan2(u.p.x-api.PADP.x,u.p.z-api.PADP.z),q=P(api.PADP.x+Math.sin(a)*9000,api.PADP.z+Math.cos(a)*9000);rc.beginPath();rc.moveTo(pd[0],pd[1]);rc.lineTo(q[0],q[1]);rc.stroke()}
   rc.setLineDash([]);rc.strokeStyle='#c77dff';rc.lineWidth=2.5;for(const l of B.lines||[]){const a=P(l.x,l.z),b=P(l.x+Math.sin(l.a)*8000,l.z+Math.cos(l.a)*8000);rc.beginPath();rc.moveTo(a[0],a[1]);rc.lineTo(b[0],b[1]);rc.stroke()}
   const F=fix(B);if(F){const c=P(F.x,F.z),e=P(F.x+F.r,F.z);rc.beginPath();rc.arc(c[0],c[1],Math.max(6,Math.hypot(e[0]-c[0],e[1]-c[1])),0,7);rc.stroke();rc.fillStyle='#c77dff';rc.font='700 15px "JetBrains Mono",monospace';rc.fillText('KING?',c[0]+10,c[1]-10)}},
@@ -142,7 +142,7 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
  g:{step:(C,dt)=>C.Z.ew?.update(dt,feed(C)),  /* every tick: the engine hears the emitters (zew.js) */
   kill(C,t){if(t.k==='jpod'||t.k==='jammer')return;const k=king(C);if(!k||k.bs.exposed||!C.auth())return;const B=k.bs;
    const inb=t.p.distanceTo(k.p)<KINGR||C.api.TH.some(u=>u.k==='jpod'&&C.api.live(u)&&u.p.distanceTo(t.p)<PODR);if(!inb)return;B.cnt=(B.cnt|0)+1;
-   if(B.cnt>=need(C)){B.cnt=0;B.surf=15;C.Z.an?.say('NETWORK OVERLOAD','the Jammer King surfaces · 15 s','#c77dff',3);C.api.feed('<span class="cg">Network overload!</span> The Jammer King is forced down and onto your radar for 15 s.')}}}});
+   if(B.cnt>=need(C)){B.cnt=0;B.surf=15;C.Z.an?.say('NETWORK OVERLOAD','the Jammer King surfaces · 15 s','#c77dff',3);(C.Z.team||C.api.feed)('<span class="cg">Network overload!</span> The Jammer King is forced down and onto your radar for 15 s.')}}}});
 
 registerBoss({id:'jpod',n:'Relay pod',tag:'RELAY',minor:1,armor:0,spd:1,alt:[150,280],hitR:1.8,det:3000,cash:250,resist:{rack:.9,lrack:.9,gepard:.9,flak:.8,sam:1,mpads:.7,hflak:.8,idome:.5},hp:1,
  build:C=>podModel(C),

@@ -2,7 +2,7 @@
 // champion with simulated results and rebuilds the same from its save; humans and bots are listed and slotted right.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {FORMATS,SIZES,createTournament,entrantName,log2,matchKind,mulberry,playable,replay,report,roundsOf,seedOrder,setupOf,standings,teamsOf} from '../src/tournament/bracket.js';
+import {FORMATS,OT_MAX,SIZES,createTournament,entrantName,log2,matchKind,mulberry,playable,replay,report,roundsOf,seedOrder,settle,setupOf,standings,teamsOf} from '../src/tournament/bracket.js';
 import {SECOND_PILOT,TOURN_V,cleanEntrant,cleanSetup,loadTournament,newSave} from '../src/tournament/store.js';
 
 const NAMES = ['Rookie', 'Pro', 'All-Star', 'Legend', 'Champion', 'Grand Champion', 'Dribbler', 'Freestyler'];
@@ -76,4 +76,14 @@ test('the save: a clean setup, resume with results, a migration from an unversio
   const c = cleanSetup(NAMES)({format: 'rr', size: 4, team: 2, len: 60, pairing: 'random', mates: 3, seed: 9, entrants: entrants(4)});
   assert.deepEqual(Object.keys(c), ['format', 'size', 'team', 'len', 'pairing', 'mates', 'seed', 'entrants']); assert.equal(c.entrants[1].skill, 0);
   const rT = createTournament(c), rT2 = createTournament(c); assert.equal(JSON.stringify(rT.matches), JSON.stringify(rT2.matches), 'a random draw is seeded: the same draw on every load');
+});
+
+test('settle: a simulated match level past OT_MAX goes to the team whose attacking half the ball is in, by one goal; a lead stands; never level', () => {
+  assert.ok(OT_MAX > 0 && OT_MAX <= 600);
+  assert.deepEqual(settle([2, 2], -30), [3, 2], 'team 0 attacks -z');
+  assert.deepEqual(settle([2, 2], 30), [2, 3]);
+  assert.deepEqual(settle([0, 0], 0), [1, 0], 'on the halfway line the first entrant');
+  assert.deepEqual(settle([3, 1], 40), [3, 1]); assert.deepEqual(settle([1, 3], -40), [1, 3]);
+  for (const z of [-90, -1, 0, 1, 90]) for (const a of [0, 2, 5]) { const r = settle([a, a], z); assert.notEqual(r[0], r[1]); }
+  const T = createTournament(setup('single', 4)); const m = playable(T)[0]; assert.ok(report(T, m.id, settle([1, 1], 12)), 'report() takes a settled score');
 });

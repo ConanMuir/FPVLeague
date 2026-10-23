@@ -42,7 +42,7 @@ function spot(C,t){const{api,Z}=C,fog=Z.so?.fog;let best=null;for(let k=0;k<60;k
 const W=[],PATHS=[];
 function drop(C,w,from){const pp=w.pp;if(!pp)return;const dx=pp.p.x-from.x,dz=pp.p.z-from.z,L=Math.hypot(dx,dz)*.7,n=40,pts=[];if(L<20)return;
  for(let i=0;i<=n;i++){const f=i/n,x=from.x+dx/Math.hypot(dx,dz)*L*f,z=from.z+dz/Math.hypot(dx,dz)*L*f;pts.push(x,C.api.gh(x,z)+.35,z)}PATHS.push({pts,age:0,dx:dx/Math.hypot(dx,dz),dz:dz/Math.hypot(dx,dz)});if(PATHS.length>10)PATHS.shift();RB.dirty=1;
- const s=C.sites().reduce((a,b)=>Math.hypot(b.x-from.x,b.z-from.z)<Math.hypot(a.x-from.x,a.z-from.z)?b:a,C.sites()[0]||{n:'base',x:0,z:0});C.api.feed(`<span class="co">A wire fell near the ${String(s.n).toLowerCase()}: the trail points to where the Puppeteer was.</span>`)}
+ const s=C.sites().reduce((a,b)=>Math.hypot(b.x-from.x,b.z-from.z)<Math.hypot(a.x-from.x,a.z-from.z)?b:a,C.sites()[0]||{n:'base',x:0,z:0});(C.Z.team||C.api.feed)(`<span class="co">A wire fell near the ${String(s.n).toLowerCase()}: the trail points to where the Puppeteer was.</span>`)}
 const RB={mesh:null,dirty:0,wl:null,gl:null};
 function draw(C){const{THREE:T,api}=C;if(!RB.mesh){const mat=new T.MeshBasicMaterial({color:0x8a2a18,transparent:true,opacity:.75,depthWrite:false,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-4});
   RB.mesh=new T.Mesh(new T.BufferGeometry(),mat);RB.mesh.frustumCulled=false;api.scene.add(RB.mesh);const lg=new T.BufferGeometry();lg.setAttribute('position',new T.BufferAttribute(new Float32Array(16*16*6),3));
@@ -60,7 +60,7 @@ function draw(C){const{THREE:T,api}=C;if(!RB.mesh){const mat=new T.MeshBasicMate
 function wire(C,t){const{api,Z}=C,B=t.bs,R=3000;const H=(Z.def?.drones||[]).filter(h=>h.p&&h.p.distanceTo(t.p)<R),S=(Z.sw?.mine?.d||[]).filter(d=>d.p.distanceTo(t.p)<R);
  if((H.length||S.length)&&Math.random()<.55){let p,v;if(H.length){const h=C.pick(H);p=h.p.clone();v=h.v.clone();if(h.tgt&&h.tgt.claim===h)h.tgt.claim=null;const i=Z.def.shots.indexOf(h);if(i>=0)Z.def.shots.splice(i,1)}
   else{const d=C.pick(S);p=d.p.clone();v=d.v.clone();const i=Z.sw.mine.d.indexOf(d);if(i>=0){Z.sw.mine.d.splice(i,1);Z.sw.mine.lost++}}
-  const u=C.spawn('ppdrone',{x:p.x,z:p.z,y:p.y,v,enc:B.enc});if(u){u.bs.init=1;u.bs.hp=u.bs.max=1;W.push({u,pp:t,hij:1});B.hij=(B.hij|0)+1;api.feed('<span class="cr">One of your drones went dark… it is turning on the base!</span>');C.Z.an?.radio('OVERLORD','We lost control of a drone! It is diving on us!',1)}return}
+  const u=C.spawn('ppdrone',{x:p.x,z:p.z,y:p.y,v,enc:B.enc});if(u){u.bs.init=1;u.bs.hp=u.bs.max=1;W.push({u,pp:t,hij:1});B.hij=(B.hij|0)+1;(C.Z.team||api.feed)('<span class="cr">One of your drones went dark… it is turning on the base!</span>');C.Z.an?.radio('OVERLORD','We lost control of a drone! It is diving on us!',1)}return}
  const E=api.TH.filter(u=>api.live(u)&&!C.BOSSES[u.k]&&(u.k==='shahed'||u.k==='jet'||u.k==='heavy')&&!u.pup&&u.p.distanceTo(t.p)<R);if(!E.length)return;const u=C.pick(E);u.pup=t.id;u.spd*=1.3;u.cs*=1.3;W.push({u,pp:t})}
 registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14,alt:[0,2],hitR:3.5,det:1,cash:1500,bounty:6000,far:5200,persist:1,resist:{},hp:C=>2/C.hpK(),phases:['HIDDEN','EXPOSED'],phaseAt:[.5],
  note:'a ground unit in disguise that strings wires to drones, boosting enemies and hijacking yours. Follow the glinting wires and the trails they leave; kill it with a direct strike.',warn:'something on the ground pulls the strings',
@@ -72,7 +72,7 @@ registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14
  restore(C,t,st){const B=t.bs;B.waves=st.waves|0;B.exposed=st.exposed|0;B.hp=Math.max(1,st.hp|0);B.max=Math.max(B.hp,st.max|0);B.ph=B.exposed?1:0;show(t,B.exposed?'spider':B.dis)},
  withdrawTxt:()=>'<span class="co">The Puppeteer went to ground. It will move in somewhere new next wave.</span>',
  clear(){W.length=0;PATHS.length=0;RB.dirty=1;if(RB.mesh){RB.mesh.visible=false;RB.wl.visible=RB.gl.visible=false}},fxLeft:()=>({wires:W.length,trails:PATHS.length,wireMesh:RB.mesh?.visible||RB.wl?.visible?1:0}),
- wake(C,t){if(++t.bs.waves>=3){C.vanish(t,'escaped');C.api.feed('<span class="co">The Puppeteer pulled up its strings and left.</span>')}},
+ wake(C,t){if(++t.bs.waves>=3){C.vanish(t,'escaped');(C.Z.team||C.api.feed)('<span class="co">The Puppeteer pulled up its strings and left.</span>')}},
  tick(C,t,dt){const{api}=C,B=t.bs;B.next-=dt;B.wt-=dt;
   if(B.wt<=0){B.wt=B.ph?9:14;wire(C,t)}
   for(let i=W.length-1;i>=0;i--){const w=W[i];if(w.pp!==t)continue;if(!w.u||w.u.st==='dead'||w.u.st==='fall'||!api.live(w.u)){drop(C,w,w.u?w.u.p:t.p);W.splice(i,1)}}
@@ -88,7 +88,14 @@ registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14
  death(C){for(let i=W.length-1;i>=0;i--)if(W[i].pp&&W[i].pp.bs.dead)W.splice(i,1)},
  status(C,e){const B=e.main.bs,w=W.filter(q=>q.pp===e.main).length;return`wires <b>${w}</b> · drones hijacked ${B.hij|0} · trails ${PATHS.length} · ${B.exposed?'<b>EXPOSED</b>: it bolts between spots':'disguised · it moves every ~40 s'}<br>look for a glint between a drone and the ground; follow fresh trails`},
  vis(C,t,dt){const B=t.bs;if(B.mv&&Math.random()<dt*4)C.SMK.emit(t.p.clone().add(new C.V3(0,.5,0)),0x8a7a5a,1,1.5,2,null,1,.4)},
- netOut:(C,t)=>[DIS.indexOf(t.bs.dis),t.bs.exposed|0,t.bs.mv?1:0],netIn(C,t,a){t.bs.dis=DIS[a[0]]||'hay';t.bs.exposed=a[1]|0;show(t,t.bs.exposed?'spider':a[2]?'truck':t.bs.dis)},
+ /* a co-op client sees the wires and the trails too: the ids of the wired drones, the hijack count and each trail (where it starts, which way it points, how long, how old) */
+ netOut:(C,t)=>[DIS.indexOf(t.bs.dis),t.bs.exposed|0,t.bs.mv?1:0,t.bs.hij|0,W.filter(w=>w.pp===t&&w.u&&w.u.st!=='dead').map(w=>w.u.id).slice(0,16),
+  PATHS.map(p=>{const n=p.pts.length;return[Math.round(p.pts[0]),Math.round(p.pts[2]),+p.dx.toFixed(3),+p.dz.toFixed(3),Math.round(Math.hypot(p.pts[n-3]-p.pts[0],p.pts[n-1]-p.pts[2])),Math.round(p.age)]}).slice(-10)],
+ netIn(C,t,a){const B=t.bs;B.dis=DIS[a[0]]||'hay';B.exposed=a[1]|0;B.hij=a[3]|0;show(t,B.exposed?'spider':a[2]?'truck':B.dis);
+  for(let i=W.length-1;i>=0;i--)if(W[i].pp===t)W.splice(i,1);
+  if(Array.isArray(a[4]))for(const id of a[4]){const u=C.api.TH.find(q=>q.id===id);if(u)W.push({u,pp:t})}
+  const pj=JSON.stringify(a[5]||[]);if(Array.isArray(a[5])&&pj!==B.pj){B.pj=pj;PATHS.length=0;
+   for(const q of a[5].slice(-10)){if(!Array.isArray(q)||q.length<6||!q.every(Number.isFinite))continue;const[x0,z0,dx,dz,L,age]=q,pts=[];for(let i=0;i<=40;i++){const f=i/40,x=x0+dx*L*f,z=z0+dz*L*f;pts.push(x,C.api.gh(x,z)+.35,z)}PATHS.push({pts,age,dx,dz})}RB.dirty=1}},
  aim(C,t,s){if(Math.random()>s*.35)return null;return{p:t.p.clone().add(new C.V3(0,1.2,0)),v:new C.V3()}},
  dbg:()=>({wires:W.length,paths:PATHS.length}),
  winTxt:'The Puppeteer is down. Its strings go slack.',escTxt:'pulled up its strings and left',
@@ -99,7 +106,7 @@ registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14
  reward:{id:'strings',n:'Puppet Strings',short:'one jet or heavy a wave turns on its own raid',txt:'Once a wave, the first jet or armoured heavy that comes within 2 km of a site is yours: it turns and rams the nearest other enemy drone.',
   step(C){const{G,api}=C;if(G.state!=='wave'||G.psw===G.wave||!C.auth())return;const u=api.TH.find(t=>api.live(t)&&(t.k==='jet'||t.k==='heavy')&&C.sites().some(s=>Math.hypot(s.x-t.p.x,s.z-t.p.z)<2000));if(!u)return;
    const v=api.TH.filter(t=>t!==u&&api.live(t)&&!C.BOSSES[t.k]&&KOK(t)&&t.p.distanceTo(u.p)<1800).sort((a,b)=>a.p.distanceTo(u.p)-b.p.distanceTo(u.p))[0];if(!v)return;G.psw=G.wave;
-   u.by=v.by='h';api.killThreat(v,true);api.killThreat(u,true);api.feed('<span class="cg">Puppet strings: a hijacked drone rammed its own wingman</span>')}},
+   u.by=v.by='h';api.killThreat(v,true);api.killThreat(u,true);(C.Z.team||api.feed)('<span class="cg">Puppet strings: a hijacked drone rammed its own wingman</span>')}},
  g:{vis(C){if(W.length||PATHS.length)draw(C);else if(RB.mesh&&(RB.mesh.visible||RB.wl.visible)){RB.mesh.visible=RB.wl.visible=RB.gl.visible=false}},step(C,dt){let ch=0;for(let i=PATHS.length-1;i>=0;i--){const p=PATHS[i];p.age+=dt;if(p.age>90){PATHS.splice(i,1);ch=1}}if(ch)RB.dirty=1;if(RB.mesh)RB.mesh.material.opacity=.75},
   start(C){W.length=0;PATHS.length=0;RB.dirty=1;const{Z}=C;if(!Z._ppg){Z._ppg=1;const g0=Z.groundTargets;Z.groundTargets=()=>{const L=(typeof g0==='function'?g0():null)||[];
    for(const t of C.api.TH)if(t.k==='puppet'&&C.api.live(t)&&t.bs.exposed)L.push({id:'pp'+t.id,p:t.p,r:4,alive:true,hit(){C.hurt(t,1,{src:'p'})}});return L}}},

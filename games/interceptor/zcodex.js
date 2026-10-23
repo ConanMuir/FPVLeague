@@ -206,12 +206,14 @@ export function initCodex(api,G,Z){
    const L=api.SITES.filter(s=>s.hp>0&&!s.zb&&!(run.fragile&&s.n==='HOSPITAL')).sort((a,b)=>b.hp/b.max-a.hp/a.max),s=L[0];
    if(s){const hp=Math.round(s.max*.22);if(s.hp>hp){s.hp=hp;feed(`<span class="cr">Saboteurs hit the ${s.n.toLowerCase()}</span>`)}
     B.spawn(S0.boss,{x:s.x,z:s.z-1600,set:{anchor:s}})}}}
+ const trans=()=>{if(G.state!==prev){const was=prev;prev=G.state;if(G.state==='wave'&&was!=='wave')onWave()}};  /* also from Z.stateSync: a co-op client that never stepped in the clear state would keep prev at 'wave' and miss the next wave's set piece */
+ Z.stateHooks.push(()=>{if(G.on&&!api.demo)trans()});
  const st0=Z.step;
  Z.step=dt=>{st0(dt);if(!G.on||api.demo)return;const X=G.cdx;
   if((X.pt-=dt)<=0){X.pt=.2;poll()}  /* the record is read five times a second */
-  if(G.state!==prev){const was=prev;prev=G.state;if(G.state==='wave'&&was!=='wave')onWave()}
+  trans();
   if(!X.m&&G.state==='wave'&&(X.sc-=dt)<=0){X.sc=.5;for(const t of TH)if(t.k==='boss'&&api.live(t)){X.m=1;note('boss','met');break}}};
- const zs=Z.start;Z.start=()=>{zs();prev='';G.cdx={last:snap(),new:[],m:0,pt:0,sc:0}};
+ const zs=Z.start;Z.start=()=>{zs();prev='';hostPool=null;G.cdx={last:snap(),new:[],m:0,pt:0,sc:0}};
 
  // ---------- silhouettes ----------
  const SOUP=new Map(),URL_=new Map();
@@ -226,10 +228,14 @@ export function initCodex(api,G,Z){
  const view=(id,c)=>{const D=BOSSES[id],e=c.b[id]||{},bt=!!e.beaten,st=bt?'beaten':e.seen?'seen':'new',sec=sectorOf(id),rec=S.zboss?.b?.[id]||{},nf=info(id);
   return{id,st,secret:SECRET.includes(id)||!sec,name:bt?name(id):'???',one:bt?(DEX[id]?.one||D?.note||''):'',tr:bt&&D?.reward?{n:D.reward.n,short:D.reward.short||D.reward.txt}:null,col:col(id),
    hint:sec?`Introduced in ${sec.n}, wave ${SET[sec.id].wave}.${e.seen?' You have met it.':''}`:'Found, not introduced.',sector:sec?.id||null,
-   allowed:e.allowed!==false,free:FREE.includes(id),pool:poolIds().includes(id),tog:poolIds().includes(id)||!!D&&!D.spawn&&!SECRET.includes(id),from:nf?nf.debut:0,won:rec.won|0,met:rec.met|0}};  /* tog: the Allowed switch (the Undertaker has no wave, only its trigger) */
+   allowed:ro()&&poolIds().includes(id)?hostPool.includes(id):e.allowed!==false,free:FREE.includes(id),pool:poolIds().includes(id),tog:poolIds().includes(id)||!!D&&!D.spawn&&!SECRET.includes(id),from:nf?nf.debut:0,won:rec.won|0,met:rec.met|0}};  /* tog: the Allowed switch (the Undertaker has no wave, only its trigger) */
  const rows=()=>{const c=load(),R=ORDER.map(id=>view(id,c));for(const id of ids())if(!ORDER.includes(id)&&(c.b[id]?.seen||c.b[id]?.beaten))R.push(view(id,c));return R};
  const count=()=>{const c=load();return{n:ORDER.filter(id=>c.b[id]?.beaten).length,of:ORDER.length}};
- const poolTxt=()=>{const p=pool();return p.length?p.map(name).join(', '):'none'};
+ /* a co-op client plays the host's game: the pool that counts is the host's (znet.js carries it), shown read-only; its own save only supplies the silhouettes */
+ let hostPool=null;const ro=()=>!!Z.isClient?.()&&!!hostPool;
+ Z.codexNet=()=>G.on&&!Z.isClient?.()?pool():undefined;
+ Z.codexIn=p=>{hostPool=Array.isArray(p)?p.filter(k=>typeof k==='string'&&k.length<24).slice(0,24):null};
+ const poolTxt=()=>{const p=ro()?hostPool:pool();return p.length?p.map(name).join(', '):'none'};
  const ov=document.createElement('div');ov.id='zcdx';ov.hidden=true;$('menu').before(ov);
  let rst=false,opened=null;
  function card(r){const bt=r.st==='beaten';
@@ -245,12 +251,13 @@ export function initCodex(api,G,Z){
   ov.innerHTML=`<div class="zpanel zcdxp" role="dialog" aria-modal="true" aria-label="Enemies"><header><div><h2>Enemies</h2><div class="zcdxs"><b>${c.n}</b> of ${c.of} bosses beaten${a?' · <span class="co">bots and tests: everything unlocked</span>':''}</div></div>
    <div class="zcdxact"><button class="sm" data-all="1">Allow all</button><button class="sm" data-all="0">Block all</button></div><button class="sm" id="zcdxx">Back <kbd>Esc</kbd></button></header>
    <p class="zhint">Each campaign sector introduces one boss. Beat it and it joins your codex: it can then come to Quick defence on boss waves, and you choose which ones. The Mothership is the baseline: always in the pool unless you block it. With every boss blocked, boss waves bring a heavy raid instead.
-   <b>Quick defence pool:</b> ${esc(poolTxt())}.</p>
+   <b>Quick defence pool:</b> ${esc(poolTxt())}.${ro()?' <b>This is the host\'s pool: only the host can change it.</b>':''}</p>
    <div class="zcdxg">${R.map(card).join('')}</div>
    <footer class="zcdxf"><span class="zhint">Unknown contacts stay in the dark until you beat them in the campaign.</span><button class="sm zsell ${rst?'arm':''}" id="zcdxrs">${rst?'Confirm: forget every boss':'Forget all enemies…'}</button></footer></div>`;
   $('zcdxx').onclick=close;$('zcdxrs').onclick=()=>{if(!rst){rst=true;render();$('zcdxrs').focus();return}rst=false;put(cleanCodex(null));render()};
   for(const b of ov.querySelectorAll('[data-allow]'))b.onclick=()=>{const id=b.dataset.allow,c=load();if(!isUnlocked(c,id))return;const e=c.b[id]||(c.b[id]={seen:false,beaten:false,allowed:true});e.allowed=e.allowed===false;put(c);render();ov.querySelector(`[data-allow="${id}"]`)?.focus()};
   for(const b of ov.querySelectorAll('[data-all]'))b.onclick=()=>{const c=load(),v=b.dataset.all==='1';for(const id of ids())if(isUnlocked(c,id)){const e=c.b[id]||(c.b[id]={seen:false,beaten:false,allowed:true});e.allowed=v}put(c);render();ov.querySelector(`[data-all="${b.dataset.all}"]`)?.focus()};
+  if(ro())for(const b of ov.querySelectorAll('[data-allow],[data-all],#zcdxrs'))b.disabled=true;
   fill()}
  /* the pictures one slice at a time: the first open builds each model once (a few ms each), after that they are cached */
  function fill(){const els=[...ov.querySelectorAll('img[data-img]')];let i=0;const step=()=>{if(ov.hidden||i>=els.length)return;const el=els[i++];if(el.isConnected){const u=url(el.dataset.img,el.dataset.full==='1');if(u)el.src=u;el.parentNode.classList.add('rdy')}setTimeout(step,16)};setTimeout(step,10)}

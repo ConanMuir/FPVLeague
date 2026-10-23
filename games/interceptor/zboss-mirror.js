@@ -45,7 +45,7 @@ registerBoss({id:'mirror',n:'The Mirror',tag:'MIRROR',col:'#ff2a2a',spd:90,alt:[
   const off=new V3().addScaledVector(f,az==='SIX'?-220:az==='HEAD'?220:0).addScaledVector(lat,az==='BEAM'?220*(h.side==='LEFT'?1:-1):0);off.y=el==='HIGH'?120:el==='LOW'?-80:0;
   const goal=r>500?P.p.clone().add(off):P.p.clone().addScaledVector(P.v,Math.min(1.5,r/150));const fast=B.L.rocket&&r>900?1.7:1;
   C.steer(t,C.dirTo(t,goal),K*fast,1.4,dt,15);
-  if(B.cd<=0&&r<7+B.L.warhead+(B.L.fuse?2:0)){api.boom(t.p,1.3);if(P===api.player)C.shoot('your own reflection');reform(C,t)}
+  if(B.cd<=0&&r<7+B.L.warhead+(B.L.fuse?2:0)){api.boom(t.p,1.3);C.shoot('your own reflection',P);reform(C,t)}
   return true},
  hit(C,t,h){const H=t.bs.h;if(h.at&&H){const A=C.aspect(h.at,t);if(A.key===H.fav){if(h.q==='kill')return 1;if(Math.random()<.75){h.txt='IT KNEW · break your habit';return 0}}}return h.q==='kill'?2:1},
  phase(C,t,i){if(i===1&&t.bs.L.swarm){const n=C.api.TH.filter(u=>u.k==='spectre'&&u.bs.lead===t&&u.st!=='dead').length;legionRaise(C,t,Math.max(0,t.bs.L.swarm-n),{swarm:1},{sv:'mirror'})}},

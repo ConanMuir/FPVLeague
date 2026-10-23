@@ -74,9 +74,9 @@ function mountAssist(C) { const S = C.S; if (!S || typeof document === 'undefine
 const focus = (C, t) => { const d = C.nearPilot(t.p); if (d) return d.p; const s = C.sites()[0]; return _fc.set(s ? s.x : C.siteC.x, 0, s ? s.z : C.siteC.z); };
 function orbit(C, t, F, dt, spd, rate) { const B = t.bs, dx = t.p.x - F.x, dz = t.p.z - F.z, d = Math.hypot(dx, dz) || 1, k = C.cl((d - RAD[B.ph]) / 300, -1, 1), des = _d.set(-dz / d * B.dir - dx / d * k, 0, dx / d * B.dir - dz / d * k);
   des.y = C.cl((C.api.gh(t.p.x, t.p.z) + B.alt - t.p.y) / 160, -.4, .4); C.steer(t, des.normalize(), spd, rate, dt, 60); }
-function pickTarget(C, t) { const B = t.bs, L = C.sites(); if (C.me() && (!L.length || Math.random() < .6)) { B.tg = 'p'; B.site = null; } else if (L.length) { const far = L.filter(q => Math.hypot(q.x - t.p.x, q.z - t.p.z) > 500); B.tg = 's'; B.site = C.pick(far.length ? far : L); } else { B.tg = 'p'; B.site = null; } }
+function pickTarget(C, t) { const B = t.bs, L = C.sites(); if (C.nearPilot(t.p) && (!L.length || Math.random() < .6)) { B.tg = 'p'; B.site = null; } else if (L.length) { const far = L.filter(q => Math.hypot(q.x - t.p.x, q.z - t.p.z) > 500); B.tg = 's'; B.site = C.pick(far.length ? far : L); } else { B.tg = 'p'; B.site = null; } }
 /* the point it commits to: a site, or where you will be when it gets there (a straight line, not a homing one: step off it) */
-function commit(C, t) { const B = t.bs, me = C.me(), g = C.api.gh; vec(C);
+function commit(C, t) { const B = t.bs, me = C.nearPilot(t.p), g = C.api.gh; vec(C);
   if (B.tg === 's' && B.site) B.A.set(B.site.x, B.site.y + 30, B.site.z);
   else if (me) { const lead = C.cl(t.p.distanceTo(me.p) / PASS[B.ph] * .9, 0, 6); B.A.copy(me.p).addScaledVector(me.v, lead * .8); B.A.y = Math.max(B.A.y, g(B.A.x, B.A.z) + 15); }
   else { B.tg = 's'; const s = C.pick(C.sites()); if (!s) return false; B.site = s; B.A.set(s.x, s.y + 30, s.z); }
@@ -85,8 +85,9 @@ function startRun(C, t) { const B = t.bs; if (!commit(C, t)) { B.md = MD.orbit; 
   B.md = MD.run; B.tm = 0; B.wf = 0; B.rv = REV[B.ph]; B.af = 0; B.ck = 0; B.cd = 1e9; B.gl = .2; }
 function endRun(C, t) { const B = t.bs; B.md = MD.orbit; B.tm = C.rnd(...ORB[B.ph]); B.af = AFT[B.ph]; B.ps = (B.ps | 0) + 1; }
 function clip(C, t) {  /* it passes within 28 m of your interceptor: clipped. A near miss only shakes the picture */
-  const B = t.bs, me = C.me(); if (!me || B.ck) return; vec(C); const a = t.pp || t.p, ab = _d.subVectors(t.p, a), ap = _s.subVectors(me.p, a), L = ab.lengthSq() || 1, k = C.cl(ap.dot(ab) / L, 0, 1), dd = _t.copy(a).addScaledVector(ab, k).distanceTo(me.p);
-  if (dd < 28) { B.ck = 1; C.shoot('the Hush clipped you'); } else if (dd < 90) C.api.shake = .6; }
+  const B = t.bs; if (B.ck) return; vec(C); const a = t.pp || t.p, ab = _d.subVectors(t.p, a), L = ab.lengthSq() || 1;
+  for (const me of C.pilots()) { const ap = _s.subVectors(me.p, a), k = C.cl(ap.dot(ab) / L, 0, 1), dd = _t.copy(a).addScaledVector(ab, k).distanceTo(me.p);  /* every pilot's interceptor: a co-op client's is lost on its own screen */
+    if (dd < 28) { B.ck = 1; C.shoot('the Hush clipped you', me); } else if (dd < 90 && me === C.api.player) C.api.shake = .6; } }  /* one pass clips every pilot it goes through, and only once */
 
 registerBoss({id: 'hush', n: 'The Hush', tag: 'HUSH', col: COL, spd: 62, alt: [150, 200], hitR: 3.5, det: 9000, cash: 1100, bounty: 5500, far: 5200,
   resist: {rack: .2, gepard: .2, sam: .3, mpads: .2, idome: .1, hflak: .15, flak: .1}, hp: 5, phases: ['WHISPER', 'HUSH', 'SILENCE'],
@@ -131,8 +132,8 @@ registerBoss({id: 'hush', n: 'The Hush', tag: 'HUSH', col: COL, spd: 62, alt: [1
       if ((B.fx = (B.fx || 0) - dt) <= 0) { B.fx = lit ? .03 : .12; C.FX.emit(t.mesh.localToWorld(_t.set(0, 1.1, -5)), lit ? 0xffe2b8 : 0xff9a50, lit ? 2 : 1, lit ? 24 : 10, lit ? .35 : .5, null, lit ? 3.2 : 2.2); } } },
   /* the radar scope: static for it (no blip, no bearing); heavier as it closes, so it tells you "near" and nothing else */
   radar(C, rc, P, t) { const k = C.cl(1.15 - t.p.distanceTo(C.api.camera.position) / 3200, 0, 1), n = 24 + (90 * k | 0);
-    rc.fillStyle = 'rgba(170,230,200,.42)'; for (let i = 0; i < n; i++) rc.fillRect(C.rnd(20, 480), C.rnd(20, 480), C.rnd(1, 4), 1.5);
-    rc.strokeStyle = 'rgba(170,230,200,.12)'; rc.lineWidth = 2; for (let i = 0; i < 3; i++) { const y = C.rnd(0, 500); rc.beginPath(); rc.moveTo(0, y); rc.lineTo(500, y + C.rnd(-14, 14)); rc.stroke(); } },
+    rc.fillStyle = 'rgba(170,230,200,.42)'; for (let i = 0; i < n; i++) rc.fillRect(C.drnd(20, 480), C.drnd(20, 480), C.drnd(1, 4), 1.5);
+    rc.strokeStyle = 'rgba(170,230,200,.12)'; rc.lineWidth = 2; for (let i = 0; i < 3; i++) { const y = C.drnd(0, 500); rc.beginPath(); rc.moveTo(0, y); rc.lineTo(500, y + C.drnd(-14, 14)); rc.stroke(); } },
   /* audio assist (off by default): a faint ring where the sound is, nearer the edge the further off your view it is, a chevron when it is closing */
   overlay(C, oc, t, W, H) { if (!assistOn(C)) return; const c = heard(C, t, C.api.player, true); if (c.loud < .03) return;
     const X = Math.sin(c.az) * Math.cos(c.el), Y = Math.sin(c.el), Zf = Math.cos(c.az) * Math.cos(c.el), phi = Math.acos(C.cl(Zf, -1, 1)), q = Math.round(Math.atan2(X, Y) / .35) * .35, m = Math.min(W, H), r = m * .1 + m * .3 * C.cl(phi / 2.3, 0, 1);

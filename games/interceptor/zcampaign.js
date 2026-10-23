@@ -166,6 +166,7 @@ export function initCampaign(api,G,Z){
  const R=()=>run&&RELICS[run.relic];
  Z.cp={get on(){return!!run},get run(){return run},has:k=>!!run&&run.mods.some(m=>m.id===k),n:(k,d=0)=>{if(!run)return d;const m=run.mods.find(m=>m.id==='raid');return k==='launchSites'&&m?MODS.raid.launchSites:d},
   C,put,status:id=>status(C(),id),front:()=>front(C()),result,cleanCamp,SECTORS,MODS,RELICS,GEO,
+  arm:(id,en)=>{armed=has(SEC,id)?id:null;armedEn=!!en},  /* the next Z.start plays this sector (as Endless): zendless.js hosts a co-op Endless run with it */
   start:(id,force,en)=>{const c=C();if(!force&&!playable(c,id))return false;armed=id;armedEn=!!en;$('zover').hidden=true;closeMap();api.startMatch();return!!run}};
 
  // ---------- hooks into the run ----------
@@ -217,9 +218,9 @@ export function initCampaign(api,G,Z){
  Z.base.el.addEventListener('click',e=>{if(!e.target.closest?.('#zcprep')||!run||run.res!=='repair'||run.used||client()||G.state!=='base')return;
   for(const s of SITES)if(s.hp>0)s.hp=s.max;run.used=1;feed('<span class="cg">Field repair crew</span>: every site back to full');Z.base.refresh()});
  // co-op: the host's sector rides in the snapshot; a client rebuilds it from the same tables (and only shows it: the host's save moves)
- Z.cpNet=()=>run?{id:run.id,pr:run.pr,r:run.relic,s:run.res,u:run.used,o:run.over||''}:null;
+ Z.cpNet=()=>run?{id:run.id,pr:run.pr,r:run.relic,s:run.res,u:run.used,o:run.over||'',e:run.endless?1:0}:null;
  Z.cpIn=p=>{if(!client())return;if(!p||typeof p!=='object'||!has(SEC,p.id)){if(run){run=null;restoreSites()}return}
-  if(!run||run.id!==p.id||run.relic!==p.r||run.res!==p.s){run=mkRun(p.id,Math.min(PR_MAX,Math.max(0,p.pr|0)),p.r,p.s);if(run.fragile){const h=hospital();if(h)h.n='HOSPITAL'}}
+  if(!run||run.id!==p.id||run.relic!==p.r||run.res!==p.s||!!run.endless!==!!p.e){run=mkRun(p.id,Math.min(PR_MAX,Math.max(0,p.pr|0)),p.r,p.s,!!p.e);if(run.fragile){const h=hospital();if(h)h.n='HOSPITAL'}}
   run.used=p.u?1:0;run.over=p.o==='won'||p.o==='lost'?p.o:''};
 
  // ---------- the end of a sector ----------
