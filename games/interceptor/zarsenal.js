@@ -1,6 +1,6 @@
 // Zombies arsenal: the pilot weapon loadout (zweapons.js) and five more base defences (zarsdef.js), numbers in zarsdata.js. This file is the glue:
 // per-pilot weapon state, the base screen's Pilot weapon section and the defences' extra controls (carrier parking), the HUD tag, a small
-// WebAudio synth for their sounds, co-op routing and the run's arsenal stats (tools/zombies-arsenal-bench.mjs reads them).
+// WebAudio synth for their sounds, co-op routing and the run's arsenal stats (tools/zombies-arsenal-bench.mjs and tools/arsenal-stats.mjs read them).
 // Hooks it uses: zbase.js Z.shopTop / Z.baseBind / Z.defExtra / Z.mapExtra / Z.mapClick, zdef.js Z.defx, znet.js 'A' requests and events (Z.arsNet),
 // zombies.js Z.detonate / Z.tstep / Z.helperHit / Z.jink / Z.step / Z.visuals / Z.hud. It is initialised after znet.js, so its Z.detonate is the
 // outermost: a co-op client's special weapon goes to the host as ['A','det', ...], resolved with the solo rules.
@@ -25,22 +25,36 @@ export function initArsenal(api,G,Z){
  Z.ars=A;Object.assign(A,{W,DF,WPN,WORDER,WEFF,bot:ARSBOT});
 
  // ---------- the run: reset, stats (for the bench), what the bench or a test took out of the game (S.zarsBan: ids, or 'all') ----------
- const ST=()=>G.ars||(G.ars={bought:{},eq:{},wk:{},dk:{},dmax:{}});
- const z0=Z.start;Z.start=()=>{PS.clear();A.parking=0;const b=S.zarsBan;A.ban=new Set(b==='all'?[...WORDER.slice(1),...ARS_HELPERS]:Array.isArray(b)?b.filter(x=>typeof x==='string'):[]);G.ars=null;z0()};
+ const ST=()=>G.ars||(G.ars={bought:{},eq:{},wk:{},dk:{},dmax:{},kl:{},kc:{},buy:{},dw:{},fx:{}});
+ const inc=(o,k,n=1)=>{o[k]=(o[k]|0)+n},HS=new Map();let HSW=0;  /* HS: each defence's kill count at the last helper kill (who made the next one), HSW: the personal swarm's */
+ const dsnap=()=>{const s=ST();for(const d of Z.def.D)s.dk[d.id]=[d.type,d.kills|0,d.spent|0]};  /* kills and spending per defence, kept when it is sold */
+ const z0=Z.start;Z.start=()=>{PS.clear();HS.clear();A.parking=0;const b=S.zarsBan;A.ban=new Set(b==='all'?[...WORDER.slice(1),...ARS_HELPERS]:Array.isArray(b)?b.filter(x=>typeof x==='string'):[]);G.ars=null;z0();HSW=Z.sw?.mine?.kills|0};
  const cb0=Z.cpBan;Z.cpBan=k=>A.ban.has(k)||!!cb0?.(k);
  // the microwave dome arrives with the FPV swarms (a wave before them, whatever the difficulty or sector)
  const if0=Z.itemFrom;Z.itemFrom=k=>k==='mwave'?Math.max(3,Z.kindFrom('swarm')-1):if0(k);
  // a wave starts (every screen: zdef deploy): chaff refilled, stats; the base screen opens: sortie flares, leftovers cleared
  const dp0=Z.def.deploy;Z.def.deploy=()=>{dp0();W&&A.onWave?.();if(!G.on)return;const s=ST();s.eq[A.cur()]=(s.eq[A.cur()]|0)+1;const n={};
-  for(const d of Z.def.D){n[d.type]=(n[d.type]|0)+1;s.dk[d.id]=[d.type,d.kills|0]}for(const[k,c]of Object.entries(n))s.dmax[k]=Math.max(s.dmax[k]|0,c)};
- const bo0=Z.base.open;Z.base.open=()=>{A.onBase?.();A.parking=0;registerArsBot(window.__z);bo0()};  // the shared bot brain (zbotbrain.js), when the build has it, gets the arsenal's hook
- const k0=Z.kill;Z.kill=(t,cat)=>{const was=t.paid;k0(t,cat);if(!was&&t.paid&&t.by==='p'&&G.on){const s=ST(),w=A.cur();s.wk[w]=(s.wk[w]|0)+1}};
- A.stats=()=>{const s=ST(),dk={};for(const d of Z.def.D)s.dk[d.id]=[d.type,d.kills|0];for(const[t,k]of Object.values(s.dk))dk[t]=(dk[t]|0)+k;return{bought:s.bought,eq:s.eq,wk:s.wk,dmax:s.dmax,dkills:dk}};
+  for(const d of Z.def.D){n[d.type]=(n[d.type]|0)+1;s.dk[d.id]=[d.type,d.kills|0,d.spent|0];inc(s.dw,d.type)}for(const[k,c]of Object.entries(n))s.dmax[k]=Math.max(s.dmax[k]|0,c)};
+ const bo0=Z.base.open;Z.base.open=()=>{A.onBase?.();A.parking=0;registerArsBot(window.__z);G.on&&dsnap();bo0()};  // the shared bot brain (zbotbrain.js), when the build has it, gets the arsenal's hook
+ /* the item ledger: every paid kill is booked to the item that made it (A.stats().kl[item][enemy kind], kc = its pay): a weapon id (A.src while its burst
+    resolves; the dart's contact and the bomblets act between bursts), a defence type or the swarm (A.hs while Z.helperKill runs: the one whose count rose),
+    airstrike / ram / sortie / coop, or a damaged track that failed later (the weapon that damaged it, or helper-dmg); other = no tag (kill chain, boss bolts) */
+ const srcOf=(t,cat)=>cat===undefined&&t.dmg?t._dm||'helper-dmg':t.by==='o'?'coop':A.src||A.hs||(t.by==='p'?G.strike&&G.strike.n===3?'airstrike':Z.so?.S?.on?'sortie':A.cur()==='dart'||A.cur()==='cluster'?A.cur():G.burst?'ram':'pilot':'other');
+ const dt0=Z.detonate;Z.detonate=()=>{A.src=A.cur();try{return dt0()}finally{A.src=null}};
+ const hk0=Z.helperKill;Z.helperKill=t=>{let b=null;for(const d of Z.def.D)if(d.kills>(HS.get(d.id)|0)){if(!b||b.type==='ew')b=d;HS.set(d.id,d.kills)}
+  const k=Z.sw?.mine?.kills|0,sw=k>HSW;HSW=k;A.hs=t.sw?'swarm':b&&b.type!=='ew'?b.type:sw?'swarm':'other';try{return hk0(t)}finally{A.hs=null}};
+ const dm0=api.damage;api.damage=t=>{if(!t.dmg)t._dm=A.src;return dm0(t)};  /* who damaged it, in case it fails later (interceptor.js threatStep kills it with no cat) */
+ const k0=Z.kill;Z.kill=(t,cat)=>{const was=t.paid,c0=G.cash;k0(t,cat);if(was||!t.paid||!G.on)return;const s=ST(),w=A.cur(),it=srcOf(t,cat);
+  if(t.by==='p')inc(s.wk,w);inc(s.kl[it]||(s.kl[it]={}),t.k);inc(s.kc,it,G.cash-c0);if(t.emp>0&&t.by!=='p')inc(s.fx,'emp.assist')};
+ const pl0=Z.base.act.place;Z.base.act.place=(k,j,by)=>{const d=pl0(k,j,by);if(d&&G.on)inc(ST().buy,k);return d};
+ const sl0=Z.base.act.sell;Z.base.act.sell=id=>{if(G.on)dsnap();return sl0(id)};
+ const ev0=A.ev;A.ev=e=>{if(G.on){const s=ST();if(e[0]==='st')inc(s.fx,'emp.disabled',e.length-2);else if(e[0]==='ch')inc(s.fx,e[6]?'chaff.decoyed':'chaff.burned');else if(e[0]==='cv')inc(s.fx,'carrier.drones',e[2]|0);else if(e[0]==='mw')inc(s.fx,'mwave.pulses')}return ev0(e)};
+ A.stats=()=>{dsnap();const s=ST(),dk={},sp={};for(const[t,k,c]of Object.values(s.dk)){inc(dk,t,k);inc(sp,t,c)}return{bought:s.bought,eq:s.eq,wk:s.wk,dmax:s.dmax,dkills:dk,kl:s.kl,kc:s.kc,buy:s.buy,dw:s.dw,spent:sp,fx:s.fx}};
 
  // ---------- buying and loading a weapon (base screen) ----------
  const locked=id=>G.wave+1<WPN[id].from;
  A.buyW=id=>{const w=WPN[id],P=A.P(A.me());if(!w||G.state!=='base'||A.ban.has(id))return false;if(P.own.has(id))return A.equip(id);if(locked(id)||G.cash<w.price)return false;
-  if(Z.mirror){Z.req(['A','wb',id]);return true}G.cash-=w.price;P.own.add(id);ST().bought[id]=G.wave+1;if(Z.online)Z.arsNet?.team(`<b>${Z.arsNet.name(A.me())}</b> bought the ${w.n.toLowerCase()} · ${money(w.price)}`);A.equip(id);return true};
+  if(Z.mirror){Z.req(['A','wb',id]);return true}G.cash-=w.price;P.own.add(id);ST().bought[id]=G.wave+1;inc(ST().buy,id);if(Z.online)Z.arsNet?.team(`<b>${Z.arsNet.name(A.me())}</b> bought the ${w.n.toLowerCase()} · ${money(w.price)}`);A.equip(id);return true};
  A.equip=id=>{const P=A.P(A.me());if(!P.own.has(id)||G.state!=='base')return false;P.cur=id;P.sch=id==='flare'?FLARE.sortie:0;Z.pk.apply();if(Z.mirror)Z.req(['A','we',id]);A.snd.click();return true};
  // how well the loaded weapon suits a track (0 = can't touch it), for the bot pilots
  A.fits=(t,w=A.cur())=>!t?0:w==='net'?(W.netOK(t)?1:0):WEFF[w]?.[t.k]??0;

@@ -138,6 +138,10 @@ jobs:
           - check: bot-ladder-check
             area: league
             run: node tools/bot-ladder-check.mjs
+          # the arsenal's kill ledger: one short bot run (Pro, Normal, 12 waves); the tool must run and book every kill to an item (the full table is docs/ARSENAL-STATS.md)
+          - check: arsenal-stats (quick)
+            area: interceptor
+            run: node tools/arsenal-stats.mjs --quick
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
