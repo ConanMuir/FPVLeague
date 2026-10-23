@@ -1,7 +1,8 @@
 // Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
 // game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal   run only those sections (CI shards them across jobs); default all
+//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,scars   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
+import {timingCheck} from './browser.mjs';
 import {front as campFront} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
@@ -1245,6 +1246,233 @@ if (want('arsenal')) {
   ok(bot.w !== 'std', `Bots: the Legend weighs the weapons against the next wave and loads the ${bot.w} for a swarm-heavy wave (owns ${bot.own})`);
   if (SHOTS) { await p.evaluate(() => { __z.Z.base.setTab('armory'); }); await p.screenshot({path: SHOTS + '/ars-armory.png'}); }
   ok(!errs.length, 'Arsenal: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
+  await p.close();
+}
+
+// ---------- the living map (zscars.js): craters, burns and rubble that stay; caps and recycling, the save, the campaign, co-op, no glitches, frame cost, no leaks ----------
+if (want('scars')) {
+  const {p, errs} = await page('z');
+  await play(p);
+  // helpers inside the page: spots, a held-open wave, frame grabs (pixels read right after a direct render: scene -> canvas), a median
+  await p.evaluate(() => {
+    const {Z, G, api} = __z, S = Z.sc, V = api.THREE.Vector3, gh = api.gh, R = (a, b) => a + Math.random() * (b - a); S.ensure();
+    const sl = (x, z) => Math.hypot(gh(x + 3, z) - gh(x - 3, z), gh(x, z + 3) - gh(x, z - 3)) / 6;
+    window.__find = crop => { for (let z = -2800; z < 1000; z += 60) for (let x = -2800; x < 2800; x += 60) { if (S.bad(x, z, 30) || S.cropAt(x, z) !== crop || sl(x, z) > .05) continue;
+      if ([[30, 0], [-30, 0], [0, 30], [0, -30]].every(([a, b]) => S.cropAt(x + a, z + b) === crop && S.flamAt(x + a, z + b) > 0)) return {x, z}; } return null; };
+    window.__spots = () => { const o = {}; for (let z = -2800; z < 1000 && !(o.flat && o.slope); z += 90) for (let x = -2800; x < 2800; x += 90) { if (S.bad(x, z, 30)) continue; let mn = 9, mx = 0;
+      for (let a = 0; a < 8; a++) { const q = sl(x + Math.cos(a * .785) * 30, z + Math.sin(a * .785) * 30); mn = Math.min(mn, q); mx = Math.max(mx, q); }
+      if (!o.flat && mx < .035) o.flat = {x, z}; if (!o.slope && mn > .15 && mx < .45) o.slope = {x, z}; } return o; };
+    window.__pos = r => { for (;;) { const x = R(-2500, 2500), z = R(-2500, 500); if (![[0, 0], [1.3, 1.3], [-1.3, 1.3], [1.3, -1.3], [-1.3, -1.3]].some(([a, b]) => S.bad(x + a, z + b, r * 1.1 + 1))) return [x, z]; } };  /* a place a scar may be, with room for the 2.2 m grid (a saved one anywhere else is dropped on load) */
+    window.__set = a => JSON.stringify(a.map(r => r.join()).sort());  /* the records as a set: slots are not an order */
+    window.__open = () => { __z.cont(); G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); for (const t of api.TH) { t.st = 'dead'; if (t.mesh) t.mesh.visible = false; } };  /* a wave that stays open: burns spread only while a wave runs */
+    window.__med = a => a.slice().sort((x, y) => x - y)[a.length >> 1];
+    window.__rd = f => { const w = window.__dlNoRender; window.__dlNoRender = false; try { return f(); } finally { window.__dlNoRender = w; } };
+    window.__sig = m => Array.from(m.instanceMatrix.array).reduce((a, b, i) => a + b * ((i % 97) + 1), 0);
+  });
+  // the houses as they were, to see everything put back
+  const H0 = await p.evaluate(() => { const h = __z.Z.sc.houses(); return {n: h.n, walls: __sig(h.w), roofs: __sig(h.r)}; });
+
+  // ---- scars appear: ground bursts, a downed wreck, a crash, a destroyed house; not in the air, not on the defended ground ----
+  const A = await p.evaluate(() => { const {Z, G, api} = __z, S = Z.sc, V = api.THREE.Vector3, gh = api.gh, o = {}, bm = (p, k) => { S.refill(); S.boom(p, k); };
+    o.ready = S.ready; o.start = S.stats();
+    const w = __find(1), f = __find(6); o.spots = !!(w && f);
+    bm(new V(w.x, gh(w.x, w.z) + 120, w.z), 2); o.air = S.stats().craters;                         /* an air burst leaves nothing */
+    bm(new V(f.x, gh(f.x, f.z) + .5, f.z), 1.6); o.plough = {c: S.stats().craters, b: S.stats().burns};  /* a wreck on ploughed earth: a crater, it will not burn */
+    for (const s of api.SITES) bm(new V(s.x + 10, gh(s.x, s.z) + 1, s.z), 6); o.site = S.stats().craters;  /* the defended ground has its own damage stages */
+    bm(new V(w.x, gh(w.x, w.z) + .5, w.z), 3); o.wheat = {c: S.stats().craters, b: S.stats().burns};   /* a big hit on dry wheat: a crater and a fire */
+    /* a downed Shahed falls on a field through the game's own path (threatStep -> boom -> Z.flash) */
+    S.refill(); const w2 = __find(3) || __find(2) || w, c0 = S.stats().craters, t = __z.make('shahed', w2.x, w2.z); t.p.set(w2.x, gh(w2.x, w2.z) + 25, w2.z); t.v.set(0, -15, 0); t.st = 'fall'; t.spin = 2; __z.sim(4);
+    o.fall = {dead: t.st === 'dead', craters: S.stats().craters - c0, near: S.list(0).some(r => Math.hypot(r.x - w2.x, r.z - w2.z) < 40)};
+    /* the interceptor crashes into a field */
+    S.refill(); const me = api.player, c1 = S.stats().craters, f2 = __find(8) || __find(2) || w; me.p.set(f2.x, gh(f2.x, f2.z) + 1, f2.z); api.lose('crash'); o.crash = S.stats().craters - c1;
+    /* a house: hit it hard; it, its shadow and its collider go, rubble stays */
+    S.refill(); const h = S.houses(), r0 = S.stats().rubble, i = 40, hx = h.x[i], hz = h.z[i], y0 = api.scene.userData.hcol[i].y, e0 = Array.from(h.w.instanceMatrix.array.slice(i * 16, i * 16 + 16));
+    S.boom(new V(hx, gh(hx, hz) + 1, hz), 3);
+    const e1 = Array.from(h.w.instanceMatrix.array.slice(i * 16, i * 16 + 16)), r1 = Array.from(h.r.instanceMatrix.array.slice(i * 16, i * 16 + 16));
+    o.house = {dead: h.dead[i], rub: S.stats().rubble - r0, col: api.scene.userData.hcol[i].y > 1e5 && y0 < 1e5, gone: e1.slice(0, 12).every(v => v === 0) && r1.slice(0, 12).every(v => v === 0) && e1[12] === e0[12], rubAt: S.list(2).some(r => Math.hypot(r.x - hx, r.z - hz) < 3)};
+    return o; });
+  ok(A.ready && A.spots && A.start.craters + A.start.burns + A.start.rubble === 0, `Scars: ready after the idle build, the run starts clean (${JSON.stringify(A.start.hw)})`);
+  ok(A.air === 0, 'Scars: an air burst high above the ground leaves nothing');
+  ok(A.plough.c === 1 && A.plough.b === 0, `Scars: a wreck on ploughland leaves a crater and no fire (craters ${A.plough.c}, burns ${A.plough.b})`);
+  ok(A.site === 1, 'Scars: hits on the defended sites add none (their damage stages are their rubble)');
+  ok(A.wheat.c === 2 && A.wheat.b === 1, `Scars: a big hit on dry wheat leaves a crater and a fire (craters ${A.wheat.c}, burns ${A.wheat.b})`);
+  ok(A.fall.dead && A.fall.craters === 1 && A.fall.near, `Scars: a downed Shahed falling on a field leaves a crater where it lands (${A.fall.craters})`);
+  ok(A.crash === 1, `Scars: the interceptor crashing into a field leaves a mark (${A.crash})`);
+  ok(A.house.dead === 1 && A.house.rub >= 1 && A.house.col && A.house.gone && A.house.rubAt, `Scars: a destroyed house is gone (walls, roof, shadow, collider) and rubble stands in its place ${JSON.stringify(A.house)}`);
+
+  // ---- a fire spreads slowly while it burns, then stops ----
+  const B = await p.evaluate(() => { const {Z, G} = __z, S = Z.sc; __open(); const b = S.list(1)[0], T = S.burnTime(b.r), s = [b.pf]; let t = 0;
+    for (const u of [5, 15, 30]) { __z.sim(u - t); t = u; s.push(S.list(1)[0].pf); }
+    __z.sim(T + 8 - t); const done = S.list(1)[0].pf, g0 = S.pools[1].glow[b.i]; __z.sim(30); const after = S.list(1)[0].pf, g1 = S.pools[1].glow[b.i];
+    return {r: b.r, T, s, done, after, g0, g1}; });
+  ok(B.s[0] < B.s[1] && B.s[1] < B.s[2] && B.s[3] < 1 && B.s[3] > B.s[2], `Burn: spreads steadily while it burns (progress ${B.s.map(v => v.toFixed(2)).join(' -> ')} over 30 s of a ${B.T.toFixed(0)} s fire)`);
+  ok(B.done === 1 && B.after === 1 && B.g1 === 0, `Burn: stops at its full size (${B.done}, still ${B.after} 30 s later) and the embers go out (${B.g0.toFixed(2)} -> ${B.g1})`);
+
+  // ---- caps and recycling ----
+  const C = await p.evaluate(() => { const {Z, api} = __z, S = Z.sc, R = (a, b) => a + Math.random() * (b - a), o = {}; S.clear();
+    const spot = () => [R(-2500, 2500), R(-2500, 500)];
+    for (let i = 0; i < 256; i++) { const [x, z] = spot(); S.add(0, x, z, 3 + i % 4, {a: i < 100 ? 15 : 0, fade: 1}); }
+    o.full = S.stats().craters; for (let i = 0; i < 100; i++) { const [x, z] = spot(); S.add(0, x, z, 9, {a: 0, fade: 1}); }
+    o.dying = S.list(0).filter(r => r.st === 2).length; __z.sim(3);
+    const L = S.list(0); o.n = L.length; o.big = L.filter(r => r.r > 8).length; o.old = L.filter(r => r.age === 15).length; o.small = L.filter(r => r.r < 6 && r.age === 0).length; o.q = S.pools[0].q.length; o.ic = S.pools[0].geo.instanceCount;
+    S.clear(); for (let i = 0; i < 128; i++) { const [x, z] = spot(); S.add(1, x, z, 8 + i % 5, {p: i < 10 ? 8 : 31, fade: 1}); }
+    for (let i = 0; i < 40; i++) { const [x, z] = spot(); S.add(1, x, z, 16, {p: 31, fade: 1}); } __z.sim(3);
+    const Lb = S.list(1); o.bn = Lb.length; o.spreading = Lb.filter(r => r.pf < 1).length; o.bic = S.pools[1].geo.instanceCount; o.bnew = Lb.filter(r => r.r > 15).length;
+    S.clear(); const h = S.houses(); let k = 0, refused = 0; for (let i = 0; i < 90 && k < 70; i++) { if (S.houseDown(i)) { S.add(2, h.x[i], h.z[i], 7.4, {fade: 1}); k++ } else refused++; }
+    o.rub = S.stats().rubble; o.refused = refused; o.ric = S.pools[2].geo.instanceCount; o.meshes = api.scene.children.filter(m => m.userData.scars !== undefined).length; S.clear(); return o; });
+  ok(C.full === 256 && C.n === 256 && C.ic <= 256 && C.q === 0, `Caps: 256 craters at most (${C.n}; instances drawn ${C.ic}) when 100 more arrive`);
+  ok(C.dying === 100 && C.big === 100 && C.old === 0 && C.small === 156, `Recycling: the 100 oldest are the ones that fade out (new ${C.big}, old left ${C.old}, younger small ones kept ${C.small}, ${C.dying} fading when they came)`);
+  ok(C.bn === 128 && C.spreading === 10 && C.bic <= 128 && C.bnew === 40, `Caps: 128 burns at most (${C.bn}); a fire that is still spreading is never the one recycled (${C.spreading} of 10 kept, ${C.bnew} new)`);
+  ok(C.rub === 64 && C.refused >= 6 && C.ric <= 64, `Caps: 64 rubble at most (${C.rub}); a destroyed house stays destroyed, so the 65th is refused, not recycled`);
+  ok(C.meshes === 3, 'Scars: three draws in all, one instanced mesh per type');
+
+  // ---- quality: fewer shown at Medium and Low, the records keep every one ----
+  const Q = await p.evaluate(() => { const {Z, api} = __z, S = Z.sc, gfx = __z.gfx, o = {}; S.clear(); for (let i = 0; i < 256; i++) S.add(0, -2000 + (i % 16) * 90, -2000 + (i >> 4) * 90, 4, {fade: 1}); for (let i = 0; i < 128; i++) S.add(1, 100 + (i % 16) * 90, -2000 + (i >> 4) * 90, 9, {p: 31, fade: 1});
+    for (const lv of ['high', 'med', 'low', 'high']) { gfx.set(lv); const t = S.stats(); o[lv] = {c: t.craters, b: t.burns, shown: t.shown, far: S.uniforms.uCam.value.y}; } gfx.set('auto'); S.clear(); return o; });
+  ok(Q.high.shown[0] === 256 && Q.med.shown[0] === 153 && Q.low.shown[0] === 76 && Q.low.shown[1] === 38 && Q.low.c === 256 && Q.low.b === 128, `Quality: craters drawn High ${Q.high.shown[0]} / Medium ${Q.med.shown[0]} / Low ${Q.low.shown[0]} (burns ${Q.low.shown[1]} at Low); all ${Q.low.c} records kept`);
+  ok(Q.high.far > Q.med.far && Q.med.far > Q.low.far, `Quality: the fade distance shrinks with the level (${Q.high.far} / ${Q.med.far} / ${Q.low.far} m)`);
+
+  // ---- save and load: the codec round-trips, junk is dropped, the campaign validator keeps what is valid ----
+  const D = await p.evaluate(() => { const {Z, api} = __z, S = Z.sc, R = (a, b) => a + Math.random() * (b - a), o = {}; S.clear(); const h = S.houses();
+    for (let i = 0; i < 40; i++) { const r = R(2, 15), [x, z] = __pos(r); S.add(0, x, z, r, {v: i % 4, y: i % 32, a: i % 16, fade: 1}); }
+    for (let i = 0; i < 20; i++) { const r = R(6, 28), [x, z] = __pos(r); S.add(1, x, z, r, {v: i % 4, y: i % 32, p: i % 5 ? 31 : 12, a: i % 16, fade: 1}); }
+    for (let i = 60; i < 65; i++) if (S.houseDown(i)) S.add(2, h.x[i], h.z[i], 7.4, {v: i % 4, y: i % 32, fade: 1});
+    const R1 = S.recs(), s1 = S.encode(); o.n = R1.length; o.len = s1.length; o.chars = /^[A-Za-z0-9_-]*$/.test(s1); o.pack = S.pack(S.unpack(s1)) === s1;
+    S.clear(); S.load(s1); const R2 = S.recs(); o.same = __set(R1) === __set(R2); o.hidden = Array.from(h.dead).reduce((a, b) => a + b, 0);
+    S.load(s1, {settle: true}); o.settled = S.list(1).every(r => r.pf === 1);
+    const AL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_!?+/', rs = n => Array.from({length: n}, () => AL[Math.random() * AL.length | 0]).join(''); let bad = 0, kept = 0;
+    for (let i = 0; i < 300; i++) { const s = i % 3 ? rs(8 * (Math.random() * 120 | 0)) : i % 2 ? s1.slice(0, Math.random() * s1.length | 0) : s1.replace(/./g, c => Math.random() < .03 ? '!' : c);
+      try { const r = S.unpack(s); if (r.length > 448 || r.some(x => x.length !== 8 || x[0] > 2 || x[3] > 63)) bad++; S.load(s); const t = S.stats(); if (t.craters > 256 || t.burns > 128 || t.rubble > 64) bad++; kept += r.length > 0 ? 1 : 0; } catch (e) { bad++; } }
+    o.junk = {bad, kept}; S.clear();
+    const cc = Z.cp.cleanCamp({v: 1, d: 1, sc: {mill: s1, river: 5, silo: 'no good!', bogus: 'AAAAAAAA', rail: 'A'.repeat(3585), hosp: ''}}, 1).sc; o.camp = {keys: Object.keys(cc).join(), mill: cc.mill === s1};
+    o.fresh = JSON.stringify(Z.cp.cleanCamp(null, 1).sc);
+    return o; });
+  ok(D.n === 65 && D.len === 8 * D.n && D.chars && D.pack && D.same && D.hidden === 5, `Save: ${D.n} scars are ${D.len} characters of the codec's alphabet and load back identically (${D.hidden} houses hidden again)`);
+  ok(D.settled, 'Save: burns loaded from a save have long burnt out');
+  ok(D.junk.bad === 0, `Save: 300 corrupt or truncated strings never throw and never pass a cap (${D.junk.kept} still gave some valid records)`);
+  ok(D.camp.keys === 'mill,hosp' && D.camp.mill, `Campaign save: only valid scar strings survive cleanCamp (${D.camp.keys}), a valid one verbatim`);
+  ok(D.fresh === '{}', 'Campaign save: a new campaign has none');
+
+  // ---- the campaign keeps its sectors' scars; a quick defence keeps them for the run ----
+  const E = await p.evaluate(() => { const {Z, G, api} = __z, S = Z.sc, o = {}; Z.cp.put(Z.cp.cleanCamp(null, 1));
+    const mk = n => { for (let i = 0; i < n; i++) { const [x, z] = __pos(5); S.add(0, x, z, 5, {fade: 1}); } const [bx, bz] = __pos(12); S.add(1, bx, bz, 12, {p: 20, fade: 1}); const h = S.houses(); if (S.houseDown(10 + n)) S.add(2, h.x[10 + n], h.z[10 + n], 7.4, {fade: 1}); };
+    o.start = Z.cp.start('mill', true); o.id = Z.cp.run?.id; o.s0 = S.stats(); mk(6); o.made = S.stats();
+    /* clearing a wave saves them by itself */
+    __open(); __z.sim(.5); G.wq.length = 0; __z.sim(2); o.clear = G.state; o.saved = api.S.zcamp.sc?.mill || ''; o.savedN = o.saved.length / 8; o.rec1 = JSON.stringify(S.recs());
+    Z.cp.start('river', true); o.river = S.stats(); o.rivIds = Z.cp.run?.id; mk(3); o.river2 = S.stats();
+    Z.cp.start('mill', true); o.back = S.stats(); const fin = r => r[0] === 1 ? [...r.slice(0, 6), 31, r[7]] : r; o.sameBack = __set(S.recs().map(fin)) === __set(JSON.parse(o.rec1).map(fin)); o.hid = Array.from(S.houses().dead).reduce((a, b) => a + b, 0);
+    Z.cp.start('river', true); o.river3 = S.stats(); o.keys = Object.keys(api.S.zcamp.sc || {}).sort().join();
+    Z.cp.openMap(); document.getElementById('zcpnew').click(); document.getElementById('zcpnew').click(); o.mid = S.stats(); Z.cp.closeMap(); Z.cp.start('mill', true); o.newCamp = S.stats(); o.newKeys = Object.keys(api.S.zcamp.sc || {}).join(); o.hid2 = Array.from(S.houses().dead).reduce((a, b) => a + b, 0);
+    return o; });
+  ok(E.start && E.id === 'mill' && E.s0.craters === 0 && E.made.craters === 6 && E.made.burns === 1 && E.made.rubble === 1, `Campaign: a sector starts clean and collects scars (${E.made.craters} craters, ${E.made.burns} burn, ${E.made.rubble} rubble)`);
+  ok(E.savedN === 8, `Campaign: clearing a wave saves them into the campaign by itself (${E.savedN} scars saved, state ${E.clear})`);
+  ok(E.river.craters + E.river.burns + E.river.rubble === 0 && E.river2.craters === 3, 'Campaign: another sector has its own (starts with none)');
+  ok(E.back.craters === 6 && E.back.burns === 1 && E.back.rubble === 1 && E.sameBack && E.hid === 1, `Campaign: back in the first sector every scar is where it was, burns burnt out, the house still gone (${E.hid})`);
+  ok(E.river3.craters === 3 && E.keys === 'mill,river', `Campaign: each sector keeps its own (${E.keys})`);
+  ok(E.mid.craters + E.mid.burns + E.mid.rubble === 0 && E.newCamp.craters + E.newCamp.burns + E.newCamp.rubble === 0 && E.newKeys === '' && E.hid2 === 0, 'Campaign: New campaign clears them at once, nothing of the old one is saved into it, the houses are back');
+  const F = await p.evaluate(() => { const {Z, G, api} = __z, S = Z.sc, o = {}; api.startMatch(); o.run = Z.cp.run?.id || null; o.s0 = S.stats(); S.add(0, -1000, -1000, 5, {fade: 1}); const h = S.houses(); S.houseDown(7); S.add(2, h.x[7], h.z[7], 7.4, {fade: 1});
+    __z.cont(); __z.sim(1); o.w1 = S.stats(); G.wq.length = 0; for (const t of api.TH) t.st = 'dead'; __z.sim(8); __z.cont(); __z.sim(2); o.wave = G.wave; o.w2 = S.stats(); o.saved = !!api.S.zcamp.sc?.mill;
+    api.startMatch(); o.again = S.stats(); o.hid = Array.from(S.houses().dead).reduce((a, b) => a + b, 0); return o; });
+  ok(F.run === null && F.s0.craters === 0 && F.w2.craters === 1 && F.w2.rubble === 1 && F.wave >= 2, `Quick defence: starts clean, keeps its scars for the run (wave ${F.wave}: ${F.w2.craters} crater, ${F.w2.rubble} rubble)`);
+  ok(F.again.craters + F.again.rubble === 0 && F.hid === 0, 'Quick defence: the next run starts clean, the houses are back');
+
+  // ---- co-op: the host's scars are the truth. Snapshot cadence is bounded; a client mirrors it and never makes its own ----
+  const K = await p.evaluate(() => { const {Z, api} = __z, S = Z.sc, V = api.THREE.Vector3, gh = api.gh, o = {}, od = Object.getOwnPropertyDescriptor(Z, 'online'), md = Object.getOwnPropertyDescriptor(Z, 'mirror'); let host = true;
+    Object.defineProperty(Z, 'online', {get: () => true, configurable: true}); Object.defineProperty(Z, 'mirror', {get: () => !host, configurable: true});
+    try { S.clear(); for (let i = 0; i < 30; i++) { const r = 4 + i % 9, [x, z] = __pos(r); S.add(i % 2, x, z, r, {fade: 1}); } const h = S.houses(); if (S.houseDown(21)) S.add(2, h.x[21], h.z[21], 7.4, {fade: 1});
+      const a = S.netOut(10000), b = S.netOut(10100); const [ex, ez] = __pos(6); S.add(0, ex, ez, 6, {fade: 1}); const c = S.netOut(10200), d = S.netOut(11000), e = S.netOut(11300), f = S.netOut(16200);
+      o.cad = [!!a.d, !!b.d, !!c.d, !!d.d, !!e.d, !!f.d].join(); o.size = Math.max(a.d.length, d.d.length, f.d.length); o.revs = [a.r === b.r, c.r === d.r, c.r > a.r].join();
+      const hostRecs = __set(S.recs()); host = false; S.clear();
+      S.netIn(d); o.mirror = __set(S.recs()) === hostRecs; o.n = S.stats(); o.hid = Array.from(h.dead).reduce((x, y) => x + y, 0);
+      __z.sim(1); o.faded = S.list(0).every(r => r.fade === 1);   /* in, faded */
+      const before = JSON.stringify(S.list(0).map(r => [r.i, r.st, r.fade])); S.netIn({r: 77, d: d.d}); o.again = before === JSON.stringify(S.list(0).map(r => [r.i, r.st, r.fade]));
+      S.refill(); const c0 = S.stats().craters; S.boom(new V(-2000, gh(-2000, -1500) + .5, -1500), 3); o.client = S.stats().craters - c0;
+      /* the host drops two scars: the client fades them out */
+      const recs = S.unpack(d.d); S.netIn({r: 78, d: S.pack(recs.slice(2))}); o.fadingOut = S.list(0).filter(r => r.st === 2).length + S.list(1).filter(r => r.st === 2).length; __z.sim(3); o.after = S.stats();
+      o.badIn = (() => { try { S.netIn(null); S.netIn(5); S.netIn({r: 1, d: 7}); S.netIn({r: 2, d: 'zz'}); S.netIn({r: 3, d: '!!!!!!!!'}); return true; } catch (er) { return false; } })();
+      host = true; o.hostOut = S.netOut(20000) !== null; Object.defineProperty(Z, 'mirror', {get: () => true, configurable: true}); o.mirrorOut = S.netOut(30000);
+    } finally { Object.defineProperty(Z, 'online', od); Object.defineProperty(Z, 'mirror', md); S.clear(); S.cRev = -1; }
+    return o; });
+  ok(K.cad === 'true,false,false,true,false,true' && K.revs === 'true,true,true', `Co-op: the records go out on change (at most about once a second) and every 5 s, otherwise only the revision (${K.cad}; ${K.size} characters at most)`);
+  ok(K.mirror && K.n.craters === 16 && K.n.burns === 15 && K.n.rubble === 1 && K.hid === 1, `Co-op: a client rebuilds the host's scars exactly (${K.n.craters} craters, ${K.n.burns} burns, ${K.n.rubble} rubble, the house gone)`);
+  ok(K.again && K.faded, 'Co-op: the same snapshot again changes nothing (no flicker, no re-fade)');
+  ok(K.client === 0, `Co-op: a client's own explosions make no scars (${K.client})`);
+  ok(K.fadingOut === 2 && K.after.craters + K.after.burns === 29, `Co-op: what the host dropped fades out on the client (${K.fadingOut} fading, then ${K.after.craters + K.after.burns} left)`);
+  ok(K.badIn && K.hostOut && K.mirrorOut === null, 'Co-op: junk in a snapshot is ignored; only the host sends scars');
+
+  // ---- no glitches: the decal against the terrain, pixel by pixel ----
+  // A = with the scars; B = the same frame with the depth test off (the scars drawn over everything in the same order); C = without scars. If a scar ever dips below the
+  // terrain (z-fighting, clipping, a chord through a crease) A and B differ there. Flicker: the scar's own contribution (A - C) must not move when the camera moves a millimetre.
+  const sp = await p.evaluate(() => __spots());
+  ok(!!(sp.flat && sp.slope), `Pixels: a flat spot and a slope found for the checks (${JSON.stringify(sp)})`);
+  await p.evaluate(() => {
+    const {Z, api} = __z, S = Z.sc, gh = api.gh, sc = api.scene, ren = api.renderer, gl = ren.getContext(), M = S.pools.map(q => q.mesh), fr = window.__fr = {};
+    window.__fill = (x, z) => { S.clear(); for (const [dx, dz, r, v] of [[0, 0, 3, 0], [9, 3, 6, 1], [-10, 5, 12, 2], [22, -9, 9, 3], [-28, -18, 4.5, 1]]) S.add(0, x + dx, z + dz, r, {v, y: v * 7, fade: 1}); S.add(1, x - 20, z + 18, 14, {p: 31, v: 1, y: 3, fade: 1}); S.add(1, x + 14, z + 24, 11, {p: 19, v: 2, y: 3, fade: 1}); };
+    window.__cam = (c, t) => { const cam = api.camera; cam.position.set(c[0], c[1], c[2]); cam.up.set(0, 1, 0); cam.lookAt(t[0], t[1], t[2]); cam.fov = 60; cam.updateProjectionMatrix(); cam.updateMatrixWorld(); };
+    const hide = [], ob = sc.onBeforeRender, sh = ren.shadowMap.autoUpdate;
+    window.__begin = () => { for (const o of sc.children) if (o.userData.forest || o.userData.house) { hide.push([o, o.visible]); o.visible = false; } sc.onBeforeRender = () => {}; ren.shadowMap.autoUpdate = false; };
+    window.__end = () => { for (const [o, v] of hide) o.visible = v; hide.length = 0; sc.onBeforeRender = ob; ren.shadowMap.autoUpdate = sh; };
+    window.__view = (spot, d, el, off = 0) => { const x = spot.x, z = spot.z, gx = gh(x + 3, z) - gh(x - 3, z), gz = gh(x, z + 3) - gh(x, z - 3), l = Math.hypot(gx, gz), ux = l > .01 ? -gx / l : 0, uz = l > .01 ? -gz / l : 1, e = el * Math.PI / 180,
+      cx = x + ux * d * Math.cos(e), cz = z + uz * d * Math.cos(e), y0 = gh(x, z); __cam([cx + off * -uz, Math.max(y0 + d * Math.sin(e), gh(cx, cz) + 2), cz + off * ux], [x, y0 + 1, z]); };
+    window.__grab = (name, mode) => __rd(() => { Z.visuals(1e-4); S.uniforms.uTime.value = 1;  /* the embers flicker with time: hold it still */ for (const m of M) { m.visible = mode !== 'off' && m.geometry.instanceCount > 0; m.material.depthTest = mode !== 'nodepth'; }
+      ren.render(sc, api.camera); const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, b = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, b); fr[name] = b; for (const m of M) m.material.depthTest = true; return w * h; });
+    window.__diff = (a, b, thr) => { const A = fr[a], B = fr[b]; let n = 0; for (let i = 0; i < A.length; i += 4) if (Math.abs(A[i] - B[i]) > thr || Math.abs(A[i + 1] - B[i + 1]) > thr || Math.abs(A[i + 2] - B[i + 2]) > thr) n++; return n; };
+    window.__flick = (a0, c0, a1, c1, thr) => { const A0 = fr[a0], C0 = fr[c0], A1 = fr[a1], C1 = fr[c1]; let n = 0, m = 0; for (let i = 0; i < A0.length; i += 4) for (let k = 0; k < 3; k++) { const d0 = A0[i + k] - C0[i + k], d1 = A1[i + k] - C1[i + k]; if (d0 !== 0 || d1 !== 0) m++; if (Math.abs(d0 - d1) > thr) n++; } return [n, m]; };
+    window.__trio = (spot, d, el) => { __view(spot, d, el); __grab('on', 'on'); __grab('nd', 'nodepth'); __grab('off', 'off'); return {ab: __diff('on', 'nd', 5), ac: __diff('on', 'off', 8)}; };
+    window.__flk = (spot, d, el) => { for (let k = 0; k < 3; k++) { __view(spot, d, el, k * .001); __grab('a' + k, 'on'); __grab('c' + k, 'off'); } const x = __flick('a0', 'c0', 'a1', 'c1', 10), y = __flick('a1', 'c1', 'a2', 'c2', 10); return [x[0] + y[0], x[1]]; };
+    __begin();
+  });
+  const rep = [];
+  for (const [nm, spot] of [['flat', sp.flat], ['slope', sp.slope]]) {
+    await p.evaluate(({x, z}) => __fill(x, z), spot);
+    for (const [d, el] of [[14, 10], [14, 45], [60, 12], [60, 45], [200, 14], [200, 45], [500, 18], [500, 60]]) {
+      const r = await p.evaluate(({spot, d, el}) => __trio(spot, d, el), {spot, d, el});
+      rep.push(`${nm} ${d} m ${el} deg: ${r.ac} scar px, ${r.ab} differ without depth`);
+      ok(r.ac > 40 && r.ab <= Math.max(10, r.ac * .01), `Pixels (${nm}, ${d} m, ${el} deg): the scars sit on the terrain, ${r.ab} of ${r.ac} scar pixels differ with the depth test off`);
+    }
+    for (const [d, el] of [[40, 20], [300, 30]]) {
+      const [n, m] = await p.evaluate(({spot, d, el}) => __flk(spot, d, el), {spot, d, el});
+      ok(m > 200 && n <= Math.max(4, m * .0005), `Pixels (${nm}, ${d} m): no flicker, a millimetre of camera motion moves ${n} of ${m} scarred samples`);
+    }
+  }
+  console.log('  ' + rep.join('\n  '));
+  // far away a scar is gone (distance and size on screen), not a shimmering speck
+  const far = await p.evaluate(spot => { __fill(spot.x, spot.z); __view(spot, 2600, 20); __grab('fon', 'on'); __grab('foff', 'off'); return __diff('fon', 'foff', 4); }, sp.flat);
+  ok(far <= 4, `Pixels: 2.6 km away the scars have faded out completely (${far} pixels)`);
+  await p.evaluate(() => __end());
+
+  // ---- frame cost with every cap full (256 + 128 + 64), looking straight down at them ----
+  const T = await p.evaluate(() => { const {Z, api} = __z, S = Z.sc, gh = api.gh, ren = api.renderer, gl = ren.getContext(), M = S.pools.map(q => q.mesh), o = {}; S.clear(); const cx = 700, cz = -1100, R = (a, b) => a + Math.random() * (b - a);
+    for (let i = 0; i < 256; i++) S.add(0, cx + R(-70, 70), cz + R(-70, 70), R(3, 14), {v: i % 4, y: i % 32, fade: 1});
+    for (let i = 0; i < 128; i++) S.add(1, cx + R(-70, 70), cz + R(-70, 70), R(8, 26), {v: i % 4, y: i % 32, p: i % 3 ? 31 : 14, fade: 1});
+    const h = S.houses(); let k = 0; for (let i = 0; i < 400 && k < 64; i++) if (S.houseDown(i)) { S.add(2, h.x[i], h.z[i], 7.4, {fade: 1}); k++ }
+    o.full = S.stats(); __begin(); __cam([cx, gh(cx, cz) + 120, cz + 60], [cx, gh(cx, cz), cz]);
+    const px = new Uint8Array(4), time = on => __rd(() => { Z.visuals(1e-4); S.uniforms.uTime.value = 1; for (const m of M) m.visible = on && m.geometry.instanceCount > 0; const t0 = performance.now(); ren.render(api.scene, api.camera); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); const dt = performance.now() - t0;  /* reading a pixel waits for the GPU: finish() does not in Chrome */ return [dt, ren.info.render.calls, ren.info.render.triangles]; });
+    time(true); time(false); const on = [], off = []; let ci = [0, 0], ti = [0, 0];
+    for (let i = 0; i < 8; i++) { const a = time(true), b = time(false); on.push(a[0]); off.push(b[0]); ci = [a[1], b[1]]; ti = [a[2], b[2]]; }
+    o.on = __med(on); o.off = __med(off); o.calls = ci[0] - ci[1]; o.tris = ti[0] - ti[1];
+    /* the per-frame JS of the scars (fades, spread, flames, upload) with every slot live and a wave running */
+    __end(); __open(); __z.sim(.3); const t0 = performance.now(); for (let i = 0; i < 300; i++) Z.visuals(.016); o.cpu = (performance.now() - t0) / 300; S.clear(); const t1 = performance.now(); for (let i = 0; i < 300; i++) Z.visuals(.016); o.cpu0 = (performance.now() - t1) / 300;
+    return o; });
+  console.log(`  frame time with every cap full: ${T.on.toFixed(2)} ms with scars, ${T.off.toFixed(2)} ms without (+${(T.on - T.off).toFixed(2)} ms), +${T.calls} draw calls, +${T.tris} triangles; per-frame JS ${T.cpu.toFixed(3)} ms vs ${T.cpu0.toFixed(3)} ms empty`);
+  ok(T.full.craters === 256 && T.full.burns === 128 && T.full.rubble === 64, `Frame cost: every cap full (${T.full.craters} / ${T.full.burns} / ${T.full.rubble})`);
+  ok(T.calls === 3 && T.tris > 0, `Frame cost: three more draw calls for everything (+${T.calls}, +${T.tris} triangles)`);
+  timingCheck(T.on - T.off < 3.5, `Frame cost: ${(T.on - T.off).toFixed(2)} ms more to draw 448 scars packed into one 140 m square, fifteen layers deep, from 120 m up (budget 3.5 ms; GPU time locally, software GL in CI)`, ok);
+  timingCheck(T.cpu - T.cpu0 < .35, `Frame cost: the scars' per-frame JS with every slot live is ${(T.cpu - T.cpu0).toFixed(3)} ms (budget .35 ms)`, ok);
+
+  // ---- nothing leaks: restarts put everything back, no GPU or JS growth from the scars ----
+  const Lk = await p.evaluate((H0) => { const {Z, api, G} = __z, S = Z.sc, o = {}, mem = () => { const m = api.renderer.info.memory; return [m.geometries, m.textures, api.renderer.info.programs.length]; };
+    const fill = () => { S.clear(); for (let i = 0; i < 256; i++) S.add(0, -2000 + i * 10, -1900, 5, {fade: 1}); for (let i = 0; i < 128; i++) S.add(1, -2000 + i * 20, -1800, 10, {fade: 1}); const h = S.houses(); for (let i = 0; i < 30; i++) if (S.houseDown(100 + i)) S.add(2, h.x[100 + i], h.z[100 + i], 7.4, {fade: 1}); };
+    fill(); __z.sim(.5); S.load(S.encode()); __z.sim(.5); const m0 = mem();
+    for (let c = 0; c < 8; c++) { fill(); __z.sim(.5); S.load(S.encode()); S.apply(S.encode()); __z.sim(.5); S.clear(); }
+    o.mem = [m0, mem()]; o.q = S.pools.map(q => q.q.length);
+    for (let c = 0; c < 4; c++) { fill(); __z.sim(.3); api.startMatch(); }
+    const h = S.houses(); o.stats = S.stats(); o.walls = __sig(h.w) === H0.walls && __sig(h.r) === H0.roofs; o.col = api.scene.userData.hcol.every(q => q.y < 1e5); o.dead = Array.from(h.dead).reduce((a, b) => a + b, 0);
+    Z.stop(); o.stop = S.stats(); o.vis = S.pools.map(q => q.mesh.visible); o.meshes = api.scene.children.filter(x => x.userData.scars !== undefined).length; return o; }, H0);
+  ok(Lk.mem[0].join() === Lk.mem[1].join(), `Leaks: eight cycles of full caps, save, load and snapshot add no GPU geometries, textures or programs (${Lk.mem[0]} -> ${Lk.mem[1]}) and leave nothing pending (${Lk.q})`);
+  ok(Lk.stats.craters + Lk.stats.burns + Lk.stats.rubble === 0 && Lk.dead === 0 && Lk.walls && Lk.col, 'Leaks: four full-to-the-caps runs and restarts later nothing is left (scars 0, houses all back, colliders back)');
+  ok(Lk.vis.every(v => !v) && Lk.meshes === 3 && Lk.stop.craters === 0, 'Leaks: outside Zombies no scar is drawn (Classic and the menu see nothing), still three meshes in all');
+  ok(!errs.length, 'Scars: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
 
