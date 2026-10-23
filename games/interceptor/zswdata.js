@@ -43,6 +43,6 @@ export const SW_BLURB={
 // optics = lock-time factor per Optics level; brk = chance per second that a locked evader (Hard / Nightmare) jinks, and that a jink breaks the lock.
 export const LOCK={cone:5,keep:30,keepR:40,keepT:1.5,mem:4,memK:3,range:3500,t:1.4,far:.45,decay:1.6,optics:[1,.8,.65,.5],brk:{some:[.3,.45],all:[.45,.7]},jam:1.7,jamR:2500};
 
-// ---------- battery (zbatt.js; Classic keeps Riley's 16,000 mAh) ----------
-// Zombies flies a bigger pack than Classic: k x the tuned capacity (the mod panel's Battery value). Better battery doubles it.
+// ---------- battery (zbatt.js; the mod panel's Battery is 16,000 mAh by default) ----------
+// Zombies flies a bigger pack than the tuned one: k x the tuned capacity (the mod panel's Battery value). Better battery doubles it.
 export const BAT={k:1.6,perk:2,full:226,cruise:100};  // full: pack current at full throttle (A, Riley's motor model); cruise: full-throttle level speed (m/s), for the range readout

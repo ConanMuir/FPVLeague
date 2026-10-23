@@ -33,7 +33,7 @@ export function initLock(api,G,Z){
   if(t.net)return Math.random()<B[0]*B[1]*dt;  /* a co-op client mirrors the track: the host flies it, so just the odds */
   if(L.held>1&&!(t.brk>0)&&(t.brkCd||0)<=0&&Math.random()<B[0]*dt){t.brk=1.6;t.brkCd=5;t.brkDir=Math.random()<.5?-1:1}
   if(t.brk>1.3&&!t.lkJ){t.lkJ=1;return Math.random()<B[1]}if(!(t.brk>0))t.lkJ=0;return false}  /* each jink (one of yours closing inside 350 m, or this one) rolls once */
- /* where to fly to meet it: lead.js, the same solver as Classic's PIP, on sim state every tick of the lock. The point is where you actually meet
+ /* where to fly to meet it: lead.js, on sim state every tick of the lock. The point is where you actually meet
     the track flying straight at your speed (at least 40 m/s; flat out when you can't catch it at that), allowing for its turn; L.unc says
     how far that could move if it changes what it is doing. */
  function intercept(t,me,dt){const ld=leadTrack(t,dt,V3),O=L.sol,s=Math.max(me.v.length(),40);leadSolve(O,t.p,t.v,ld.a,me.p,s,V3);

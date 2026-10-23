@@ -11,7 +11,7 @@ Overlaps: none known on these files.
 
 ## How to play
 
-The launcher (`index.html`) lists the two games: **Drone League** (League, Dogfight, Freeplay and Training, in `games/drone-league/`) and the **Interceptor** (Classic or Zombies). Drone League's menu also links to the Interceptor. Pick whichever way is easiest:
+The launcher (`index.html`) lists the two games: **Drone League** (League, Dogfight, Freeplay and Training, in `games/drone-league/`) and **Zombies**, the Interceptor's endless wave-survival game (in `games/interceptor/`). Drone League's menu also links to it. Pick whichever way is easiest:
 
 1. **Windows:** double-click `Play Drone League.bat`. It starts a small local web server and opens Drone League in its own Edge window. Close the black server window when you're done.
 2. **Online:** turn on GitHub Pages for this repo (Settings > Pages > deploy from the main branch), then open the site link. Nothing to install.
@@ -49,7 +49,7 @@ engine/                 Riley's engine, used by the Interceptor
   menu.js modpanel.js   settings grid, mod panel (Rates + Physics tabs, presets, export/import)
   net.js loop.js        online rooms (claude.ai room or PeerJS), 120 Hz fixed-step main loop
   engine.css            shared look (OSD, menu, mod panel, controller panel)
-games/interceptor/      Interceptor (Classic, Zombies): the tail-sitter dart's step is built from the shared flight core
+games/interceptor/      Interceptor (Zombies): the tail-sitter's step is built from the shared flight core
                         (interceptor.js); everything else is the engine
 Drone League/           the original single-file Drone League (claude.ai artifact version), kept as is
 ```

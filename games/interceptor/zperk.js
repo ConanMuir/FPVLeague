@@ -17,7 +17,7 @@ export function initPerks(api,G,Z){
   warhead:['Warhead kill radius +1 m (the fuse window grows with it).','+2 m.','+3 m.'],
   battery:['Twice the pack: double the flight time and range (the top bar shows what is left), and 25% less voltage sag.'],
   aid:['Foreign Aid: site repairs cost 30% less.'],
-  fuse:['Your warhead fires by itself at the closest approach inside 6 m, like Classic. Without it you time the burst yourself (F, click or the detonate button).'],
+  fuse:['Your warhead fires by itself at the closest approach inside 6 m. Without it you time the burst yourself (F, click or the detonate button).'],
   rocket:['Every interceptor gets a 15 s rocket burst when it lifts off the mat: about 3× normal top speed, same stick rates. HUD bar shows the burn left.'],
   lure:['Z / D-pad down: up to 6 drones within 1.5 km of your interceptor turn toward a beacon dropped under it for 8 s; any that reach it hit an empty field. Missiles and the Mothership ignore it. 1 charge per wave.'],
   salvage:['Your kills within 1.2 km of a site pay +40%; kills farther than 3 km from every site pay −30%.']};

@@ -1,6 +1,6 @@
 // The interceptor's body styled as a 9K32 Strela-2 (9M32) missile: slender olive-drab tube at the real 72 mm-class calibre, glass seeker dome
 // on a short tapered nose, four small canards behind the dome, four clipped folding tail fins it stands on, joint bands, the yellow warhead band
-// and white stencils, and a motor nozzle in the tail. All geometry and textures are built in code. It covers the same envelope as Riley's dart
+// and white stencils, and a motor nozzle in the tail. All geometry and textures are built in code. It covers the same envelope as the dart it replaced
 // (nose tip y 0.384, fin tips at r 0.15 / y -0.36), so the collision hull, camera and props stay where they are; the quad arms, motors and props
 // are shared and added by interceptor.js. Body +Y = nose. The nozzle exit sits at (0, -0.375, 0); the exhaust points along local -Y.
 import * as THREE from 'three';
