@@ -20,6 +20,7 @@ import {initCampaign} from './zcampaign.js';
 import {initLock} from './zlock.js';
 import {initSwarm} from './zswarm.js';
 import {initBatt} from './zbatt.js';
+import {initArsenal} from './zarsenal.js';
 import {gfx} from '../../engine/gfx.js';
 import {initSpectate} from './zspectate.js';
 import {initWarm} from './zwarm.js';
@@ -174,7 +175,7 @@ export function initZombies(api){
  // ---------- impacts, kills, money ----------
  // a track the jammer spoofed (t.spoof) or a lure beacon pulled (t.lure) comes down in a field: no damage. Sandbags (supply) take 25% off.
  Z.impact=t=>{t.st='dead';t.impacted=1;if(G.state==='trial')return;const K=KIND[t.k]||KIND.shahed;if(!Z.mirror)api.boom(t.aim,K.dmg>100?6:K.dmg>20?4:K.dmg?1.5:.8);if(api.demo||G.state==='over')return;const s=t.tgt;  /* a co-op client gets the host's explosion as an event */
-  if(K.dmg&&(t.spoof||t.lure>0||t.dcy)){feed(`<span class="cb">${K.n} came down in an empty field (${t.spoof?'jammed':t.dcy?'went for the decoy site':'lured'})</span>`);return}  /* t.dcy: a warning-action decoy pulled it (zwarn.js) */
+  if(K.dmg&&(t.spoof||t.lure>0||t.dcy)){feed(`<span class="cb">${K.n} came down in an empty field (${t.smk?'lost in the smoke':t.spoof?'jammed':t.dcy?'went for the decoy site':'lured'})</span>`);return}  /* t.dcy: a warning-action decoy pulled it (zwarn.js) */
   if(!K.dmg){feed(`<span class="co">${K.n} hit the ${s.n.toLowerCase()}: a decoy, no damage</span>`);return}
   const dmg=Math.round(K.dmg*(G.sup?.harden?.75:1)*(Z.dmgK?.(s,t)??1));  /* dmgK: a hardened or evacuated site (zwarn.js) */
   if(s.hp>0){const was=s.hp;s.hp=Math.max(0,s.hp-dmg);G.perfect=false;G.lastHit={k:t.k,site:s.n,dmg};
@@ -322,6 +323,7 @@ export function initZombies(api){
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
  initNet(api,G,Z);  // co-op (znet.js): wraps them again
+ initArsenal(api,G,Z);  // pilot weapons and the extra defences (zarsenal.js): after co-op, so a client's weapon goes to the host its own way
  initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
  initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost

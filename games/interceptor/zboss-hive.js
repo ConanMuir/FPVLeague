@@ -21,6 +21,10 @@ function model(C,R,k){const T=C.THREE,M=mats(C),g=C.group(),H=R*.38;
  Object.assign(g.userData,{props,bays});return g}
 function swarmFrom(C,t,n){const{api,G}=C,live=api.TH.reduce((a,u)=>a+(u.k==='swarm'&&api.live(u)?1:0),0);if(live>=160)return;const g=++G.gid;
  for(let i=0;i<n;i++){const u=C.Z.make('swarm',t.p.x+C.rnd(-14,14),t.p.z+C.rnd(-14,14));if(u){u.p.y=t.p.y-8;u.grp=g}}api.feed(`<span class="cr">${t.k==='hive'?'The Hive':'A brood carrier'} launched a swarm (${n})</span>`)}
+const _hz={x:0,y:0,z:0};  // haze emit point (reused)
+const hiveAtmos=(K)=>(C,t,o)=>{const c=C.api.camera.position,d=Math.hypot(c.x-t.p.x,c.z-t.p.z);o.fog=.48;o.fogC.set(0x352d1a);o.fogMix=.6;o.light=.4;o.dark=.42;o.tint.set(0xffb850);o.tintA=.16;o.vign=.38;o.desat=.15;
+ return K*(.4+.6*C.cl(1-d/2600,0,1))};
+const hiveHaze=(C,t,dt,r)=>{const B=t.bs;if((B.hz=(B.hz||0)-dt)<=0){B.hz=.2;const a=Math.random()*6.28,q=C.rnd(r*.2,r);_hz.x=t.p.x+Math.cos(a)*q;_hz.z=t.p.z+Math.sin(a)*q;_hz.y=t.p.y-C.rnd(10,120);C.haze(_hz,0x2a2416,.3,12,3)}};
 const near=(C,p)=>{let b=null,bd=1e9;for(const s of C.sites()){const d=Math.hypot(s.x-p.x,s.z-p.z);if(d<bd){bd=d;b=s}}return b};
 function carry(C,t,dt,o){const B=t.bs;B.rel=(B.rel??6)-dt;if(B.rel<=0){B.rel=o.every;swarmFrom(C,t,o.n)}
  if(!B.site||B.site.hp<=0)B.site=o.pick();const S=B.site;if(!S)return true;const dh=Math.hypot(S.x-t.p.x,S.z-t.p.z);
@@ -37,11 +41,12 @@ registerBoss({id:'hive',n:'The Hive',tag:'HIVE',col:'#ffb21e',spd:24,alt:[580,62
  phase(C,t,i){if(i<1||t.bs.split)return;t.bs.split=1;const{api}=C,L=C.sites();C.Z.an?.say('THE HIVE SPLITS','three brood carriers','#ffb21e',3);api.boom(t.p,8);C.api.shake=.8;
   for(let k=0;k<3;k++){const a=Math.atan2(t.v.x,t.v.z)+(k-1)*2.1,v=new C.V3(Math.sin(a),0,Math.cos(a)).multiplyScalar(36);const b=C.spawn('brood',{x:t.p.x+v.x,z:t.p.z+v.z,y:t.p.y,v,enc:t.bs.enc,set:{n:k+1,site:L[k%Math.max(1,L.length)]}});if(b){b.mesh.parent?.remove(b.mesh);b.mesh.traverse(o=>o.geometry?.dispose());b.mesh=model(C,7,k+1);api.scene.add(b.mesh)}}
   C.vanish(t,'split')},
+ atmos:hiveAtmos(1),
  hit:(C,t,h)=>h.q==='kill'?2:1,
  done:(C,e)=>e.main.bs.split&&e.list.filter(t=>t.k==='brood').length>0&&e.list.filter(t=>t.k==='brood').every(t=>t.bs.dead&&!t.bs.gone),
  phaseName(C,e){const b=e.list.filter(t=>t.k==='brood'&&!t.bs.dead);return!e.main.bs.split?'HIVE':b.length>1?`SPLIT · ${b.length} BROODS`:'LAST BROOD'},
  status(C,e){const t=e.list.find(u=>C.api.live(u));return t?`next swarm in <b>${Math.max(0,Math.ceil(t.bs.rel||0))} s</b> · swarms aloft ${C.api.TH.filter(u=>u.k==='swarm'&&C.api.live(u)).length}`:''},
- vis(C,t,dt){const U=t.mesh.userData;for(const p of U.props)p.rotation.y+=dt*25;const hot=(t.bs.rel||9)<2.5;for(const b of U.bays)b.material.color.setRGB(hot?3:1.2,hot?1.6:.6,hot?.2:.1)},
+ vis(C,t,dt){const U=t.mesh.userData;for(const p of U.props)p.rotation.y+=dt*25;hiveHaze(C,t,dt,260);const hot=(t.bs.rel||9)<2.5;for(const b of U.bays)b.material.color.setRGB(hot?3:1.2,hot?1.6:.6,hot?.2:.1)},
  netOut:(C,t)=>[Math.ceil(t.bs.rel||0),t.bs.split|0],netIn(C,t,a){t.bs.rel=a[0]|0;t.bs.split=a[1]|0},
  aim:(C,t,s)=>({p:t.p.clone().add(new C.V3(0,-4,0)).addScaledVector(t.v.clone().normalize(),Math.random()<s?-10:-22)}),
  winTxt:'The Hive and every brood are down.',
@@ -53,7 +58,7 @@ registerBoss({id:'hive',n:'The Hive',tag:'HIVE',col:'#ffb21e',spd:24,alt:[580,62
 registerBoss({id:'brood',child:1,n:'Brood carrier',tag:'BROOD',col:'#ffb21e',spd:36,alt:[430,470],hitR:5,det:12000,cash:700,resist:{rack:.35,gepard:.5,sam:.9,mpads:.4,idome:.5,hflak:.5,flak:.3},hp:2,
  build:C=>model(C,7,1),introFn:()=>{},
  tick:(C,t,dt)=>carry(C,t,dt,{every:14,n:3+Math.floor(C.G.wave/10),spd:36,alt:450,r:140,dmg:120,pick:()=>t.bs.site&&t.bs.site.hp>0?t.bs.site:near(C,t.p)}),
- hit:(C,t,h)=>h.q==='kill'?2:1,vis(C,t,dt){for(const p of t.mesh.userData.props)p.rotation.y+=dt*30},
+ atmos:hiveAtmos(.55),hit:(C,t,h)=>h.q==='kill'?2:1,vis(C,t,dt){for(const p of t.mesh.userData.props)p.rotation.y+=dt*30;hiveHaze(C,t,dt,120)},
  tname:(C,t)=>`T${String(t.id).padStart(2,'0')} BROOD ${['I','II','III'][(t.bs?.n||1)-1]}`,
  netOut:(C,t)=>[t.bs.n|0],netIn(C,t,a){if(a[0]&&t.bs.n!==a[0]){t.bs.n=a[0];t.mesh.parent?.remove(t.mesh);t.mesh.traverse(o=>o.geometry?.dispose());t.mesh=model(C,7,a[0]);C.api.scene.add(t.mesh)}},
  aim:(C,t,s)=>({p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s?-6:-16)})});
