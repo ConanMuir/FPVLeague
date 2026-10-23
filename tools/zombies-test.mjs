@@ -2114,6 +2114,11 @@ if (want('onboard')) {
   const sk2 = await p.evaluate(() => { __z.cont(); return {g: __g(), at: __z.G.wq.map(q => q.at), skip2: document.getElementById('zobskip2').hidden}; });
   ok(!sk2.g.on && sk2.g.ended === 'skip' && !sk2.g.gentle && sk2.at.join() === '0,25' && sk2.skip2, `Onboard: skipping at the Briefing leaves wave 1 the plain wave (${sk2.at.join('/')} s)`);
   ok(!errs.length, 'Onboard: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+  // the guide always finishes: a pilot who never buys a helper, Rocket Assist or the swarm sees it end by itself, each step dropped after its wave
+  await fresh(p, '?guide=1'); await play(p);
+  const fin = await p.evaluate(() => { const {Z} = __z; __z.cont(); __clear(); const o = {on1: __g().on}; __z.jump(5); __z.sim(.5); const a = __g(); o.w4 = {on: a.on, st: {...a.st}}; __z.jump(Z.itemFrom('swarm') + 10); __z.sim(.5); const b = __g(); o.late = {on: b.on, ended: b.ended, st: {...b.st}, card: b.card}; return o; });
+  ok(fin.on1 && fin.w4.on && fin.w4.st.helper === 'timeout' && fin.w4.st.sortie === 'timeout' && !fin.w4.st.rocket && !fin.late.on && fin.late.ended === 'done' && !fin.late.card && ['helper', 'sortie', 'rocket', 'rocketfly', 'swarm'].every(k => fin.late.st[k] === 'timeout'),
+    `Onboard: a pilot who buys nothing still sees the guide end by itself: the helper and the sortie dropped after wave 3 (${fin.w4.st.helper}/${fin.w4.st.sortie}), Rocket Assist and the swarm a few waves after they open (${JSON.stringify(fin.late)})`);
   await p.close();
 
   // co-op: the host and a client (a real lobby over ?netloop) get no guide and keep the flag unset
