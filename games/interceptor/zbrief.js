@@ -95,7 +95,7 @@ export function initBrief(api,G,Z){
  /* ---------- the card ---------- */
  const rows=D=>{const L=[];
   /* 1 the tracks */
-  L.push(['✈','',`<b>${D.n} track${D.n===1?'':'s'}</b> ·${D.kinds.map(k=>`<span class="zbk${k.isNew?' new':''}${k.boss?' boss':''}" title="${esc(k.nm)}">${k.n}× ${esc(k.k==='swarm'?'FPV'+(k.g>1?` (${k.g} swarms)`:''):k.boss?k.nm:nm(k.k,k.n))}${k.isNew?' <em>NEW</em>':''}</span>`).join(' ')}`]);
+  L.push(['✈','',`<b>${D.n} track${D.n===1?'':'s'}</b> · ${D.kinds.map(k=>`<span class="zbk${k.isNew?' new':''}${k.boss?' boss':''}" title="${esc(k.nm)}">${k.n}× ${esc(k.k==='swarm'?'FPV'+(k.g>1?` (${k.g} swarms)`:''):k.boss?k.nm:nm(k.k,k.n))}${k.isNew?' <em>NEW</em>':''}</span>`).join(' ')}`]);
   /* 2 where from and when */
   const sec=D.secs.filter(s=>s.share>=.15).slice(0,3);
   if(D.tier<1)L.push(['⌖','',`From ${andL((sec.length?sec:D.secs.slice(0,1)).map(s=>`<b>${s.n}</b>`))}`]);
