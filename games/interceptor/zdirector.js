@@ -65,7 +65,7 @@ export function initDirector(api,G,Z,opts={}){
  /* ---------- terrain, buildings, line of sight, framing ---------- */
  /* keeps a camera position over the ground, out of trees and buildings and inside the area; true when that moved it a long way */
  function settle(P,fp){const A=(api.AW||4300)-150,y0=P.y;P.x=cl(P.x,-A,A);P.z=cl(P.z,-A,A);const g=gh(P.x,P.z),lo=g+(fp?.9:4);if(P.y<lo)P.y=lo;
-  if(!fp&&api.sdf&&P.y-g<30)for(let i=0;i<10&&sdf(P.x,P.y,P.z)>-3;i++)P.y+=5;return Math.abs(P.y-y0)>45}
+  if(!fp&&api.sdf&&P.y-g<65)for(let i=0;i<10&&sdf(P.x,P.y,P.z)>-3;i++)P.y+=5;return Math.abs(P.y-y0)>45}
  function blocked(P,X){for(let i=1;i<8;i++){const k=i/8,x=P.x+(X.x-P.x)*k,z=P.z+(X.z-P.z)*k;if(P.y+(X.y-P.y)*k<gh(x,z)+1.2)return true}return false}
  /* is X inside the frame of a camera at P looking at L (k: the share of the frame that counts) */
  function inView(P,L,X,fov,k){_f.subVectors(L,P);if(_f.lengthSq()<1e-6)return false;_f.normalize();_r.crossVectors(_f,UP);if(_r.lengthSq()<1e-9)return false;_r.normalize();_u.crossVectors(_r,_f);_e.subVectors(X,P);
@@ -218,7 +218,7 @@ export function initDirector(api,G,Z,opts={}){
  /* ---------- broadcast touches ---------- */
  const css=document.createElement('style');css.textContent=`#zdirlt{position:fixed;left:50%;bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:6;pointer-events:none;padding:8px 22px 8px 14px;border-left:4px solid #ff9a3c;background:linear-gradient(90deg,rgba(6,12,20,.9),rgba(6,12,20,.55));font:700 22px var(--disp);color:#fff;letter-spacing:.06em;opacity:0;transform:translate(-50%,12px);transition:opacity .35s,transform .35s}
 #zdirlt.on{opacity:1;transform:translate(-50%,0)}#zdirlt small{display:block;font:11px var(--mono);color:#ff9a3c;letter-spacing:.14em;text-transform:uppercase}
-#zdirk{position:fixed;left:18px;top:calc(12px + env(safe-area-inset-top,0px));z-index:6;pointer-events:none;font:700 12px var(--mono);color:#cfe;text-shadow:0 0 4px #000;padding:3px 9px;border-radius:5px;background:rgba(4,10,18,.55);letter-spacing:.08em}
+#zdirk{position:fixed;left:18px;top:calc(138px + env(safe-area-inset-top,0px));z-index:6;pointer-events:none;font:700 12px var(--mono);color:#cfe;text-shadow:0 0 4px #000;padding:3px 9px;border-radius:5px;background:rgba(4,10,18,.55);letter-spacing:.08em}
 #zdirk b{color:#3ddc84;font-size:17px;display:inline-block}#zdirk.tick b{animation:zdirk .45s}@keyframes zdirk{0%{transform:scale(1.6);color:#fff}100%{transform:scale(1)}}`;
  let lt=null,kb=null;
  function card(t){if(!lt)return;const K=KIND[t.k],D=BOSSES[t.k],I=D&&D.intro,nm=(I&&I.title)||K.n.toUpperCase();let sub=I&&typeof I.sub==='string'?I.sub:'';if(!sub&&t.bs&&t.bs.max)sub=t.bs.max+' hit points';else if(!sub&&t.stages)sub=t.stages+' stages';
