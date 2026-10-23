@@ -16,7 +16,7 @@ import {achById,achProg} from '../progress/achievements.js';
 import {P,achView} from '../progress/tracker.js';
 import {lockOf,reqText} from '../progress/unlocks.js';
 import {levelOf} from '../progress/xp.js';
-import {GS,esc} from '../state.js';
+import {GS,esc,isBot} from '../state.js';
 
 let V=null,RANGE=null;  // V: preview renderer state (built on first open); RANGE: [min,max] of every stat over all 125 loadouts
 function ranges(){if(RANGE)return RANGE;const all=allLoadouts(true).map(ids=>statsOf(computeLoadout(ids),MDEF));RANGE={stock:statsOf(computeLoadout(STOCK),MDEF)};
@@ -58,7 +58,7 @@ function update(){const ids=S.loadout,lo=computeLoadout(ids),st=statsOf(lo,MDEF)
   $('gdesc').innerHTML=`<h4>${esc(it.name)}</h4><p><b style="color:${rc}">${esc(rn)}</b> · ${esc(COS_NAMES[TAB-NP])}${it.sub?' · '+esc(it.sub):''}</p><ul>${lk?`<li class="c">Locked. ${esc(reqText(lk))}${a?` (${esc(a.desc)} ${pr.v}/${pr.goal})`:` (you are level ${levelOf(P.xp).lv})`}</li>`:''}<li class="n">Cosmetic: no effect on flight, stats or hitbox</li>${shifted(it.col,team())||shifted(it.col2,team())?`<li class="n">Shown in your team colour: too close to the other team's</li>`:''}</ul>`}
  else{const p=partOf(TAB,ids[TAB]);$('gdesc').innerHTML=`<h4>${esc(p.name)}</h4><p>${esc(p.sub)}</p><ul>${p.pros.map(t=>`<li class="p">${esc(t)}</li>`).join('')}${p.cons.map(t=>`<li class="c">${esc(t)}</li>`).join('')}</ul>`}  // the equipped part (or cosmetic) in the open category
  if(V)showDrone(lo);
- if(GS.player&&!GS.player.remote){GS.player.setLoadout(ids);GS.player.setCos(S.cos)}}  // your own drone refits now (online, the new ids go out with your next state)
+ if(GS.player&&!GS.player.remote&&!isBot(GS.player.key)){GS.player.setLoadout(ids);GS.player.setCos(S.cos)}}  // your own drone refits now (online, the new ids go out with your next state); never the bot the camera follows in the menu demo or a tournament's simulated match (it kept getting your parts and paint)
 // a locked cosmetic (progress/unlocks.js) can't be worn: clicking it shows what unlocks it instead (PEEK)
 let PEEK=null;
 function pickCos(c,id){if(!COS[c]?.some(x=>x.id===id))return;if(lockOf(P,c,id)){PEEK={c,id};update();return}PEEK=null;S.cos={...S.cos,[c]:id};save();update()}
