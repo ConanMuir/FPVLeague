@@ -131,3 +131,5 @@ body.zcoop #menu{z-index:4}  /* in co-op the menu (Leave co-op game) opens over 
 #zalert .zact button small{display:block;font-size:10px;color:var(--dim)}#zalert kbd{font:700 10px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:0 3px;margin-right:5px;color:var(--amber)}
 body.zb-open #zalert,#hud:not(.z) #zalert{display:none}
 @media (max-width:760px){#zalert{top:auto;bottom:calc(290px + env(safe-area-inset-bottom,0px));width:min(360px,92vw)}}
+/* selling (zsell.js): the refund line on a card, and the card of something sold this base screen (Undo until the wave starts) */
+.zups .zrf{color:#9fb0cc}.zarm.zsold{border-style:dashed;background:rgba(255,198,64,.06)}.zarm.zsold b{color:var(--dim);text-decoration:line-through}.zarm.zsold small{color:var(--amber)}
