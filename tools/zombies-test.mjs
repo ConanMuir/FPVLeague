@@ -1383,13 +1383,12 @@ if (want('ew')) {
 // it is doing and why. The visual run flies a sortie between two waves with the shop paused; three headless Champion runs on Normal cover the map, the
 // places, the systems and never stick, and reach the benchmark's wave; one run with a full purse from wave 15 uses the late-game systems ----------
 if (want('explore')) {
-  /* the numbers this section holds the bot to (real-flying benchmark, Champion on Normal, fresh profile: median wave 36.5 over 20 runs before roaming and sorties; cells by wave 12 about
-     160 before). BASE_WAVE sits below the benchmark's quarter-point so a bad draw of three does not fail it; the coverage floors sit well under what the bot reaches. */
-  const BASE_CAP = 30, BASE_WAVE = 26, COV_CELLS = 220, COV_PLACES = 13, COV_SYS = 14;
+  /* the numbers this section holds the bot to (real-flying benchmark, Champion on Normal, fresh profile: median wave 36.5 over 20 runs before roaming and sorties; cells by wave 12: 208 before, 323 after). BASE_WAVE sits below the benchmark's quarter-point so a bad draw of three does not fail it; the coverage floors sit well under what the bot reaches. */
+  const BASE_CAP = 30, BASE_WAVE = 26, COV_CELLS = 240, COV_PLACES = 15, COV_SYS = 18;
   const KINDS = ['shop', 'launch', 'station', 'transit', 'intercept', 'lock', 'line', 'boss', 'sortie', 'bomb', 'return', 'strike', 'relaunch', 'idle'];
   // 1. the visual run: the HUD line, Z.bot.intent, and a sortie flown frame by frame (the shop waits for it, then goes on)
   {
-    const {p, errs} = await page('z');
+    const {p, errs} = await page();
     await p.evaluate(() => { __z.spec.start({lv: 'Champion', d: 1, doc: 'std', kit: [], sec: ''}); __z.spec.setSpeed(8); });
     await p.waitForFunction(() => __z.G.state === 'wave', {timeout: 120000});
     await p.waitForFunction(() => { const e = document.getElementById('zspwhy'); return e && !e.hidden && e.textContent.length > 12 && __z.Z.bot.intent.kind !== 'idle'; }, {timeout: 120000});
@@ -1407,6 +1406,17 @@ if (want('explore')) {
     ok(true, 'Explore: the shop went on after the sortie and wave 2 started');
     await p.evaluate(() => __z.api.startDemo());
     ok(!errs.length, 'Explore: visual run: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+    await p.close();
+  }
+  // 1b. campaign choices: "Bot's choice" picks the doctrine and kit that answer the sector (Grain Silos: swarms, so a lure beacon; Air Mobile for the dash out), and the leaderboard shows each level's flying result
+  {
+    const {p, errs} = await page();
+    const lb = await p.waitForFunction(() => /flown: wave \d+, \d+% of the map, \d+ systems/.test(document.getElementById('zboard')?.textContent || ''), {timeout: 30000}).then(() => true, () => false);
+    ok(lb, 'Explore: the leaderboard shows what each bot level flew for real (wave, share of the map, systems used) beside the benchmark');
+    const c = await p.evaluate(() => { const {spec, Z, G} = __z; spec.start({lv: 'Champion', d: 1, doc: 'std', kit: [], sec: 'silo', auto: true}); const o = spec.sp.o, r = {doc: o.doc, kit: o.kit, g: G.doc, camp: Z.bot.did('camp'), cp: !!Z.cp.on}; spec.stop(); return r; });
+    ok(c.doc === 'air' && c.kit.includes('lure') && c.g === 'air' && c.camp && c.cp, `Explore: Bot's choice for Grain Silos: ${c.doc} doctrine with ${c.kit.join(' + ')}, flown in the campaign sector`);
+    await p.evaluate(() => __z.api.startDemo());
+    ok(!errs.length, 'Explore: campaign choice: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
     await p.close();
   }
   // 2. headless runs in their own contexts (as tools/zombies-bench.mjs): Champion on Normal, a fresh profile

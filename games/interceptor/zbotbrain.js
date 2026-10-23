@@ -136,8 +136,8 @@ function* shopSteps0(P, E) {
     if (hp > 0) yield step(`Repairing ${s.n}: ${pct(s)}% hit points left`, 'repair', () => B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)), {site: i}); } }
   if (P.rebuild && B.act.rebuild) for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp <= 0 && G.cash > 9000) yield step(`Rebuilding ${s.n}: destroyed, back at 40%`, 'rebuild', () => B.act.rebuild(i), {site: i}); }
   const open = () => def.SLOTS.some((_, j) => def.slotFree(j)), keep = G.cash * (1 - (P.spend ?? 1)), afford = c => G.cash - c >= keep;
-  for (const h of hooks) if (h.early && explores(P, E, 2)) { try { yield* h.early(P, E, {afford, open, keep}); } catch (e) { console.warn('bot hook ' + h.name, e); } }  /* hooks that want a place ahead of the helpers (the arsenal's weapon and big defences) */
   if (P.chain >= 2) yield* chainSteps(P, E, afford);  // from All-Star up the kill chain comes before more helpers: it needs no free position
+  for (const h of hooks) if (h.early && explores(P, E, 2)) { try { yield* h.early(P, E, {afford, open, keep}); } catch (e) { console.warn('bot hook ' + h.name, e); } }  /* hooks that want a place ahead of the helpers (the arsenal's weapon and big defences) */
   for (let pass = 0; pass < 3; pass++) {
     const cards = G.cards.map((c, i) => ({...c, i})).filter(c => PRIO.includes(c.k) && IT[c.k] && nw >= from(c.k) && IT[c.k].type !== 'supply' && !(IT[c.k].type === 'perk' && Z.perkMaxed(c.k))).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));
     for (const c of cards) { const it = IT[c.k], price = cost(c.k); if (!afford(price) || !domeOK(c.k)) continue;

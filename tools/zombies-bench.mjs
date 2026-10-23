@@ -11,7 +11,7 @@
 //   --real: the bots fly for real (games/interceptor/zbotfly.js, the Bot Spectator's pilot, headless at sim speed) instead of teleporting behind
 //           their tracks; never writes the teleporting numbers of zbench.json. Each run also logs the pilot's detonations, pilot kills and interceptors lost,
 //           and how much of the map it flew over (cells, places visited, systems used: games/interceptor/zbotstat.js).
-//           --real --write-fly (all levels and difficulties) adds each cell's flying result, with that coverage, to zbench.json as "fly" (the leaderboard shows it)
+//           --real --write-fly adds the flying result of each cell that ran, with that coverage, to zbench.json as "fly" (the leaderboard shows it)
 //           e.g. DL_NORENDER=1 node tools/zombies-bench.mjs --real --diff 1 --runs 3 --par 6
 import {serve, launch, open, root} from './zlib.mjs';
 import {LEVELS, DODGE, SHOP, WAVE, level} from './zbot.mjs';
@@ -23,7 +23,7 @@ const LV = arg('--levels', null) ? arg('--levels').split(',').map(n => level(n) 
 const DIFFS = String(arg('--diff', '0,1,2,3')).split(',').map(Number), RUNS = +arg('--runs', 5), CAP = +arg('--cap', 60), PAR = +arg('--par', 12);
 const LOAD = arg('--load', null), META = arg('--meta', ''), RAW = arg('--raw', null), DIAG = argv.includes('--diag');
 const MERGE = arg('--merge', null), REAL = argv.includes('--real');  /* --merge RAW: earlier runs (a --raw file) of the levels not being run now, to re-run one level and keep the rest */
-const FLYW = REAL && argv.includes('--write-fly') && !LOAD && !META && DIFFS.length === 4 && (LV === LEVELS || MERGE);
+const FLYW = REAL && argv.includes('--write-fly') && !LOAD && !META;  /* any levels and difficulties: only the cells that ran are updated */
 const WRITE = !argv.includes('--no-write') && !REAL && !LOAD && !META && (LV === LEVELS || MERGE) && DIFFS.length === 4, OUT = arg('--out', path.join(root, 'games/interceptor/zbench.json'));
 const DN = ['Easy', 'Normal', 'Hard', 'Nightmare'], GOALS = ['w10', 'helpers', 'streak', 'boss', 'clutch', 'norep', 'lean', 'perfect3', 'hard20', 'night15'];
 const {server, origin} = await serve();
