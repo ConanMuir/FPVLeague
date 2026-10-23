@@ -129,6 +129,22 @@ const r3 = await p.evaluate(async () => { const B = await import('/src/tournamen
 await p.reload(); await gameReady(p);
 const r4 = await p.evaluate(async () => { const s = window.__dl.tourn(); document.getElementById('tournbtn').click(); return {...s, open: !document.getElementById('scr-tournament').hidden, live: [...document.querySelectorAll('#tnbody .tnm.next')].length}; });
 ok(r4.on && r4.format === 'double' && r4.results === 2 && r4.playable.join() === 'w2-0,l1-0' && r4.open && r4.live === 2, `resume mid-way: a double elimination with 2 results opens at ${r4.playable.join(' and ')}`);
+/* a simulation that stays level is settled at OT_MAX of overtime, and Abandon cancels a simulation that is running */
+const r5 = await p.evaluate(async () => {
+  const TM = await import('/src/modes/tournament.js'), UI = await import('/src/ui/tournament.js'), {cleanSetup} = await import('/src/tournament/store.js'), BR = await import('/src/tournament/bracket.js'),
+    {GS} = await import('/src/state.js'), {DIFF} = await import('/src/config/constants.js'), {S} = await import('/src/config/settings.js');
+  const names = DIFF.map(d => d.n), $ = id => document.getElementById(id), out = {};
+  const mk = () => { TM.tournAbandon(); TM.tournNew(cleanSetup(names)({format: 'rr', size: 4, team: 1, len: 60, pairing: 'list', mates: 2, seed: 1, entrants: ['Rookie', 'Pro', 'Legend', 'All-Star'].map(lv => ({kind: 'bot', lv}))})); };
+  mk(); out.started = TM.tournSim(TM.nextBots().id); const s = TM.TN.sim; s.t = s.len + BR.OT_MAX - .01; GS.score = [1, 1];
+  let g = 0; while (TM.TN.sim && g++ < 400) TM.simTick(50);
+  const t = window.__dl.tourn(); out.cap = {ended: !TM.TN.sim, results: t.results, last: t.last, steps: s.steps, ot: BR.OT_MAX};
+  mk(); out.started2 = TM.tournSim(TM.nextBots().id); UI.renderTournament(); out.btn = {disabled: $('tnquit').disabled, sim: !!TM.TN.sim};
+  const c0 = window.confirm; window.confirm = () => true; $('tnquit').click(); window.confirm = c0;
+  out.abandon = {sim: TM.TN.sim, cur: TM.TN.cur, T: TM.TN.T, paused: GS.paused, mode: GS.GM, game: S.game, saved: localStorage.getItem('droneleague.tournament'), setup: !!$('tnstart')};
+  return out;
+});
+ok(r5.started && r5.cap.ended && r5.cap.results === 1 && r5.cap.last && r5.cap.last.score[0] !== r5.cap.last.score[1] && r5.cap.last.score[0] + r5.cap.last.score[1] >= 3 && r5.cap.steps < 120 * 60, `a level simulation is settled at ${r5.cap.ot} s of overtime (${r5.cap.last?.score.join('-')} after ${r5.cap.steps} steps)`);
+ok(r5.started2 && r5.btn.sim && !r5.btn.disabled && !r5.abandon.sim && !r5.abandon.cur && r5.abandon.T === null && !r5.abandon.paused && r5.abandon.mode === r5.abandon.game && r5.abandon.saved === null && r5.abandon.setup, 'Abandon is offered during a simulation and cancels it with the tournament: the world is back in your own mode, the save is gone');
 ok(!errs.length, 'no page errors' + (errs.length ? ':\n  ' + errs.join('\n  ') : ''));
 await b.close(); await server.close();
 console.log(`${el()} ${fails ? fails + ' FAILED' : 'TOURNAMENT CHECK PASSED'}`);

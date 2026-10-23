@@ -18,6 +18,7 @@ import {leaveGame,mpMsg} from '../net/net.js';
 import {DIFF_F} from '../progress/xp.js';
 import {tournWon} from '../progress/tracker.js';
 import {compileFor} from '../render/renderer.js';
+import {ball} from '../physics/ball.js';
 import {GS} from '../state.js';
 import * as B from '../tournament/bracket.js';
 import {TOURN_KEY,loadTournament,newSave} from '../tournament/store.js';
@@ -54,9 +55,9 @@ export function tournSimAll(){const n=nextBots();if(!n)return false;TN.queue=tru
 export function tournStopQueue(){TN.queue=false}
 const mute=on=>{if(!BUS)return;if(on)BUS.mst.gain.setTargetAtTime(0,AC.currentTime,.01);else setVolumes()};
 /** one frame of simulation: as many 1/120 s steps as fit in `budget` ms. Match time counts in play; at the end of it the side ahead wins, a
-    tie goes on until a goal (the game's overtime). A mode switch, an online game or new drones under it end the simulation unrecorded. */
+    tie goes on until a goal (the game's overtime), for at most OT_MAX s. A mode switch, an online game or new drones under it end the simulation unrecorded. */
 export function simTick(budget=24){const s=TN.sim;if(!s)return;if(!GS.demo||GS.GM!=='tourn'||GS.net||!GS.drones.length||!GS.paused){simEnd(null);return}
- const t0=performance.now(),dt=1/120,tk=TN.tick||step;while(performance.now()-t0<budget){tk(dt);s.steps++;if(GS.state==='play')s.t+=dt;if(s.t>=s.len&&GS.score[0]!==GS.score[1]){simEnd([GS.score[0],GS.score[1]]);return}}}
+ const t0=performance.now(),dt=1/120,tk=TN.tick||step;while(performance.now()-t0<budget){tk(dt);s.steps++;if(GS.state==='play')s.t+=dt;if(s.t>=s.len&&(GS.score[0]!==GS.score[1]||s.t>=s.len+B.OT_MAX)){simEnd(B.settle(GS.score,ball.p.z));return}}}  /* level past OT_MAX of overtime: settled by the ball (tournament/bracket.js), so a stalemate never runs for ever */
 function simEnd(score){const s=TN.sim;TN.sim=null;mute(false);GS.paused=false;TN.cur=null;if(!score){TN.queue=false;return}record(s.m.id,score);  /* cut short (a match or an online game started under it): nothing recorded, the world is theirs now */
  if(TN.queue){const n=nextBots();if(n&&tournSim(n.id))return}TN.queue=false;startDemo();TN.after='bracket'}
 /** stop whatever tournament match is running (the mode's exit, Leave match, a new tournament); an unfinished match stays to be played */

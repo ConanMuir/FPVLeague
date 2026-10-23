@@ -31,6 +31,8 @@ import {initAtmos} from './zatmos.js';
 import {particlePool} from '../../engine/particles.js';
 import {ownRandom} from '../../engine/idle.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
+/* drnd: randomness for what is drawn and heard (radar static, haze, a creak's pitch) on its own stream: a frame drawn more or less must not move the game's Math.random sequence (a seeded wave, a replay) */
+let DS=0x2545f491;const drnd=(a,b)=>a+((DS=Math.imul(DS,1664525)+1013904223>>>0)/4294967296)*(b-a);
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
 export const BOSSES={},ROSTER=[],REWARDS={};
 export function registerBoss(def){const id=def.id;
@@ -285,7 +287,7 @@ export function initBosses(api,G,Z){
   if(!t.bs.enc&&!D.minor){t.bs.init=1;newEnc(t)}D.netIn?.(ctx,t,a.slice(3))};
 
  // ---------- what the boss modules get ----------
- const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,HAZE:BHZ,haze,gfx,BOSSES,REWARDS,decal,D2,cl,rnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
+ const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,HAZE:BHZ,haze,gfx,BOSSES,REWARDS,decal,D2,cl,rnd,drnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
   get wt(){return G.wt||0},
   // lose your interceptor to enemy fire (the Ace's missile, the Mirror's burst); the Deathless trophy may save it (zboss-ace.js)
   shoot(why){const d=me();if(!d)return false;if(rew().some(R=>R.save?.(ctx,why)))return false;api.lose('shot');feed(`<span class="cr">Interceptor lost: ${why}</span>`);return true},
