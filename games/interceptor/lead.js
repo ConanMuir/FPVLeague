@@ -1,5 +1,5 @@
 /* Lead solution: where an interceptor flying straight at speed s from here meets a track, and when. One solver for every aim aid that
-   claims to show the meet point: Classic's midcourse PIP (interceptor.js guidance) and Zombies' lock-on intercept overlay (zlock.js).
+   claims to show the meet point: today Zombies' lock-on intercept overlay (zlock.js).
    It runs in the sim tick on sim state; the overlays draw the stored world point through the frame's (interpolated) camera, so the
    point never mixes the two. A meet point is a fixed place in the world: interpolating the camera does not move it.
    The track is modelled as flying on at constant speed while turning at its current rate (a constant-turn model): its acceleration

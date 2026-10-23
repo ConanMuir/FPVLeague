@@ -35,7 +35,7 @@ export function initBoard(api,G,Z){
  const note=()=>B?`<p class="zhint">Bots: median of ${B.runs} benchmark runs each (${B.date}, ${B.version}). Ranked by wave × difficulty weight.</p>`:'<p class="zhint">No bot benchmark loaded.</p>';
  // start menu: a fold-out next to Doctrine & unlocks
  const box=document.createElement('details');box.className='zmeta zlbm';box.id='zboard';($('zmeta')||$('zdiff')).after(box);
- function sync(){box.hidden=S.gmode!=='z';if(box.hidden)return;const E=entries(null),you=E.filter(e=>!e.bot).length,open=box.open;
+ function sync(){const E=entries(null),you=E.filter(e=>!e.bot).length,open=box.open;
   box.innerHTML=`<summary>Leaderboard <span>${E.length?`${B?B.levels.length+' bot levels':'no bots'}${you?` · your best: ${label(E.find(e=>!e.bot))}`:' · play a run to get on it'}`:'loading…'}</span></summary><div class="zmb zlb"><ol>${rows(E,null,40)}</ol>${note()}</div>`;box.open=open}
- sync();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();sync()};$('gmode').addEventListener('click',()=>setTimeout(sync,0));
+ sync();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();sync()};
  return Z.board={record,overHTML,entries,verdict,weights,get bench(){return B},sync}}

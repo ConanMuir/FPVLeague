@@ -2,7 +2,7 @@
 //   node tools/zombies-gfx.mjs [--shots] [--hitch] [--prox]
 // Always: the page loads clean, the warm-up runs during the menu, the Graphics setting switches live through Low / Medium / High / Auto
 // (pixel ratio, shadow map, forest tiles) and is saved and validated, the FPS meter shows and hides with its setting.
-// --shots: screenshots to shots/gfx-*.png (Classic and a Zombies wave at 1280x720 on High and Low, the meter at 900x640).
+// --shots: screenshots to shots/gfx-*.png (a Zombies wave at 1280x720 on High and Low, the meter at 900x640).
 // --prox: proximity falloff on High off vs on from two fixed views (pixel difference, render time), plus haze and Low (shots/gfx-prox*.png).
 // --hitch: first-use cost of an explosion, the Mothership, three weather changes and the thermal camera, with and without the warm-up
 // (?nowarm): shader programs compiled at that moment and the longest frame right after it.
@@ -27,7 +27,7 @@ const state = p => p.evaluate(() => { const {api, gfx} = __z, sc = api.scene, f 
 
 // ---------- levels, validation, meter ----------
 {
-  const p = await page({gmode: 'classic', wx: 'clear', cam: 0, gfx: 'bogus'});
+  const p = await page({wx: 'clear', zwx: 'menu', cam: 0, gfx: 'bogus'});
   await p.waitForFunction(() => __z.warm.ran, {timeout: 60000}).catch(() => {});
   const w = await p.evaluate(() => ({...__z.warm}));
   chk(w.ran, `warm-up ran during the menu: ${w.programs} programs in ${w.ms} ms`);
@@ -52,17 +52,15 @@ if (SHOTS) {
     await p.screenshot({path: path.join(dir, `gfx-${name}.png`)}); await p.close(); console.log('  shot shots/gfx-' + name + '.png'); };
   const wave = () => { __z.jump(12, 5000); __z.G.next = __z.plan(12); __z.cont(); __z.sim(20); };
   for (const g of ['high', 'low']) {
-    await shot('classic-' + g, {gmode: 'classic', wx: 'clear', cam: 1, gfx: g}, () => __z.sim(4));
-    await shot('zombies-' + g, {gmode: 'z', wx: 'clear', zwx: 'menu', cam: 1, gfx: g}, wave);
+    await shot('zombies-' + g, {wx: 'clear', zwx: 'menu', cam: 1, gfx: g}, wave);
   }
-  await shot('zombies-narrow', {gmode: 'z', wx: 'clear', zwx: 'menu', cam: 1, gfx: 'auto'}, wave, {w: 900, h: 640});
-  await shot('classic-narrow', {gmode: 'classic', wx: 'clear', cam: 0, gfx: 'auto'}, () => __z.sim(2), {w: 900, h: 640});
+  await shot('zombies-narrow', {wx: 'clear', zwx: 'menu', cam: 1, gfx: 'auto'}, wave, {w: 900, h: 640});
 }
 
 // ---------- proximity detail falloff on High: the same view from 500 m up with it off and on, compared pixel by pixel ----------
 // (rendered straight after each other from a fixed camera, read back from the canvas). Also the view with distance haze and on Low.
 if (PROX) {
-  const p = await page({gmode: 'classic', wx: 'clear', cam: 1, gfx: 'high'}); await sleep(2500);
+  const p = await page({wx: 'clear', cam: 1, gfx: 'high'}); await sleep(2500);
   const grab = (mode) => p.evaluate(async mode => {
     const {api, gfx} = __z, H = __z.gfxGK.high, keep = {lodD: H.lodD, lodD2: H.lodD2, gFar: H.gFar, detD: H.detD};
     if (mode === 'off') Object.assign(H, {lodD: Infinity, lodD2: Infinity, gFar: 1e9, detD: 1e9});
