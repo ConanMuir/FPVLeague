@@ -190,7 +190,7 @@ class Pool{
 }
 
 export function initScars(api,G,Z){
- const {THREE,scene,camera,renderer,gh,S,SITES,FOBS,PADP}=api,V3=THREE.Vector3;
+ const {THREE,scene,camera,renderer,gh,SITES,FOBS,PADP}=api,V3=THREE.Vector3;
  const terrain=scene.children.find(o=>o.isMesh&&o.material?.userData?.snow);
  const sc=Z.sc={ready:false,off:!terrain,TYPES,CAP,cRev:-1,worst:0};
  if(!terrain){console.warn('scars: no terrain mesh found');return sc}
@@ -217,7 +217,7 @@ export function initScars(api,G,Z){
  const slice=()=>{if(!pump())later(slice,{heavy:true})};
  let started=false;const start=()=>{if(started)return;started=true;init();later(slice,{heavy:true})};
  const ensure=()=>{init();while(!pump());};
- {const poll=setInterval(()=>{if(S.gmode==='z'||Z.on){clearInterval(poll);start()}},500)}
+ setTimeout(start,500);  /* from the menu, once the page has settled (the warm-up, zwarm.js, starts the same way) */
  warmers.push(()=>{ensure();return P.map(p=>p.mesh)});
 
  // ---------- placement rules ----------

@@ -1,9 +1,9 @@
-// Interceptor harness: headless Edge runs Classic (must behave as before, no errors) and Zombies (waves, money, integrity, base screen,
-// game over) by stepping the sim directly through window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=classic,saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,scars   run only those sections (CI shards them across jobs); default all
-import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
+// Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
+// window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,scars   run only those sections (CI shards them across jobs); default all
+import {serve, launch, open, sleep, frames, drawFrames, newWindow} from './zlib.mjs';
 import {timingCheck} from './browser.mjs';
-import {front as campFront} from '../games/interceptor/zcampaign.js';
+import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
 const {server, origin} = await serve();
@@ -16,11 +16,11 @@ const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fai
 // --throttle N: CPU throttling on each game page (CDP), e.g. 4, to play a slow CI runner
 const THROTTLE = argv.includes('--throttle') ? +argv[argv.indexOf('--throttle') + 1] : 0;
 const throttle = async p => { if (THROTTLE > 1) { const s = await p.target().createCDPSession(); await s.send('Emulation.setCPUThrottlingRate', {rate: THROTTLE}); } return p; };
-async function page(mode) {
+async function page() {
   const errs = [];
   const p = await open(browser, origin + '/games/interceptor/', errs);
   await p.evaluate(() => sessionStorage.setItem('zbossRoster', '0'));  // no random boss events or boss-wave swaps in the plain sections (the bosses section turns them back on)
-  await p.evaluate(m => { localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: m, wx: 'clear'})); }, mode);
+  await p.evaluate(() => { localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), wx: 'clear'})); });
   await p.reload({waitUntil: 'load'});
   await p.waitForFunction(() => window.__z, {timeout: 60000});
   await frames(p, 5); await drawFrames(p);  // real frames of the menu scene (CI skips draw calls elsewhere: DL_NORENDER)
@@ -30,27 +30,13 @@ async function page(mode) {
 // waits are state-driven (the game's own state, or frames drawn), not wall-clock, so a slow machine only makes the run longer
 async function play(p) { await p.click('#play'); await p.waitForFunction(() => !__z.api.demo && !!__z.api.player, {timeout: 30000}); await frames(p, 3); await drawFrames(p, 2); }
 
-// ---------- Classic ----------
-if (want('classic')) {
-  const {p, errs} = await page('classic');
-  ok(await p.$eval('#play', b => b.textContent) === 'Defend', 'Classic: start button reads Defend');
-  await play(p);
-  const r = await p.evaluate(() => { const {api} = __z; __z.sim(60); return {th: api.TH.length, wave: api.wave, kinds: api.TH.map(t => t.k || (t.jet ? 'jet' : 'shahed')), zhud: document.getElementById('zhud').hidden, score: getComputedStyle(document.getElementById('score')).display}; });
-  ok(r.wave === 1 && r.th >= 1, `Classic: wave 1 running with ${r.th} track(s) [${r.kinds}]`);
-  ok(r.kinds.every(k => k === 'shahed' || k === 'jet') && !r.kinds.some(k => k === undefined), 'Classic: only Shahed / Geran tracks, no Zombies kinds');
-  ok(r.zhud && r.score !== 'none', 'Classic: Classic HUD shown, Zombies HUD hidden');
-  await frames(p, 30);  // let the real frame loop run a while (errors show up here)
-  if (SHOTS) await p.screenshot({path: SHOTS + '/classic.png'});
-  ok(!errs.length, 'Classic: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
-  await p.close();
-}
-
 // ---------- saves: hand-edited or foreign values must not break the start menu or a game ----------
 if (want('saves')) {
   const errs = [], p = await open(browser, origin + '/games/interceptor/', errs), bad = [];
   for (const save of [{gmode: 'z', zdiff: 'x'}, {gmode: 'z', zdiff: 9}, {gmode: 'z', zdiff: 1.5, zbests: 'oops'}, {gmode: 'z', zmusv: 'loud', zname: {a: 1}}, {gmode: 7, wx: 'nope', cam: 'x'},
     {gmode: 'z', zmeta: 'x', zload: 5}, {gmode: 'z', zmeta: {g: [1, 2]}, zload: {doc: 'fortress', kit: 'lure'}}, {gmode: 'z', zmeta: {v: 1, g: {w10: '15', norep: 99, bogus: 3, boss: -1}}, zload: {doc: {}, kit: [null, 'lure', 'lure', 7]}},
-    {gmode: 'z', zmeta: null, zload: {doc: 'qm', kit: ['lrack', 'hflak', 'mpads']}}, {gmode: 'z', zmeta: {v: 1, g: {w10: 2, helpers: 1, boss: 4}}, zload: {doc: 'fortress', kit: ['lrack', 'lure', 'mpads', 'toString']}}, {gmode: 'z', zruns: 'x'}, {gmode: 'z', zruns: [{d: 9, w: 'a'}, null, {d: 1, w: 5, doc: 7}, {d: 2, w: 1e9}]}]) {
+    {gmode: 'z', zmeta: null, zload: {doc: 'qm', kit: ['lrack', 'hflak', 'mpads']}}, {gmode: 'z', zmeta: {v: 1, g: {w10: 2, helpers: 1, boss: 4}}, zload: {doc: 'fortress', kit: ['lrack', 'lure', 'mpads', 'toString']}}, {gmode: 'z', zruns: 'x'}, {gmode: 'z', zruns: [{d: 9, w: 'a'}, null, {d: 1, w: 5, doc: 7}, {d: 2, w: 1e9}]},
+    {gmode: 'classic', diff: 2, fuse: 'manual', skin: 'strela', guide: 0, guideSw: 3, setV: 4, mod: {tspd: 2, tcnt: 3, bcap: 20000}}]) {  /* an old Classic save, with the Threats panel values */
     const n0 = errs.length;
     await p.evaluate(s => localStorage.setItem('dl-interceptor', JSON.stringify(s)), save); await p.reload({waitUntil: 'load'});
     const up = await p.waitForFunction(() => window.__z, {timeout: 60000}).then(() => true, () => false);  // a page boot is ~10 s on CI's software GL and can stretch past 20 s on a busy runner
@@ -58,13 +44,18 @@ if (want('saves')) {
     if (!up || errs.length > n0) bad.push(JSON.stringify(save) + (up ? '' : ' (page never came up)'));
   }
   ok(!bad.length, 'Saves: odd saved values still load and play' + (bad.length ? '\n  ' + bad.join('\n  ') + '\n  ' + errs.slice(0, 3).join('\n  ') : ''));
+  /* Classic is gone: an old Classic save (and ?mode=classic) opens Zombies, there is no mode picker, and the settings only Classic read are dropped */
+  await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'classic', diff: 2, fuse: 'manual', skin: 'strela', guide: 0, guideSw: 3, setV: 4, wx: 'clear'})));
+  await p.goto(origin + '/games/interceptor/?mode=classic', {waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
+  const mg = await p.evaluate(() => { const S = __z.api.S; return {gone: ['gmode', 'diff', 'fuse', 'skin', 'guide', 'guideSw'].filter(k => k in S), setV: S.setV, picker: !!document.getElementById('gmode'), play: document.getElementById('play').textContent, zdiff: !!document.getElementById('zdiff')}; });
+  ok(!mg.gone.length && mg.setV === 5 && !mg.picker && mg.play === 'Quick defence' && mg.zdiff, `Saves: an old Classic save and ?mode=classic open Zombies, no mode picker (${JSON.stringify(mg)})`);
   await p.evaluate(() => localStorage.removeItem('dl-interceptor')); await p.close();
 }
 
 // ---------- Zombies ----------
 if (want('zombies')) {
-  const {p, errs} = await page('z');
-  ok(await p.$eval('#play', b => b.textContent) === 'Quick defence', 'Zombies: mode choice switches the start button (Quick defence; the campaign has its own card)');
+  const {p, errs} = await page();
+  ok(await p.$eval('#play', b => b.textContent) === 'Quick defence', 'Zombies: the start button reads Quick defence (the campaign has its own card)');
   ok(await p.evaluate(() => !document.getElementById('zdiff').hidden && document.querySelectorAll('#zdiff button').length === 4 && document.querySelector('#zdiff button.on')?.textContent === 'Normal'), 'Zombies menu: difficulty selector Easy / Normal / Hard / Nightmare, Normal by default');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-menu.png'});
   await p.click('#zdiff button[data-d="3"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '3', {timeout: 5000}).catch(() => {});
@@ -134,7 +125,7 @@ if (want('zombies')) {
 
 // ---------- roster: every kind flies in and hits, unlocks by wave, boss stages and swarm launches, bunker, direct hit on a fast track ----------
 if (want('roster')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   const r = await p.evaluate(() => {
     const {api, G, KIND} = __z, out = {};
@@ -192,7 +183,7 @@ if (want('roster')) {
 
 // ---------- helpers and perks: every helper engages its kinds; Mark, Freeze, Airstrike and the passives do what the cards say ----------
 if (want('helpers')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   const r = await p.evaluate(() => {
     const {api, G, Z, KIND} = __z, def = Z.def, out = {};
@@ -269,12 +260,12 @@ if (want('helpers')) {
   await p.close();
 }
 
-// ---------- weather and look: per-wave forecasts, every Zombies weather, a mid-wave change, the Strela-2 body; Classic keeps Riley's weather and dart ----------
+// ---------- weather and look: per-wave forecasts, every Zombies weather, a mid-wave change, the Strela-2 body ----------
 if (want('weather')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   const r = await p.evaluate(() => { const {api, G, Z} = __z, w = Z.wx, me = api.player, out = {};
-    out.strela = me.strela.visible && !me.dart.visible && !!me.nozzle;
+    out.strela = me.strela.visible && !me.dart && !!me.nozzle;
     out.forecast = /visibility/.test(document.querySelector('#zbase footer')?.textContent || '');
     out.ids = [...new Set(Array.from({length: 80}, (_, i) => w.plan(8 + i % 10).id))].sort().join(',');
     out.early = [...new Set(Array.from({length: 40}, () => w.plan(1).id))].sort().join(',');
@@ -290,17 +281,11 @@ if (want('weather')) {
   ok(r.mid.mix && r.end.id === 'storm' && !r.end.mix && r.end.done, `Weather: mid-wave change blends (${r.mid.n}) and ends on the new weather (${r.end.id})`);
   ok(!errs.length, 'Weather: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
-  const c = await page('classic');
-  await play(c.p);
-  const k = await c.p.evaluate(() => { const {api} = __z, me = api.player; return {dart: me.dart.visible && !me.strela.visible, wx: !api.WX.z, rain: api.rainN === api.RN}; });
-  ok(k.dart && k.wx && k.rain, 'Classic: Riley\'s dart look and Classic weather by default');
-  ok(!c.errs.length, 'Classic look: no errors' + (c.errs.length ? '\n  ' + c.errs.join('\n  ') : ''));
-  await c.p.close();
 }
 
 // ---------- doctrine & unlocks (zmeta.js), late-game sinks, difficulty tactics ----------
 if (want('meta')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await p.evaluate(() => { localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor')), zmeta: null, zload: null, zruns: [], zdiff: 1})); }); await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
   // the start-menu panel on a fresh profile: Standard only, kit locked, every goal listed with what it unlocks
   const m0 = await p.evaluate(() => { const b = document.getElementById('zmeta'); b.open = true; const docs = [...b.querySelectorAll('[data-doc]')], kit = [...b.querySelectorAll('[data-kit]')];
@@ -381,7 +366,7 @@ if (want('meta')) {
 // ---------- kill chain and early warning (zchain.js, zwarn.js): the three layers, detection, the alert panel, harden / evacuate / decoy,
 // the sorties hook (fast launches per sector) and the cause of a game over ----------
 if (want('chain')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   const r = await p.evaluate(() => {
     const {api, G, Z, KIND} = __z, C = Z.chain, W = Z.warn, out = {}, clr = () => { for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0; api.SITES.forEach(s => s.hp = s.max); };
@@ -454,7 +439,7 @@ if (want('chain')) {
 // salvage banked inside the line, a launch site (the fast missiles of its sector, two waves) and a factory (three waves), a strike order,
 // a late return (the wave starts, drone and salvage lost), fog that reveals and stays ----------
 if (want('sorties')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   const b0 = await p.evaluate(() => { const {G, Z} = __z, so = __z.so, W = so.W; Z.base.setTab('sortie');
     const enemyFog = so.fog.frac((x, z) => W.enemy(x, z));
@@ -517,7 +502,7 @@ if (want('sorties')) {
 
 // ---------- campaign (zcampaign.js): the map, launching a sector, losing and winning it, the front moving, carry-over, save/load, corrupt saves ----------
 if (want('campaign')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   const boot = async (camp) => { await p.evaluate(c => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); if (c === undefined) delete s.zcamp; else s.zcamp = c; s.zdiff = 1; s.gmode = 'z'; s.zload = null; localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, camp);
     await p.reload({waitUntil: 'load'}); return p.waitForFunction(() => window.__z, {timeout: 60000}).then(() => true, () => false); };
   // a sector run to its end: won = clear the objective wave, else the defence collapses (or the hospital falls: G.cpRes set by the rule)
@@ -613,7 +598,7 @@ if (want('campaign')) {
 // ---------- personal swarm, lock-on and battery (zswarm.js, zlock.js, zbatt.js): deploy once per wave, no respawn on a crash, the five
 // formations, attack my lock / screen / strike (air and a ground target), lock-on build / fog / Optics / break, Better battery = 2x life ----------
 if (want('swarm')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   // a scripted pilot: held at least 600 m over the ground flying north at v m/s (the swarm flies around it); the wave is kept open by a spawn that never comes
   const setup = `(() => { const {api, G, Z} = __z, V = api.THREE.Vector3; window.__sw = {
@@ -629,13 +614,13 @@ if (want('swarm')) {
     ahead(k, dist, side = 0, alt = 0) { const me = api.player, t = __z.make(k, me.p.x + side, me.p.z - dist); t.p.set(me.p.x + side, me.p.y + alt, me.p.z - dist); t.alt = t.p.y - api.gh(t.p.x, t.p.z); return t; } }; })()`;
   await p.evaluate(setup);
   // battery: the Zombies pack, Better battery doubles it; flight time at full throttle measured to a flat pack with and without the perk
-  const bat = await p.evaluate(() => { const {api, G, Z} = __z, me = api.player, V = api.THREE.Vector3, out = {classic: api.S.mod.bcap};
+  const bat = await p.evaluate(() => { const {api, G, Z} = __z, me = api.player, V = api.THREE.Vector3, out = {tuned: api.S.mod.bcap};
     const run = perk => { G.perks.battery = perk; Z.pk.apply(); api.launch(); const cap = api.BCAP, h = new V(0, api.gh(0, 0) + 800, 0); let t = 0;
       dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyW'})); while (me.mah < cap && t < 3000) { api.step(1 / 60); t += 1 / 60; me.p.copy(h); me.v.set(0, 0, 0); me.q.identity(); me.w.set(0, 0, 0); }
       dispatchEvent(new KeyboardEvent('keyup', {code: 'KeyW'})); return {cap, t: Math.round(t)}; };
     out.base = run(0); out.perk = run(1); G.perks.battery = 0; Z.pk.apply(); api.launch(); return out; });
   console.log('  battery:', JSON.stringify(bat));
-  ok(bat.base.cap === bat.classic * 1.6 && bat.perk.cap === bat.base.cap * 2, `Battery: Zombies pack ${bat.base.cap} mAh (Classic ${bat.classic}), Better battery ${bat.perk.cap} mAh`);
+  ok(bat.base.cap === bat.tuned * 1.6 && bat.perk.cap === bat.base.cap * 2, `Battery: Zombies pack ${bat.base.cap} mAh (the mod panel's ${bat.tuned}), Better battery ${bat.perk.cap} mAh`);
   ok(Math.abs(bat.perk.t / bat.base.t - 2) < .03 && bat.base.t > 380, `Battery: full-throttle flight time ${bat.base.t} s -> ${bat.perk.t} s with Better battery (x${(bat.perk.t / bat.base.t).toFixed(2)})`);
   // the swarm: wave 12, Personal swarm level 2 (6 drones), Mk III drones
   const dep = await p.evaluate(() => { const {api, G, Z} = __z; G.cash = 50000; G.perks.swarm = 2; G.perks.swarmk = 2; __z.jump(12); api.S.zwx = 'menu'; G.next = __z.plan(12); __z.cont(); __sw.clear(); const c0 = G.cash; __sw.fly(.1);
@@ -701,9 +686,9 @@ if (want('swarm')) {
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-swarm-hud.png'});
   ok(hud.swOn && /SWARM \d+\/6/.test(hud.sw) && /attack lock/.test(hud.sw), `HUD: swarm panel "${hud.sw.slice(0, 60)}"`);
   ok(hud.batOn && /\d+% · \d+:\d\d · [\d.]+ km/.test(hud.bat), `HUD: battery readout "${hud.bat}"`);
-  // Classic is untouched: back to the menu, Classic's pack is Riley's again
+  // back to the menu: the pack is the tuned one again
   const cls = await p.evaluate(() => { __z.api.startDemo(); return {cap: __z.api.BCAP, mod: __z.api.S.mod.bcap, panel: document.getElementById('zsw').hidden}; });
-  ok(cls.cap === cls.mod && cls.panel, `Classic: battery back to ${cls.cap} mAh, swarm panel hidden`);
+  ok(cls.cap === cls.mod && cls.panel, `Menu: battery back to ${cls.cap} mAh, swarm panel hidden`);
   ok(!errs.length, 'Swarm / lock / battery: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
@@ -711,7 +696,7 @@ if (want('swarm')) {
 // ---------- spatial grid (grid.js): every query gives what a plain loop over TH gives (random scenes); a whole wave with the helpers, the
 // swarm, lock-on, the fuse and direct hits ends exactly the same with the grid and with plain loops (grid.brute), same seed and clock ----------
 if (want('grid')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   const q = await p.evaluate(() => { const {api} = __z, g = api.grid, TH = api.TH, V = api.THREE.Vector3; let s = 99; const R = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
     const keep = TH.splice(0); let bad = 0, checks = 0, cells = 0; const ex = [];
@@ -766,7 +751,7 @@ if (want('grid')) {
 // Twins' link, the Juggernaut's weak points, the Hive's split, the Mirror's habits, the Undertaker's drain and growth, the Siren's false IFF,
 // the Puppeteer's wires and trails) ----------
 if (want('bosses')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); delete s.zboss; localStorage.setItem('dl-interceptor', JSON.stringify({...s, zwx: 'menu'})); sessionStorage.setItem('zbossRoster', '1'); });
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3);
   await play(p);
@@ -930,7 +915,7 @@ if (want('bosses')) {
     ok(A.every(([, a]) => a && a.grade && (a.fog < .9 || a.light < .9)) && /shadows=1/.test(ends.mothership.during), 'Atmosphere: while they live the battlefield changes (fog / light: ' + A.map(([k, a]) => k + ' ' + (a ? a.fog + ' / ' + a.light : 'off')).join(', ') + '; the grade on; the Mothership casts its shadow); after the wave the fog, its colour and the light are the weather\'s again, exactly'); }
   await p.evaluate(() => { document.getElementById('zover').hidden = true; __z.api.startDemo(); }); await play(p);
   await p.evaluate(() => { const {G} = __z; G.cash = 1e5; __z.jump(24); G.next = __z.plan(24); __z.cont(); __b.clear(); __z.sim(.3); });
-  // bots know the roster; HUD boss bar; Classic untouched
+  // bots know the roster; HUD boss bar; the menu has none
   const bb = await p.evaluate(async () => { const brain = await import('./zbotbrain.js'); return {hook: brain.hooks.some(h => h.name === 'bosses')}; });
   const {LEVELS} = await import('./zbot.mjs'), {bossBrain} = await import('../games/interceptor/zboss-brain.js');
   ok(bb.hook && typeof bossBrain.wave === 'function' && LEVELS.length === 6, 'Bots: the boss roster rides on the shared bot brain (zbotbrain.js hook: benchmark runs at bosses, the Undertaker starved at the base screen)');
@@ -939,7 +924,7 @@ if (want('bosses')) {
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-boss-bar.png'});
   ok(bar.on && /HIVE/.test(bar.txt), `HUD: boss bar "${bar.txt}"` + (bar.on ? '' : ' ' + bar.dbg));
   const cls = await p.evaluate(() => { __z.api.startDemo(); return {on: __z.Z.on, boss: __z.api.TH.some(t => __z.Z.bosses.BOSSES[t.k]), bar: document.getElementById('zbb').hidden || getComputedStyle(document.getElementById('zbb')).display === 'none'}; });
-  ok(!cls.on && !cls.boss && cls.bar, 'Classic: no bosses, no boss bar');
+  ok(!cls.on && !cls.boss && cls.bar, 'Menu: no bosses, no boss bar');
   ok(!errs.length, 'Bosses: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); delete s.zboss; localStorage.setItem('dl-interceptor', JSON.stringify(s)); });
   await p.close();
@@ -948,7 +933,7 @@ if (want('bosses')) {
 // ---------- Bot Spectator (zspectate.js, zbotfly.js, zbotbrain.js): a bot pilot plays the real game: it shops visibly, takes off and kills
 // by flying (no teleporting), the speed, cameras and tuning panel work, the report shows at the end, and none of it touches the saves ----------
 if (want('spectator')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   const saves0 = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); return JSON.stringify([s.zbests, s.zruns, s.zmeta, s.zcamp]); });
   await p.evaluate(() => { document.getElementById('zspc').open = true; });
   const card = await p.evaluate(() => ({shown: !document.getElementById('zspc').hidden, lv: document.querySelectorAll('[data-zsl]').length, d: document.querySelectorAll('[data-zsd]').length, go: !!document.getElementById('zspgo')}));
@@ -1029,7 +1014,7 @@ if (want('spectator')) {
 
 // ---------- re-entry (zreentry.js), the long-range radar layers (zstratradar.js), the threat sound and its voice budget (zthreatsfx.js) ----------
 if (want('reentry')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   // a wave that stays open (a queued track far in the future), a Golden Dome
   // (with the kill chain's early warning, both early-warning radar levels: the fast tracks are picked up 50 s out, before they re-enter)
@@ -1087,9 +1072,9 @@ if (want('reentry')) {
   await sleep(1800); await frames(p, 6);
   const boom = await p.evaluate(() => __z.Z.tsfx.log.filter(e => e.e === 'boom').length);
   ok(sup.ps && sup.ps.sup && Math.abs(sup.ps.d - 400) < 40 && sup.ps.delay > .9 && sup.pre === 0 && boom >= 1, `Supersonic pass at ${sup.ps?.d} m: silent on the way in, the boom ${sup.ps?.delay} s after it passed (${boom} boom)`);
-  // Classic: none of it
+  // the menu: none of it
   const cls = await p.evaluate(() => { __z.api.startDemo(); return {sr: document.getElementById('zsr').hidden, re: document.getElementById('zre').textContent, v: __z.Z.tsfx.stats().voices}; });
-  ok(cls.sr && !cls.re, 'Classic / menu: no long-range inset, no re-entry banner');
+  ok(cls.sr && !cls.re, 'Menu: no long-range inset, no re-entry banner');
   ok(!errs.length, 'Re-entry / radar layers / threat sound: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
@@ -1097,7 +1082,7 @@ if (want('reentry')) {
 // ---------- arsenal (zarsenal.js, zweapons.js, zarsdef.js): every pilot weapon and every extra defence can be bought or loaded, does its thing,
 // and its weakness applies. Scripted set-ups through window.__z; dice are loaded only where a single roll decides the check ----------
 if (want('arsenal')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   // a scripted arena: the wave kept open by a spawn that never comes, the interceptor held 600 m up in the south of the AO (flying north at v m/s),
   // tracks put relative to it and flown straight north with it
@@ -1254,7 +1239,7 @@ if (want('arsenal')) {
    helpers. The pip's error rises with the jamming and returns to the solver's exact point in a burn-through; distance and emitters scale it; ghosts,
    the HUD bar, the bot pilot through the same function; everything is gone at the end of the wave ---------- */
 if (want('ew')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); delete s.zboss; localStorage.setItem('dl-interceptor', JSON.stringify({...s, zwx: 'menu'})); sessionStorage.setItem('zbossRoster', '1'); });
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3);
   await play(p);
@@ -1395,9 +1380,119 @@ if (want('ew')) {
   await p.close();
 }
 
+/* ---------- sell (zsell.js, zbase.js, zchain.js, znet.js) and the campaign map's modifier cap (zcampaign.js). Anything you own sells for money on the base
+   screen and its card keeps an Undo until the wave starts: a defence, a dome, a position you paid to open, a kill chain battery. A sale pays everything
+   spent on it this base screen plus half (the doctrine's share) of the earlier spending; the standard positions, the sites and free positions never
+   sell. A co-op client's sale and undo are requests to the host. The map shows a sector's three strongest modifiers and a "+n" chip that opens the rest ---------- */
+if (want('sell')) {
+  const {p, errs} = await page();
+  await play(p);
+  // 1. the rule at the briefing: a defence bought and upgraded this base screen sells back in full, and its card stays with an Undo
+  const a1 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const d = B.place('flak', 0); B.upgrade(d.id, 'lvl'); const id = d.id, spent = d.spent;
+    document.querySelector('[data-tab="armory"]').click(); const label = document.querySelector(`[data-sell="${id}"]`).textContent, why = document.querySelector('.zrf')?.textContent;
+    document.querySelector(`[data-sell="${id}"]`).click();
+    return {spent, label, why, cash: G.cash, left: Z.def.D.length, sold: G.sold.length, ghost: !!document.querySelector('.zsold [data-undo]'), freed: Z.def.slotFree(0, 'flak')}; });
+  ok(a1.spent === 900 && a1.label === 'Sell +$900' && /Full refund/.test(a1.why) && a1.cash === 20000 && !a1.left && a1.sold === 1 && a1.ghost && a1.freed, `Sell: bought and upgraded this base screen sells back in full (${a1.label}: "${a1.why}"), the position is free, the card keeps an Undo`);
+  const a2 = await p.evaluate(() => { const {G, Z} = __z; document.querySelector('.zsold [data-undo]').click(); const d = Z.def.D[0];
+    return {cash: G.cash, n: Z.def.D.length, type: d?.type, lvl: d?.lvl, spent: d?.spent, slot: d?.slot, sold: G.sold.length, ghost: !!document.querySelector('.zsold'), card: !!document.querySelector(`[data-sell="${d?.id}"]`)}; });
+  ok(a2.cash === 19100 && a2.n === 1 && a2.type === 'flak' && a2.lvl === 1 && a2.spent === 900 && a2.slot === 0 && !a2.sold && !a2.ghost && a2.card, `Sell: Undo takes the $900 back and the flak mortar returns as it was (level ${a2.lvl + 1}, position ${a2.slot}, cash $${a2.cash})`);
+  // 2. a position opened now (older by the next base screen) and a second flak sold; the wave starting ends the Undo
+  const a3 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const j = Z.def.SLOTS.findIndex((s, i) => Z.def.canOpen(i, Z.meta.doc())), paid = B.expand(j), d2 = B.place('flak', 1), r = B.sell(d2.id), id = G.sold[0]?.id;
+    __z.cont(); return {j, paid, r, id, ledger: G.sold.length, undo: Z.sell.undo(id), st: G.state}; });
+  ok(a3.paid === 1800 && a3.r === 450 && a3.id && a3.ledger === 0 && a3.undo === null && a3.st === 'wave', `Sell: a position opened for $${a3.paid}; a flak bought and sold at once pays $${a3.r}; starting the wave clears the Undo (ledger ${a3.ledger}, undo ${a3.undo})`);
+  const w1 = await p.evaluate(() => { for (let i = 0; i < 4000 && __z.G.state !== 'base' && __z.G.state !== 'over'; i++) __z.sim(1); return {st: __z.G.state, wave: __z.G.wave}; });
+  ok(w1.st === 'base' && w1.wave === 1, 'Sell: wave 1 played out, the base screen is back');
+  // 3. at the next base screen the flak is older: half of its $900, plus everything spent on it since this screen opened
+  const b1 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act, d = Z.def.D[0]; G.cash = 20000; const half = Z.sell.dval(d); B.upgrade(d.id, 'lvl'); const mixed = Z.sell.dval(d), why = Z.sell.dwhy(d);
+    document.querySelector('[data-tab="armory"]').click(); const b = document.querySelector(`[data-sell="${d.id}"]`), label = b.textContent, c0 = G.cash; b.click(); const after = G.cash; document.querySelector('.zsold [data-undo]').click();
+    return {half, mixed, why, label, gain: after - c0, back: G.cash - c0, n: Z.def.D.length, lvl: Z.def.D[0]?.lvl}; });
+  ok(b1.half === 450 && b1.mixed === 1200 && b1.label === 'Sell +$1,200' && b1.gain === 1200 && b1.back === 0 && b1.n === 1 && b1.lvl === 2 && /\$750/.test(b1.why) && /50%/.test(b1.why), `Sell: an older flak pays half of its $900 ($${b1.half}); after a $750 upgrade this screen it pays $${b1.mixed} ("${b1.why}"); Undo restores it`);
+  // 4. the opened position: half of its $1,800 now; closing it frees nothing in use, and it can't close under a defence
+  const x1 = await p.evaluate(j => { const {G, Z} = __z; G.cash = 20000; const val = Z.sell.xval(j), why = Z.sell.xwhy(j); document.querySelector('[data-tab="sites"]').click();
+    const b = document.querySelector(`[data-xs="${j}"]`), label = b?.textContent, c0 = G.cash, e0 = G.exp; b.click(); const closed = {open: Z.def.slotOpen(j), exp: G.exp, gain: G.cash - c0, xp: !!G.xp[j], ghost: !!document.querySelector('.zsold [data-undo]')};
+    document.querySelector('.zsold [data-undo]').click(); return {val, why, label, e0, closed, back: {open: Z.def.slotOpen(j), exp: G.exp, cash: G.cash - c0, xp: !!G.xp[j]}}; }, a3.j);
+  ok(x1.val === 900 && /50%/.test(x1.why) && x1.label === 'Close +$900' && !x1.closed.open && x1.closed.exp === x1.e0 - 1 && x1.closed.gain === 900 && !x1.closed.xp && x1.closed.ghost && x1.back.open && x1.back.exp === x1.e0 && x1.back.cash === 0 && x1.back.xp,
+    `Sell: the position you opened pays half ($${x1.val}) to close and goes dormant; Undo reopens it at the same price (exp ${x1.e0} -> ${x1.closed.exp} -> ${x1.back.exp})`);
+  const x2 = await p.evaluate(j => { const {G, Z} = __z; Z.base.act.place('flak', j); document.querySelector('[data-tab="sites"]').click(); const b = document.querySelector(`[data-xs="${j}"]`), r = Z.sell.closeX(j), open = Z.def.slotOpen(j), why = Z.sell.xcan(j);
+    Z.base.act.sell(Z.def.D.find(d => d.slot === j).id); return {dis: b.disabled, r, open, why}; }, a3.j);
+  ok(x2.dis && x2.r === null && x2.open && /Sell or move/.test(x2.why), `Sell: a position with a defence on it can't close (button disabled, closeX refused: "${x2.why}")`);
+  // 5. never below the minimum: the standard positions and the sites can't be sold, free positions have no price; with everything sold the base still plays a wave
+  const s1 = await p.evaluate(j => { const {G, Z, api} = __z, std = Z.def.SLOTS.map((s, i) => i).filter(i => !Z.def.SLOTS[i].ex && !Z.def.SLOTS[i].park), hp0 = api.SITES.map(s => s.hp).join(), integ0 = __z.integrity().hp;
+    const stdSold = std.filter(i => Z.sell.closeX(i) !== null).length; for (const d of [...Z.def.D]) Z.base.act.sell(d.id); const xr = Z.sell.closeX(j), cash = G.cash;
+    return {stdN: std.length, stdSold, stdOpen: std.every(i => Z.def.slotOpen(i)), defs: Z.def.D.length, ledger: G.sold.length, xr, hp: api.SITES.map(s => s.hp).join() === hp0, integ: __z.integrity().hp === integ0, openNow: Z.def.SLOTS.filter((s, i) => !s.park && Z.def.slotOpen(i)).length, cash}; }, a3.j);
+  ok(s1.stdN === 14 && !s1.stdSold && s1.stdOpen && !s1.defs && s1.ledger >= 1 && s1.xr === 900 && s1.hp && s1.integ && s1.openNow === 14, `Sell: ${s1.stdN} standard positions can't be sold (${s1.stdSold} sold), sites untouched, defences all sold (${s1.ledger} Undo cards), ${s1.openNow} positions open after closing the one I opened`);
+  const w2 = await p.evaluate(() => { __z.cont(); for (let i = 0; i < 4000 && __z.G.state !== 'base' && __z.G.state !== 'over'; i++) __z.sim(1); return {st: __z.G.state, wave: __z.G.wave, ledger: __z.G.sold.length}; });
+  ok((w2.st === 'base' || w2.st === 'over') && w2.wave === 2 && !w2.ledger, `Sell: the base with nothing left still plays wave 2 (${w2.st})`);
+  // 6. the doctrine's share (Quartermaster pays a quarter) and the kill chain / dome
+  const q1 = await p.evaluate(() => { const {Z} = __z, k0 = Z.meta.k; Z.meta.k = (key, d) => key === 'sellK' ? .25 : k0(key, d); const r = [Z.sell.val(1000, 1000), Z.sell.val(1000, 0), Z.sell.val(1000, 600)]; Z.meta.k = k0; return r; });
+  ok(q1.join() === '250,1000,550', `Sell: under the Quartermaster's quarter, $1,000 old pays ${q1[0]}, new pays ${q1[1]}, $600 old + $400 new pays ${q1[2]}`);
+  const c1 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; if (G.state !== 'base') return null; __z.jump(30, 80000); const j = Z.def.SLOTS.findIndex((s, i) => Z.def.slotFree(i, 'gdome')), d = B.place('gdome', j), c0 = G.cash;
+    Z.chain.act('st', 2); const stock = G.kc.stock, c1 = G.cash; const r = B.sell(d.id), after = {stock: G.kc.stock, gain: G.cash - c1, gone: !Z.def.D.includes(d)}; const u = Z.sell.undo(G.sold[0].id);
+    return {c0, stock, after, undo: !!u, stock2: G.kc.stock, cash: G.cash, type: Z.def.D.at(-1)?.type, r}; });
+  ok(c1 && c1.stock === 2 && c1.after.stock === 0 && c1.after.gain === 10600 && c1.after.gone && c1.undo && c1.stock2 === 2 && c1.cash === c1.c0 - 1600 && c1.type === 'gdome', `Sell: a Golden Dome ($9,000, new) pays $${c1?.after.gain} with the ${c1?.stock} space interceptors it can no longer hold; Undo puts both back`);
+  const c2 = await p.evaluate(() => { const {G, Z} = __z, K = Z.chain; K.act('bb', 0); const c0 = G.cash; const r = K.act('bs', 0); document.querySelector('[data-tab="chain"]').click(); const btn = document.querySelector('.ztab [data-undo]'), label = btn?.textContent, rec = G.sold.find(q => q.k === 'b');
+    const out = {gain: G.cash - c0, none: !G.kc.boost[0], msg: r?.msg, label, rec: !!rec}; btn?.click(); out.back = !!G.kc.boost[0]; out.cash = G.cash - c0; return out; });
+  ok(c2.gain === 6000 && c2.none && c2.rec && /Undo sale/.test(c2.label) && c2.back && c2.cash === 0, `Sell: a boost battery bought now sells back for $${c2.gain}, its empty card offers "${c2.label}", and Undo rebuilds it (${c2.msg})`);
+  // 7. the campaign map: the three strongest modifiers per sector, a "+n" chip opens the rest, nothing leaves the rules
+  const sortF = await p.evaluate(() => !!(__z.Z.feat?.sorties || __z.Z.sorties)), feat = () => sortF;  /* the Enemy launch sites modifier needs the sorties feature, else it falls back to Heavy pressure */
+  const rk = rankMods(modsOf('gate', 0, feat)).map(modName), rd = rankMods(modsOf('dam', 0, feat)).map(modName);
+  ok(rk.slice(0, MAP_MODS).join() === 'Missile front,Mothership escort,Coordinated raids' && rd.slice(0, MAP_MODS).join() === 'Coordinated raids,Heavy pressure,Swarm-heavy' && rd[3] === 'Storm season', `Map: modifiers rank by impact (Launch Complex shows ${rk.slice(0, 3).join(' / ')}, hides ${rk.slice(3).join(' / ')}; The Dam hides ${rd[3]})`);
+  const mp = await p.evaluate(() => { __z.Z.cp.openMap(); const ov = document.getElementById('zcamp');
+    return [...ov.querySelectorAll('.zc-n')].map(n => { const id = n.dataset.sec, chip = n.querySelector('.zc-more'); return {id, icons: n.querySelectorAll('.zc-mi').length, shown: [...n.querySelectorAll('.zc-mi title')].map(t => t.textContent), chip: chip ? chip.querySelector('text').textContent : '',
+      rest: [...ov.querySelectorAll(`[data-pop="${id}"] .zc-pn`)].map(t => t.textContent), vis: ov.querySelector(`[data-pop="${id}"]`) ? getComputedStyle(ov.querySelector(`[data-pop="${id}"]`)).visibility : ''}; }); });
+  const want3 = CAMP_SECTORS.map(s => { const n = s.mods.length; return {id: s.id, icons: Math.min(3, n), chip: n > 3 ? '+' + (n - 3) : '', rest: Math.max(0, n - 3)}; });
+  const mapOk = mp.length === 12 && want3.every(w => { const m = mp.find(q => q.id === w.id); return m && m.icons === w.icons && m.chip === w.chip && m.rest.length === w.rest && (!w.rest || m.vis === 'hidden'); });
+  const tot = mp.reduce((a, m) => a + m.icons + (m.rest.length || 0), 0);
+  ok(mapOk && tot === 29 && mp.every(m => m.icons <= 3), `Map: ${mp.reduce((a, m) => a + m.icons, 0)} icons on the map (was ${tot}), none over 3 per sector, chips ${mp.filter(m => m.chip).map(m => m.id + ' ' + m.chip).join(', ')}; the lists hold the other ${mp.reduce((a, m) => a + m.rest.length, 0)}, hidden until asked`);
+  ok(mp.find(m => m.id === 'gate').shown.join() === rk.slice(0, 3).join() && mp.find(m => m.id === 'gate').rest.join() === rk.slice(3).join() && mp.find(m => m.id === 'dam').rest.join() === 'Storm season', `Map: the expander lists exactly the hidden ones (Launch Complex: ${mp.find(m => m.id === 'gate').rest.join(', ')}; The Dam: ${mp.find(m => m.id === 'dam').rest.join(', ')})`);
+  const hv = await p.evaluate(() => { const ov = document.getElementById('zcamp'), vis = id => getComputedStyle(ov.querySelector(`[data-pop="${id}"]`)).visibility, chip = ov.querySelector('[data-more="gate"]'), sel0 = ov.querySelector('.zc-n.sel')?.dataset.sec, out = {rest: vis('gate')};
+    chip.dispatchEvent(new MouseEvent('mouseenter')); out.hover = vis('gate'); chip.dispatchEvent(new MouseEvent('mouseleave')); out.left = vis('gate');
+    chip.dispatchEvent(new MouseEvent('click', {bubbles: true})); out.pin = vis('gate'); chip.dispatchEvent(new MouseEvent('mouseleave')); out.pinLeft = vis('gate'); out.sel = ov.querySelector('.zc-n.sel')?.dataset.sec === sel0;
+    chip.dispatchEvent(new MouseEvent('click', {bubbles: true})); out.unpin = vis('gate'); return out; });
+  ok(hv.rest === 'hidden' && hv.hover === 'visible' && hv.left === 'hidden' && hv.pin === 'visible' && hv.pinLeft === 'visible' && hv.unpin === 'hidden' && hv.sel, `Map: the "+2" chip shows its list on hover, holds it open on click, closes on a second click, and never changes the selected sector (${JSON.stringify(hv)})`);
+  if (SHOTS) { await p.evaluate(() => document.querySelector('[data-more="gate"]').dispatchEvent(new MouseEvent('click', {bubbles: true}))); await p.screenshot({path: SHOTS + '/z-camp-map-cap.png'}); }
+  const eff = await p.evaluate(() => { const Z = __z.Z; Z.cp.select('gate'); const li = document.querySelectorAll('#zcamp .zcpmods li').length; Z.cp.start('gate', true); const r = Z.cp.run;
+    return {li, mods: r.mods.length, wave: +r.K.wave.toFixed(3), shift: r.K.shift, tot: r.K.tac.tot, boss5: r.mix.has('boss5'), raid: Z.cp.has('raid')}; });
+  const waveK = +modsOf('gate', 0, feat).reduce((a, m) => a * (m.id === 'big' ? m.n : 1), 1).toFixed(3);  /* the Heavy pressure numbers multiply */
+  ok(eff.li === 5 && eff.mods === 5 && eff.wave === waveK && eff.shift === 8 && eff.tot === .7 && eff.boss5, `Map: all five Launch Complex modifiers are listed in the briefing and in effect in the run (waves x${eff.wave}, enemies ${eff.shift} waves early, raids timed, Mothership every 5)`);
+  ok(!errs.length, 'Sell: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+  await p.close();
+
+  // 8. co-op: a client's sale, Undo and position close are requests to the host (a host and a client over the ?netloop transport)
+  const URLN = origin + '/games/interceptor/?mode=zombies&netloop=40', cerrs = [];
+  const cpage = async name => { const q = await open(browser, URLN, cerrs, {page: await newWindow(browser, {noRender: !SHOTS})});
+    await q.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: 'z', wx: 'clear', zwx: 'menu', zdiff: 1, zcamp: undefined})));
+    await q.reload({waitUntil: 'load'}); await q.waitForFunction(() => window.__z && window.__z.net, {timeout: 60000}); await q.$eval('#zname', (e, n) => { e.value = n; }, name); return q; };
+  const until = (q, fn, arg) => q.waitForFunction(fn, {timeout: 60000, polling: 50}, arg).then(() => true, () => false);
+  const H = await cpage('Hosty'), C = await cpage('Ash');
+  await H.click('#zhost');
+  ok(await until(H, () => __z.G.on && __z.G.state === 'base' && __z.net.n?.code), 'Sell, co-op: the host is up on the base screen');
+  const code = await H.evaluate(() => __z.net.n.code);
+  await C.$eval('#zcode', (e, c) => { e.value = c; }, code); await C.click('#zjoin');
+  ok(await until(C, () => __z.G.on && __z.G.state === 'base' && __z.net.rows().length === 2 && !document.getElementById('zbase').hidden), 'Sell, co-op: the client joined the host\'s base screen');
+  await H.evaluate(() => { const {G, Z} = __z; G.cash = 20000; const d = Z.base.act.place('flak', 0, 'Hosty'); Z.base.act.upgrade(d.id, 'lvl'); Z.base.refresh(); });
+  ok(await until(C, () => __z.G.cash === 19100 && __z.Z.def.D.length === 1 && __z.Z.def.D[0].lvl === 1 && __z.Z.def.D[0].spent === 900), 'Sell, co-op: the client sees the host\'s flak mortar');
+  const k1 = await C.evaluate(() => { const {G, Z} = __z; document.querySelector('[data-tab="armory"]').click(); const b = document.querySelector('[data-sell]'), label = b.textContent; b.click(); return {label, n: Z.def.D.length, cash: G.cash, ghost: !!document.querySelector('.zsold')}; });
+  ok(k1.label === 'Sell +$900' && k1.n === 1 && k1.cash === 19100 && !k1.ghost, `Sell, co-op: the client's Sell button reads ${k1.label} and changes nothing on its own screen: it is a request to the host`);
+  ok(await until(H, () => __z.Z.def.D.length === 0 && __z.G.cash === 20000 && __z.G.sold.length === 1), 'Sell, co-op: the host applied the sale (defence gone, purse $20,000, one Undo)');
+  ok(await until(C, () => __z.Z.def.D.length === 0 && __z.G.cash === 20000 && !!document.querySelector('.zsold [data-undo]:not([disabled])')), 'Sell, co-op: the client sees the sale and an Undo on the card');
+  await C.evaluate(() => document.querySelector('.zsold [data-undo]').click());
+  ok(await until(H, () => __z.Z.def.D.length === 1 && __z.Z.def.D[0].lvl === 1 && __z.Z.def.D[0].spent === 900 && __z.G.cash === 19100 && !__z.G.sold.length), 'Sell, co-op: the client\'s Undo went to the host, which restored the flak mortar and took the $900 back');
+  ok(await until(C, () => __z.Z.def.D.length === 1 && __z.G.cash === 19100 && !document.querySelector('.zsold') && !!document.querySelector('[data-sell]')), 'Sell, co-op: the client\'s card is back');
+  const jx = await H.evaluate(() => { const {Z} = __z, j = Z.def.SLOTS.findIndex((s, i) => Z.def.canOpen(i, Z.meta.doc())); Z.base.act.expand(j); Z.base.refresh(); return j; });
+  ok(await until(C, j => !!__z.G.xp?.[j] && __z.Z.def.slotOpen(j), jx), 'Sell, co-op: the client sees the position the host opened and what it cost');
+  const k2 = await C.evaluate(j => { document.querySelector('[data-tab="sites"]').click(); const b = document.querySelector(`[data-xs="${j}"]`), label = b?.textContent; b?.click(); return {label, open: __z.Z.def.slotOpen(j)}; }, jx);
+  ok(k2.label === 'Close +$1,800' && k2.open, `Sell, co-op: the client's ${k2.label} is a request too (the position is still open on its screen)`);
+  ok(await until(H, j => !__z.Z.def.slotOpen(j) && __z.G.exp === 0, jx) && await until(C, j => !__z.Z.def.slotOpen(j) && !!document.querySelector('.zsold [data-undo]'), jx), 'Sell, co-op: the host closed the position; both screens show it dormant, with an Undo');
+  await C.evaluate(() => document.querySelector('.zsold [data-undo]').click());
+  ok(await until(H, j => __z.Z.def.slotOpen(j) && __z.G.exp === 1 && !__z.G.sold.length, jx), 'Sell, co-op: the client\'s Undo reopened the position on the host');
+  ok(!cerrs.length, 'Sell, co-op: no errors' + (cerrs.length ? '\n  ' + cerrs.slice(0, 5).join('\n  ') : ''));
+  await H.close(); await C.close();
+}
+
 // ---------- the living map (zscars.js): craters, burns and rubble that stay; caps and recycling, the save, the campaign, co-op, no glitches, frame cost, no leaks ----------
 if (want('scars')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   /* nobody has played yet: the menu's idle time builds the textures and pools, a few ms a slice */
   const idle = await p.waitForFunction(() => __z.Z.sc.ready, {timeout: 120000}).then(() => true, () => false), worst = await p.evaluate(() => __z.Z.sc.worst);
   ok(idle, 'Scars: the textures and pools are built in idle time at the menu, before anyone plays');
@@ -1630,7 +1725,7 @@ if (want('scars')) {
     Z.stop(); o.stop = S.stats(); o.vis = S.pools.map(q => q.mesh.visible); o.meshes = api.scene.children.filter(x => x.userData.scars !== undefined).length; return o; }, H0);
   ok(Lk.mem[0].join() === Lk.mem[1].join(), `Leaks: eight cycles of full caps, save, load and snapshot add no GPU geometries, textures or programs (${Lk.mem[0]} -> ${Lk.mem[1]}) and leave nothing pending (${Lk.q})`);
   ok(Lk.stats.craters + Lk.stats.burns + Lk.stats.rubble === 0 && Lk.dead === 0 && Lk.walls && Lk.col, 'Leaks: four full-to-the-caps runs and restarts later nothing is left (scars 0, houses all back, colliders back)');
-  ok(Lk.vis.every(v => !v) && Lk.meshes === 3 && Lk.stop.craters === 0, 'Leaks: outside Zombies no scar is drawn (Classic and the menu see nothing), still three meshes in all');
+  ok(Lk.vis.every(v => !v) && Lk.meshes === 3 && Lk.stop.craters === 0, 'Leaks: once the run is stopped no scar is drawn (the menu sees nothing), still three meshes in all');
   ok(!errs.length, 'Scars: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 }
@@ -1638,7 +1733,7 @@ if (want('scars')) {
 // ---------- balance: a scripted player who shops sensibly and runs down a share of the tracks; how far does it get? ----------
 if (argv.includes('--balance')) {  // about 10 minutes
   for (const skill of [.01, .025]) {  // chance per half second of a player kill: about one kill every 50 s (casual) or 20 s (good)
-    const {p, errs} = await page('z');
+    const {p, errs} = await page();
     await play(p);
     const r = await p.evaluate(skill => {
       const {api, G, Z, KIND} = __z, def = Z.def, log = [];
@@ -1671,7 +1766,7 @@ if (argv.includes('--balance')) {  // about 10 minutes
 
 // ---------- helper rack tiers: kill rate per tier and enemy kind (balance check) ----------
 if (argv.includes('--tiers')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   const N = +(argv[argv.indexOf('--tiers') + 1]) || 120, kinds = ['shahed', 'jet', 'decoy', 'swarm', 'heavy', 'cruise'];
   const rows = [];

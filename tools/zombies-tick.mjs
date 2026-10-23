@@ -4,7 +4,7 @@
 // It reports:
 //   tick   the time of api.step (one 1/120 s sim tick, visuals every 12th as __z.sim does): mean, p50, p95, p99 and the worst tick, in ms
 //   parts  (--prof, which adds its own clock reads) for the worst 1% of ticks: the mean time in the helpers (Z.def.step), the track movers (Z.tstep), the wave director and the rest of
-//          Z.step (swarm, lock-on, perks, effects hooks); what is left is the interceptor, the fuse and the Classic movers
+//          Z.step (swarm, lock-on, perks, effects hooks); what is left is the interceptor, the fuse and the Shahed / Geran movers
 //   frames the real frame loop for a few seconds: frame time (mean, p95) and how evenly a cruising Shahed's mesh moves from frame to frame
 //          (judder = spread of its on-screen speed per frame / its mean; 0 = perfectly even; stalls = frames where it did not move at all)
 // Run: node tools/zombies-tick.mjs [--wave 32] [--ticks 2400] [--seed 7] [--runs 3] [--prof]   (DL_NORENDER=1 skips the GPU draws: CPU-bound frames)

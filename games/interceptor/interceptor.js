@@ -19,7 +19,6 @@ import {startLoop} from '../../engine/loop.js';
 import {txt,html,css,cls,hide,depthFix,hyp,hyp3,freeze} from '../../engine/hot.js';
 import {particlePool,PFX} from '../../engine/particles.js';
 import {makeInterp} from '../../engine/interp.js';
-import {track as leadTrack,solve as leadSolve} from './lead.js';
 import {initZombies} from './zombies.js';
 import {makeGrid} from './grid.js';
 import {strelaBody} from './strela.js';
@@ -33,14 +32,14 @@ mountMod();setFeedTime(5500);
 // ---------- world constants (metres, seconds; real scale) ----------
 // AO = area of operations, ±AW. Threats enter at SPAWNZ (north, -z) and fly toward the defended sites in the south (+z).
 let AW=3000;const TW=9000,TN=360,CEIL=4000,SPAWNZ=-2900;  // AW is widened while Zombies runs
-let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.22,MAXV=78,TE=1.6,VP=240,DL=.1,DQ=.006,HOV=(G/THR)**(1/TE),TAU=.012,DB=.35,GSPD=1,SHK=1,LETH=5,CRASH=30,RELT=2.5,TSPD=1,TCNT=1,BCAP=16000,MSZ=1,SAGK=1;
+let G=15,FS=4,DRAD=.8,THR=58,GF=.1,SPOOL=.03,TURT=4.5,WASH=1,HBP=[],HBR=.13,DI=.22,MAXV=78,TE=1.6,VP=240,DL=.1,DQ=.006,HOV=(G/THR)**(1/TE),TAU=.012,DB=.35,GSPD=1,SHK=1,LETH=5,CRASH=30,RELT=2.5,BCAP=16000,MSZ=1,SAGK=1;
 const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3(),_tl=new V3(),_vr=new V3();
-const DIFF=[{n:'Light',cnt:.7,spd:.92,gap:1.3},{n:'Heavy',cnt:1,spd:1,gap:1},{n:'Saturation',cnt:1.5,spd:1.06,gap:.7}];
 const RRS=[2000,5000,10000];
-const DEF={mode:"acro",diff:1,tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fuse:'auto',fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,guideSw:-1,nextSw:-1,guide:1,gmode:'classic',skin:'dart',zwx:'wave',gfx:'auto',fps:true,haze:false,fcap:0};
+const DEF={mode:"acro",tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,nextSw:-1,zwx:'wave',gfx:'auto',fps:true,haze:false,fcap:0};
 loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the dart's camera sits at 90°, a 5-inch quad's at 30°
-if(S.fuse!=='manual')S.fuse='auto';S.diff=cl(S.diff|0,0,2);S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;
+S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
+if((S.setV|0)<5){for(const k of['gmode','diff','fuse','skin','guide','guideSw'])delete S[k];S.setV=5}  /* v5: Classic is gone, Zombies is the game: the settings only Classic read (mode, threat level, fuse, look, midcourse guidance) are dropped */
 
 // ---------- renderer ----------
 const ov=$('ov'),oc=ov.getContext('2d');let sens;
@@ -88,12 +87,25 @@ const envOff=(()=>{const s=new THREE.Scene();s.background=new THREE.Color(0,0,0)
 
 // ---------- terrain: steppe farmland, windbreak tree belts, villages and a river; the defended sites sit on flattened ground in the south ----------
 const rivZ=x=>-300+190*Math.sin(x/840+1)+70*Math.sin(x/260);  // river centre line, crossing the AO west to east
+const rivN=x=>Math.hypot(1,190/840*Math.cos(x/840+1)+70/260*Math.cos(x/260));  // |z - rivZ(x)| / rivN(x) = distance across the river
 const PADP={n:'RADAR',x:0,z:1250,r:40},SITES=[{n:'SUBSTATION',x:-720,z:1750,r:75},{n:'FUEL DEPOT',x:660,z:1850,r:75},{n:'APARTMENTS',x:30,z:2180,r:95}];
 // forward positions on the south bank of the river line: pickup, launch mat, camo net
 const FOBS=[['POS WEST',-1700],['POS CENTRE',100],['POS EAST',1900]].map(([n,x])=>({n,x,z:rivZ(x)+330,r:22,fob:1})),SOLG=[PADP,...SITES,...FOBS];
-function th0(x,z){let y=(fbm(x/1500+3,z/1500-1)-.45)*150+(fbm(x/320+7,z/320)-.45)*18;
+function th1(x,z){let y=(fbm(x/1500+3,z/1500-1)-.45)*150+(fbm(x/320+7,z/320)-.45)*18;
  const e=Math.max(Math.abs(x),Math.abs(z))-AW+300;if(e>0)y+=e*.22*(.6+.6*vnoise(x/400,z/400));  // ridges beyond the AO
- return -14+sm((Math.abs(z-rivZ(x))-55)/160)*(y+14)}  // river valley
+ return y}
+// River water level per 25 m station along x: -10.5 m, or 4 m under the lowest bank 50-270 m either side where the land is lower (a river
+// on a fixed level used to sit on a raised levee across low ground there, the water a sheet floating over the fields). A running minimum over
+// +-600 m then a +-400 m average keep it under every bank it passes and its slope under ~3 %. The water ribbon and the carved bed follow it.
+const RWS=25,RW0=-TW/2-1000,RWN=(TW+2000)/RWS+1,RWL=(()=>{const m=new Float32Array(RWN),e=new Float32Array(RWN),w=new Float32Array(RWN);
+ for(let k=0;k<RWN;k++){const x=RW0+k*RWS,z=rivZ(x),n=rivN(x);let lo=1e9;for(let o=50;o<=270;o+=10)lo=Math.min(lo,th1(x,z+o*n),th1(x,z-o*n));m[k]=Math.min(-10.5,lo-4)}
+ for(let k=0;k<RWN;k++){let v=1e9;for(let j=Math.max(0,k-24);j<=Math.min(RWN-1,k+24);j++)v=Math.min(v,m[j]);e[k]=v}
+ for(let k=0;k<RWN;k++){let s=0;for(let j=k-16;j<=k+16;j++)s+=e[cl(j,0,RWN-1)];w[k]=s/33}return w})();
+const rivY=x=>{const f=cl((x-RW0)/RWS,0,RWN-1.001),k=f|0;return RWL[k]+(RWL[k+1]-RWL[k])*(f-k)};
+// river valley: a bed 3.5 m under the water, a straight 1:10 bank from 20 to 90 m out that crosses the waterline at 55 m (the painted water
+// edge; straight, so the 25 m terrain triangles cut the water plane on a clean line instead of a sawtooth) and buries the ribbon's 68 m
+// edge 1.3 m deep, then the land blends in over 140 m
+function th0(x,z){const y=th1(x,z),d=Math.abs(z-rivZ(x))/rivN(x),c=rivY(x)-3.5+.1*cl(d-20,0,70);return c+sm((d-90)/140)*(y-c)}
 SOLG.forEach(f=>{f.y=th0(f.x,f.z);f.sol=[]});
 function th(x,z){let y=th0(x,z);for(const f of SOLG){const d=Math.hypot(x-f.x,z-f.z);if(d<f.r+120)y+=(f.y-y)*(1-sm((d-f.r)/120))}return y}
 const SEG=TW/TN,HF=new Float32Array((TN+1)**2);for(let j=0;j<=TN;j++)for(let i=0;i<=TN;i++)HF[j*(TN+1)+i]=th(-TW/2+i*SEG,-TW/2+j*SEG);
@@ -148,9 +160,11 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
  const mT=new THREE.CanvasTexture(mkC);mT.anisotropy=4;
  const m=new THREE.Mesh(g,groundMaterial(groundTex,fieldData(FCELLS),mT));m.receiveShadow=true;scene.add(m);GSNOW=m.material.userData.snow;
  // river surface: a ribbon along the river line only (the low ground elsewhere stays dry)
- const rv=[];for(let x=-TW/2;x<=TW/2;x+=25){const z=rivZ(x),dz=(rivZ(x+1)-z),n=Math.hypot(1,dz),ox=-dz/n*68,oz=1/n*68;rv.push(x+ox,-10.5,z+oz,x-ox,-10.5,z-oz)}
+ /* each edge vertex takes the water level at its own x: the station's level put the water up to 0.4 m above the bank where the river
+    slants and slopes (the bank is cut for rivY at the vertex's own x) */
+ const rv=[];for(let x=-TW/2;x<=TW/2;x+=25){const z=rivZ(x),dz=(rivZ(x+1)-z),n=Math.hypot(1,dz),ox=-dz/n*68,oz=1/n*68;rv.push(x+ox,rivY(x+ox),z+oz,x-ox,rivY(x-ox),z-oz)}
  const ri=[];for(let k=0;k<rv.length/6-1;k++){const a=k*2;ri.push(a,a+2,a+1,a+1,a+2,a+3)}const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rv,3));rg.setIndex(ri);rg.computeVertexNormals();
- scene.add(new THREE.Mesh(rg,new THREE.MeshStandardMaterial({color:0x2f5562,roughness:.08,metalness:.1,side:THREE.DoubleSide})))}
+ const rm=new THREE.Mesh(rg,new THREE.MeshStandardMaterial({color:0x2f5562,roughness:.08,metalness:.1,side:THREE.DoubleSide}));rm.userData.river=1;scene.add(rm)}
 // trees (trunk + two-lobed crown), village houses, power line from the substation
 // The forest is cut into 1125 m tiles (one trunk + one crown InstancedMesh each, frustum-culled by their bounding spheres): the sun's 440 m
 // shadow box then only redraws the few tiles under it instead of all 17k trees, and the view only draws the tiles in front of the camera.
@@ -336,35 +350,26 @@ function sdf(x,y,z){const g=gh(x,z);let d=Math.max((g-y)*.85,Math.abs(x)-AW,Math
 const _an=new V3();
 function sdN(p,out){const h=.02,x=p.x,y=p.y,z=p.z;out.set(sdf(x+h,y,z)-sdf(x-h,y,z),sdf(x,y+h,z)-sdf(x,y-h,z),sdf(x,y,z+h)-sdf(x,y,z-h));const l=out.length();return l>1e-9?out.divideScalar(l):out.set(0,1,0)}
 
-// ---------- interceptor: tail-sitter dart on the Drone League flight model ----------
-// tail-sitter dart: fuselage along the thrust axis (body +Y = nose), camera on a tilt servo in the nose, pulling props near the nose, cruciform tail fins it stands on
-const GEO={body:new THREE.CylinderGeometry(.062,.058,.56,18),nose:new THREE.SphereGeometry(.062,18,10,0,Math.PI*2,0,Math.PI/2).scale(1,1.7,1),
- tail:new THREE.ConeGeometry(.058,.08,18).rotateX(Math.PI),fin:(()=>{const s=new THREE.Shape();s.moveTo(0,0);s.lineTo(.1,-.1);s.lineTo(.1,-.2);s.lineTo(0,-.16);s.closePath();return new THREE.ExtrudeGeometry(s,{depth:.006,bevelEnabled:false}).translate(.05,-.16,-.003)})(),
- arm:new THREE.BoxGeometry(.5,.016,.03),motor:new THREE.CylinderGeometry(.026,.03,.04,14),bell:new THREE.CylinderGeometry(.03,.03,.012,14),
- prop:new THREE.CircleGeometry(.13,28).rotateX(-Math.PI/2),blade:new THREE.BoxGeometry(.26,.005,.026),lens:new THREE.SphereGeometry(.026,12,8),band:new THREE.CylinderGeometry(.066,.066,.04,18),
- ant:new THREE.CylinderGeometry(.004,.004,.12,5)};
+// ---------- interceptor: tail-sitter on the Drone League flight model ----------
+// tail-sitter: fuselage along the thrust axis (body +Y = nose; strela.js is its body), camera on a tilt servo in the nose, pulling props near the nose, cruciform tail fins it stands on
+const GEO={arm:new THREE.BoxGeometry(.5,.016,.03),motor:new THREE.CylinderGeometry(.026,.03,.04,14),bell:new THREE.CylinderGeometry(.03,.03,.012,14),
+ prop:new THREE.CircleGeometry(.13,28).rotateX(-Math.PI/2),blade:new THREE.BoxGeometry(.26,.005,.026)};
 const MAT={carbon:new THREE.MeshStandardMaterial({color:0x16191f,roughness:.45,metalness:.6}),metal:new THREE.MeshStandardMaterial({color:0x8a919c,roughness:.3,metalness:.9}),
- prop:new THREE.MeshBasicMaterial({color:0xaab4c8,transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide}),lens:new THREE.MeshStandardMaterial({color:0x050505,roughness:.05,metalness:1}),
- olive:new THREE.MeshStandardMaterial({color:0x5a6240,roughness:.65,metalness:.15}),blade:new THREE.MeshStandardMaterial({color:0x22252a,roughness:.5,transparent:true,opacity:.65}),
- band:new THREE.MeshStandardMaterial({color:0xd8b12a,roughness:.5}),led:glow(0xff3030,4)};
+ prop:new THREE.MeshBasicMaterial({color:0xaab4c8,transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide}),blade:new THREE.MeshStandardMaterial({color:0x22252a,roughness:.5,transparent:true,opacity:.65})};
 const _q=new QT(),_v=new V3(),_w=new V3(),_u=new V3();
 class Drone{
  constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),vp:0,vc:4.2,tb:new V3(),gu:new V3(),dead:0,mah:0,t:0,home:FOBS[1]});this.build();this.spawn()}
- // two looks share the quad hardware: Riley's dart (Classic default) and a 9K32 Strela-2 body (strela.js; Zombies, or the Classic menu option)
- build(){const g=this.mesh=new THREE.Group(),dart=this.dart=new THREE.Group();this.strela=strelaBody();g.add(dart,this.strela);
+ // the Strela-2 body (strela.js) on the quad hardware: arms, motors, props
+ build(){const g=this.mesh=new THREE.Group();this.strela=strelaBody();g.add(this.strela);
   const add=(geo,mat,x,y,z,ry=0,par=g)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.y=ry;m.castShadow=true;par.add(m);return m};
-  add(GEO.body,MAT.olive,0,0,0,0,dart);add(GEO.nose,MAT.olive,0,.28,0,0,dart);add(GEO.tail,MAT.olive,0,-.32,0,0,dart);add(GEO.band,MAT.band,0,.17,0,0,dart);  // fuselage, warhead section behind the nose
-  for(let k=0;k<4;k++)add(GEO.fin,MAT.carbon,0,0,0,k*Math.PI/2,dart);
   add(GEO.arm,MAT.carbon,0,.1,0,Math.PI/4);add(GEO.arm,MAT.carbon,0,.1,0,-Math.PI/4);
   this.props=[];for(const[x,z]of[[.17,.17],[-.17,.17],[.17,-.17],[-.17,-.17]]){add(GEO.motor,MAT.metal,x,.12,z);add(GEO.bell,MAT.carbon,x,.143,z);const pr=add(GEO.prop,MAT.prop,x,.152,z);pr.castShadow=false;add(GEO.blade,MAT.blade,0,0,0,0,pr);this.props.push(pr)}
-  add(GEO.lens,MAT.lens,0,.36,-.02,0,dart);add(GEO.ant,MAT.carbon,.15,-.3,0,0,dart);add(new THREE.BoxGeometry(.02,.04,.02),MAT.led,0,-.2,.062,0,dart);
-  this.nozzle=new THREE.Object3D();this.nozzle.position.set(0,-.375,0);g.add(this.nozzle);  // tail / motor nozzle exit (both looks): attach exhaust effects here, they point along local -Y
-  this.look();scene.add(g)}
- look(){const s=Z.on||S.skin==='strela';this.strela.visible=s;this.dart.visible=!s}
+  this.nozzle=new THREE.Object3D();this.nozzle.position.set(0,-.375,0);g.add(this.nozzle);  // tail / motor nozzle exit: attach exhaust effects here, they point along local -Y
+  scene.add(g)}
  // on the launch mat at the forward position nearest the most urgent track, standing on its fins, nose up, facing the track, motors off
  spawn(){const u=selT(),f=this.home=u?FOBS.reduce((a,b)=>Math.hypot(b.x-u.p.x,b.z-u.p.z)<Math.hypot(a.x-u.p.x,a.z-u.p.z)?b:a):FOBS[1];
   this.p.set(f.mat.x,f.mat.y+(.36+.04)*MSZ+.005,f.mat.z);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);
-  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.vp=0;this.vc=4.2;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true;this.look();IP.cut(this)}
+  this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.vp=0;this.vc=4.2;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true;IP.cut(this)}
  step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT);if(THR*this.ms**TE<G*.5&&_u.set(0,1,0).applyQuaternion(this.q).y>.7)wt.set(0,0,0)}this.t+=dt;  // standing on its fins below half-hover thrust: the sticks can't tip it over
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&_u.y<.7&&this.pivot(wt,dt))return 0;  // only once it has fallen over: standing on its fins it stays put
@@ -377,7 +382,7 @@ class Drone{
   const I=this.amp=6+220*Math.max(this.ms,0)**1.5;this.mah+=I*dt/3.6;this.vp+=(I*.0011-this.vp)*(1-Math.exp(-dt/(I*.0011>this.vp?.6:2.5)));this.vc=ocv(this.mah/BCAP)-(I*.0016+this.vp)*SAGK;  // pack current (A), mAh used, per-cell voltage: IR drop (1.6 mΩ/cell) + polarisation that builds over ~0.6 s and recovers over ~2.5 s
   let acc=thrust(this.ms,THR,TE)*Math.min(1.04,(Math.max(this.vc,3)/4.05)**1.6);  // thrust ~ rpm² ~ voltage² at a given throttle: sags with load and as the pack drains (1.0 at a fresh pack in hover)
   acc*=inflow(va,VP);  // prop inflow: thrust falls off as the air through the disc nears the prop's pitch speed
-  this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;if(this.boost)this.v.addScaledVector(up,this.boost*dt);  // Zombies Rocket Assist: extra thrust along the body axis (never set in Classic)
+  this.v.addScaledVector(up,acc*dt);this.v.y-=G*dt;if(this.boost)this.v.addScaledVector(up,this.boost*dt);  // Zombies Rocket Assist: extra thrust along the body axis
   bodyDrag(this.v,_vr.subVectors(this.v,AIR),this.q,up,DL,DQ,FS,1,FS,ONE.dq,dt);  // body-axis drag on the airspeed (wind included): the dart slips through the air nose-first, while the fuselage and cruciform fins resist sideways flow (FS x), which swings the velocity onto the nose, so it flies where it points and the fins carry it in level flight
   capSpeed(this.v,MAXV+(this.bmax||0),dt);
   this.p.addScaledVector(this.v,dt);const hit=this.ground();if(hit>9)noise(.12,500,cl(hit/60,0,.4));return hit}
@@ -434,9 +439,8 @@ const fwdH=(q,o)=>o.set(0,1,-1).applyQuaternion(q).setY(0);
 const fireIn=fireBtnIn;
 // camera tilt switch (S.tilt for cruise / level for take-off and hover) and thermal switch: keyboard L / H toggle; a mapped radio switch axis sets the position whenever it moves, a mapped button toggles
 let camUp=false,therm=false;const camA=()=>camUp?S.tilt:0;
-const setGuide=v=>{S.guide=v?1:0;save();if(!demo)banner(v?'GUIDANCE ON':'GUIDANCE OFF','',.7)};
 const setCam=v=>{if(v!==camUp){camUp=v;if(!demo)banner(v?`CAM ${S.tilt}°`:'CAM LEVEL','',.7)}},setTherm=v=>{if(v!==therm){therm=v;if(!demo)banner(v?'THERMAL WHT':'DAY CAM','',.7)}};
-const SWA={tiltSw:[setCam,()=>camUp],thermSw:[setTherm,()=>therm],guideSw:[v=>setGuide(v),()=>!!S.guide],nextSw:[()=>nextTrack(),null]};
+const SWA={tiltSw:[setCam,()=>camUp],thermSw:[setTherm,()=>therm],nextSw:[()=>nextTrack(),null]};
 const switches=()=>pollSwitches(SWA);
 
 // ---------- threats: Shahed-136 / Geran-2 (3.5 m, 2.5 m span, MD-550 two-stroke pusher, ~185 km/h) and jet Geran-3 (3.5 m, 3 m span, turbojet on top, 300–370 km/h) ----------
@@ -450,18 +454,19 @@ function shahedMesh(jet){const g=new THREE.Group(),m=jet?SHJ:SHM[Math.random()*3
  add(SHG.body,m);add(jet?SHG.wingJ:SHG.wing,m);const h=jet?1.5:1.25;add(SHG.fin,m,h,-.05,0);add(SHG.fin,m,-h,-.05,0);let prop=null;
  if(jet){add(SHG.pod,SHEN,0,.36,-1.05);add(SHG.pylon,m,0,.2,-1.0);add(SHG.ex,EXM,0,.36,-1.64)}else{add(SHG.hub,SHEN,0,0,-1.86);add(SHG.disc,MAT.prop,0,0,-1.96);prop=add(SHG.blade,MS.dark,0,0,-1.96)}
  scene.add(g);return{g,prop}}
-const TH=[],FIRES=[];let tid=0;
+const TH=[];let tid=0;
 // render interpolation (engine/interp.js): the sim ticks at 120 Hz, frames draw the interceptor and the tracks between their last two ticks.
 // Zombies registers its own movers (helper shots, swarm drones) through api.interp.
 const IP=makeInterp();IP.add(each=>{if(player)each(player)});IP.add(TH);
 // spatial grid over the tracks for neighbour queries (grid.js): open while a tick runs (not while the threats move) and while a frame is drawn
 const GRID=makeGrid(TH);
 const live=t=>t.st==='cruise'||t.st==='dive',liveSites=()=>SITES.filter(s=>s.hp>0);
-function spawnThreat(jet){const L=liveSites();if(!L.length)return;const s=L[Math.random()*L.length|0],aim=s.aims[Math.random()*s.aims.length|0],D=DIFF[demo?1:S.diff];
+/* the menu backdrop's tracks (a Shahed, then a jet Geran-3, again and again); Zombies spawns its own (zombies.js make) */
+function spawnThreat(jet){const L=liveSites();if(!L.length)return;const s=L[Math.random()*L.length|0],aim=s.aims[Math.random()*s.aims.length|0];
  const x0=(Math.random()-.5)*4600,alt=Math.random()<.35?80+Math.random()*120:250+Math.random()*650,p=new V3(x0,gh(x0,SPAWNZ)+alt,SPAWNZ);
  // dog-leg route: two waypoints off the direct line (they route around air defences), then the target
  const wps=[new V3(cl(x0*.6+(Math.random()-.5)*1600,-2700,2700),0,-1500),new V3(cl(aim.x+(Math.random()-.5)*1800,-2700,2700),0,300+Math.random()*400)];
- const spd=(jet?92:51)*D.spd*TSPD*(.94+Math.random()*.12),m=shahedMesh(jet);
+ const spd=(jet?92:51)*(.94+Math.random()*.12),m=shahedMesh(jet);
  const t={id:++tid,p,v:new V3(wps[0].x-p.x,0,wps[0].z-p.z).setLength(spd),spd,cs:spd,alt,wps,tgt:s,aim,st:'cruise',jet,mesh:m.g,prop:m.prop,pd:1e9,dmin:1e9,cvm:0,bank:0,roll:0,spin:0,smoke:0,rb:null};TH.push(t);return t}
 function turn(t,des,rate,dt){const cur=_tv.copy(t.v).normalize(),a=Math.acos(cl(cur.dot(des),-1,1)),y0=Math.atan2(cur.x,cur.z);
  if(a>1e-5)cur.lerp(des,Math.min(1,rate*dt/a)).normalize();let dy=Math.atan2(cur.x,cur.z)-y0;dy=((dy+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
@@ -472,39 +477,27 @@ function threatStep(t,dt){if(t.st==='dead')return;if(t.k&&Z.tstep(t,dt))return;
   if(sdf(t.p.x,t.p.y,t.p.z)>-.5){boom(t.p,1.6);t.st='dead'}return}
  if(t.st==='cruise'){
   if(t.tgt.hp<=0){const L=liveSites();if(L.length){t.tgt=L.reduce((a,b)=>Math.hypot(a.x-t.p.x,a.z-t.p.z)<Math.hypot(b.x-t.p.x,b.z-t.p.z)?a:b);t.aim=t.tgt.aims[Math.random()*t.tgt.aims.length|0]}}
-  if(t.dmg){t.alt=Math.max(25,t.alt-dt*5);if((t.smoke-=dt)<=0){t.smoke=.08;SMK.emit(t.p,0x2e2b28,1,1.2,4,null,1,.75)}if(t.fail&&(t.fail-=dt)<=0){killThreat(t);if(!demo)feed(`<span class="cg">${tName(t)} failed from its damage, going down</span>`);return}}
+  if(t.dmg){t.alt=Math.max(25,t.alt-dt*5);if((t.smoke-=dt)<=0){t.smoke=.08;SMK.emit(t.p,0x2e2b28,1,1.2,4,null,1,.75)}if(t.fail&&(t.fail-=dt)<=0){killThreat(t);if(!demo)feed(`<span class="cg">${Z.tname(t)} failed from its damage, going down</span>`);return}}
   const w=t.wps[0]||t.aim;_td.set(w.x-t.p.x,0,w.z-t.p.z);if(t.wps.length&&_td.length()<Math.max(300,t.spd/.35*1.6))t.wps.shift();
   // jet Geran-3: full speed on the first leg, throttled back to piston speed on the middle leg (fuel), full speed again for the run-in
   if(t.jet){const tgt=(t.wps.length===1?.6:1)*t.cs;t.spd+=(tgt-t.spd)*Math.min(1,dt*.3)}
   const ad=hyp(t.aim.x-t.p.x,t.aim.z-t.p.z);
   if(!t.wps.length&&ad<Math.max(350,(t.p.y-t.aim.y)*1.1)){t.st='dive';t.spd*=1.15}  // terminal dive, about 45°
   _tl.copy(t.p).addScaledVector(t.v,5);const gy=Math.max(gh(t.p.x,t.p.z),gh(_tl.x,_tl.z))+t.alt;  // holds altitude above the ground
-  _td.setLength(t.spd);if(t.ev)_td.applyAxisAngle(UP,t.ev);_td.y=cl((gy-t.p.y)*.4,-7,7);turn(t,_td.normalize(),t.evr||.35,dt)}  // t.ev / t.evr: Zombies evasion (heading offset, turn rate); never set in Classic
+  _td.setLength(t.spd);if(t.ev)_td.applyAxisAngle(UP,t.ev);_td.y=cl((gy-t.p.y)*.4,-7,7);turn(t,_td.normalize(),t.evr||.35,dt)}  // t.ev / t.evr: Zombies evasion (heading offset, turn rate)
  else{t.spd=Math.min(t.spd+4*dt,t.cs*1.45);turn(t,_td.subVectors(t.aim,t.p).normalize(),1.1,dt);if(t.p.distanceTo(t.aim)<4||t.p.y<=gh(t.p.x,t.p.z)+.6){impact(t);return}}
  t.p.addScaledVector(t.v,dt).addScaledVector(WIND,dt*.6)}  // wind drift
-function impact(t){if(Z.on)return Z.impact(t);t.st='dead';boom(t.aim,4);if(demo||wstate==='over')return;const s=t.tgt;
- if(s.hp>0){s.hp--;lost++;wl++;FIRES.push({p:t.aim.clone(),t:0});feed(`<span class="cr">Impact</span> on the ${s.n.toLowerCase()}${s.hp?'':' · <span class="cr">site destroyed</span>'}`);tone(220,110,.6,.12,'sawtooth')}
- if(!liveSites().length){wstate='over';wT=8;banner('ALL SITES DESTROYED','cr',0);feed(`Held ${wave-1} wave${wave===2?'':'s'} · ${saved} downed · ${spent} interceptors`)}}
-function killThreat(t,cat){if(Z.on)Z.kill(t,cat);if(cat){t.st='dead';boom(t.p,3.2);SMK.emit(t.p,0x1c1a18,30,14,6,_t.set(0,3,0),1.4,.85);if(!demo){saved++;ws++;tone(660,1320,.25,.12,'triangle')}return}t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
- boom(t.p,1.2);if(demo)return;saved++;ws++;tone(660,1320,.25,.12,'triangle')}
+function impact(t){if(Z.on)return Z.impact(t);t.st='dead';boom(t.aim,4)}
+function killThreat(t,cat){if(Z.on)Z.kill(t,cat);if(cat){t.st='dead';boom(t.p,3.2);SMK.emit(t.p,0x1c1a18,30,14,6,_t.set(0,3,0),1.4,.85);if(!demo)tone(660,1320,.25,.12,'triangle');return}t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
+ boom(t.p,1.2);if(demo)return;tone(660,1320,.25,.12,'triangle')}
 function boom(p,k){if(Z.on)Z.flash(p,k);FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
  boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*(Z.on?Math.min(k,3):k));shake=Math.max(shake,near(p)*k*.6);noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}
-function fires(dt){for(const f of FIRES)if((f.t-=dt)<=0){f.t=.06;FX.emit(f.p,0xff7a20,3,3,.8,_t.set(0,7,0),2.5);SMK.emit(f.p,0x2b2724,1,2,9,_t.set(0,8,0),1,.75)}}
 const nearestThreat=p=>GRID.nearest(p,live);
 // most urgent track: least time to reach its target
-const urgent=()=>{if(Z.on)return Z.urgent();let b=null,bt=1e18;for(const t of TH)if(live(t)){const tt=hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)/t.spd;if(tt<bt){bt=tt;b=t}}return b};
+const urgent=()=>Z.urgent();
 // selected track: the most urgent unless you picked one with Next track (N); tracks cycle in order of urgency
-let pickT=null,gdNow=null;const selT=()=>pickT&&live(pickT)?pickT:urgent();
+let pickT=null;const selT=()=>pickT&&live(pickT)?pickT:urgent();
 function nextTrack(){const L=TH.filter(t=>live(t)&&!(Z.on&&Z.hid?.(t))).sort((a,b)=>Math.hypot(a.aim.x-a.p.x,a.aim.z-a.p.z)/a.spd-Math.hypot(b.aim.x-b.p.x,b.aim.z-b.p.z)/b.spd);if(!L.length)return;pickT=L[(L.indexOf(selT())+1)%L.length];if(!demo)banner('T'+String(pickT.id).padStart(2,'0'),'',.6)}
-/* midcourse guidance: the predicted intercept point (PIP) is where you meet the selected track if you fly straight at it at your speed (at least
-   40 m/s; flat out when you can't catch it at that). lead.js solves it, the same solver as Zombies' lock-on overlay, every sim tick on sim
-   state (step below), so the diamond, the radar line and the HUD's time to go all show the one point where you actually meet it; the HUD
-   draws that world point through the frame's camera. Inside 1.5 km it hands over to terminal: your eyes, the brackets and the pursuit cue. */
-const GD={pip:new V3(),sol:{p:new V3(),tau:0,unc:0,ok:true}};
-function guidance(me,dt){const t=selT();if(!t||!me)return null;const L=leadTrack(t,dt,V3),G0=GD.sol,s=Math.max(me.v.length(),40);leadSolve(G0,t.p,t.v,L.a,me.p,s,V3);
- const flat=!G0.ok;if(flat)leadSolve(G0,t.p,t.v,L.a,me.p,Math.max(s,MAXV+(me.bmax||0)),V3);GD.pip.copy(G0.p);const tau=G0.tau,rng=t.p.distanceTo(me.p);
- const f=me.v.lengthSq()>100?_tl.copy(me.v).setY(0):fwdH(me.q,_tl),b=Math.atan2(GD.pip.x-me.p.x,-(GD.pip.z-me.p.z)),h=Math.atan2(f.x,-f.z);
- return{t,ttg:tau,rng,unc:G0.unc,flat,ph:rng>1500?'MIDCOURSE':'TERMINAL',herr:((b-h)*180/Math.PI+540)%360-180,dalt:GD.pip.y-me.p.y}}
 /* warhead: a fragmentation charge. A burst within LETH (the Fuse radius tuner, 5 m by default; arcade leeway) of the track always kills. Past that the
  kill chance falls off over a couple of metres, and the ~15 ms fuse delay counts: at high closing speed the burst lands past the target, so a near
  miss head-on does less than the same miss in a tail chase. pdmg = the chance a miss still damages it. fuseR = the 50% kill radius at a closing speed (never under LETH). */
@@ -513,7 +506,7 @@ const aspect=(t,p)=>{const c=_ad.subVectors(p,t.p).normalize().dot(_tv.copy(t.v)
 
 // ---------- interceptor life: launch, fuse, detonation, crash, battery ----------
 let player=null,demo=true,paused=false,menuOpen=true,shake=0,camMode=S.cam|0;
-let wave=0,wstate='brief',wT=0,toSpawn=0,spawnT=0,saved=0,lost=0,spent=0,ws=0,wl=0;
+let wave=0,wstate='brief',wT=0,toSpawn=0,spawnT=0,spent=0;  /* wave / wstate: Zombies' wave number and state ('over' freezes relaunching); in the menu they run the backdrop's raids */
 const deadP=new V3(),deadC=new V3();
 function launch(){if(!player)player=new Drone();player.spawn();TH.forEach(t=>{t.pd=t.dmin=1e9;t.cvm=0});FW.clear();fireWas=true;kbThr=0;kbArm=false;camUp=false;lqS=1;{const v=typeof S.tiltSw==='string'?swRead(S.tiltSw):null;if(v!=null)camUp=v}
  if(!demo)feed(`On the mat at <b>${player.home.n}</b>. Throttle up to take off`)}
@@ -522,13 +515,6 @@ function lose(why){const d=player;if(d.dead>0)return;d.dead=RELT;spent++;deadP.c
  _f.copy(d.v).setY(0);if(_f.lengthSq()<.01)_f.set(0,0,-1);deadC.copy(d.p).addScaledVector(_f.normalize(),-25).setY(Math.max(d.p.y,gh(d.p.x,d.p.z))+8);
  boom(d.p,why==='det'?.7:.4);if(camMode===0){const f=$('flash');f.style.transition='none';f.style.opacity=why==='det'?.9:.5;requestAnimationFrame(()=>{f.style.transition='opacity .6s';f.style.opacity=0})}
  if(why==='crash')feed('Interceptor lost: crashed');if(why==='bat')feed('Interceptor lost: battery flat')}
-const tName=t=>`T${String(t.id).padStart(2,'0')} ${t.k&&Z.on?Z.tname(t):t.jet?'Geran-3':'Shahed'}`;
-function detonate(){if(Z.on)return Z.detonate();const d=player,out=[];
- GRID.near(d.p,30,t=>{if(!live(t))return;const r=t.p.distanceTo(d.p);if(r>30)return;const cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a.subVectors(t.p,d.p))/(r||1)),re=r+cv*FDLY;
-  if(Math.random()<pkill(r,cv)){const cat=re<2.4&&Math.random()<.55;killThreat(t,cat);out.push(`<span class="cg">${tName(t)} ${cat?'destroyed: its warhead went up':'hit, going down'}</span> (${r.toFixed(1)} m)`)}
-  else if(!t.dmg&&Math.random()<pdmg(r,cv)){damage(t);out.push(`<span class="co">${tName(t)} damaged, still flying</span> (${r.toFixed(1)} m)`)}
-  else out.push(`<span class="co">Missed ${tName(t)}: burst ${re.toFixed(1)} m away</span>${cv>40?' · closing too fast, get in its six':''}`)});
- lose('det');if(!demo)feed(out.join('<br>')||'Detonated: nothing in range')}
 // damaged: smoking, slower, sinking; some fail a little later
 function damage(t){t.dmg=1;t.cs*=.8;t.spd*=.8;t.fail=Math.random()<.45?6+Math.random()*16:0;FX.emit(t.p,0xffb040,30,8,.6,null,2)}
 /* warhead: contact always fires it; the proximity fuse fires at closest approach inside its sensing range (1.5 x LETH, 7.5 m by default); the detonate button fires it any time */
@@ -544,22 +530,21 @@ function fuse(){const d=player,fire=Z.on&&Z.botFire?Z.botFire():fireIn(),edge=fi
  for(const t of FW){if(!live(t)){FW.delete(t);continue}if(!FC.includes(t)&&TH.includes(t)){FC.push(t);more=true}}if(more)FC.sort((a,b)=>TH.indexOf(a)-TH.indexOf(b));
  for(const t of FC){const pd=t.fk===k-1?t.pd:Infinity,r=_a.subVectors(t.p,d.p).length(),cv=Math.max(0,-_b.subVectors(t.v,d.v).dot(_a)/(r||1));
   if(r<1.5)hit=true;else if(r<LETH*1.5&&r>pd)rec=true;
-  if(r<20){t.dmin=Math.min(t.dmin,r);t.cvm=Math.max(t.cvm,cv)}else if(t.dmin<20&&r>pd&&!demo){feed(`<span class="co">Passed ${tName(t)} ${Math.round(t.dmin)} m off</span>${S.fuse==='auto'?` · outside the ${+(LETH*1.5).toFixed(1)} m fuse`:''}`);t.dmin=1e9;t.cvm=0}
+  if(r<20){t.dmin=Math.min(t.dmin,r);t.cvm=Math.max(t.cvm,cv)}else if(t.dmin<20&&r>pd&&!demo){feed(`<span class="co">Passed ${Z.tname(t)} ${Math.round(t.dmin)} m off</span>${Z.autoFuse()?` · outside the ${+(LETH*1.5).toFixed(1)} m fuse`:''}`);t.dmin=1e9;t.cvm=0}
   t.pd=r;t.fk=k;if(t.dmin<20)FW.add(t);else FW.delete(t)}
- if(hit||(Z.on?Z.autoFuse():S.fuse==='auto')&&rec||edge)detonate()}
+ if(hit||Z.autoFuse()&&rec||edge)Z.detonate()}
 
 // ---------- waves ----------
-function startWave(){wave++;wstate='brief';wT=demo?1:6;toSpawn=2;ws=wl=0;spawnT=0;
- if(!demo){banner('WAVE '+wave,'cr',2.4);feed('Two tracks inbound from the north: a Shahed-136, then a jet Geran-3')}}
+/* Zombies' director runs the waves (Z.waves). With Zombies off (the menu) the backdrop plays a raid on a loop: a piston Shahed-136, then a jet Geran-3 a little later */
+function startWave(){wave++;wstate='brief';wT=1;toSpawn=2;spawnT=0}
 function waves(dt){if(Z.on)return Z.waves(dt);
- if(wstate==='over'){if((wT-=dt)<=0)startDemo();return}
  if(wstate==='brief'){if((wT-=dt)<=0)wstate='wave';return}
- if(wstate==='wave'){if(toSpawn>0&&(spawnT-=dt)<=0){toSpawn--;spawnThreat(toSpawn===0);spawnT=(25+Math.random()*20)*DIFF[demo?1:S.diff].gap}  // each wave: one piston Shahed-136, then one jet Geran-3 a little later
-  if(!toSpawn&&!TH.some(live)){wstate='clear';wT=5;if(!demo){banner(`WAVE ${wave} CLEAR`,'cg',2.6);feed(`Wave ${wave}: <span class="cg">${ws} down</span> · <span class="cr">${wl} hit${wl===1?'':'s'}</span>`)}}return}
+ if(wstate==='wave'){if(toSpawn>0&&(spawnT-=dt)<=0){toSpawn--;spawnThreat(toSpawn===0);spawnT=25+Math.random()*20}
+  if(!toSpawn&&!TH.some(live)){wstate='clear';wT=5}return}
  if(wstate==='clear'&&(wT-=dt)<=0)startWave()}
 const dropMesh=m=>{scene.remove(m);if(m?.userData.own)m.traverse(o=>o.geometry?.dispose())};  // a track mesh with its own geometry (the Mothership) frees it when the track goes
-function resetWorld(){TK=0;pickT=null;TH.forEach(t=>dropMesh(t.mesh));TH.length=0;FIRES.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;saved=lost=spent=0;tid=0}
-function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);if(S.gmode==='z')Z.start();else{Z.stop();startWave();toSpawn--;spawnThreat(false);spawnT=25+Math.random()*20}launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
+function resetWorld(){TK=0;pickT=null;TH.forEach(t=>dropMesh(t.mesh));TH.length=0;SITES.forEach(s=>s.hp=s.max);wave=0;spent=0;tid=0}
+function startMatch(){audioStart();AC?.resume();demo=false;resetWorld();setWeather(S.wx);Z.start();launch();showMenu(false);$('hud').hidden=false;$('resume').hidden=$('leave').hidden=false;feed(`Weather: ${WX.n} · wind ${Math.round(WB.length()*3.6)} km/h`)}
 function startDemo(){Z.stop();demo=true;resetWorld();setWeather(S.wx);if(player)player.mesh.visible=false;startWave();$('hud').hidden=true;$('resume').hidden=$('leave').hidden=true;banner('');showMenu(true)}
 function showMenu(v){menuOpen=v;$('menu').hidden=!v;paused=v&&!demo&&!(Z.on&&Z.online)}  // a co-op game (znet.js) keeps running behind the menu
 
@@ -595,13 +580,12 @@ function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:nul
  const s0=sweep;sweep=(sweep+dt*Math.PI)%(Math.PI*2);const g=rc.createConicGradient?rc.createConicGradient(sweep-Math.PI/2-.6,c,c):null;
  if(g){g.addColorStop(0,'rgba(90,255,150,0)');g.addColorStop(.095,'rgba(90,255,150,.18)');g.addColorStop(.0955,'rgba(90,255,150,0)');rc.fillStyle=g;rc.beginPath();rc.arc(c,c,R,0,7);rc.fill()}
  const sel=selT();rc.font='700 17px "JetBrains Mono",monospace';rc.textAlign='left';
- for(const t of TH){if(t.st==='dead'||Z.on&&!Z.seen(t))continue;const q=P(t.p.x,t.p.z),b=(Math.atan2(q[0]-c,c-q[1])+Math.PI*2)%(Math.PI*2),crossed=s0<=sweep?b>s0&&b<=sweep:b>s0||b<=sweep;
+ for(const t of TH){if(t.st==='dead'||!Z.seen(t))continue;const q=P(t.p.x,t.p.z),b=(Math.atan2(q[0]-c,c-q[1])+Math.PI*2)%(Math.PI*2),crossed=s0<=sweep?b>s0&&b<=sweep:b>s0||b<=sweep;
   if(crossed||!t.rb){const r=t.rb||(t.rb={});r.x=t.p.x;r.z=t.p.z;r.vx=t.v.x;r.vz=t.v.z;r.y=t.p.y;r.age=0}else t.rb.age+=dt;if(!live(t)&&t.rb.age>1.5)continue;
-  const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':Z.on?Z.rcol(t,sel):t===sel?'255,198,64':t.jet?'255,150,60':'255,77,77',rgb=RGB[col]||(RGB[col]=`rgb(${col})`);
+  const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':Z.rcol(t,sel),rgb=RGB[col]||(RGB[col]=`rgb(${col})`);
   rc.globalAlpha=a;rc.strokeStyle=rc.fillStyle=rgb;rc.lineWidth=2.5;rc.beginPath();rc.moveTo(bq[0],bq[1]-7);rc.lineTo(bq[0]+7,bq[1]);rc.lineTo(bq[0],bq[1]+7);rc.lineTo(bq[0]-7,bq[1]);rc.closePath();live(t)?rc.fill():rc.stroke();
   if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();const al=Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100);if(t._rak!==al){t._rak=al;t._ras=`T${String(t.id).padStart(2,'0')} ${al}`}rc.fillText(t._ras,bq[0]+10,bq[1]-8)}}
- rc.globalAlpha=1;if(Z.on)Z.radar(rc,P,sel,K);rc.restore();
- if(gdNow&&gdNow.ph==='MIDCOURSE'){const q=P(GD.pip.x,GD.pip.z);rc.save();rc.setLineDash([10,8]);rc.strokeStyle='#5fe3ff';rc.lineWidth=2;rc.beginPath();rc.moveTo(c,c);rc.lineTo(q[0],q[1]);rc.stroke();rc.setLineDash([]);rc.beginPath();rc.moveTo(q[0],q[1]-8);rc.lineTo(q[0]+8,q[1]);rc.lineTo(q[0],q[1]+8);rc.lineTo(q[0]-8,q[1]);rc.closePath();rc.stroke();rc.restore()}  // guidance line to the PIP
+ rc.globalAlpha=1;Z.radar(rc,P,sel,K);rc.restore();
  // own ship, ring labels, north marker
  rc.fillStyle='#3ddc84';rc.beginPath();rc.moveTo(c,c-10);rc.lineTo(c+7,c+8);rc.lineTo(c-7,c+8);rc.closePath();rc.fill();
  if(RL.rr!==RR){RL.rr=RR;const g=RL.lab.getContext('2d');g.clearRect(0,0,W,W);g.fillStyle='rgba(150,255,190,.75)';g.font='700 15px "JetBrains Mono",monospace';g.textAlign='center';for(const k of[1/3,2/3,1])g.fillText((RR*k/1000).toFixed(RR>3000?0:1),c+R*k*.707+10,c-R*k*.707+4)}rc.drawImage(RL.lab,0,0);rc.textAlign='center';
@@ -619,34 +603,30 @@ function linkQ(me,dt){if((lqT-=dt)>0)return lqS;lqT=.1;const h=me.home,ax=h.x-3,
  for(let i=1;i<20;i++){const f=i/20,x=ax+(me.p.x-ax)*f,z=az+(me.p.z-az)*f;if(gh(x,z)>ay+(me.p.y-ay)*f-1.5&&d>60){q*=.35;break}}
  if(Z.on&&Z.lq)q=Z.lq(me,q);  /* Zombies sorties: a relay holds the link out past the line (zsortie.js) */
  return lqS+=(q-lqS)*.35}
-const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';let siteHTML='';
+const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';
 // the OSD and the track box are built once and their lines rewritten only when they change (a whole innerHTML every frame re-parsed and re-laid-out the HUD)
 const OSD=[0,1,2,3,4].map(()=>document.createElement('span'));$('osd').replaceChildren(...OSD);
 const TRK=[document.createElement('span'),document.createElement('br'),document.createElement('span'),document.createElement('br'),document.createElement('span')];$('trk').replaceChildren(...TRK);
 const hdg=v=>String(Math.round((Math.atan2(v.x,-v.z)*180/Math.PI+360)%360)).padStart(3,'0');
-function hud(dt){if(demo)return;if(Z.on)Z.hud(dt);const me=player;txt($('sw'),'WAVE '+wave);txt($('sv'),saved+' DOWN');txt($('sl'),lost+' HIT'+(lost===1?'':'S'));
- const sh=Z.on?'':SITES.map(s=>`<span class="${s.hp?'':'dead'}">${s.n} ${'■'.repeat(s.hp)}${'□'.repeat(s.max-s.hp)}</span>`).join('');if(sh!==siteHTML)$('sites').innerHTML=siteHTML=sh;
+function hud(dt){if(demo)return;Z.hud(dt);const me=player;
 let nl=0;for(const t of TH)if(live(t))nl++;
- const inb=nl+(wstate==='wave'||wstate==='brief'?toSpawn:0),sel=selT(),alive=me.dead<=0;
+ const sel=selT(),alive=me.dead<=0;
  const cv=cellV(me),fl=me.t|0,ws=WIND.length();
- html(OSD[0],`<b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE','THREAT CAM'][camMode]} · ${DIFF[S.diff].n.toUpperCase()} · CAM ${camUp?S.tilt+'°':'LVL'}${therm?' · TI WHT':''} · ${WX.n.toUpperCase()} · WIND ${Math.round(ws*3.6)} km/h ${hdg(_t.copy(WIND).negate())}`);
+ html(OSD[0],`<b>${S.mode==='acro'?'ACRO':'ANGLE'}</b> · ${['FPV','CHASE','THREAT CAM'][camMode]} · CAM ${camUp?S.tilt+'°':'LVL'}${therm?' · TI WHT':''} · ${WX.n.toUpperCase()} · WIND ${Math.round(ws*3.6)} km/h ${hdg(_t.copy(WIND).negate())}`);
  if(alive){txt(OSD[1],`THR ${String(Math.round(me.thr*100)).padStart(3)}%  ${String(Math.round(me.v.length()*3.6)).padStart(3)} km/h  HDG ${hdg(fwdH(me.q,_f))}`);txt(OSD[2],`ALT ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m AGL  ${Math.round(me.p.y)} m MSL  HOME ${me.home.n.slice(4)} ${rng(Math.hypot(me.p.x-me.home.x,me.p.z-me.home.z))}  LQ ${Math.round(lqS*100)}%`);
   cls(OSD[3],cv<3.5?'r':'');txt(OSD[3],`BAT ${(cv*12).toFixed(1)}V 12S  ${String(Math.round(me.amp||0)).padStart(3)}A  ${String(Math.round(me.mah)).padStart(5)} mAh  ${String(fl/60|0).padStart(2,'0')}:${String(fl%60).padStart(2,'0')}`)}
  else{txt(OSD[1],'');txt(OSD[2],'');cls(OSD[3],'r');txt(OSD[3],`NEXT INTERCEPTOR ${me.dead.toFixed(1)}`)}hide(OSD[1],!alive);hide(OSD[2],!alive);
- txt(OSD[4],`FUSE ${(Z.on?Z.autoFuse():S.fuse==='auto')?'PROX':'MANUAL'} · INBOUND ${inb} · INTERCEPTORS USED ${spent}`);
+ txt(OSD[4],`FUSE ${Z.autoFuse()?'PROX':'MANUAL'} · INBOUND ${nl} · INTERCEPTORS USED ${spent}`);
  if(sel){const r=_a.subVectors(sel.p,me.p),d=r.length(),c2=-_b.subVectors(sel.v,me.v).dot(r)/d,asp=aspect(sel,me.p),win=fuseR(Math.max(0,c2));
-  html(TRK[0],`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${Z.on?Z.label(sel):sel.jet?'GERAN-3 JET':'SHAHED-136'}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}`);txt(TRK[2],`${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}`);
+  html(TRK[0],`<b style="color:var(--amber)">T${String(sel.id).padStart(2,'0')} ${Z.label(sel)}</b> ${sel.st==='dive'?'<span class="cr">DIVING</span>':''}`);txt(TRK[2],`${rng(d)} · ALT ${Math.round(sel.p.y-gh(sel.p.x,sel.p.z))} m · ${Math.round(sel.v.length()*3.6)} km/h · HDG ${hdg(sel.v)}`);
   html(TRK[4],alive?`ASPECT <span class="${asp==='TAIL'?'cg':asp==='HEAD-ON'?'cr':''}">${asp}</span> · CLOSING ${Math.round(c2*3.6)} km/h · KILL R ${win.toFixed(1)} m`:'')}else{html(TRK[0],'NO TRACKS');txt(TRK[2],'');html(TRK[4],'')}hide(TRK[1],!sel);hide(TRK[3],!sel);
  const lq=alive?linkQ(me,dt):1;txt($('warn'),!alive?'':lq<.45?'VIDEO LINK WEAK · CLIMB OR TURN BACK':Math.abs(me.p.x)>AW-300||Math.abs(me.p.z)>AW-300?'LEAVING THE AO · TURN BACK':cv<3.5?'BATTERY LOW · LAND':'');
  hide($('xh'),camMode!==0||!alive);
  const a=$('arrow');if(!sel||!alive){hide(a,true)}else{_t.copy(sel.p).project(camera);let x=_t.x,y=_t.y;const behind=_t.z>1;if(behind){x=-x;y=-y}
   if(!behind&&Math.abs(x)<.95&&Math.abs(y)<.9)hide(a,true);else{hide(a,false);const m=Math.max(Math.abs(x)/.9,Math.abs(y)/.82,1e-3);x/=m;y/=m;
    css(a,'transform',`translate(${(x*.5+.5)*innerWidth-13}px,${(-y*.5+.5)*innerHeight-12}px) rotate(${Math.atan2(x,y)}rad)`)}}
-  {const g=alive?gdNow:null;let h='';if(g){const id='T'+String(g.t.id).padStart(2,'0');  /* solved in the sim tick (step) */
-   h=g.ph==='MIDCOURSE'?`<b>MIDCOURSE</b> ${id} · PIP ${rng(GD.pip.distanceTo(me.p))} · TTG ${Math.round(g.ttg)} s${g.flat?' FLAT OUT':''} · ${Math.abs(g.herr)<4?'ON COURSE':(g.herr>0?'► R ':'◄ L ')+Math.round(Math.abs(g.herr))+'°'} · ${Math.abs(g.dalt)<25?'LEVEL':(g.dalt>0?'CLIMB ':'DESCEND ')+Math.round(Math.abs(g.dalt))+' m'}`:`<b>TERMINAL</b> ${id} ${rng(g.rng)} · eyes on, get in its six`}
-   html($('gd'),h)}
  radDt+=dt;const rn=performance.now();if(rn-radT>=32||rn<radT){radT=rn;radar(radDt);radDt=0}}
-// FPV overlay: Betaflight-style artificial horizon, target brackets (red per track with range, amber on the most urgent with a pursuit cue behind it), site labels
+// FPV overlay: Betaflight-style artificial horizon, target brackets (a label with range per track), site labels (Zombies adds its own: zombies.js overlay)
 function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if(demo)return;
  const me=player&&player.dead<=0?player:null,ft=Math.tan(camera.fov*Math.PI/360),sel=selT(),scr=p=>{_t.copy(p).project(camera);if(!(_t.z<1&&Math.abs(_t.x)<1.1&&Math.abs(_t.y)<1.1))return null;const q=RQ[rqi=(rqi+1)&3];q[0]=(_t.x*.5+.5)*W2;q[1]=(-_t.y*.5+.5)*H2;return q};
  oc.lineWidth=1.6;oc.font='700 11px "JetBrains Mono",monospace';oc.textAlign='center';oc.shadowColor='#000';oc.shadowBlur=3;
@@ -654,19 +634,12 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
    if(q1&&q2){const mx=(q1[0]+q2[0])/2,my=(q1[1]+q2[1])/2,dx=q2[0]-q1[0],dy=q2[1]-q1[1],L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;oc.strokeStyle='rgba(255,255,255,.75)';oc.lineWidth=2;oc.beginPath();
     for(const s of[-1,1])for(let k=0;k<5;k++){const a=s*(40+k*26),b=s*(56+k*26);oc.moveTo(mx+ux*a,my+uy*a);oc.lineTo(mx+ux*b,my+uy*b)}oc.stroke();oc.lineWidth=1.6}}}
  for(const f of FOBS){const d=Math.hypot(f.x-camera.position.x,f.z-camera.position.z);if(d>4000)continue;const q=scr(_ip.set(f.x,f.y+6,f.z));if(q){oc.fillStyle='#3ddc84';oc.fillText(f.n+' '+rng(d),q[0],q[1])}}
- for(const s of SITES){const q=scr(_ip.set(s.x,s.y+34,s.z));if(!q)continue;oc.fillStyle=s.hp?'#7fd0ff':'#8a8f99';oc.fillText(Z.on?Z.slabel(s):s.n+(s.hp?' '+'■'.repeat(s.hp):' · DESTROYED'),q[0],q[1])}
+ for(const s of SITES){const q=scr(_ip.set(s.x,s.y+34,s.z));if(!q)continue;oc.fillStyle=s.hp?'#7fd0ff':'#8a8f99';oc.fillText(Z.slabel(s),q[0],q[1])}
  for(const t of TH){if(t.st==='dead')continue;const q=scr(t.p);if(!q)continue;const[x,y]=q,d=t.p.distanceTo(camera.position),s=Math.max(9,Math.min(70,2.8/d/ft*H2*.5+5)),L=live(t),k=s*.45;
-  if(Z.on&&Z.hid?.(t))continue;  /* Zombies: a hidden boss (stealth, jammer, disguise) gets no bracket */
-  oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':Z.on?Z.ocol(t,sel):t===sel?'#ffc640':t.jet?'#ff9640':'#ff4d4d';if(Z.on&&Z.quiet(t)){oc.fillRect(x-2,y-2,4,4);continue}
+  if(Z.hid?.(t))continue;  /* a hidden boss (stealth, jammer, disguise) gets no bracket */
+  oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':Z.ocol(t,sel);if(Z.quiet(t)){oc.fillRect(x-2,y-2,4,4);continue}
   oc.beginPath();for(const[sx,sy]of[[-1,-1],[1,-1],[1,1],[-1,1]]){oc.moveTo(x+sx*s,y+sy*s-sy*k);oc.lineTo(x+sx*s,y+sy*s);oc.lineTo(x+sx*s-sx*k,y+sy*s)}oc.stroke();
-  if(L&&!(Z.on&&Z.quiet(t))){const k=(d<1000?Math.round(d):1e6+Math.round(d/100))*(t.st==='dive'?-1:1);if(t._lbk!==k){t._lbk=k;t._lbs=`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`}oc.fillText(t._lbs,x,y+s+13)}
-  // pursuit cue: a point 40 m behind the target along its track, led by your time to get there; fly through it to end up in its six
-  if(L&&t===sel&&me&&!Z.on){const vh=_tv.copy(t.v).normalize(),r=_a.subVectors(t.p,me.p).length(),tg=cl(r/Math.max(me.v.length(),40),0,8),cue=_ip.copy(t.p).addScaledVector(t.v,tg*.5).addScaledVector(vh,-40),lp=scr(cue);
-   if(lp){oc.beginPath();oc.arc(lp[0],lp[1],7,0,7);oc.moveTo(lp[0]-11,lp[1]);oc.lineTo(lp[0]-4,lp[1]);oc.moveTo(lp[0]+4,lp[1]);oc.lineTo(lp[0]+11,lp[1]);oc.stroke()}}}
- // midcourse PIP: cyan diamond with time to go, or a chevron on the screen edge pointing to it
- if(me&&gdNow&&gdNow.ph==='MIDCOURSE'){_t.copy(GD.pip).project(camera);let x=_t.x,y=_t.y;const bh=_t.z>1;if(bh){x=-x;y=-y}oc.strokeStyle=oc.fillStyle='#5fe3ff';oc.lineWidth=2;
-  if(!bh&&Math.abs(x)<.95&&Math.abs(y)<.92){const X=(x*.5+.5)*W2,Y=(-y*.5+.5)*H2;oc.beginPath();oc.moveTo(X,Y-12);oc.lineTo(X+12,Y);oc.lineTo(X,Y+12);oc.lineTo(X-12,Y);oc.closePath();oc.stroke();oc.fillText(`PIP ${Math.round(gdNow.ttg)}s`,X,Y+26)}
-  else{const m=Math.max(Math.abs(x)/.88,Math.abs(y)/.8,1e-3);x/=m;y/=m;const X=(x*.5+.5)*W2,Y=(-y*.5+.5)*H2,a=Math.atan2(-y,x);oc.save();oc.translate(X,Y);oc.rotate(a);oc.beginPath();oc.moveTo(14,0);oc.lineTo(-6,-10);oc.lineTo(-1,0);oc.lineTo(-6,10);oc.closePath();oc.fill();oc.restore();oc.fillText('PIP',X,Y+24)}}
+  if(L&&!Z.quiet(t)){const k=(d<1000?Math.round(d):1e6+Math.round(d/100))*(t.st==='dive'?-1:1);if(t._lbk!==k){t._lbk=k;t._lbs=`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`}oc.fillText(t._lbs,x,y+s+13)}}
  oc.shadowBlur=0}
 
 // ---------- visuals ----------
@@ -681,14 +654,14 @@ function visuals(dt,now){const me=player;if((dfN++&63)===0)depthFix(scene);  /* 
 // ---------- input events ----------
 function cycleCam(){camMode=(camMode+1)%3;S.cam=camMode;save()}
 function togglePause(){if(demo)return;showMenu(!menuOpen)}
-initInput({menu:()=>menuOpen,pause:togglePause,key:e=>{if(Z.on&&Z.key(e))return;if(e.code==='KeyC')cycleCam();if(e.code==='KeyL')setCam(!camUp);if(e.code==='KeyH')setTherm(!therm);if(e.code==='KeyG')setGuide(!S.guide);if(e.code==='KeyN')nextTrack();if(e.code==='KeyV'){S.rr=(S.rr+1)%RRS.length;save();syncUI()}if(e.code==='KeyR'&&player&&!demo&&wstate!=='over')relaunch()}});
+initInput({menu:()=>menuOpen,pause:togglePause,key:e=>{if(Z.on&&Z.key(e))return;if(e.code==='KeyC')cycleCam();if(e.code==='KeyL')setCam(!camUp);if(e.code==='KeyH')setTherm(!therm);if(e.code==='KeyN')nextTrack();if(e.code==='KeyV'){S.rr=(S.rr+1)%RRS.length;save();syncUI()}if(e.code==='KeyR'&&player&&!demo&&wstate!=='over')relaunch()}});
 const padKeys=e=>{if(e(9))togglePause();if(!menuOpen&&!demo){if(Z.on&&Z.pad(e))return;if(e(4))cycleCam();if(e(3)&&player&&wstate!=='over')relaunch()}};
 // ---------- menu / settings ----------
-const FIELDS=[['diff','Threat level','sel',DIFF.map((d,i)=>[i,d.n])],['wx','Weather','sel',[['random','Random'],...Object.entries(WXS).map(([k,w])=>[k,w.n])]],['fuse','Warhead fuse','sel',[['auto','Proximity (auto)'],['manual','Manual (detonate button)']]],
+const FIELDS=[['wx','Weather','sel',[['random','Random'],...Object.entries(WXS).map(([k,w])=>[k,w.n])]],
  ['rr','Radar range','sel',RRS.map((r,i)=>[i,r/1000+' km'])],['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
- ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['guide','Midcourse guidance','sel',[[1,'On (PIP cue from ground radar)'],[0,'Off']]],['skin','Interceptor look (Classic)','sel',[['dart',"Riley's dart"],['strela','Strela-2 missile']]],['zwx','Zombies weather','sel',[['wave','New forecast each wave'],['menu','Use the Weather setting']]],['gfx','Graphics quality','sel',['auto','high','med','low'].map(k=>[k,k==='auto'?'Auto (lowers resolution, then detail, when slow)':k==='low'?'Low (integrated GPUs)':GFXN[k]])],['fps','FPS meter','sel',[[true,'On'],[false,'Off']]],['haze','Distance haze','sel',[[false,'Off (the weather fog only)'],[true,'On (hazier far out, faster)']]],['fcap','Frame cap','sel',[[0,'Unlimited'],[120,'120 FPS'],[80,'80 FPS'],[60,'60 FPS']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
-mountPad($('pilotpad'),{flip:false,fire:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx);if(k==='gfx'||k==='fps'||k==='haze'||k==='fcap')IG.sync();if(k==='skin')player?.look()});
-mountSwitches([['fire','Detonate','F'],['tiltSw','Cam tilt','L'],['thermSw','Thermal','H'],['guideSw','Guidance','G'],['nextSw','Next track','N']]);
+ ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['zwx','Zombies weather','sel',[['wave','New forecast each wave'],['menu','Use the Weather setting']]],['gfx','Graphics quality','sel',['auto','high','med','low'].map(k=>[k,k==='auto'?'Auto (lowers resolution, then detail, when slow)':k==='low'?'Low (integrated GPUs)':GFXN[k]])],['fps','FPS meter','sel',[[true,'On'],[false,'Off']]],['haze','Distance haze','sel',[[false,'Off (the weather fog only)'],[true,'On (hazier far out, faster)']]],['fcap','Frame cap','sel',[[0,'Unlimited'],[120,'120 FPS'],[80,'80 FPS'],[60,'60 FPS']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
+mountPad($('pilotpad'),{flip:false,fire:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx);if(k==='gfx'||k==='fps'||k==='haze'||k==='fcap')IG.sync()});
+mountSwitches([['fire','Detonate','F'],['tiltSw','Cam tilt','L'],['thermSw','Thermal','H'],['nextSw','Next track','N']]);
 syncUI();
 $('play').onclick=startMatch;$('resume').onclick=()=>showMenu(false);$('leave').onclick=startDemo;
 // ---------- mod panel ----------
@@ -698,36 +671,34 @@ const MODS=[
  ['Interceptor','size','Drone size',0.5,.4,2.5,.05,'×'],['Interceptor','dbounce','Wall bounce',0.2,0,1,.05,''],['Interceptor','gfric','Ground grip',0.5,0,1,.02,''],['Interceptor','spool','Motor spool',70,0,150,5,'ms'],['Interceptor','turtle','Turtle rate',260,60,720,10,'°/s'],['Interceptor','wash','Prop wash',1,0,3,.1,'×'],
  ['Interceptor','bcap','Battery',16000,2000,40000,500,'mAh'],
  ['Warhead','leth','Fuse radius',5,1,15,.5,'m'],['Warhead','crash','Crash speed',12,3,120,1,'m/s'],['Warhead','relt','Relaunch time',2.5,0,10,.5,'s'],
- ['Threats','tspd','Threat speed',1,.4,2,.05,'×'],['Threats','tcnt','Threats per wave',1,.3,3,.1,'×'],
  ['Match','speed','Game speed',1,.25,2,.05,'×'],
  ['Look','bloom','Glow',0.9,0,2.5,.05,''],['Look','shake','Camera shake',1,0,3,.1,'×']];
-const PRESETS={'Default':{},'League 6S 5-inch':{thr:98,te:1.6,vp:68,maxv:60,dl:.04,dq:.0137,fs:.6,tau:4,spool:20},'Training':{tspd:.6,tcnt:.6,leth:8},'Big warhead':{leth:10}};
+const PRESETS={'Default':{},'League 6S 5-inch':{thr:98,te:1.6,vp:68,maxv:60,dl:.04,dq:.0137,fs:.6,tau:4,spool:20},'Training':{leth:8},'Big warhead':{leth:10}};
 // v4: tail-sitter dart aerodynamics (untouched old Interceptor / Warhead values reset)
 const migrate=()=>{if((S.physV|0)<4){for(const g of['Interceptor','Warhead'])for(const m of MODS)if(m[0]===g)S.mod[m[1]]=m[3];S.physV=4;save()}
  if((S.physV|0)<5){for(const k of['tau','dl','spool'])S.mod[k]=MODS.find(m=>m[1]===k)[3];S.physV=5;save()}  /* v5: heavier feel (Riley found v4's too floaty) */
  if((S.physV|0)<6){if(S.mod.leth===4)S.mod.leth=5;S.physV=6;save()}};  /* v6: the 5 m sure-kill fuse radius (an untouched old 4 m default moves up) */
 function applyTune(){const T=S.mod;G=T.grav;THR=T.thr;TE=T.te;VP=T.vp;MAXV=T.maxv;TAU=T.tau/1000;DL=T.dl;DQ=T.dq;FS=T.fs;DRAD=.8*T.size;MSZ=T.size/.5;{const k=MSZ;HBR=.04*k;DI=.1*k*k;  // collision hull: 4 fin tips (it stands on these), 4 prop tips, the nose; 4 cm spheres
   HBP=[[.15,-.36,0],[-.15,-.36,0],[0,-.36,.15],[0,-.36,-.15],[.27,.15,.27],[-.27,.15,.27],[.27,.15,-.27],[-.27,.15,-.27],[0,.4,0]].map(([x,y,z])=>new V3(x,y,z).multiplyScalar(k))}SPOOL=T.spool/1000;GF=T.gfric;TURT=T.turtle*Math.PI/180;WASH=T.wash;DB=T.dbounce;BCAP=T.bcap;
- LETH=T.leth;CRASH=T.crash;RELT=T.relt;TSPD=T.tspd;TCNT=T.tcnt;GSPD=T.speed;SHK=T.shake;bloom.strength=T.bloom*.33;HOV=(G/THR)**(1/TE)}
+ LETH=T.leth;CRASH=T.crash;RELT=T.relt;GSPD=T.speed;SHK=T.shake;bloom.strength=T.bloom*.33;HOV=(G/THR)**(1/TE)}
 $('modbtn').onclick=toggleMod;let zTune=()=>{};initModPanel({mods:MODS,presets:PRESETS,migrate,onApply:()=>{applyTune();zTune()}});initRates('Drone League Interceptor');
-$('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','cam','thrMode','dz','fuse','fireBtn','wx','rr','fpvMix','grain','guide','skin','zwx','gfx','fps','haze','fcap','tiltSw','thermSw','guideSw','nextSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
+$('copyset').onclick=()=>{const o={};for(const k of['mode','tilt','fov','cam','thrMode','dz','fireBtn','wx','rr','fpvMix','grain','zwx','gfx','fps','haze','fcap','tiltSw','thermSw','nextSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>feed('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 
 // ---------- main loop ----------
 function step(dt){const me=player;TK++;IP.snap();GRID.open();try{
  if(me&&!demo&&!(Z.on&&Z.idle())){if(me.dead>0){  /* Z.idle: a co-op pilot who joined mid-wave waits on the mat for the next base screen */if((me.dead-=dt)<=0&&wstate!=='over')launch()}else{humanControl(me,dt);if(me.mah>=BCAP)me.thr=0;const h=me.step(dt);if(h>CRASH)lose('crash');else if(me.mah>=BCAP&&me.gt>0)lose('bat');else fuse()}}
- GRID.close();for(const t of TH)threatStep(t,dt);GRID.open();waves(dt);fires(dt);if(Z.on)Z.step(dt);
- gdNow=S.guide&&!demo&&!Z.on&&me&&me.dead<=0?guidance(me,dt):null}finally{GRID.close()}}  /* the PIP: sim state, every tick */
-// Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
+ GRID.close();for(const t of TH)threatStep(t,dt);GRID.open();waves(dt);if(Z.on)Z.step(dt)}finally{GRID.close()}}
+// Zombies (zombies.js): everything it needs from this file, as live getters/setters. Its hooks above run while Z.on is true (the menu backdrop runs without them).
 // static scenery (terrain, river, houses, pylons and wires, the forest, the sites' props): matrices once, never walked again by updateMatrixWorld.
 // Moving things stay live: sky, sun, sun disc, cloud deck, rain, the radar's spinning antenna, the light, the sites' building roots (buildings.js freezes their stages)
 {const live=new Set([sky,deck,sunDisc,RADM,rainL,cloudG,sun,sun.target,boomL,hemi,...SITES.map(s=>s.root)]);for(const o of scene.children)if(!live.has(o)&&!o.isLight&&!o.isPoints&&(o.isMesh||o.isGroup||o.isLine))freeze(o)}
-const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,pdmg,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
- deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pip(){return gdNow?{p:GD.pip,tau:gdNow.ttg,unc:gdNow.unc}:null},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
+const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,rivN,rivY,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,pdmg,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
+ deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
- interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
+ interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get spent(){return spent}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
 // Graphics quality and the FPS meter (igfx.js); the shader warm-up (engine/warm.js) runs once the menu is up, and one frame through the camera-feed
 // pass. No environment-map variant to warm: cloud decks, night and thermal swap in a black map of the same size (envOff), the same programs

@@ -16,12 +16,11 @@ h1{margin:0;font-size:clamp(40px,7vw,68px);line-height:.9;font-style:italic;font
 h1 .b{color:var(--blue)}h1 .o{color:var(--orange)}
 .sub{color:var(--dim);max-width:60ch;margin:14px 0 28px;line-height:1.45}
 .games{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-a.g,div.g{display:flex;flex-direction:column;gap:8px;padding:18px;border:1px solid var(--edge);border-radius:10px;background:var(--panel);color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
-a.g:hover,a.g:focus-visible,div.g:hover,div.g:focus-within{border-color:var(--c);transform:translateY(-2px);outline:none}
-a.g b,div.g b{font-size:24px;font-style:italic;color:var(--c);letter-spacing:.02em}
-a.g span,div.g span{color:var(--dim);font-size:14px;line-height:1.4}
-a.g i,div.g nav a{margin-top:auto;font:12px var(--mono);font-style:normal;color:var(--c);letter-spacing:.1em;text-transform:uppercase}
-.g nav{margin-top:auto;display:flex;gap:18px}.g nav a{text-decoration:none}.g nav a:hover,.g nav a:focus-visible{text-decoration:underline;outline:none}
+a.g{display:flex;flex-direction:column;gap:8px;padding:18px;border:1px solid var(--edge);border-radius:10px;background:var(--panel);color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
+a.g:hover,a.g:focus-visible{border-color:var(--c);transform:translateY(-2px);outline:none}
+a.g b{font-size:24px;font-style:italic;color:var(--c);letter-spacing:.02em}
+a.g span{color:var(--dim);font-size:14px;line-height:1.4}
+a.g i{margin-top:auto;font:12px var(--mono);font-style:normal;color:var(--c);letter-spacing:.1em;text-transform:uppercase}
 .note{font-size:12px;color:var(--dim);margin-top:26px;line-height:1.5}
 kbd{font:12px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:1px 5px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -31,7 +30,7 @@ kbd{font:12px var(--mono);border:1px solid var(--edge);border-radius:3px;padding
   <p class="sub">5-inch acro quads with Betaflight rates, FPV uptilt and real radio support. Pick a game.</p>
   <div class="games">
     <a class="g" href="games/drone-league/" style="--c:var(--orange)"><b>Drone League</b><span>Rocket League with 5-inch acro quads, plus Dogfight, Freeplay and skill Training. Bots or friends online, a garage of drone parts, replays and progression.</span><i>Play →</i></a>
-    <div class="g" style="--c:var(--red)"><b>Interceptor</b><span>Fly a warhead-carrying interceptor drone and take down waves of Shahed attack drones before they hit the sites. Classic, or endless Zombies waves with helpers to buy.</span><nav><a href="games/interceptor/?mode=classic">Classic →</a><a href="games/interceptor/?mode=zombies">Zombies →</a></nav></div>
+    <a class="g" href="games/interceptor/" style="--c:var(--red)"><b>Zombies</b><span>The Interceptor: fly a warhead-carrying interceptor drone against endless, growing waves of Shahed attack drones, missiles and bosses. Earn money per intercept and spend it between waves on helpers, guns, domes and perks.</span><i>Play →</i></a>
   </div>
   <p class="note">Esc in either game opens its menu. <kbd>T</kbd> opens the mod panel (rates and physics). Runs from GitHub Pages or any local web server; double-click <kbd>Play Drone League.bat</kbd> on Windows.</p>
 </main>

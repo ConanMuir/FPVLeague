@@ -92,9 +92,9 @@ jobs:
           - check: training-check
             area: league
             run: node tools/training-check.mjs
-          - check: zombies-test (classic, saves, meta)
+          - check: zombies-test (saves, meta)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=classic,saves,meta
+            run: node tools/zombies-test.mjs --sections=saves,meta
           # the campaign plays several sectors end to end and pushed the shared job past its 20 min timeout
           - check: zombies-test (campaign)
             area: interceptor
@@ -126,6 +126,15 @@ jobs:
           - check: intercept-check
             area: interceptor
             run: node tools/intercept-check.mjs
+          # visual glitch guards (tools/glitch-check.mjs): the river below its banks, weather motes at the lens, dynamic-resolution target
+          # sizes, the Dogfight cave-mouth trim over its seam
+          - check: glitch-check (Interceptor)
+            area: interceptor
+            run: node tools/glitch-check.mjs river motes dynres --only=interceptor
+          - check: glitch-check (League)
+            area: league
+            build: true
+            run: node tools/glitch-check.mjs motes dynres mouths --only=league
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor
@@ -134,6 +143,14 @@ jobs:
           - check: zombies-test (ew)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=ew
+          # the bot self-play ladder: one tiny generation (one archetype, one child, 1 sim minute) twice, and its file through the loader
+          - check: bot-ladder-check
+            area: league
+            run: node tools/bot-ladder-check.mjs
+          # selling with an Undo until the wave starts (the refund rule, opened positions, a dome's stock, the kill chain, a co-op client's request to the host) and the campaign map's three-modifier cap
+          - check: zombies-test (sell)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=sell
           # the living map: scars from bursts, crashes and destroyed houses; caps, save, campaign, co-op, pixel checks against the terrain, frame cost
           - check: zombies-test (scars)
             area: interceptor
