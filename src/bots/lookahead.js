@@ -3,7 +3,7 @@
 /* quadAir at 30 Hz with botControl's cascaded controller and the attitude controller; no prop wash, so nothing is drawn from Math.random): */
 /*   shot    the planned strike (plan: ai.C, ai.n, ai.tt) flown as strikeV's timed run */
 /*   pass    the same run through the contact point that sends the ball down a teammate's open lane (bots/team.js passLane) */
-/*   carry   (levels with the carry, DIFF[].drib) the possession approach: under the ball where it comes down to a catchable height */
+/*   carry   (levels with the carry, DIFF[].drib, and lkCarry on) the possession approach: under the ball where it comes down to a catchable height */
 /*   defend  the goal-side spot: no touch, the quad is home for whatever comes (no flight needed) */
 /* A candidate that meets the predicted ball gets the ball's velocity after that touch (closing speed along the line of centres x KF, the */
 /* touch model's gain: modes/step.js restitution plus the RL impulse), the ball is rolled on with the real ball model (physics/ball.js */
@@ -74,8 +74,8 @@ export function lookAhead(d,D){const ai=d.ai;if(LOOK.tick!==GS.stepN){LOOK.tick=
  let lane=null;if(ap)lane=_lane.copy(ap);else if(D.team&&passLane(d,D,_lane)>0)lane=_lane;
  if(lane){ai.aimP=lane;plan(d,D);if(ai.tt>0){keep(PA,ai);V.pass=strikeVal(d,D,flyTo(d,D,'run',PA.C,PA.n,PA.tt,null,PA.P,H),base,ct,H)-(D.lkP??.05);if(V.pass>bv){bv=V.pass;best='pass'}}}
  ai.aimP=ap;load(ai);
- if(D.drib&&ball.p.y>BR+.5){const tc=catchAt(d,D,_q);if(tc>0){const t=flyTo(d,D,'go',_q,null,0,PV[cl(Math.round(tc/PDT)-1,0,PRED.length-1)],ball.p,Math.min(H,tc+.3));
-  V.carry=t<0?base-.1:!soft?value(d,D,t,H-t):ct>t+(D.lkM??.5)?.5*B.p.z*s/HL+(D.lkV??.35):base*.5-(D.lkC??.25);if(V.carry>bv){bv=V.carry;best='carry'}}}
- V.defend=base+(threat(d.team)?(D.lkD??.8):0)-(D.lkF??.15);if(V.defend>bv){bv=V.defend;best='defend'}
+ if(D.drib&&D.lkCarry&&ball.p.y>BR+.5){const tc=catchAt(d,D,_q);if(tc>0){  /* lkCarry: off by default; with it the Freestyler went after balls it then lost (1v1 v Grand Champion 15-23 with, 20-11 without) */const t=flyTo(d,D,'go',_q,null,0,PV[cl(Math.round(tc/PDT)-1,0,PRED.length-1)],ball.p,Math.min(H,tc+.3));
+  V.carry=t<0?base-.1:!soft?value(d,D,t,H-t):ct>t+(D.lkM??1)?.5*B.p.z*s/HL+(D.lkV??.35):base*.5-(D.lkC??.25);if(V.carry>bv){bv=V.carry;best='carry'}}}  /* lkM: the catch itself takes about a second more than getting under the ball */
+ V.defend=base+(threat(d.team)?(D.lkD??.8):0)-(D.lkF??.3);if(V.defend>bv){bv=V.defend;best='defend'}  /* lkF .3: home only when the ball is heading in and no strike beats the foe to it (at .15 it sat back and scored half as much) */
  if(best==='shot'&&V.shot!=null){ai.aimP=null;put(SH,ai)}else if(best==='pass'){ai.lane=(ai.lane||new V3()).copy(lane);ai.aimP=ai.lane;put(PA,ai)}  /* shot or pass: that plan is the one to fly now */
  LOOK.total+=performance.now()-T0;LOOK.calls++;LOOK.picks[best]++;ai.lk=best;return best}

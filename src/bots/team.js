@@ -21,9 +21,10 @@ export function passLane(d,D,out){const s=d.team?1:-1,gz=s*HL;let best=0;
   const v=(Math.abs(gz-ball.p.z)-Math.abs(gz-_m.z))/HL+(tf-tm)*.15-Math.abs(_m.x)/HW*.2;if(v>best){best=v;out.copy(_m)}}
  return best}
 /* rotation: before rolesIQ sorts ms by time to the ball (ai.rs), a quad that just struck it (ai.rot > 0) is pushed back by rotP s unless it is alone */
-export function rotate(ms,D){if(ms.length<2)return;for(const d of ms)if(d.ai.rot>0)d.ai.rs+=D.rotP??1}
-/* the second man's spot: in the attacking half, laneD goalward of the ball on the side away from the attacker; else behind the play, wide */
+export function rotate(ms,D){if(ms.length<2)return;for(const d of ms)if(d.ai.rot>0)d.ai.rs+=D.rotP??.6}
+/* the second man's spot: in the attacking half, laneB m behind the ball (so a pass or a rebound can still be played goalward: ahead of it he */
+/* was on the wrong side of every ball, the first 3v3 runs lost by it) and laneX m wide on the side away from the attacker; else behind the play, wide */
 export function laneSpot(d,D,at,out){const s=d.team?1:-1,gz=s*HL;
- if(ball.p.z*s>-HL*.1){_f.set(-ball.p.x*.3,0,gz-ball.p.z).normalize();out.copy(ball.p).addScaledVector(_f,D.laneD??12);out.x+=((at?at.p.x:ball.p.x)>ball.p.x?-1:1)*(D.laneX??18);out.y=cl(ball.p.y*.5,4,10);
-  out.x=cl(out.x,-HW+8,HW-8);if((gz-out.z)*s<14)out.z=gz-s*14;return true}
+ if(ball.p.z*s>-HL*.1){_f.set(-ball.p.x*.3,0,gz-ball.p.z).normalize();out.copy(ball.p).addScaledVector(_f,-(D.laneB??10));out.x+=((at?at.p.x:ball.p.x)>ball.p.x?-1:1)*(D.laneX??18);out.y=cl(ball.p.y*.5,4,10);
+  out.x=cl(out.x,-HW+8,HW-8);out.z=cl(out.z,-HL+12,HL-12);return true}
  return false}

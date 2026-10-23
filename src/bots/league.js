@@ -79,7 +79,7 @@ function possess(d,D,dt){const ai=d.ai,h=topOf(d)+BR;_k.subVectors(ball.p,d.p);c
  ai.top=hd<(D.topR??2)&&_k.y>h-.8&&_k.y<h+1.2;if(ai.top){ai.pos=true;return true}  /* on top: keep it */
  if(threat(d.team)||Math.abs((d.team?-1:1)*HL-ball.p.z)<HL*(D.posZ??.66)){ai.pos=false;return false}  /* its goal under threat, or the ball in its own third: no showing off there */
  if((ai.pc=(ai.pc||0)-dt)>0)return ai.pos;ai.pc=.05;
- const me=firstT(d,thrOf(D)*D.thr*.72,D.vmax*BOTV,1);let foe=4;if(D.model&&ai.foe)foe=ai.foe.ct;else for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)foe=Math.min(foe,firstT(o,accOf(o),vmOf(o),1));  /* model: the foe's closing time, his hesitation included */
+ const me=firstT(d,thrOf(D)*D.thr*.72,D.vmax*BOTV,1);let foe=4;if(D.model&&D.posM&&ai.foe)foe=ai.foe.ct;else for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0)foe=Math.min(foe,firstT(o,accOf(o),vmOf(o),1));  /* posM: the modelled closing time (his hesitation included) instead of reachT; this gate was tuned on reachT and lost the ball with the model */
  if(D.look&&ai.lk==='carry'&&me<=(D.posT??.6)*2&&foe>me){ai.pos=true;return true}  /* the look-ahead (bots/lookahead.js) valued the carry above a shot: take it */
  if(me>(D.posT??.6)||openGoal(d)){ai.pos=false;return false}  /* not to be collected soon (high up, far off), or an open goal: play it with the planner (shoot) */
  ai.pos=foe-me>(ai.pos?D.posK??.6:D.posG??1.5);return ai.pos}

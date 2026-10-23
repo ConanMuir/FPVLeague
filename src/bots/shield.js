@@ -15,5 +15,5 @@ function nearest(d,R){let foe=null,fd=R*R;for(const o of GS.drones){if(o.team===
  if(!foe)return null;_f.set(foe.p.x-ball.p.x,0,foe.p.z-ball.p.z);const l=_f.length();if(l<1e-3)return null;_f.divideScalar(l);return l}
 /* sets out to the (x, z) offset the quad holds from the ball's centre line, and swings the carry direction g away from a foe ahead */
 export function shield(d,D,out,g){out.set(0,0,0);const l=nearest(d,D.shR??30);if(l==null)return;
- const w=cl(1-l/(D.shR??30),0,1);out.set(_f.x,0,_f.z).multiplyScalar((D.shO??.3)*w);
+ const w=cl(1-l/(D.shR??30),0,1);out.set(_f.x,0,_f.z).multiplyScalar((D.shO??.3)*(D.shF??1)*w);  /* shF: the Freestyler places the ball for its pops, so it shields by half */
  const ah=_f.dot(g);if(ah>.4&&l<(D.shA??25)){const side=_f.x*g.z-_f.z*g.x>0?-1:1,k=(D.shD??1)*cl(1-l/(D.shA??25),0,1)*ah;g.set(g.x+side*g.z*k,0,g.z-side*g.x*k).normalize()}}
