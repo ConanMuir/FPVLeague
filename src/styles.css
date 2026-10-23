@@ -123,7 +123,7 @@ button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-
 .gstats div{display:grid;grid-template-columns:84px 1fr 112px;gap:8px;align-items:center;font:11px var(--mono);color:var(--dim);margin:3px 0}
 .gstats b{height:7px;background:rgba(0,0,0,.5);border-radius:4px;position:relative;overflow:hidden}.gstats i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--blue),var(--amber));border-radius:4px}
 .gstats u{position:absolute;top:0;bottom:0;width:2px;background:#fff;opacity:.75}.gstats span:last-child{text-align:right;color:var(--ink)}
-.gside{position:absolute;right:clamp(16px,3vw,40px);top:calc(18px + env(safe-area-inset-top,0px));bottom:calc(76px + env(safe-area-inset-bottom,0px));width:min(470px,calc(100% - 32px));display:flex;flex-direction:column;gap:10px;min-height:0}
+.gside{position:absolute;right:clamp(16px,3vw,40px);top:calc(18px + env(safe-area-inset-top,0px));bottom:calc(76px + env(safe-area-inset-bottom,0px));width:min(470px,calc(100% - clamp(16px,4vw,48px) - 396px - clamp(16px,3vw,40px)));display:flex;flex-direction:column;gap:10px;min-height:0}  /* leaves the stats panel (380px + a 16px gap) its own column between 761 and ~910 px wide */
 .gtabs{display:flex;gap:5px}.gtabs button{flex:1;font-size:13px;font-style:italic;padding:10px 6px;border-radius:2px;border:0;transform:skewX(-10deg);background:rgba(16,22,38,.88);color:var(--dim)}
 .gtabs button.on{background:linear-gradient(90deg,var(--orange),#ff9c45);color:#140a00}
 /* tab rows: Parts (performance) and Style (cosmetics); cosmetic tiles: swatch, name, rarity colour strip */

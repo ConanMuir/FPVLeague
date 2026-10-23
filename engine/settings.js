@@ -13,7 +13,7 @@ export const toLeague=b=>{const m=typeof b==='string'&&BRE.exec(b);return m?'a'+
 export const fromLeague=b=>{const m=typeof b==='string'&&/^a(\d+)-$/.exec(b);return m?'-a'+m[1]:b};
 const leagueBtns=o=>{const r={...o};for(const k of BTNK)if(k in r)r[k]=toLeague(r[k]);return r};
 let KEY=SHARED;
-const read=k=>{try{return JSON.parse(localStorage.getItem(k)||'{}')||{}}catch(e){return{}}};
+const read=k=>{try{const v=JSON.parse(localStorage.getItem(k)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}catch(e){return{}}};  // a save that is a number, a string or a list is not a save: `k in own` threw on it and the page never came up
 const okCal=a=>Array.isArray(a)&&a.length===4&&a.every(c=>c&&Number.isFinite(c.a)&&Number.isFinite(c.c)&&Number.isFinite(c.s));
 // local: pilot fields this game keeps to itself (e.g. a camera tilt that only suits its airframe)
 let LOCAL=[];

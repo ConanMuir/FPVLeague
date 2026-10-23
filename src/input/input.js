@@ -1,5 +1,5 @@
 // ---------- human input ----------
-import {cl} from '../config/constants.js';
+import {$,cl} from '../config/constants.js';
 import {S,save} from '../config/settings.js';
 import {BZ,HOV} from '../config/tune.js';
 import {rate,stk,thrCurve} from '../flight/rates.js';
@@ -21,7 +21,7 @@ export const OV={},dzOf=i=>i===1?OV.dzy??S.dzy??OV.dz??S.dz:OV.dz??S.dz,assist=(
 // sources 0-99 are axes, 100+ are buttons/triggers (analog 0..1; a digital button that reports value 0 while pressed counts as 1).
 // r: rest of an axis trigger, used until that axis first reports a non-zero value (some browsers read 0 until the first press).
 const seen={};
-const src=(g,a,f=0,r)=>{if(a>=100){const b=g.buttons[a-100];return b?(+b.value||(b.pressed?1:0)):f}const v=g.axes[a];if(v==null)return f;if(v!==0)seen[a]=1;return r!=null&&!seen[a]?r:v};
+const src=(g,a,f=0,r)=>{if(a>=100){const b=g.buttons[a-100];return b?(+b.value||(b.pressed?1:0)):f}const v=g.axes[a];if(typeof v!=='number'||!Number.isFinite(v))return f;if(v!==0)seen[a]=1;  /* a missing, text or NaN reading is no reading: one NaN stick value poisoned the drone's whole state for the rest of the session */return r!=null&&!seen[a]?r:v};
 // calibrated channel before the deadband: (raw - centre) / signed half-range, so direction is baked in, minus the other direction's
 // control for one-way inputs (b: paired button, nb: any channel)
 export const axr=(g,i)=>{const c=CAL()[i];return(src(g,c.a,c.c,c.r)-c.c)/(c.s||1)-(c.b!=null?src(g,100+c.b):0)-(c.nb?(src(g,c.nb.a,c.nb.c,c.nb.r)-c.nb.c)/(c.nb.s||1):0)};
@@ -50,7 +50,7 @@ let flipPrev=false;const flipIn=()=>{if(keys.KeyE)return true;const g=pad();retu
 
 // ---------- input events ----------
 function cycleCam(){if(modeFlag('fixedCam'))return;GS.camMode=(GS.camMode+1)%3;S.cam=GS.camMode;save()}  // the Lab is FPV only
-function togglePause(){if(GS.demo)return;showMenu(!GS.menuOpen)}
+function togglePause(){if(GS.demo||!$('sens').hidden||!$('bind').hidden)return;showMenu(!GS.menuOpen)}  /* P / the pad's menu button leave a paused match alone while the sensitivity or controls dialog is open */
 addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!GS.menuOpen)e.preventDefault();if(e.repeat)return;
  if(e.code==='Escape'||e.code==='KeyP')togglePause();if(GS.menuOpen)return;
  if(e.code==='KeyC')cycleCam();if(e.code==='KeyM'&&!modeFlag('fixedFlightMode')){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}if(e.code==='KeyR'&&canReset())GS.player.spawn();if(e.code==='KeyO'){S.osd=!S.osd;save();syncUI();banner('OSD '+(S.osd?'ON':'OFF'),'',.8)}});
