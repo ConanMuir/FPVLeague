@@ -7,6 +7,7 @@ name: CI
 
 on:
   push:
+    branches: [main]  # a PR branch runs through its pull_request event only (a push used to start a second, identical run)
   pull_request:
   workflow_dispatch:
 
@@ -159,6 +160,10 @@ jobs:
           - check: zombies-test (codex)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=codex
+          # radio chatter (zradio.js): callouts, merging and rate limits, the HUD log, the sound cap, speech with and without speechSynthesis
+          - check: zombies-test (radio)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=radio
           # Little Buddy (zbuddy.js): the Drone League garage quad as a free helper (also covered: zombies-coop for the co-op sync)
           - check: zombies-test (buddy)
             area: interceptor
