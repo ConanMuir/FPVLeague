@@ -19,6 +19,7 @@ import {startLoop} from '../../engine/loop.js';
 import {txt,html,css,cls,hide,depthFix,hyp,hyp3,freeze} from '../../engine/hot.js';
 import {particlePool,PFX} from '../../engine/particles.js';
 import {makeInterp} from '../../engine/interp.js';
+import {track as leadTrack,solve as leadSolve} from './lead.js';
 import {initZombies} from './zombies.js';
 import {makeGrid} from './grid.js';
 import {strelaBody} from './strela.js';
@@ -495,15 +496,15 @@ const urgent=()=>{if(Z.on)return Z.urgent();let b=null,bt=1e18;for(const t of TH
 // selected track: the most urgent unless you picked one with Next track (N); tracks cycle in order of urgency
 let pickT=null,gdNow=null;const selT=()=>pickT&&live(pickT)?pickT:urgent();
 function nextTrack(){const L=TH.filter(t=>live(t)&&!(Z.on&&Z.hid?.(t))).sort((a,b)=>Math.hypot(a.aim.x-a.p.x,a.aim.z-a.p.z)/a.spd-Math.hypot(b.aim.x-b.p.x,b.aim.z-b.p.z)/b.spd);if(!L.length)return;pickT=L[(L.indexOf(selT())+1)%L.length];if(!demo)banner('T'+String(pickT.id).padStart(2,'0'),'',.6)}
-// midcourse guidance: the ground station turns the latest radar plot of the selected track (updated each sweep, dead-reckoned between) into a predicted intercept point
-// 60 m behind the target, solved for your speed (at least cruise), so you arrive in its six. Inside 1.5 km it hands over to terminal: your eyes, the brackets and the pursuit cue.
-const GD={pip:new V3(),tp:new V3(),tv:new V3()};
-function guidance(me){const t=selT();if(!t||!me)return null;const r=t.rb,age=r?r.age:0;
- if(r)GD.tp.set(r.x+r.vx*age,r.y,r.z+r.vz*age),GD.tv.set(r.vx,0,r.vz);else GD.tp.copy(t.p),GD.tv.copy(t.v);
- const vh=_tv.copy(GD.tv).normalize(),vi=Math.max(me.v.length(),95),rng=GD.tp.distanceTo(me.p);let tau=rng/vi;
- for(let i=0;i<6;i++){GD.pip.copy(GD.tp).addScaledVector(GD.tv,tau);if(t.st!=='dive')GD.pip.addScaledVector(vh,-60);tau=Math.min(150,GD.pip.distanceTo(me.p)/vi)}
+/* midcourse guidance: the predicted intercept point (PIP) is where you meet the selected track if you fly straight at it at your speed (at least
+   40 m/s; flat out when you can't catch it at that). lead.js solves it, the same solver as Zombies' lock-on overlay, every sim tick on sim
+   state (step below), so the diamond, the radar line and the HUD's time to go all show the one point where you actually meet it; the HUD
+   draws that world point through the frame's camera. Inside 1.5 km it hands over to terminal: your eyes, the brackets and the pursuit cue. */
+const GD={pip:new V3(),sol:{p:new V3(),tau:0,unc:0,ok:true}};
+function guidance(me,dt){const t=selT();if(!t||!me)return null;const L=leadTrack(t,dt,V3),G0=GD.sol,s=Math.max(me.v.length(),40);leadSolve(G0,t.p,t.v,L.a,me.p,s,V3);
+ const flat=!G0.ok;if(flat)leadSolve(G0,t.p,t.v,L.a,me.p,Math.max(s,MAXV+(me.bmax||0)),V3);GD.pip.copy(G0.p);const tau=G0.tau,rng=t.p.distanceTo(me.p);
  const f=me.v.lengthSq()>100?_tl.copy(me.v).setY(0):fwdH(me.q,_tl),b=Math.atan2(GD.pip.x-me.p.x,-(GD.pip.z-me.p.z)),h=Math.atan2(f.x,-f.z);
- return{t,ttg:tau,rng,ph:rng>1500?'MIDCOURSE':'TERMINAL',herr:((b-h)*180/Math.PI+540)%360-180,dalt:GD.pip.y-me.p.y}}
+ return{t,ttg:tau,rng,unc:G0.unc,flat,ph:rng>1500?'MIDCOURSE':'TERMINAL',herr:((b-h)*180/Math.PI+540)%360-180,dalt:GD.pip.y-me.p.y}}
 /* warhead: a fragmentation charge. A burst within LETH (the Fuse radius tuner, 5 m by default; arcade leeway) of the track always kills. Past that the
  kill chance falls off over a couple of metres, and the ~15 ms fuse delay counts: at high closing speed the burst lands past the target, so a near
  miss head-on does less than the same miss in a tail chase. pdmg = the chance a miss still damages it. fuseR = the 50% kill radius at a closing speed (never under LETH). */
@@ -641,8 +642,8 @@ let nl=0;for(const t of TH)if(live(t))nl++;
  const a=$('arrow');if(!sel||!alive){hide(a,true)}else{_t.copy(sel.p).project(camera);let x=_t.x,y=_t.y;const behind=_t.z>1;if(behind){x=-x;y=-y}
   if(!behind&&Math.abs(x)<.95&&Math.abs(y)<.9)hide(a,true);else{hide(a,false);const m=Math.max(Math.abs(x)/.9,Math.abs(y)/.82,1e-3);x/=m;y/=m;
    css(a,'transform',`translate(${(x*.5+.5)*innerWidth-13}px,${(-y*.5+.5)*innerHeight-12}px) rotate(${Math.atan2(x,y)}rad)`)}}
-  {const g=gdNow=S.guide&&alive&&!Z.on?guidance(me):null;let h='';if(g){const id='T'+String(g.t.id).padStart(2,'0');
-   h=g.ph==='MIDCOURSE'?`<b>MIDCOURSE</b> ${id} · PIP ${rng(GD.pip.distanceTo(me.p))} · TTG ${Math.round(g.ttg)} s · ${Math.abs(g.herr)<4?'ON COURSE':(g.herr>0?'► R ':'◄ L ')+Math.round(Math.abs(g.herr))+'°'} · ${Math.abs(g.dalt)<25?'LEVEL':(g.dalt>0?'CLIMB ':'DESCEND ')+Math.round(Math.abs(g.dalt))+' m'}`:`<b>TERMINAL</b> ${id} ${rng(g.rng)} · eyes on, get in its six`}
+  {const g=alive?gdNow:null;let h='';if(g){const id='T'+String(g.t.id).padStart(2,'0');  /* solved in the sim tick (step) */
+   h=g.ph==='MIDCOURSE'?`<b>MIDCOURSE</b> ${id} · PIP ${rng(GD.pip.distanceTo(me.p))} · TTG ${Math.round(g.ttg)} s${g.flat?' FLAT OUT':''} · ${Math.abs(g.herr)<4?'ON COURSE':(g.herr>0?'► R ':'◄ L ')+Math.round(Math.abs(g.herr))+'°'} · ${Math.abs(g.dalt)<25?'LEVEL':(g.dalt>0?'CLIMB ':'DESCEND ')+Math.round(Math.abs(g.dalt))+' m'}`:`<b>TERMINAL</b> ${id} ${rng(g.rng)} · eyes on, get in its six`}
    html($('gd'),h)}
  radDt+=dt;const rn=performance.now();if(rn-radT>=32||rn<radT){radT=rn;radar(radDt);radDt=0}}
 // FPV overlay: Betaflight-style artificial horizon, target brackets (red per track with range, amber on the most urgent with a pursuit cue behind it), site labels
@@ -716,13 +717,14 @@ $('copyset').onclick=()=>{const o={};for(const k of['mode','diff','tilt','fov','
 // ---------- main loop ----------
 function step(dt){const me=player;TK++;IP.snap();GRID.open();try{
  if(me&&!demo&&!(Z.on&&Z.idle())){if(me.dead>0){  /* Z.idle: a co-op pilot who joined mid-wave waits on the mat for the next base screen */if((me.dead-=dt)<=0&&wstate!=='over')launch()}else{humanControl(me,dt);if(me.mah>=BCAP)me.thr=0;const h=me.step(dt);if(h>CRASH)lose('crash');else if(me.mah>=BCAP&&me.gt>0)lose('bat');else fuse()}}
- GRID.close();for(const t of TH)threatStep(t,dt);GRID.open();waves(dt);fires(dt);if(Z.on)Z.step(dt)}finally{GRID.close()}}
+ GRID.close();for(const t of TH)threatStep(t,dt);GRID.open();waves(dt);fires(dt);if(Z.on)Z.step(dt);
+ gdNow=S.guide&&!demo&&!Z.on&&me&&me.dead<=0?guidance(me,dt):null}finally{GRID.close()}}  /* the PIP: sim state, every tick */
 // Zombies mode (zombies.js): everything it needs from this file, as live getters/setters. Every hook above is behind Z.on, so Classic runs as before.
 // static scenery (terrain, river, houses, pylons and wires, the forest, the sites' props): matrices once, never walked again by updateMatrixWorld.
 // Moving things stay live: sky, sun, sun disc, cloud deck, rain, the radar's spinning antenna, the light, the sites' building roots (buildings.js freezes their stages)
 {const live=new Set([sky,deck,sunDisc,RADM,rainL,cloudG,sun,sun.target,boomL,hemi,...SITES.map(s=>s.root)]);for(const o of scene.children)if(!live.has(o)&&!o.isLight&&!o.isPoints&&(o.isMesh||o.isGroup||o.isLine))freeze(o)}
 const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,pdmg,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
- deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
+ deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},get pip(){return gdNow?{p:GD.pip,tau:gdNow.ttg,unc:gdNow.unc}:null},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
  interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get saved(){return saved},set saved(v){saved=v},get spent(){return spent}});
@@ -738,4 +740,4 @@ startLoop({pre:()=>padEdges(padKeys),step,cap:()=>Z.stepCap||12,speed:()=>GSPD*(
  if(!menuOpen&&!demo)switches();
  const fpvOn=!demo&&camMode===0&&player&&player.dead<=0&&!Z.cine,th=fpvOn&&therm;if(th!==thermLook){thermLook=th;wxLook(th)}  // the camera feed only exists in FPV
  sens.enabled=fpvOn&&!paused;sens.uniforms.th.value=th?1:0;sens.uniforms.gr.value=S.grain;sens.uniforms.t.value=now/1000;sens.uniforms.lq.value=fpvOn?lqS:1;{const lk=_t.set(0,0,-1).applyQuaternion(camera.quaternion).y,sk=cl(.5+lk*1.4,0,1);sens.uniforms.ex.value+=((1.04-.18*sk)-sens.uniforms.ex.value)*Math.min(1,dt*2.5)}  // auto exposure lags like a real cam
- weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);cloudSort(camera.position);  /* after every camera (cinematic cams too) */hud(vd);overlay();if(Z.on)Z.overlay(oc)}finally{GRID.close();IP.end()}}});
+ weather(vd,now);visuals(vd,now);updateCam(dt,now);if(Z.on)Z.cam(dt);cloudSort(camera.position);  /* after every camera (cinematic cams too) */camera.updateMatrixWorld();  /* the overlays project with this frame's camera: three.js only refreshes its view matrix inside render(), after them */hud(vd);overlay();if(Z.on)Z.overlay(oc)}finally{GRID.close();IP.end()}}});
