@@ -147,6 +147,10 @@ jobs:
           - check: bot-ladder-check
             area: league
             run: node tools/bot-ladder-check.mjs
+          # selling with an Undo until the wave starts (the refund rule, opened positions, a dome's stock, the kill chain, a co-op client's request to the host) and the campaign map's three-modifier cap
+          - check: zombies-test (sell)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=sell
           # the living map: scars from bursts, crashes and destroyed houses; caps, save, campaign, co-op, pixel checks against the terrain, frame cost
           - check: zombies-test (scars)
             area: interceptor

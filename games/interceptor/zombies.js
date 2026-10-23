@@ -31,6 +31,7 @@ import {initBosses} from './zbosses.js';
 import {initScars} from './zscars.js';
 import './zboss-roster.js';
 import {initEW} from './zew.js';
+import {initSell} from './zsell.js';
 import {initBrief} from './zbrief.js';
 import {initEndless} from './zendless.js';
 
@@ -330,6 +331,7 @@ export function initZombies(api){
  initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
  initScars(api,G,Z);  // the living map (zscars.js): craters, burns and rubble that stay; saved with the campaign, carried to co-op clients
+ initSell(api,G,Z);  // selling anything you own with an Undo until the wave starts (zsell.js); the base screen reads Z.sell, so it only wraps the base open / close and start / stop
  initBrief(api,G,Z);  /* the threat briefing on the base screen (zbrief.js): what the next wave brings, from the wave plan, and the radio line at its start */
  initEndless(api,G,Z);  /* Endless (zendless.js): after the campaign, a sector with no objective whose waves keep climbing; wraps the campaign's hooks, so it goes last */
  return Z}
