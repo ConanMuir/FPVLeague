@@ -118,7 +118,7 @@ export function initAudio(api){
   if(L[5]>.02)pluck(t,ch[ARP[b16%8]%4]*4,.05*L[5])}
  // I: 0..1 from the director; state: 'wave' | 'clear' | 'base' | 'off'
  function music(I,state,dt){if(!bus())return;vols();const mv=cl(S.zmusv??1,0,1),want=S.zmus!==0&&mv>0&&state!=='off'&&!api.menuOpen;if(want&&!M.on){padOn();M.on=true;M.next=now()+.1;M.step=0}
-  const T=now();A.mus.gain.setTargetAtTime(want?(state==='base'?.35:.5)*mv:0,T,want?.8:.25);if(!M.on)return;if(!want&&A.mus.gain.value<.01){return}  /* the score sits 4 dB under a close explosion, not level with it */
+  const T=now();A.mus.gain.setTargetAtTime(want?(state==='base'?.3:.4)*mv:0,T,want?.8:.25);if(!M.on)return;if(!want&&A.mus.gain.value<.01){return}  /* the score sits 6 dB under a close explosion, not level with it (its peak wanders a dB with the kick's phase) */
   const tgt=state==='wave'?I:state==='clear'?.12:0;M.I+=(tgt-M.I)*Math.min(1,dt*(tgt>M.I?.8:.25));const I2=M.I;
   const th=[0,.18,.32,.42,.58,.8];for(let i=0;i<6;i++)M.lv[i]=sm((I2-th[i])/.12);
   M.pad.g.gain.setTargetAtTime(.05+.03*I2,T,.5);M.pad.lp.frequency.setTargetAtTime(320+1200*I2*I2,T,.6);

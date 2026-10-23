@@ -90,7 +90,7 @@ export function initArsenal(api,G,Z){
 
  // ---------- HUD: the loaded weapon (and the pod's chaff) next to the wave counter ----------
  const tag=document.createElement('span');tag.id='zwpn';document.querySelector('#zhud .zt')?.append(tag);let last='';
- const h0=Z.hud;Z.hud=dt=>{h0(dt);const w=A.cur(),P=A.P(A.me()),t=!G.on||w==='std'?'':WPN[w].hud+(w==='flare'?` · CHAFF ${P.ch}`:'');if(t!==last){last=t;tag.textContent=t;tag.hidden=!t}};
+ const h0=Z.hud;Z.hud=dt=>{h0(dt);A.snd.warm();const w=A.cur(),P=A.P(A.me()),t=!G.on||w==='std'?'':WPN[w].hud+(w==='flare'?` · CHAFF ${P.ch}`:'');if(t!==last){last=t;tag.textContent=t;tag.hidden=!t}};
  return A}
 
 // ---------- the arsenal's sounds: a small WebAudio synth (no samples), placed in the world like zaudio.js's (distance, delay, air, pan) ----------
@@ -107,8 +107,11 @@ function initSnd(api){const V3=api.THREE.Vector3,_r=new V3(),_x=new V3();let out
  const thump=(v,f0,f1,len)=>{const o=osc('sine',v.t0,len);o.frequency.setValueAtTime(f0,v.t0);o.frequency.exponentialRampToValueAtTime(f1,v.t0+len*.8);o.connect(env(v.t0,v.g,.004,len)).connect(v.n)};
  const hiss=(v,type,f,q,pk,a,len,t=0)=>{const s=nsrc(v.t0+t,len),b=filt(type,f,q);s.connect(b).connect(env(v.t0+t,pk,a,len)).connect(v.n);return b};
  return{
+  // the bus (its compressor) is built as soon as there is audio, a frame at a time: a fresh DynamicsCompressor fades in from silence over its
+  // release time, so the first sound through a bus made on demand came out 5 dB quiet (tools/audio-levels.mjs)
+  warm(){bus()},
   // EMP: a falling electric zap over a low thump, then crackle
-  emp(p){const v=at(p,260,1);if(!v)return;const o=osc('sawtooth',v.t0,.7),b=filt('bandpass',1200,2);o.frequency.setValueAtTime(2400,v.t0);o.frequency.exponentialRampToValueAtTime(70,v.t0+.6);o.connect(b).connect(env(v.t0,v.g*.5,.003,.7)).connect(v.n);
+  emp(p){const v=at(p,260,.75);if(!v)return;  /* level with the other detonations up close, about -11 dBFS */const o=osc('sawtooth',v.t0,.7),b=filt('bandpass',1200,2);o.frequency.setValueAtTime(2400,v.t0);o.frequency.exponentialRampToValueAtTime(70,v.t0+.6);o.connect(b).connect(env(v.t0,v.g*.5,.003,.7)).connect(v.n);
    thump(v,90,30,.6);for(let i=0;i<7;i++)hiss(v,'highpass',5000,.7,v.g*.25,.001,.04,.15+i*rnd(.05,.11))},
   // net: a compressed-air launch, and the capture: rope zipping tight, a soft thud
   netShot(p){const v=at(p,120,.7);if(!v)return;hiss(v,'lowpass',700,.8,v.g*.7,.004,.18);thump(v,180,80,.18)},

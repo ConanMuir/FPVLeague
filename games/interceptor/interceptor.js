@@ -320,7 +320,7 @@ const boomL=new THREE.PointLight(0xffa040,0,600,1.2);scene.add(boomL);
 // ---------- audio (engine motor synth; bigger interceptor props turn slower than a 5", wind noise follows airspeed) ----------
 let bzo,bzg,bzf;const _ad=new V3();
 // nearest threat: the Shahed's two-stroke "moped" buzz, or a jet's turbine whine
-const audioStart=()=>audioInit({motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:AC=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(AC.destination);bzo.start()}});
+const audioStart=()=>audioInit({motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:(AC,out)=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(out||AC.destination);bzo.start()}});  /* out: the engine's effects gain (the Zombies effects slider) */
 function audioTick(dt){const me=player,on=!demo&&!paused&&me&&me.dead<=0,t=AC.currentTime;
  const nt=nearestThreat(camera.position);let g=0,fz=95;if(nt&&!paused){const r=_a.subVectors(nt.p,camera.position),d=r.length();g=Math.pow(cl(1-d/(nt.jet?1400:800),0,1),2)*(nt.jet?.07:.1);fz=(nt.jet?nt.spd>70?1400:900:95)*(1-nt.v.dot(r)/d/343)}  // Doppler
  bzg.gain.setTargetAtTime(demo?g*.4:g,t,.1);bzo.frequency.setTargetAtTime(fz,t,.1);bzf.frequency.setTargetAtTime(nt?.jet?4000:900,t,.2);
