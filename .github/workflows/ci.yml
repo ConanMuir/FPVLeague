@@ -151,6 +151,10 @@ jobs:
           - check: zombies-test (sell)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=sell
+          # Tournament mode: every format's bracket in node, then in the game a bot match simulated, one played, one watched, the save resumed
+          - check: tournament-check
+            area: league
+            run: node tools/tournament-check.mjs
           # the arsenal's kill ledger: one short bot run (Pro, Normal, 12 waves); the tool must run and book every kill to an item (the full table is docs/ARSENAL-STATS.md)
           - check: arsenal-stats (quick)
             area: interceptor
