@@ -7,7 +7,7 @@
 const cl=(v,a,b)=>v<a?a:v>b?b:v;
 export function createRoam(E,B,F){
  const {api,G,KIND}=E,M=B.map,SC=M.SC,gh=api.gh;
- const R={cur:null,since:0,arr:0,dwell:12,ph:Math.random()*6.283,axes:[],inb:0,sig:'',sigPick:'',axT:-9,wantRelaunch:false,legs:0,
+ const R={cur:null,since:0,arr:0,dwell:12,ph:Math.random()*6.283,axes:[],inb:0,sig:'',sigPick:'',axT:-9,wantRelaunch:false,legs:0,txT:-9,txS:null,
   out:{x:0,y:0,z:0,speed:60,floor:30,kind:'station',why:'',what:'',label:'',st:null}};
  /* the raids as bearings: the queued spawns (they come in from the edge at their bearing) and the live tracks outside the defended area; the fast
     missiles are left out (they are the kill chain's and the line-sitter's business, and nobody waits for them on a ridge) */
@@ -25,12 +25,13 @@ export function createRoam(E,B,F){
   if(d<rad*3){R.ph+=dt*((s.k==='ground'?58:40)/rad)}
   const near=d<rad*3,ox=near?s.x+Math.cos(R.ph)*rad:s.x,oz=near?s.z+Math.sin(R.ph)*rad:s.z;
   o.x=ox;o.z=oz;o.y=gh(ox,oz)+s.agl;o.floor=Math.min(40,s.agl*.5);o.speed=d>700?1e3:s.k==='ground'?58:45;
-  const km=M.kmTxt(d);
-  if(d>500){o.kind='transit';o.what=`flying to ${s.n} · ${km}`;o.why=`Off to ${s.n} (${km})${R.inb?`: ${R.inb} inbound`:' to look over new ground'}${R.cur.k==='river'?', down in the valley':R.cur.k==='ridge'?', up on the crest':''}`}
-  else{o.kind='station';o.what=`holding ${s.n}${R.inb?' · '+R.inb+' inbound':''}`;o.why=M.why(s,R.inb,R.axes)}
+  /* the words (a distance in them, the raids' bearings) are rebuilt four times a second, or when the station or the kind of leg changes: not on every sim tick */
+  const kind=d>500?'transit':'station';if(kind!==o.kind||s!==R.txS||t-R.txT>=.25||t<R.txT){R.txT=t;R.txS=s;o.kind=kind;const km=M.kmTxt(d);
+   if(d>500){o.what=`flying to ${s.n} · ${km}`;o.why=`Off to ${s.n} (${km})${R.inb?`: ${R.inb} inbound`:' to look over new ground'}${R.cur.k==='river'?', down in the valley':R.cur.k==='ridge'?', up on the crest':''}`}
+  else{o.what=`holding ${s.n}${R.inb?' · '+R.inb+' inbound':''}`;o.why=M.why(s,R.inb,R.axes)}}
   o.label=s.n;o.st=s;
   /* a fresh interceptor from the pad when the pack is nearly spent and nothing is in reach (the pilot presses R) */
   R.wantRelaunch=F.relaunch>0&&me.mah/Math.max(1,api.BCAP)>.72&&d<1e5;
   return o};
- R.reset=()=>{R.cur=null;R.axT=-9;R.legs=0};
+ R.reset=()=>{R.cur=null;R.axT=-9;R.legs=0;R.txT=-9;R.txS=null};
  return R}
