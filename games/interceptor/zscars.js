@@ -223,8 +223,10 @@ export function initScars(api,G,Z){
  // ---------- placement rules ----------
  const sol=()=>[PADP,...SITES,...FOBS];
  const nrmY=(x,z)=>{const a=gh(x+3,z)-gh(x-3,z),b=gh(x,z+3)-gh(x,z-3);return 1/Math.hypot(a/6,1,b/6)};
- /* not on the river, a steep slope or the defended ground (the sites' own meshes are their rubble), nor outside the map */
- const bad=(x,z,R)=>{if(!(Math.abs(x)<=4400&&Math.abs(z)<=4400&&gh(x,z)>=-9.5&&nrmY(x,z)>=.82))return true;for(const s of sol())if(Math.hypot(x-s.x,z-s.z)<s.r+R*.7+3)return true;return false};
+ /* how far the nearest enemy supply road (zsites.js, a ribbon 7.2 m wide laid .35 m above the ground) is: a scar under it would be cut off along its edge */
+ const roadGap=(x,z)=>{let d=1e9;const L=Z.so?.W?.routes;if(L)for(const r of L){const X=r.X,Zs=r.Z;for(let i=0;i<X.length-1;i++){const ax=X[i],az=Zs[i],bx=X[i+1]-ax,bz=Zs[i+1]-az,l=bx*bx+bz*bz,t=l>0?cl(((x-ax)*bx+(z-az)*bz)/l,0,1):0,dx=x-ax-t*bx,dz=z-az-t*bz,q=dx*dx+dz*dz;if(q<d)d=q}}return Math.sqrt(d)};
+ /* not on the river, a steep slope or the defended ground (the sites' own meshes are their rubble), nor outside the map, nor reaching an enemy road (R: how far it extends) */
+ const bad=(x,z,R)=>{if(!(Math.abs(x)<=4400&&Math.abs(z)<=4400&&gh(x,z)>=-9.5&&nrmY(x,z)>=.82))return true;for(const s of sol())if(Math.hypot(x-s.x,z-s.z)<s.r+R*.7+3)return true;return roadGap(x,z)<3.6+R+1};
  let tok=8;  /* scars allowed right now: refilled 3 a second of frame time, 8 at most */
  const live=()=>sc.ready&&G.on&&!api.demo&&!Z.mirror;
  const add=(t,x,z,r,v,yq,pq,aq,fade)=>P[t].add(qpos(x),qpos(z),qsz(r),v,yq,pq,aq,gh,fade);
@@ -247,13 +249,13 @@ export function initScars(api,G,Z){
  function craterAt(x,z,k){const R=cl((1.8+2.4*k**.85)*rnd(.88,1.12),2,16),p=P[0];
   for(let i=0;i<p.hw;i++)if(p.st[i]===1){const r0=dsz(p.sq[i]);if(Math.hypot(dpos(p.xq[i])-x,dpos(p.zq[i])-z)<.25*(R+r0)&&Math.abs(R-r0)<.4*Math.max(R,r0)){p.aq[i]=0;return}}  /* on top of one of the same size: that one is fresh again */
   add(0,x,z,R,rr()*4|0,rr()*32|0,31,0,0);rev++}
- function burnAt(x,z,k){const Rf=cl((7+6*k**.8)*flamAt(x,z),0,30);if(Rf<5)return;
+ function burnAt(x,z,k){const Rf=Math.min(cl((7+6*k**.8)*flamAt(x,z),0,30),(roadGap(x,z)-4.6)/1.3);if(Rf<5)return;  /* a fire stops short of a road */
   const p=P[1];for(let i=0;i<p.hw;i++)if(p.st[i]===1){const r0=dsz(p.sq[i]);if(Math.hypot(dpos(p.xq[i])-x,dpos(p.zq[i])-z)<.7*r0*p.pf[i]+.4*Rf)return}  /* scorched ground does not catch again */
   const wb=api.WB,yq=Math.round(((Math.atan2(wb.z,wb.x)/(Math.PI*2))%1+1)%1*32)&31;add(1,x,z,Rf,rr()*4|0,yq,Math.round(Math.min(.35,3.2/Rf)*31),0,0);rev++}
  function onBoom(p,k){if(!live()||!(k>=.3))return;const x=p.x,z=p.z;if(!(p.y-gh(x,z)<=1+2.2*k))return;  /* (written so that a NaN anywhere makes nothing) */
   if(tok<1)return;tok--;
-  if(k>=1){const h=houses(),rb=7.5+2*k**.8;for(let i=0,c=0;i<h.n&&c<4;i++)if(!h.dead[i]&&Math.hypot(h.x[i]-x,h.z[i]-z)<rb&&rr()<cl((k-.5)/1.5,0,1)&&houseDown(i)){rubbleAt(i,0);c++;rev++}}
-  const R=cl(1.8+2.4*k**.85,2,16);if(!bad(x,z,R)){craterAt(x,z,k);if(k>=1.2&&rr()<cl((k-.8)/1.2,0,1))burnAt(x,z,k)}
+  if(k>=1){const h=houses(),rb=7.5+2*k**.8;for(let i=0,c=0;i<h.n&&c<4;i++)if(!h.dead[i]&&Math.hypot(h.x[i]-x,h.z[i]-z)<rb&&rr()<cl((k-.5)/1.5,0,1)&&roadGap(h.x[i],h.z[i])>12&&houseDown(i)){rubbleAt(i,0);c++;rev++}}
+  const R=cl(1.8+2.4*k**.85,2,16);if(!bad(x,z,R*1.12)){craterAt(x,z,k);if(k>=1.2&&rr()<cl((k-.8)/1.2,0,1))burnAt(x,z,k)}
   rank()}
  const f0=Z.flash;Z.flash=(p,k)=>{f0(p,k);onBoom(p,k)};
  sc.boom=(p,k)=>{ensure();onBoom(p,k)};
@@ -273,7 +275,7 @@ export function initScars(api,G,Z){
  function load(s,{settle=false,fade=false}={}){ensure();const R=unpack(s);clear();const f=fade?0:1;
   for(const[t,x,z,sq,v,y,pq,aq]of R){const X=dpos(x),Z0=dpos(z);
    if(t===2){const i=houseNear(X,Z0,5);if(i>=0&&houseDown(i))P[2].add(qpos(houses().x[i]),qpos(houses().z[i]),sq,v,y,pq,aq,gh,f);continue}
-   if(!bad(X,Z0,dsz(sq)))P[t].add(x,z,sq,v,y,t===1&&settle?31:pq,aq,gh,f)}
+   if(!bad(X,Z0,dsz(sq)*(t===1?1.3:1)))P[t].add(x,z,sq,v,y,t===1&&settle?31:pq,aq,gh,f)}
   rank();vis();rev++}
  /* merge a snapshot into the live set: what is there stays (no re-fade), what is new fades in, what is gone fades out */
  function apply(s){ensure();const R=unpack(s),key=(t,x,z)=>t<<24|x<<12|z,want=new Map();for(const r of R)want.set(key(r[0],r[1],r[2]),r);
@@ -284,7 +286,7 @@ export function initScars(api,G,Z){
    P[t].add(x,z,sq,v,y,pq,aq,gh,0)}
   rank();vis()}
  Object.defineProperties(sc,{rev:{get:()=>rev},built:{get:()=>built}});
- Object.assign(sc,{pack,unpack,encode,load,clear,apply,recs,rank,ensure,bad,cropAt,flamAt,houses,houseNear,houseDown,housesBack,burnTime,uniforms:U,vis,
+ Object.assign(sc,{pack,unpack,encode,load,clear,apply,recs,rank,ensure,bad,roadGap,cropAt,flamAt,houses,houseNear,houseDown,housesBack,burnTime,uniforms:U,vis,
   stats:()=>({craters:P[0]?.n|0,burns:P[1]?.n|0,rubble:P[2]?.n|0,hw:P.map(p=>p.hw),shown:P.map(p=>{let n=0;for(let i=0;i<p.hw;i++)if(p.st[i]&&p.aF[i*4+3])n++;return n}),visible:P.map(p=>p.mesh.visible),ready:sc.ready}),
   list:t=>{const p=P[t],o=[];for(let i=0;i<p.hw;i++)if(p.st[i])o.push({i,st:p.st[i],x:dpos(p.xq[i]),z:dpos(p.zq[i]),r:dsz(p.sq[i]),pf:p.pf[i],age:p.aq[i],fade:p.fade[i]});return o}});
 
@@ -295,9 +297,10 @@ export function initScars(api,G,Z){
   for(let i=0;i<p.hw&&used<6;i++){if(p.st[i]!==1||p.glow[i]<=0||p.fade[i]<.5)continue;const x=p.aS[i*4],z=p.aS[i*4+1];if(Math.abs(x-cam.x)>lim||Math.abs(z-cam.z)>lim)continue;used++;
    if((p.ft[i]-=dt)>0)continue;p.ft[i]=.3+rr()*.5;const a=rr()*6.283,rd=p.pf[i]*.88*Math.sqrt(rr()),lx=Math.cos(a)*rd*p.aS[i*4+2],lz=Math.sin(a)*rd*p.aS[i*4+3],yw=p.aP[i*4],co=Math.cos(yw),si=Math.sin(yw),
     wx=x+lx*co-lz*si,wz=z+lx*si+lz*co;_w.set(wx,gh(wx,wz)+.4,wz);api.FX.emit(_w,0xff7a20,2,3,.5,null,2.2);if(rr()<.35)api.SMK.emit(_w,0x2d2926,1,2,8,_up,1,.5)}}
- function tick(dt){if(!sc.ready)return;
-  if(G.state!==st0){const was=st0;st0=G.state;if((st0==='clear'||st0==='over')&&was)persist()}
-  if(G.wave!==wave0){if(wave0>=0&&G.wave>wave0)for(const p of P)for(let i=0;i<p.hw;i++)if(p.st[i]&&p.aq[i]<15)p.aq[i]++;wave0=G.wave}
+ /* the end of a wave (or of the run) saves the sector, and a wave older ages every scar a step. Read on every sim step and every frame, against the state the run started in, so a clear that no frame saw is saved all the same */
+ function watch(){if(G.state!==st0){st0=G.state;if(st0==='clear'||st0==='over')persist()}
+  if(G.wave!==wave0){if(wave0>=0&&G.wave>wave0)for(const p of P)for(let i=0;i<p.hw;i++)if(p.st[i]&&p.aq[i]<15)p.aq[i]++;wave0=G.wave}}
+ function tick(dt){if(!sc.ready)return;watch();
   dt=Math.min(dt,.1);tok=Math.min(8,tok+dt*3);const run=!Z.hold?.()&&(!api.menuOpen||!!Z.online);let ch=false;  /* a fire waits while the game is paused or on the base screen (a co-op game keeps running behind its menu) */for(const p of P)ch=p.update(dt,run)||ch;if(ch)rank();
   U.uTime.value=performance.now()/1000%1000;U.uCam.value.x=camera.projectionMatrix.elements[5]*renderer.domElement.height*.5;
   if(run)fireFx(dt);
@@ -310,9 +313,10 @@ export function initScars(api,G,Z){
  sc.persist=persist;sc.refill=()=>{tok=8};
  Z.cpNew=()=>clear();  /* a new campaign (zcampaign.js): what the last run left must not be saved into it */
  const s0=Z.start;Z.start=()=>{if(G.on)persist();  /* a restart on the same sector keeps what the last run left */
-  s0();rg=seeded(20241);wave0=-1;st0='';tok=8;sent=-1;sc.cRev=-1;ensure();
+  s0();rg=seeded(20241);wave0=G.wave;st0=G.state;tok=8;sent=-1;sc.cRev=-1;ensure();
   const id=client()?null:camp(),s=id?Z.cp.C().sc?.[id]:null;if(s)load(s,{settle:true});else clear();vis()};
  const z1=Z.stop;Z.stop=()=>{persist();clear();z1()};
+ const p1=Z.step;Z.step=dt=>{p1(dt);watch()};
  // ---------- co-op: every snapshot carries the revision, the records go out when it changed (at most about once a second) and now and then ----------
  sc.netOut=now=>{if(!sc.ready||!Z.online||Z.mirror)return null;const due=rev!==sent&&now-sentT>900||now-sentT>5000;if(!due)return{r:rev};sentT=now;sent=rev;return{r:rev,d:encode()}};
  sc.netIn=o=>{if(!Z.mirror||!o||typeof o!=='object')return;if(typeof o.d==='string'&&o.r!==sc.cRev){sc.cRev=o.r;apply(o.d)}};
