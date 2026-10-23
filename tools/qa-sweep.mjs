@@ -860,7 +860,9 @@ section('zombies-coop', async browser => {
 }, {fast: true});
 section('zombies-saves', async browser => {
   /* broken saves: every key of the arcade game's save set to the same odd value at once (a failure is narrowed to the keys), garbage text, storage that throws */
-  const S0 = await zsession(browser); const keys = S0.up ? await S0.p.evaluate(() => Object.keys(window.__z.api.S)) : []; await S0.p.close();
+  const S0 = await zsession(browser); const boot = S0.up ? await S0.p.evaluate(() => Object.keys(window.__z.api.S)) : []; await S0.p.close();
+  /* the keys the game only creates when something is first written (the codex, the guide's flag, the briefing's fold, the radio and audio-assist switches, volumes, the spectator's setup, the boss and run records) are not in S at boot, so they join the list by name */
+  const LAZY = ['zcodex', 'zend', 'zbrief', 'zonb', 'zassist', 'zradio', 'zrspeech', 'zradiov', 'zspec', 'zcamp', 'zboss', 'zruns', 'zbests', 'zload', 'zmeta', 'zname', 'zsfxv', 'zmusv', 'zmus', 'zwx', 'zdiff', 'zarsBan'], keys = [...new Set([...boot, ...LAZY])];
   log(`zombies-saves: ${keys.length} save keys`);
   const tryBoot = async (raw, pre = null, shared = null) => { let S; try { S = await zsession(await B(), {raw, pre, shared});
       if (S.up) { await click(S.p, '#play'); await S.p.evaluate(() => { const z = window.__z; if (z.G.on && z.G.state === 'base') z.cont(); z.sim(5); }); await frames(S.p, 3); }

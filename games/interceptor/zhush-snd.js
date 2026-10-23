@@ -6,6 +6,8 @@
    The listener (your camera) is set per frame by listen(); stop() and stopAll() tear every node down. */
 import {Vector3} from 'three';
 import {GAIN, CAP, REF, ROLL, cue} from './zhush-cue.js';
+/* the creak's random pitch is drawn every frame it sounds: its own stream, so the frames played never shift the game's Math.random sequence */
+let DS = 0x6a09e667; const dr = () => (DS = Math.imul(DS, 1664525) + 1013904223 >>> 0) / 4294967296;
 const LIVE = new Set(), _f = new Vector3(), _u = new Vector3();
 export const voices = () => LIVE.size;
 /* the running voices (the harness reads their commanded levels against the cap) */
@@ -16,7 +18,7 @@ export function hushVoice(AC, nbuf, dst) {
   const gn = (v = 0) => { const x = AC.createGain(); x.gain.value = v; nd.push(x); return x; };
   const fl = (t, hz, q = .7) => { const x = AC.createBiquadFilter(); x.type = t; x.frequency.value = hz; x.Q.value = q; nd.push(x); return x; };
   const os = (t, hz) => { const x = AC.createOscillator(); x.type = t; x.frequency.value = hz; x.start(); src.push(x); return x; };
-  const nz = () => { const x = AC.createBufferSource(); x.buffer = nbuf; x.loop = true; x.start(0, Math.random() * 1.5); src.push(x); return x; };
+  const nz = () => { const x = AC.createBufferSource(); x.buffer = nbuf; x.loop = true; x.start(0, dr() * 1.5); src.push(x); return x; };
   const pan = AC.createPanner(); pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = REF; pan.rolloffFactor = ROLL; pan.maxDistance = 20000; nd.push(pan);
   const air = fl('lowpass', 17000, .5); air.connect(pan); pan.connect(dst);
   /* the hum: saw + triangle + a sub sine through a lowpass, and a thin whine at the blade rate */
@@ -44,7 +46,7 @@ export function hushVoice(AC, nbuf, dst) {
       whF.frequency.setTargetAtTime((420 + 2300 * c.sweep) * Math.min(1.4, c.dop), T, .06);
       shF.frequency.setTargetAtTime(2200 + 900 * (b.yr > 0 ? 1 : -1) * cl(Math.abs(b.yr) / .6, 0, 1), T, .1);
       air.frequency.setTargetAtTime(cl(17000 * Math.exp(-c.d / 1800), 400, 17000), T, .15);
-      if (c.creak > 0) { crO.frequency.setValueAtTime(85 + Math.random() * 160, T); lfo.frequency.setValueAtTime(5 + Math.random() * 6, T); crF.frequency.setValueAtTime(700 + Math.random() * 700, T); }
+      if (c.creak > 0) { crO.frequency.setValueAtTime(85 + dr() * 160, T); lfo.frequency.setValueAtTime(5 + dr() * 6, T); crF.frequency.setValueAtTime(700 + dr() * 700, T); }
       lvl.hum = c.hum; lvl.blade = c.blade; lvl.whoosh = c.whoosh; lvl.shear = c.shear; lvl.creak = c.creak;
       humG.gain.setTargetAtTime(c.hum, T, .15); whineG.gain.setTargetAtTime(c.blade, T, .15); whG.gain.setTargetAtTime(c.whoosh, T, .05);
       shG.gain.setTargetAtTime(c.shear, T, .08); crG.gain.setTargetAtTime(c.creak, T, .05);

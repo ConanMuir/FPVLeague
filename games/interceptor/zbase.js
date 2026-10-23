@@ -219,7 +219,7 @@ export function initBase(Z,api,G){
   if(c==='ArrowUp')move(0,-1);else if(c==='ArrowDown')move(0,1);else if(c==='ArrowLeft')move(-1,0);else if(c==='ArrowRight')move(1,0);
   else if(c==='Space'&&el.contains(document.activeElement))document.activeElement.click();
   else if(/^Digit[1-9]$/.test(c)&&TABS()[+c.slice(5)-1])setTab(TABS()[+c.slice(5)-1]);
-  else if(c==='KeyC'&&!G.placing)Z.continue();else if(c==='Escape')return cancelPlace();
+  else if(c==='KeyC'&&!G.placing)Z.continue();else if(c==='Escape')return false;  /* Esc is the menu's (it ran first); the Esc that closes the menu must not also drop a pending placement: Cancel and pad B do that */
   else return true;e.preventDefault?.();return true}
  function pad(e){if(el.hidden&&over.hidden)return false;const host=el.hidden?over:el;
   if(e(12))move(0,-1);if(e(13))move(0,1);if(e(14))move(-1,0);if(e(15))move(1,0);if(e(0)&&host.contains(document.activeElement))document.activeElement.click();

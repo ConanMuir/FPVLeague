@@ -18,6 +18,11 @@ import {createFlier} from './zbotsortiefly.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},gauss=()=>(Math.random()+Math.random()+Math.random()+Math.random()-2)*1.73;
 // stick that gives this output of a monotonic curve f on [lo, hi] (bisection): rates and throttle curves are the player's, so the bot inverts them
 function inv(f,y,lo,hi){let a=lo,b=hi;if(y<=f(a))return a;if(y>=f(b))return b;for(let i=0;i<22;i++){const m=(a+b)/2;if(f(m)<y)a=m;else b=m}return(a+b)/2}
+/* a track's smoothed horizontal acceleration (a 0.5 s average of its velocity change), kept in the WeakMap accs: A = {v: last velocity, a, n: ticks, k: the clock at the last call}.
+   A gap of more than 0.05 s (the bot was not chasing it) starts the average again from now: the velocity left from then would land the whole change in one tick as a huge turn */
+export function turnTrack(accs,t,dt,now,V3){let A=accs.get(t);if(!A){accs.set(t,A={v:new V3().copy(t.v),a:new V3(),n:0,k:now});return A}
+ if(now-A.k>.05){A.v.copy(t.v);A.a.set(0,0,0);A.n=0}A.k=now;
+ if(dt>0){const k=1-Math.exp(-dt/.5);A.a.x+=((t.v.x-A.v.x)/dt-A.a.x)*k;A.a.z+=((t.v.z-A.v.z)/dt-A.a.z)*k}A.v.copy(t.v);A.n++;return A}
 export function createPilot(api,G,Z,P,E){
  const {THREE,TH,S,gh}=api,V3=THREE.Vector3,UP=new V3(0,1,0),F=P.fly;
  const _a=new V3(),_b=new V3(),_c=new V3(),_n=new V3(),_h=new V3(),_f=new V3(),_v=new V3(),_A=new V3(),_W=new V3(),WT=new V3(),fake={q:null,wt:WT};
@@ -50,7 +55,7 @@ export function createPilot(api,G,Z,P,E){
  // a boss's turn, from its velocity: the horizontal acceleration is smoothed per track, and meet() finds where on the circle it is flying (constant turn rate) the
  // dart, flying straight at speed S, can be when it gets there (null: it is not turning, or no meeting inside 14 s)
  const accs=new WeakMap();
- function turnOf(t,dt){let A=accs.get(t);if(!A){accs.set(t,A={v:new V3().copy(t.v),a:new V3(),n:0});return A}if(dt>0){const k=1-Math.exp(-dt/.5);A.a.x+=((t.v.x-A.v.x)/dt-A.a.x)*k;A.a.z+=((t.v.z-A.v.z)/dt-A.a.z)*k}A.v.copy(t.v);A.n++;return A}
+ const turnOf=(t,dt)=>turnTrack(accs,t,dt,st.t,V3);
  function meet(t,from,S,out){const A=accs.get(t);if(!A||A.n<30)return null;const V=Math.hypot(t.v.x,t.v.z),al=Math.hypot(A.a.x,A.a.z);if(V<40||al<2.5)return null;
   const om=al/V,nx=A.a.x/al,nz=A.a.z/al;for(let tau=.5;tau<=14;tau+=.25){const sn=Math.sin(om*tau)/om,cs=(1-Math.cos(om*tau))/om,x=t.p.x+t.v.x*sn+nx*V*cs,z=t.p.z+t.v.z*sn+nz*V*cs,y=t.p.y+t.v.y*tau;
    if(Math.hypot(x-from.x,y-from.y,z-from.z)<=S*tau){out.set(x,y,z);return tau}}return null}

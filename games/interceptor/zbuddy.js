@@ -63,7 +63,7 @@ export function initBuddy(api,G,Z){
   if(pad&&(cf<.85||b.hp<.8*st.tuf))return b.job==='recharge'?(b.jt=rnd(K.pick[0],K.pick[1])):setJob(b,'recharge');
   let boss=null,bd=1e18,bt=null,bs=-1e9,nb=0,thr=0,sp=null,str=null,ss=1e18;const C=[];
   for(const t of TH){if(!api.live(t)||!KIND[t.k])continue;const d=t.p.distanceTo(b.p);
-   if(isMain(t)){if(d<bd){bd=d;boss=t}continue}
+   if(isMain(t)){if(!Z.hid?.(t)&&d<bd){bd=d;boss=t}continue}  /* a boss you cannot see (the Hush, the Ghost, the Puppeteer in disguise, the Jammer King) is not one it circles: its blip and its marks would point the way */
    if(hyp(t.p.x-PADP.x,t.p.z-PADP.z)<4500)thr++;
    if(RAM[t.k]&&t!==b.skip&&d<2400){nb++;const sc=40/(1+t.p.distanceTo(t.aim)/Math.max(1,t.spd)/20)-d/120;if(sc>bs){bs=sc;bt=t}}
    if(d<3200&&t.spd<76&&t.k!=='decoy'&&KIND[t.k].armor!=='hard'&&C.length<40)C.push(t)}
@@ -150,12 +150,12 @@ export function initBuddy(api,G,Z){
 
  /* ---------- drawing: the model (built when first needed, kept), its name tag, the props spinning ---------- */
  function ensureModel(b){if(!b.model||b.rb){b.rb=false;freeModel(b.model);b.model=buildModel(b.ids,b.cos,K.model);api.scene.add(b.model.grp);b.model.grp.traverse(o=>{if(o.isMesh)o.userData.cs=o.castShadow});shOn=null}
-  const tx=tagText(b);if(!b.tag||b.nm0!==tx){freeTag(b.tag);b.nm0=tx;b.tag=buildTag(tx);api.scene.add(b.tag)}}
+  if(!b.tag||b.nmK!==b.nm){freeTag(b.tag);b.nmK=b.nm;b.tag=buildTag(tagText(b));api.scene.add(b.tag)}}  /* nmK: the name the tag was built for (a string compare, no text built per frame) */
  const tagText=b=>b.own?'Little Buddy':`${String(b.nm||'Pilot').slice(0,14)}'s Little Buddy`;
  function visuals(dt){const on=live();
-  for(const b of BD.values()){const show=on&&b.state!=='off'&&!(b.state==='down'&&b.dT>10);if(show&&(!b.model||b.rb||b.nm0!==tagText(b)))ensureModel(b);
+  for(const b of BD.values()){const show=on&&b.state!=='off'&&!(b.state==='down'&&b.dT>10);if(show&&(!b.model||b.rb||b.nmK!==b.nm))ensureModel(b);
    const m=b.model;if(!m)continue;m.grp.visible=show;b.tag.visible=false;if(!show)continue;
-   m.grp.position.copy(b.p);m.grp.quaternion.copy(b.q);if(b.state==='fly')m.props.forEach((g,i)=>{g.rotation.y+=dt*55*(i===1||i===2?1:-1)});
+   m.grp.position.copy(b.p);m.grp.quaternion.copy(b.q);if(b.state==='fly'){const P=m.props;for(let i=0;i<P.length;i++)P[i].rotation.y+=dt*55*(i===1||i===2?1:-1)}
    const cam=api.camera.position,d=b.p.distanceTo(cam);if(d<2200&&b.state!=='down'){b.tag.visible=true;b.tag.position.copy(b.p);b.tag.position.y+=3.4}}
   const sh=gfx.k.swarm>0;if(sh!==shOn){shOn=sh;for(const b of BD.values())b.model?.grp.traverse(o=>{if(o.isMesh)o.castShadow=sh&&!!o.userData.cs})}  /* Graphics quality Low: no shadows from it */
   hud()}
@@ -169,9 +169,11 @@ export function initBuddy(api,G,Z){
   '.zbdr{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:0 0 12px;padding:8px 12px;border:1px solid var(--edge);border-left:3px solid #5fe3ff;border-radius:6px;background:var(--panel);font:700 12px var(--mono);cursor:help}'+
   '.zbdr b{color:#bfeaff;letter-spacing:.08em}.zbdr em{font-style:normal;font-weight:500;color:var(--dim)}';document.head.append(css);
  const bar=(v,c)=>`<u class="${c||(v<30?'lo':v<60?'mid':'')}" style="width:${v}%"></u>`;
+ let hudK=-1;
  function hud(){const b=mine,show=live()&&b.state!=='off';card.hidden=!show;if(!show)return;
   if(b.tip!==tipL)card.title=tipL=b.tip||'';
-  const q=b.say>=0?SAYL[b.say]:'',h=`<div class="h"><span>LITTLE BUDDY</span><small>${JOBN[b.job]||''}</small></div><div class="b">HP<i>${bar(b.hpP)}</i></div><div class="b">CHG<i>${bar(b.chP,b.chP<K.low*100?'lo':'c')}</i></div><div class="q">${b.state==='down'?'down until the next wave':q}</div>`;
+  const k=(((Math.round(b.hpP)*101+Math.round(b.chP))*8+JOBS.indexOf(b.job)+1)*4+ST.indexOf(b.state))*64+b.say+1;if(k===hudK)return;hudK=k;  /* every number the card shows, packed: the HTML is built only when one changes */
+   const q=b.say>=0?SAYL[b.say]:'',h=`<div class="h"><span>LITTLE BUDDY</span><small>${JOBN[b.job]||''}</small></div><div class="b">HP<i>${bar(b.hpP)}</i></div><div class="b">CHG<i>${bar(b.chP,b.chP<K.low*100?'lo':'c')}</i></div><div class="q">${b.state==='down'?'down until the next wave':q}</div>`;
   if(h!==hudL)html(card,hudL=h)}
  /* the base screen's shop tab: a row for it, same tooltip */
  const sh0=Z.shopTop;Z.shopTop=()=>{const top=sh0?.()||'';if(!G.on||!mine.has)return top;const s=mine.st;

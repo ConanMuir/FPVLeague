@@ -31,6 +31,8 @@ import {initAtmos} from './zatmos.js';
 import {particlePool} from '../../engine/particles.js';
 import {ownRandom} from '../../engine/idle.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
+/* drnd: randomness for what is drawn and heard (radar static, haze, a creak's pitch) on its own stream: a frame drawn more or less must not move the game's Math.random sequence (a seeded wave, a replay) */
+let DS=0x2545f491;const drnd=(a,b)=>a+((DS=Math.imul(DS,1664525)+1013904223>>>0)/4294967296)*(b-a);
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
 export const BOSSES={},ROSTER=[],REWARDS={};
 export function registerBoss(def){const id=def.id;
@@ -62,8 +64,9 @@ export function initBosses(api,G,Z){
  const rec=()=>{let r=S.zboss;if(!r||typeof r!=='object'||Array.isArray(r))r={};if(!r.b||typeof r.b!=='object'||Array.isArray(r.b))r.b={};
   for(const k of['ace','ghost']){if(!r[k]||typeof r[k]!=='object'||Array.isArray(r[k]))r[k]={};for(const f of Object.keys(r[k]))if(!Number.isFinite(r[k][f]))r[k][f]=0}
   for(const k of Object.keys(r.b)){const o=r.b[k];if(!o||typeof o!=='object'||Array.isArray(o))r.b[k]={met:0,won:0,lost:0};else for(const f of['met','won','lost'])o[f]=Number.isFinite(o[f])?o[f]:0}r.v=1;S.zboss=r;return r};
- const bump=(id,f,n=1)=>{const r=rec();const o=r.b[id]||(r.b[id]={met:0,won:0,lost:0});o[f]=(o[f]|0)+n;save()};
- const recAdd=(k,f,n=1)=>{const r=rec();r[k][f]=(r[k][f]|0)+n;save()};
+ const bot=()=>!!window.__z?.spec?.on;  /* a Bot Spectator run never writes your record: the Ace's tally, the wreck it unlocks, the wear on the bosses are yours */
+ const bump=(id,f,n=1)=>{if(bot())return;const r=rec();const o=r.b[id]||(r.b[id]={met:0,won:0,lost:0});o[f]=(o[f]|0)+n;save()};
+ const recAdd=(k,f,n=1)=>{if(bot())return;const r=rec();r[k][f]=(r[k][f]|0)+n;save()};
 
  // ---------- sound: a small synth on the effects volume (S.zsfxv). sting = the boss's signature, loop = its presence while alive ----------
  const SND={get ok(){return!!AC&&!!nbuf&&!api.demo},vol:()=>cl(S.zsfxv??1,0,1),
@@ -304,7 +307,7 @@ export function initBosses(api,G,Z){
   if(!t.bs.enc&&!D.minor){t.bs.init=1;newEnc(t)}D.netIn?.(ctx,t,a.slice(3))};
 
  // ---------- what the boss modules get ----------
- const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,HAZE:BHZ,haze,gfx,BOSSES,REWARDS,decal,D2,cl,rnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
+ const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,HAZE:BHZ,haze,gfx,BOSSES,REWARDS,decal,D2,cl,rnd,drnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
   get wt(){return G.wt||0},
   // lose your interceptor to enemy fire (the Ace's missile, the Mirror's burst); the Deathless trophy may save it (zboss-ace.js)
   /* P: another pilot's interceptor (a co-op client's, znet.js): that pilot's own screen loses it */
