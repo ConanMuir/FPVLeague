@@ -65,12 +65,12 @@ onFx('popEarn',e=>{if(e.d===GS.player)tone(1500,2200,.08,.05)});onFx('popFire',e
 // Levels: the hardest landing peaks about 5 dB under the hardest ball hit and 3 dB under the goal boom (tools/audio-levels.mjs); it was 2 dB over both
 export function groundHit(d,speed,p){if(!d||!(speed>2))return;const w=now();if(d._sgt&&w-d._sgt<.07&&speed<(d._sgs||0)*1.5)return;cnt('thud');d._sgt=w;d._sgs=speed;if(!AC)return;
  const t0=AC.currentTime;const k=cl((speed-2)/26,0,1),v=near(d.p)*(d===GS.player?1:.8);if(v*k<.01||!slot(.4))return;const o=dest(d===GS.player?null:d.p);
- os(t0,90+speed*1.5,36,.16+.12*k,.24*k**.8*v,'sine',o);nz(t0,.1+.08*k,300+speed*8,.22*k*v,.8,o,'lowpass');
+ os(t0,90+speed*1.5,36,.16+.12*k,.22*k**.8*v,'sine',o);nz(t0,.1+.08*k,300+speed*8,.2*k*v,.8,o,'lowpass');
  if(k>.3){for(const f of[517,1393,2287])os(t0,f*rnd(.94,1.06),f*.97,.08+.18*k,.04*k*v,'sine',o);nz(t0,.035,2600,.15*k*v,1.2,o)}
  if(d.w&&d.w.length()>8)clatter(d,v*k)}
 // tumble clatter: tiny clicks of props and arms on the floor (narrow high noise burst + a short triangle "tok")
 function clatter(d,v){cnt('clatter');if(!AC||v<.01||!slot(.05))return;const t0=AC.currentTime,o=dest(d===GS.player?null:d.p);
- nz(t0,.025,rnd(1800,4800),.14*v,4,o);os(t0,rnd(650,1300),rnd(380,600),.03,.06*v,'triangle',o)}  /* the clicks under a tumbling landing kept it 1 dB over the mid cap; 4 dB down */
+ nz(t0,.025,rnd(1800,4800),.1*v,4,o);os(t0,rnd(650,1300),rnd(380,600),.03,.045*v,'triangle',o)}  /* the clicks under a tumbling landing kept it over the mid cap (their random band rings up to 2 dB more); 7 dB down */
 
 // ball touch by a quad: a hollow "thwump" (sine dropping 150+ -> 60 Hz: the big inflated shell), a bandpassed slap that gets brighter
 // with speed, a sub boom on the big ones, and, when the touch left the ball spinning fast, a whistling friction "zip" (narrow noise sweep)
