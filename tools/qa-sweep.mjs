@@ -432,15 +432,16 @@ section('league-options', async browser => {
     ok(up && !bad.length && !S.errs.length, `slider ${id} = ${v}: the match plays${bad.length ? ' NaN/text: ' + bad.slice(0, 2).join(' ') : ''}${S.errs.length ? '\n  ' + [...new Set(S.errs.splice(0))].slice(0, 3).join('\n  ') : ''}`);
     await key(p, 'Escape'); await click(p, '#leave'); await until(async () => (await snap(p)).demo, {timeout: 20000});
   }
-  for (let a = 0; a < 4; a++) { const r = await boot(JSON.stringify({arena: a})); ok(!bad(r), `arena size ${a} (from a save): boots and plays` + (bad(r) ? ': ' + why(r) : '')); }
   /* reload: whatever is saved is what the screen shows and what the game uses */
   const before = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague'))), ui0 = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll('#scr-settings [id^=f_]')].map(e => [e.id, e.value])));
   await p.reload({waitUntil: 'load'}); await dlReady(p);
   const after = await p.evaluate(() => JSON.parse(localStorage.getItem('droneleague'))), ui1 = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll('#scr-settings [id^=f_]')].map(e => [e.id, e.value])));
-  const diff = Object.keys(ui0).filter(k => ui0[k] !== ui1[k]).map(k => `${k}: ${ui0[k]} -> ${ui1[k]}`), sdiff = Object.keys(before).filter(k => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+  const diff = Object.keys(ui0).filter(k => ui0[k] !== ui1[k]).map(k => `${k}: ${ui0[k]} -> ${ui1[k]}`), sdiff = Object.keys(before).filter(k => k !== 'diff' && JSON.stringify(before[k]) !== JSON.stringify(after[k]));  /* diff: the evolved bot levels are kept by id under dlEvolved (src/bots/evolved.js), the saved number falls back by design */
   ok(!diff.length, `after a reload the settings screen shows what it showed before` + (diff.length ? ': ' + diff.slice(0, 5).join('; ') : ''));
   ok(!sdiff.length, `after a reload the saved settings are unchanged` + (sdiff.length ? ': ' + sdiff.slice(0, 8).join(', ') : ''));
   drain(S, 'League options'); await p.close();
+  /* every arena size from a save (these boots overwrite the saved settings, so they come last) */
+  for (let a = 0; a < 4; a++) { const r = await boot(JSON.stringify({arena: a})); ok(!bad(r), `arena size ${a} (from a save): boots and plays` + (bad(r) ? ': ' + why(r) : '')); }
 }, {fast: false});
 
 /* ---------- match flow: goals, replays, overtime, the end of a match, training, the Lab, mode switches ---------- */
