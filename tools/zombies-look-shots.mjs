@@ -1,16 +1,15 @@
-// Look checks for the Strela-2 interceptor body and Zombies weather: node tools/zombies-look-shots.mjs OUTDIR [drone] [weather] [classic]
+// Look checks for the Strela-2 interceptor body and Zombies weather: node tools/zombies-look-shots.mjs OUTDIR [drone] [weather]
 //  drone    close-ups of the Strela body from several angles (standing on the mat and in flight), plus the chase and FPV cameras
 //  weather  one chase-camera view per Zombies weather mid-wave (the storm with a lightning flash), night in FPV and thermal, and the base-screen forecast
-//  classic  Classic's default dart and the Classic "Strela-2" look option
 // Prints the JS cost of the weather step per weather.
 import {serve, launch, open, sleep} from './zlib.mjs';
 const [OUT, ...what] = process.argv.slice(2), want = k => !what.length || what.includes(k);
 const {server, origin} = await serve(); const b = await launch(); const errs = [];
-async function page(mode, extra = {}) {
+async function page(extra = {}) {
   const p = await open(b, origin + '/games/interceptor/', errs);
-  await p.evaluate((m, x) => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: m, wx: 'clear', cam: 1, ...x})), mode, extra);
+  await p.evaluate(x => localStorage.setItem('dl-interceptor', JSON.stringify({wx: 'clear', cam: 1, ...x})), extra);
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z); await sleep(500);
-  // a camera override applied just before the scene is rendered (after Riley's updateCam), in either mode
+  // a camera override applied just before the scene is rendered (after Riley's updateCam)
   await p.evaluate(() => { const {api} = __z, r = api.renderer.render.bind(api.renderer); api.renderer.render = (s, c) => { if (s === api.scene) window.__cam?.(); r(s, c); }; });
   return p;
 }
@@ -19,7 +18,7 @@ const orbit = (p, yaw, pitch, dist, up = .05) => p.evaluate((yaw, pitch, dist, u
   window.__cam = () => { const me = api.player, c = me.p.clone().add(new V(0, up, 0).applyQuaternion(me.q)); api.camera.position.set(c.x + Math.sin(yaw) * Math.cos(pitch) * dist, c.y + Math.sin(pitch) * dist, c.z + Math.cos(yaw) * Math.cos(pitch) * dist); api.camera.lookAt(c); api.camera.fov = 40; api.camera.updateProjectionMatrix(); }; }, yaw, pitch, dist, up);
 
 if (want('drone')) {
-  const p = await page('z');
+  const p = await page();
   await p.click('#play'); await sleep(600);
   await p.evaluate(() => { document.getElementById('zbase').hidden = true; document.getElementById('hud').style.visibility = 'hidden'; });
   // standing on its fins on the launch mat (base screen = sim paused)
@@ -41,7 +40,7 @@ if (want('drone')) {
   await p.close();
 }
 if (want('weather')) {
-  const p = await page('z', {zwx: 'wave'});
+  const p = await page({zwx: 'wave'});
   await p.click('#play'); await sleep(600);
   // base-screen forecast with a mid-wave change
   await p.evaluate(() => { const {Z, G} = __z; G.next = __z.plan(6); G.next.wx = {id: 'overcast', to: 'rain', why: 'rain moving in', at: 20, dur: 35}; Z.base.render(); });
@@ -73,14 +72,5 @@ if (want('weather')) {
   await sleep(1200); await p.screenshot({path: `${OUT}/wx-shift-half.png`});
   const st = await p.evaluate(() => ({wx: __z.api.WX.n, mix: !!__z.api.WX.mix, f: +__z.Z.wx.cur.f.toFixed(2)})); console.log('mid-wave shift', JSON.stringify(st));
   await p.close();
-}
-if (want('classic')) {
-  for (const skin of ['dart', 'strela']) {
-    const p = await page('classic', {skin});
-    await p.click('#play'); await sleep(800);
-    await p.evaluate(() => { document.getElementById('hud').style.visibility = 'hidden'; });  // standing on the mat, motors off
-    await orbit(p, .6, .15, 1.6); await sleep(400); await p.screenshot({path: `${OUT}/classic-${skin}.png`});
-    await p.close();
-  }
 }
 console.log(errs.length ? errs.join('\n') : 'no errors'); await b.close(); server.close();

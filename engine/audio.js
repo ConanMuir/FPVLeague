@@ -13,7 +13,7 @@ export function audioInit({extra,motor}={}){if(AC)return;if(motor)MOT={...MOT,..
  extra?.(AC);
 }catch(e){AC=null}}
 export const audioOn=()=>!!(AC&&mo.length);
-// master bus: every sound in the game (engine, Classic, Zombies) reaches the speakers through one gain and a limiter. AC.destination is
+// master bus: every sound in the game (engine, Zombies) reaches the speakers through one gain and a limiter. AC.destination is
 // re-pointed at the bus so code that connects to AC.destination needs no change; setMaster(0..1) scales everything
 let MST=null;const MASTER=.45;
 function masterBus(A){const out=A.destination,g=A.createGain(),lim=A.createDynamicsCompressor();lim.threshold.value=-6;lim.knee.value=6;lim.ratio.value=12;lim.attack.value=.002;lim.release.value=.15;

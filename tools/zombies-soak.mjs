@@ -1,6 +1,6 @@
 // Zombies soak: a scripted player who shops sensibly plays long runs on each difficulty (to --waves or game over) while the harness
 // watches for page errors, NaNs, stuck states (a wave that never ends, a base screen that never opens, a boss that never dies) and
-// leaks (tracks, scene objects, GPU geometries/textures, JS heap after GC), then checks that Classic still works and the modes switch.
+// leaks (tracks, scene objects, GPU geometries/textures, JS heap after GC), then checks that the menu is clean afterwards and a new game starts fresh.
 // Run: node tools/zombies-soak.mjs [--diff 0,1,2,3] [--waves 32] [--skill .05] [--god]   (--god keeps the sites topped up to reach late waves)
 // Long session: node tools/zombies-soak.mjs --minutes 60 [--diff 1] [--json out.json]: one run of that many game-minutes with everything on
 // (a boss forced into every wave and another spawned in it, the Mothership every other wave, the weather cycling through every Zombies
@@ -123,7 +123,7 @@ async function soak(browser, zd, errs) {
     const h0 = heaps.find(h => h[0] >= 10) || heaps[0], h1 = heaps.at(-1);
     if (h0 && h1 && h1 !== h0) ok(h1[1] - h0[1] < 25, `${name}: JS heap ${h0[1]} MB at wave ${h0[0]} -> ${h1[1]} MB at wave ${h1[0]}`);
   }
-  // after the run: Try again starts a clean game, then the menu and Classic still work
+  // after the run: Try again starts a clean game, then the menu is clean and a new game starts fresh
   if (last.st === 'over') {
     await p.click('#zagain'); await sleep(400);
     const a = await p.evaluate(() => ({st: __z.G.state, wave: __z.G.wave, cash: __z.G.cash, defs: __z.Z.def.D.length, th: __z.api.TH.length, start: __z.Z.diff().start, hp: __z.integrity()}));
@@ -131,12 +131,9 @@ async function soak(browser, zd, errs) {
   }
   await p.evaluate(() => __z.api.startDemo()); await sleep(300);
   if (rows.length > 6) { const lv = await p.evaluate(STATS); ok(lv.orphan.n - last.orphan.n < 10, `${name}: leaving Zombies frees the defences' geometries (left behind ${last.orphan.n} -> ${lv.orphan.n})` + (lv.orphan.n - last.orphan.n >= 10 ? ' ' + JSON.stringify(lv.orphan.top) : '')); }
-  await p.evaluate(() => { document.querySelector('#gmode button[data-m="classic"]').click(); }); await sleep(100);
-  await p.click('#play'); await sleep(600);
-  const c = await p.evaluate(() => { const {api} = __z; __z.sim(40); return {zon: __z.Z.on, wave: api.wave, th: api.TH.length, kinds: [...new Set(api.TH.map(t => t.k || (t.jet ? 'jet' : 'shahed')))], sites: api.SITES.length, hp: api.SITES.map(s => s.max), aw: api.AW, rrs: api.RRS.length, zhud: document.getElementById('zhud').hidden, base: document.getElementById('zbase').hidden}; });
-  ok(!c.zon && c.wave >= 1 && c.sites === 3 && c.hp.every(h => h === 3) && c.aw === 3000 && c.rrs === 3 && c.zhud && c.base && c.kinds.every(k => k === 'shahed' || k === 'jet'), `${name}: Classic after Zombies: ${JSON.stringify(c)}`);
-  await p.evaluate(() => __z.api.startDemo()); await sleep(200);
-  await p.evaluate(() => { document.querySelector('#gmode button[data-m="z"]').click(); }); await p.click('#play'); await sleep(400);
+  const c = await p.evaluate(() => { const {api} = __z; return {zon: __z.Z.on, demo: api.demo, sites: api.SITES.length, hp: api.SITES.map(s => s.max), aw: api.AW, rrs: api.RRS.length, zhud: document.getElementById('zhud').hidden, base: document.getElementById('zbase').hidden}; });
+  ok(!c.zon && c.demo && c.sites === 3 && c.hp.every(h => h === 3) && c.aw === 3000 && c.rrs === 3 && c.zhud && c.base, `${name}: the menu after Zombies is clean: ${JSON.stringify(c)}`);
+  await p.click('#play'); await sleep(400);
   const z2 = await p.evaluate(() => ({st: __z.G.state, on: __z.Z.on, wave: __z.G.wave, sites: __z.api.SITES.length, defs: __z.Z.def.D.length}));
   ok(z2.on && z2.st === 'base' && z2.wave === 0 && z2.sites === 3 && z2.defs === 0, `${name}: back to Zombies starts a fresh game (${JSON.stringify(z2)})`);
   ok(!errs.length, `${name}: no page errors` + (errs.length ? '\n  ' + [...new Set(errs)].slice(0, 8).join('\n  ') : ''));

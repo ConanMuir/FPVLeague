@@ -190,15 +190,15 @@ export function initDefences(api,G,Z){
  function mstep(dt){for(const h of shots)if(h.np){h.fuel-=dt;h.np.addScaledVector(h.nv,dt);h.p.addScaledVector(h.v,dt).lerp(h.np,1-Math.exp(-dt*8))}
   for(let i=tr.length-1;i>=0;i--){const q=tr[i];q.p.addScaledVector(q.v,dt);if((q.life-=dt)<=0)tr.splice(i,1)}
   for(const d of D)d.cells?.forEach((c,i)=>c.visible=i<(isRack(d)?d.ready:d.ammo))}
- // co-op snapshot pieces: S = shots in the air [id, kind, x, y, z, vx, vy, vz (m, m/s), target id], D = defences [id, type, slot, tier, lvl, cap, kills, spent, shots, ready, ammo, bought by, refit, short of ammo]
+ // co-op snapshot pieces: S = shots in the air [id, kind, x, y, z, vx, vy, vz (m, m/s), target id], D = defences [id, type, slot, tier, lvl, cap, kills, spent, shots, ready, ammo, bought by, refit, short of ammo, spent before this base screen]
  const PKI=Object.keys(PK),HT=Object.keys(MESH),r0=Math.round;
  function netOut(){return{S:shots.map(h=>[h.id,PKI.indexOf(h.kind),r0(h.p.x),r0(h.p.y),r0(h.p.z),r0(h.v.x),r0(h.v.y),r0(h.v.z),h.tgt?h.tgt.id:0]),
-  D:D.map(d=>[d.id,HT.indexOf(d.type),d.slot,d.tier,d.lvl,d.cap,d.kills,d.spent|0,d.shots,d.ready,d.ammo,d.by||'',d.refit||'',d.short|0])}}
+  D:D.map(d=>[d.id,HT.indexOf(d.type),d.slot,d.tier,d.lvl,d.cap,d.kills,d.spent|0,d.shots,d.ready,d.ammo,d.by||'',d.refit||'',d.short|0,d.s0|0])}}
  function netIn(S,DL,byId){const ok=a=>Array.isArray(a)&&a.slice(0,8).every(Number.isFinite);
   if(Array.isArray(DL)){const seen=new Set();for(const a of DL){if(!ok(a))continue;const type=HT[a[1]];if(!type||!SLOTS[a[2]])continue;let d=D.find(x=>x.id===a[0]);if(!d){d=add(type,a[2]);d.id=a[0]}seen.add(d.id);
     if(d.slot!==a[2]){d.slot=a[2];free(d)}
     const rf=(REFIT[type]||[]).some(r=>r.id===a[12])?a[12]:'';
-    Object.assign(d,{tier:cl(a[3]|0,0,RACK_TIERS.length-1),lvl:cl(a[4]|0,0,(HELP[type]?.lv.length||1)-1),cap:a[5]|0,kills:a[6]|0,spent:a[7]|0,shots:a[8]|0,ready:a[9]|0,ammo:a[10]|0,by:String(a[11]||'').replace(/[<>&"'`]/g,'').slice(0,16),refit:rf,short:a[13]?1:0})}
+    Object.assign(d,{tier:cl(a[3]|0,0,RACK_TIERS.length-1),lvl:cl(a[4]|0,0,(HELP[type]?.lv.length||1)-1),cap:a[5]|0,kills:a[6]|0,spent:a[7]|0,shots:a[8]|0,ready:a[9]|0,ammo:a[10]|0,by:String(a[11]||'').replace(/[<>&"'`]/g,'').slice(0,16),refit:rf,short:a[13]?1:0,s0:a[14]|0})}
    for(const d of[...D])if(!seen.has(d.id))remove(d)}
   if(Array.isArray(S)){const old=new Map(shots.map(h=>[h.id,h])),nx=[];for(const a of S){if(!ok(a))continue;const kind=PKI[a[1]];if(!kind)continue;let h=old.get(a[0]);
     if(!h)h={id:a[0],kind,P:PK[kind],fuel:PK[kind].fuel,p:new V3(a[2],a[3],a[4]),v:new V3(),np:new V3(),nv:new V3(),d:null,tgt:null};h.np.set(a[2],a[3],a[4]);h.nv.set(a[5],a[6],a[7]);h.v.copy(h.nv);h.tgt=byId(a[8])||null;nx.push(h)}
