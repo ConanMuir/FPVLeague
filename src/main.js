@@ -5,7 +5,7 @@ import './render/renderer.js';import './world/arena.js';import './world/maps.js'
 import './physics/sdf.js';import './physics/ball.js';import './render/ball.js';import './world/orbs.js';import './render/drone-mesh.js';import './flight/drone.js';
 import './flight/attitude.js';import './input/input.js';import './bots/league.js';import './world/highlands.js';import './modes/dogfight.js';import './modes/guns.js';
 import './bots/dogfight.js';import './state.js';import './modes/match.js';import './net/net.js';import './modes/step.js';import './render/camera.js';import './ui/hud.js';
-import './render/visuals.js';import './ui/menu.js';import './input/calibration.js';import './ui/modpanel.js';import './ui/rates.js';import './ui/sens.js';import './ui/garage.js';import './net/p2p.js';import './modes/registry.js';import './modes/league.js';import './modes/freeplay.js';import './modes/lab.js';import './ui/lab.js';import './modes/training.js';import './ui/training.js';
+import './render/visuals.js';import './ui/menu.js';import './input/calibration.js';import './ui/modpanel.js';import './ui/rates.js';import './ui/sens.js';import './ui/garage.js';import './net/p2p.js';import './modes/registry.js';import './modes/league.js';import './modes/freeplay.js';import './modes/lab.js';import './ui/lab.js';import './modes/training.js';import './ui/training.js';import './modes/tournament.js';import './ui/tournament.js';
 import {$} from './config/constants.js';
 import {makeLoop} from './core/loop.js';
 import {makeInterp} from './render/interp.js';
@@ -46,6 +46,8 @@ import {modeHud} from './modes/registry.js';
 import {cosInfo} from './render/cos-mat.js';
 import {setMap,warmLook} from './world/maps.js';
 import {rpDt,rpFrame,rpIn,rpInit,rpOut,rpRec,rpVis,rpState} from './render/replay.js';
+import {TN,tournSnap} from './modes/tournament.js';
+import {initTournament} from './ui/tournament.js';
 // ---------- main loop ----------
 // fixed 120 Hz simulation (core/loop.js: timeScale / Game speed change how much sim time a frame covers; pause runs none), drawn between the
 // last two ticks: render/interp.js moves the ball and the local quads (modes/guns.js gunsLerp: the tracers and turret heads) alpha of the way
@@ -64,7 +66,7 @@ function frame(now){requestAnimationFrame(frame);if(capSkip(now))return;const dt
 initPhysics().then(()=>{
 rpInit();initMenu();initCalib();initModPanel();
 renderPresets();applyTune();syncMod();setMap(S.map);setBall(S.ball);
-initRates();initSens();initLab();initGarage();initTraining();initProfile();syncRates();
+initRates();initSens();initLab();initGarage();initTraining();initProfile();initTournament();TN.tick=tick;syncRates();  /* TN.tick: a simulated tournament match steps through the same tick (snapshot + step), so it draws right */
 setGame(GS.GM);startDemo();requestAnimationFrame(frame);
 // first-use work ahead, in idle time while the menu's demo runs (render/warm.js): every shader of the scene as it is (goal explosion, replay
 // and kill-cam effects included), the outdoor maps' shared textures, the Garage, the Highlands
@@ -72,5 +74,5 @@ warmQueue('shaders',()=>compileFor(scene));warmQueue('outdoor textures',warmOutd
 warmIdle(()=>GS.menuOpen&&GS.demo&&!GS.net&&!document.hidden);
 connectRoom()});
 // read-only snapshot for tools/smoke.mjs; nothing in the game reads it
-window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo,train:trainSnap,prof:profSnap,replay:rpState,
+window.__dl={bind:()=>calib?{i:calib.i,sub:calib.sub,ph:calib.D?.ph||null,done:!!calib.done}:null,snap:()=>({state:GS.state,OBSON:GS.OBSON,demo:GS.demo,clock:GS.clock,score:[...GS.score],ball:ball.p.toArray(),drones:GS.drones.map(d=>({key:d.key,team:d.team,bot:d.bot,dead:d.dead,p:d.p.toArray(),lo:d.lo.ids.join('/')}))}),lab:labSnap,garageView,cosInfo,train:trainSnap,prof:profSnap,replay:rpState,tourn:tournSnap,
  view:()=>{const P=m=>{const e=m.matrixWorld.elements;return[e[12],e[13],e[14]]},e=camera.matrixWorld.elements,o={t:simT-(1-drawA)/120,cam:P(camera),camU:[e[4],e[5],e[6]],camF:[-e[8],-e[9],-e[10]]};if(ballMesh.visible)o.ball=P(ballMesh);for(const d of GS.drones)if(d.mesh&&d.mesh.visible&&!d.dead)o[d.key]=P(d.mesh);return o},gl:()=>({scene,camera,renderer,composer,setRS})};  // tools/glitch-check.mjs: drawn positions
