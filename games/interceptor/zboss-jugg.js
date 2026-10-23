@@ -70,7 +70,7 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
   for(const i of exposed(t)){const q=wpWorld(C,t,i).project(cam);if(q.z>1||Math.abs(q.x)>1||Math.abs(q.y)>1)continue;const X=(q.x*.5+.5)*W,Y=(-q.y*.5+.5)*H,R=12+4*Math.sin(performance.now()/120);oc.beginPath();oc.arc(X,Y,R,0,7);oc.stroke();oc.fillText('WEAK POINT',X,Y-R-6)}
   const S=t.bs.site;if(S){const q=t.p.clone().project(cam);if(q.z<1)oc.fillText(`→ ${S.n} ${Math.ceil(Math.hypot(S.x-t.p.x,S.z-t.p.z)/Math.max(1,t.spd))} s`,(q.x*.5+.5)*W,(-q.y*.5+.5)*H+46)}},
  atmos(C,t,o){const B=t.bs,f=1-(B.hp??6)/(B.max||6);o.fog=.5-.25*f;o.fogC.set(0x37322d);o.fogMix=.5+.3*f;o.light=.75-.25*f;o.dark=.15+.3*f;o.desat=.15+.2*f;o.vign=.2+.2*f;o.tint.set(0xd8b890);o.tintA=.08+.08*f;return .6+.4*f},
- status(C,e){const t=e.main,E=exposed(t),S=t.bs.site;return`weak points <b>${E.length}</b> glowing · ${Math.max(0,t.bs.hp)} left in all${S?` · → ${S.n} in <b>${Math.ceil(Math.hypot(S.x-t.p.x,S.z-t.p.z)/Math.max(1,t.spd))} s</b>`:''} · only weak-point hits count`},
+ status(C,e){const t=e.main,E=exposed(t),S=t.bs.site||t.tgt;  /* a co-op client's copy has the target from the snapshot's statics, not the host's bs.site */return`weak points <b>${E.length}</b> glowing · ${Math.max(0,t.bs.hp)} left in all${S?` · → ${S.n} in <b>${Math.ceil(Math.hypot(S.x-t.p.x,S.z-t.p.z)/Math.max(1,t.spd))} s</b>`:''} · only weak-point hits count`},
  netOut:(C,t)=>[alive(t)],netIn(C,t,a){if(Number.isFinite(a[0]))t.bs.wm=a[0]},
  aim(C,t,s){const E=exposed(t);if(!E.length)return null;const p=wpWorld(C,t,C.pick(E));if(Math.random()>s)p.add(new C.V3(0,8,0));return{p,v:t.v}},
  winTxt:'The Juggernaut is down. Scrap metal everywhere.',

@@ -424,11 +424,43 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }
 
-// ---------- the wave's end on a client (zbosses.js): the base and game-over screens pause a client's sim, so a client that never gets a step in the wave's clear state must still see the wave end ----------
+// ---------- what the host's bosses draw reaches the clients' screens (netOut numbers): the Ace's missiles, the Ghost's bomb, the Puppeteer's wires, the Juggernaut's target ----------
 { await ev(H, () => { __z.G.cash = 4000; });
   await readyUp(6);
+  const aid = await lastBoss('ace');
+  ok(await onScreens(aid), 'Visuals: KOSCHEI is on both clients\' screens');
+  /* the host's interceptor flies a straight line, stepped by hand so that nothing else moves it, with the Ace coming up behind: the lock builds and a missile flies */
+  const run = await ev(H, id => { const {api} = __z, me = api.player, t = api.TH.find(t => t.id === id), V = api.THREE.Vector3; if (me.dead > 0) api.launch();
+    const P0 = new V(0, api.gh(0, 600) + 400, 600), dir = new V(0, 0, -1); t.p.copy(P0).addScaledVector(dir, 700).setY(P0.y); t.v.copy(dir).multiplyScalar(-90); t.bs.mcd = 0; t.bs.brkCd = 0;
+    for (let i = 0; i < 400; i++) { me.p.copy(P0).addScaledVector(dir, -i * 3); me.v.copy(dir).multiplyScalar(60); me.q.identity(); me.dead = 0; __z.sim(.05, 1 / 60); if ((__z.Z.bosses.fx().missiles | 0) > 0) return i; } return -1; }, aid);
+  ok(run >= 0, `Visuals: the Ace locks the host's interceptor and fires (after ${run} steps)`);
+  for (const C of [A, B]) ok(await until(C, () => (__z.Z.bosses.fx().missiles | 0) > 0, null, 15000), `Visuals: ${C.name} sees the missile in the air`);
+  await ev(H, id => { __z.Z.bosses.ctx.vanish(__z.api.TH.find(t => t.id === id), 'gone'); }, aid);
+  /* the Ghost over a site with its bomb falling: BOMBS AWAY on the clients, the bomb's trail drawn there */
+  for (const C of [A, B]) await ev(C, () => { __say.length = 0; });
+  const gid = await lastBossToo('ghost');
+  await ev(H, id => { const {api} = __z, t = api.TH.find(t => t.id === id), B = t.bs, s = api.SITES[1], V = api.THREE.Vector3; B.site = s; B.pass = 0; B.drop = 0; B.out = 0; t.p.set(s.x - 1200, s.y + 1100, s.z); t.v.set(90, 0, 0); }, gid);
+  for (const C of [A, B]) ok(await until(C, () => __say.includes('BOMBS AWAY') && (__z.Z.bosses.fx().bombs | 0) > 0), `Visuals: ${C.name} is told BOMBS AWAY and sees the bomb fall`);
+  await ev(H, id => { __z.Z.bosses.ctx.vanish(__z.api.TH.find(t => t.id === id), 'gone'); }, gid);
+  /* the Juggernaut's status line has its target and the seconds to it, as on the host */
+  const jid = await lastBossToo('jugg');
+  ok(await onScreens(jid), 'Visuals: the Juggernaut is on both clients\' screens');
+  for (const C of [A, B]) ok(await until(C, () => /→ [A-Z ]+ in \d+ s/.test(document.getElementById('zbb').textContent)), `Visuals: ${C.name}'s boss bar reads "${await ev(C, () => (document.getElementById('zbb').textContent.match(/→ [A-Z ]+ in \d+ s/) || [''])[0])}" (the target and its time)`);
+  await ev(H, id => { __z.Z.bosses.ctx.vanish(__z.api.TH.find(t => t.id === id), 'gone'); }, jid);
+  /* the Puppeteer strings a wire to a drone near it: the clients see the wire (and the host's count) */
+  await ev(H, () => { for (let i = 0; i < 3; i++) { const t = __z.make('shahed', 600 + i * 40, 300); t.p.y = __z.api.gh(t.p.x, t.p.z) + 300; t.alt = 300; } __z.sim(.2); });
+  const pid = await ev(H, () => { const t = __z.Z.bosses.spawn('puppet', {x: 700, z: 400}); __z.sim(.5); t.p.set(700, __z.api.gh(700, 400) + .1, 400); t.bs.wt = 0; __z.sim(.5); return t.id; });  /* moved to where the drones are (its own first spot is random), a wire due now */
+  ok(await until(H, () => (__z.Z.bosses.fx().wires | 0) > 0), 'Visuals: the Puppeteer has a wire strung on the host');
+  for (const C of [A, B]) ok(await until(C, () => (__z.Z.bosses.fx().wires | 0) > 0, null, 15000), `Visuals: ${C.name} sees the wire`);
+  await ev(H, () => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; });  /* the wave is over */
+  for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
+}
+
+// ---------- the wave's end on a client (zbosses.js): the base and game-over screens pause a client's sim, so a client that never gets a step in the wave's clear state must still see the wave end ----------
+{ await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(7);
   const id = await lastBoss('boss');
-  ok(await until(B, () => __z.Z.bosses.shadows.some(m => m.visible)), 'Wave end: the Mothership is the last track of wave 6 and its shadow is down on Bea\'s ground');
+  ok(await until(B, () => __z.Z.bosses.shadows.some(m => m.visible)), 'Wave end: the Mothership is the last track of wave 7 and its shadow is down on Bea\'s ground');
   const stages = () => ev(H, id => __z.api.TH.find(t => t.id === id)?.stages | 0, id);
   for (let i = 0; i < 8 && await stages() > 1; i++) await burstAt(A, id);
   ok(await stages() === 1, 'Wave end: Ash\'s bursts have taken the Mothership down to its last pod');
@@ -440,7 +472,7 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base') && await until(C, () => !__z.Z.bosses.shadows.some(m => m.visible)), `${C.name}: on the base screen the Mothership's shadow is gone, though ${C.name} never saw the clear state`);
   /* a game over with the Hush in the air: the darkness and the fight go from the client's screen as they do from the host's */
   await ev(H, () => { __z.G.cash = 4000; });
-  await readyUp(7);
+  await readyUp(8);
   await lastBoss('hush');
   ok(await until(A, () => __z.Z.atmos.sources > 0) && await until(B, () => __z.Z.atmos.sources > 0), 'Wave end: the Hush\'s darkness is down on both clients');
   await ev(H, () => { __z.Z.gameOver(); __z.sim(.1); });

@@ -56,11 +56,15 @@ registerBoss({id:'ghost',n:'Ghost',tag:'GHOST',col:'#b8c4d0',spd:75,alt:[1050,11
   // the lock slips: about 2 s held, then 3 s before it can be locked again (each screen runs its own lock)
   if(!C.auth()&&B.lcd>0)B.lcd=Math.max(0,B.lcd-dt);  /* the host's tick counts the cooldown down; a co-op client's copy of the Ghost has no tick, and its lock stayed shut for good after the first slip */
   if(Z.lk?.t===t){B.lh=(B.lh||0)+dt;if(B.lh>2.1){Z.lk.clear();B.lh=0;B.lcd=3;api.banner('LOCK SLIPPED','co',1)}}else B.lh=0},
- netOut:(C,t)=>[t.bs.pass|0],netIn(C,t,a){t.bs.pass=a[0]|0},
+ /* the bomb in the air (one per pass): where it is and what it falls on; a client draws its smoke trail and says BOMBS AWAY, and the host's explosion event does the rest */
+ netOut:(C,t)=>{const b=BOMBS.find(q=>q.t===t),o=[t.bs.pass|0];if(b)o.push(Math.round(b.p.x),Math.round(b.p.y),Math.round(b.p.z),Math.round(b.v.x),Math.round(b.v.y),Math.round(b.v.z),C.api.SITES.indexOf(b.s));return o},
+ netIn(C,t,a){t.bs.pass=a[0]|0;let b=BOMBS.find(q=>q.t===t);
+  if(a.length>=8&&a.slice(1,7).every(Number.isFinite)){if(!b){b={p:new C.V3(),v:new C.V3(),s:C.api.SITES[a[7]]||null,t};BOMBS.push(b);C.Z.an?.say('BOMBS AWAY','the Ghost is over the '+String(b.s?.n||'target').toLowerCase(),'#ff4d4d',1)}b.p.set(a[1],a[2],a[3]);b.v.set(a[4],a[5],a[6])}
+  else if(b)BOMBS.splice(BOMBS.indexOf(b),1)},
  aim(C,t,s){if(Math.random()>s*.8)return null;return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s?-1:-8)}},
  winTxt:'The Ghost is down. Nobody saw it coming, not even it.',escTxt:'slipped away',
  clear(){BOMBS.length=0},fxLeft:()=>({bombs:BOMBS.length}),
- g:{step(C,dt){if(!C.auth())return;for(let i=BOMBS.length-1;i>=0;i--){const b=BOMBS[i];b.v.y-=9.8*dt;b.v.multiplyScalar(1-.05*dt);b.p.addScaledVector(b.v,dt);if(Math.random()<.4)C.SMK.emit(b.p,0x7a766e,1,.5,2,null,1,.5);
+ g:{step(C,dt){if(!C.auth()){for(const b of BOMBS){b.v.y-=9.8*dt;b.v.multiplyScalar(1-.05*dt);b.p.addScaledVector(b.v,dt);if(Math.random()<.4)C.SMK.emit(b.p,0x7a766e,1,.5,2,null,1,.5)}return}for(let i=BOMBS.length-1;i>=0;i--){const b=BOMBS[i];b.v.y-=9.8*dt;b.v.multiplyScalar(1-.05*dt);b.p.addScaledVector(b.v,dt);if(Math.random()<.4)C.SMK.emit(b.p,0x7a766e,1,.5,2,null,1,.5);
    if(b.p.y<=C.api.gh(b.p.x,b.p.z)+2){BOMBS.splice(i,1);C.api.boom(b.p,5);const d=Math.hypot(b.p.x-b.s.x,b.p.z-b.s.z);if(b.s.hp>0&&d<220)C.strike(b.t,b.s,90)}}},stop(){BOMBS.length=0}},
  sting(S){const t0=S.t+.05,o=S.out(1),n=S.nz(t0,4),f=S.filt('bandpass',500,2);f.frequency.setValueAtTime(260,t0);f.frequency.linearRampToValueAtTime(900,t0+2);f.frequency.linearRampToValueAtTime(300,t0+4);n.connect(f).connect(S.env(t0,.2,1.5,4,o));  // a hollow wind
   for(let i=0;i<4;i++){const x=S.osc('sine',52,t0+.6+i*.85,.25);x.frequency.exponentialRampToValueAtTime(34,t0+.85+i*.85);x.connect(S.env(t0+.6+i*.85,.3,.01,.25,o))}},  // a heartbeat
