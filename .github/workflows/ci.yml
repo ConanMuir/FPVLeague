@@ -151,6 +151,10 @@ jobs:
           - check: zombies-test (sell)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=sell
+          # Tournament mode: every format's bracket in node, then in the game a bot match simulated, one played, one watched, the save resumed
+          - check: tournament-check
+            area: league
+            run: node tools/tournament-check.mjs
           # Little Buddy (zbuddy.js): the Drone League garage quad as a free helper (also covered: zombies-coop for the co-op sync)
           - check: zombies-test (buddy)
             area: interceptor
