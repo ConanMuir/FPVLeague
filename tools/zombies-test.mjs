@@ -752,7 +752,8 @@ if (want('grid')) {
     const o = await p.evaluate(RUN, brute); await p.close(); return {o, errs}; };
   const A = await game(false), B = await game(true), a = JSON.parse(A.o), b = JSON.parse(B.o);
   console.log(`  grid game: wave ${a.w} ${a.st}, ${a.k.p} pilot / ${a.k.h} helper kills, ${a.dets} bursts, ${a.th.length} tracks, up to ${a.shots} shots, swarm ${a.swMax} up, ${a.swLost} lost, ${a.swKills} kills, ${a.sw.length} left`);
-  ok(a.k.p + a.k.h >= 10 && a.dets > 3 && a.sw.length, `Grid game: busy enough to mean something (${a.k.p + a.k.h} kills, ${a.dets} bursts)`);
+  /* the swarm counts if it flew this wave: its attack passes lose drones on the dice, so how many are left at the end is luck (all six can go) */
+  ok(a.k.p + a.k.h >= 10 && a.dets > 3 && a.swMax > 0, `Grid game: busy enough to mean something (${a.k.p + a.k.h} kills, ${a.dets} bursts, swarm of ${a.swMax} flew)`);
   ok(A.o === B.o, `Grid: a whole wave plays out identically with the grid and with plain loops (${A.o.length} chars of end state compared)` + (A.o === B.o ? '' : `\n  grid ${A.o.slice(0, 300)}\n  loop ${B.o.slice(0, 300)}`));
   ok(!A.errs.length && !B.errs.length, 'Grid game: no errors' + (A.errs.length + B.errs.length ? '\n  ' + [...A.errs, ...B.errs].join('\n  ') : ''));
 }
