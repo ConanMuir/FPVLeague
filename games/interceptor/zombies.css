@@ -5,8 +5,7 @@
 .gmode.zdiff{display:flex;margin:-4px 0 10px}.gmode.zdiff[hidden]{display:none}.gmode.zdiff button{flex:1;padding:6px 10px;font-size:13px}
 .gmdesc{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.45;max-width:52ch}.gmdesc b{color:var(--ink)}
 
-/* in-wave HUD: replaces Classic's score strip and site row */
-#hud.z #score,#hud.z #sites{display:none}
+/* in-wave HUD */
 #zhud{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:5px;pointer-events:none}
 #zhud .zt{display:flex;align-items:stretch;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.5);font:700 18px var(--mono)}
 #zhud .zt>span{padding:5px 12px;background:var(--panel);white-space:nowrap;display:flex;align-items:center}
@@ -132,3 +131,5 @@ body.zcoop #menu{z-index:4}  /* in co-op the menu (Leave co-op game) opens over 
 #zalert .zact button small{display:block;font-size:10px;color:var(--dim)}#zalert kbd{font:700 10px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:0 3px;margin-right:5px;color:var(--amber)}
 body.zb-open #zalert,#hud:not(.z) #zalert{display:none}
 @media (max-width:760px){#zalert{top:auto;bottom:calc(290px + env(safe-area-inset-bottom,0px));width:min(360px,92vw)}}
+/* selling (zsell.js): the refund line on a card, and the card of something sold this base screen (Undo until the wave starts) */
+.zups .zrf{color:#9fb0cc}.zarm.zsold{border-style:dashed;background:rgba(255,198,64,.06)}.zarm.zsold b{color:var(--dim);text-decoration:line-through}.zarm.zsold small{color:var(--amber)}

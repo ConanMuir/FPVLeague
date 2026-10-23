@@ -42,6 +42,7 @@ function sizeAll(){composer.setSize(innerWidth,innerHeight);renderer.getDrawingB
 // 0.6 and 1 of the level's pixel ratio. FPS meter (src/ui/fpsmeter.js) in the HUD's top-right corner: the level in effect (H / M / L) and, on Auto, the scale
 export const DYN=dynRes({min:.6,max:1});let pr0=1;
 function applyRS(){const pr=pr0*DYN.scale;renderer.setPixelRatio(pr);composer.setPixelRatio(pr);sizeAll()}
+export function setRS(k){DYN.scale=k;applyRS()}  /* tools/glitch-check.mjs: a dynamic-resolution step on demand (through main.js __dl.gl) */
 onFrame(ms=>{if(DYN.sample(ms))applyRS()});
 setCap(S.fcap||0);export const fpsMeter=mountFps({parent:document.getElementById('hud')||document.body,on:S.fps!==false,gl:renderer.getContext(),detail:()=>qId[0].toUpperCase()+(DYN.on?' '+Math.round(DYN.scale*100)+'%':'')});
 export function setQuality(id){qId=QUAL[id]?id:autoQ();Q=QUAL[qId];DYN.on=id==='auto';if(!DYN.on)DYN.reset();pr0=Math.min(devicePixelRatio||1,Q.pr);const pr=pr0*DYN.scale,ms=Q.aa==='msaa'&&cap.isWebGL2?Math.min(4,cap.maxSamples):0;

@@ -37,7 +37,7 @@ export function initSpectate(api,G,Z){
 #zspctl button{font:700 11.5px var(--mono);padding:5px 8px}#zspctl button.on{background:#5fe3ff;color:#04121a;border-color:#5fe3ff}#zspctl i{width:1px;background:var(--edge);margin:0 3px}
 #zspcap{position:fixed;left:0;right:0;margin:0 auto;width:max-content;top:calc(10px + env(safe-area-inset-top,0px));z-index:7;max-width:min(760px,94vw);padding:9px 16px;border-radius:8px;background:rgba(4,18,26,.92);border:1px solid #5fe3ff;font:700 15px var(--disp);color:#fff;text-align:center;pointer-events:none}
 #zspcap small{display:block;font:11px var(--mono);color:#5fe3ff;letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px}#zspcap[hidden]{display:none}
-body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.zsp-hl{outline:3px solid #5fe3ff!important;outline-offset:2px;box-shadow:0 0 18px #5fe3ff!important}
+body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on #zradio{bottom:calc(168px + env(safe-area-inset-bottom,0px))}body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.zsp-hl{outline:3px solid #5fe3ff!important;outline-offset:2px;box-shadow:0 0 18px #5fe3ff!important}
 #zsptune{position:fixed;right:12px;top:calc(12px + env(safe-area-inset-top,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));width:min(380px,calc(100% - 24px));overflow:auto;z-index:8;box-sizing:border-box;padding:12px 14px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(8px)}
 #zsptune h2{margin:0 0 4px;font-size:18px}#zsptune details{border-top:1px solid var(--edge);padding:4px 0}#zsptune summary{cursor:pointer;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);padding:5px 0}
 #zsptune .tr{display:grid;grid-template-columns:1fr 6.5em 1.6em;gap:6px;align-items:center;font-size:12.5px;padding:1px 0}#zsptune .tr label{color:var(--dim)}#zsptune .tr.chg label{color:#5fe3ff}
@@ -70,8 +70,8 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
   for(const b of card.querySelectorAll('[data-zsdoc]'))b.onclick=()=>put({doc:b.dataset.zsdoc});
   for(const b of card.querySelectorAll('[data-zskit]'))b.onclick=()=>{const k=b.dataset.zskit,c0=cfg();let kit=c0.kit.includes(k)?c0.kit.filter(x=>x!==k):[...c0.kit,k];if(kit.length>KIT_MAX)kit=kit.slice(-KIT_MAX);put({kit})};
   $('zspsec').onchange=e=>put({sec:e.target.value});$('zspgo').onclick=()=>start(cfg())}
- const syncCard=()=>{card.hidden=S.gmode!=='z';if(!card.hidden)renderCard()};
- syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};$('gmode').addEventListener('click',()=>setTimeout(syncCard,0));
+ const syncCard=()=>renderCard();
+ syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};
 
  // ---------- the run ----------
  const newStats=o=>({lv:o.lv,d:ZDIFF[o.d].n,doc:DOCS[o.doc]?.n||'Standard',kit:o.kit||[],sec:o.sec?SECTORS.find(s=>s.id===o.sec)?.n:'',simT:0,money:[],buys:[],kills:{},lastHit:null,dmg:{},bursts:0,deaths:{det:0,crash:0,bat:0},crashes:[],waves:[],sampleT:0,snap:new Map(),wasDead:false,relaunches:0});
@@ -80,7 +80,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
   sp.pilot=createPilot(api,G,Z,P,E);
   Z.botIn=(d,dt)=>sp.on&&G.state!=='base'&&G.state!=='over'?sp.pilot.input(d,dt):null;Z.botFire=()=>sp.on&&sp.pilot.fire();Z.sightCam=sight;
   const ld=Z.meta.load;Z.meta.load=()=>({doc:DOCS[o.doc]?o.doc:'std',kit:(o.kit||[]).filter(k=>KIT[k]).slice(0,KIT_MAX)});sp.starting=true;
-  try{S.gmode='z';if(o.sec&&Z.cp?.start)Z.cp.start(o.sec,true);else api.startMatch()}finally{Z.meta.load=ld;sp.starting=false}
+  try{if(o.sec&&Z.cp?.start)Z.cp.start(o.sec,true);else api.startMatch()}finally{Z.meta.load=ld;sp.starting=false}
   reseed(o.d);document.body.classList.add('zsp-on');api.camMode=1;if(sp.cam==='director')dir.on();
   if(!sp.bench){ui();api.feed(`<span class="cb">Bot spectator: ${esc(P.n)} on ${ZDIFF[o.d].n}</span>. Keys: C camera · 1-4 speed · Space pause · . step · K tuning · Esc menu`)}
   logMoney();return true}
