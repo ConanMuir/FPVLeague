@@ -2,6 +2,7 @@
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
 //   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,explore   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow} from './zlib.mjs';
+import {CI} from './browser.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
@@ -1494,11 +1495,16 @@ if (want('sell')) {
 // places, the systems and never stick, and reach the benchmark's wave; one run with a full purse from wave 15 uses the late-game systems ----------
 if (want('explore')) {
   /* the numbers this section holds the bot to (real-flying benchmark, Champion on Normal, fresh profile: median wave 36.5 over 20 runs before roaming and sorties; cells by wave 12: 208 before, 323 after). BASE_WAVE sits below the benchmark's quarter-point so a bad draw of three does not fail it; the coverage floors sit well under what the bot reaches. */
-  const BASE_CAP = 30, BASE_WAVE = 26, COV_CELLS = 240, COV_PLACES = 15, COV_SYS = 18;
+  /* CI (software GL on a slow runner, the shard has 20 minutes and a retry) runs the light version: one Champion run to wave 13 (the coverage floors are read at wave 12) instead of three to wave 30, beside the full-purse run of two waves from wave 15 instead of five (two windows, not four contexts), the visual run and the campaign
+     choice on one page; the same assertions with floors that one run clears (it reaches 13 in all but about 1 run in 20: the shard retries once). Locally: the full one. */
+  const BASE_CAP = CI ? 13 : 30, BASE_WAVE = CI ? 13 : 26, COV_CELLS = 240, COV_PLACES = 15, COV_SYS = CI ? 14 : 18, N_RUNS = CI ? 1 : 3, SYS_WAVES = CI ? 2 : 5;
+  const T0 = Date.now(), lap = n => console.log(`  [explore ${n}: ${Math.round((Date.now() - T0) / 1000)} s]`);
   const KINDS = ['shop', 'launch', 'station', 'transit', 'intercept', 'lock', 'line', 'boss', 'sortie', 'bomb', 'return', 'strike', 'relaunch', 'idle'];
-  // 1. the visual run: the HUD line, Z.bot.intent, and a sortie flown frame by frame (the shop waits for it, then goes on)
+  // 1. the visual run: the leaderboard's flying results, the HUD line, Z.bot.intent, and a sortie flown frame by frame (the shop waits for it, then goes on)
   {
     const {p, errs} = await page();
+    const lb = await p.waitForFunction(() => /flown: wave \d+, \d+% of the map, \d+ systems/.test(document.getElementById('zboard')?.textContent || ''), {timeout: 30000}).then(() => true, () => false);
+    ok(lb, 'Explore: the leaderboard shows what each bot level flew for real (wave, share of the map, systems used) beside the benchmark');
     await p.evaluate(() => { __z.spec.start({lv: 'Champion', d: 1, doc: 'std', kit: [], sec: ''}); __z.spec.setSpeed(8); });
     await p.waitForFunction(() => __z.G.state === 'wave', {timeout: 120000});
     await p.waitForFunction(() => { const e = document.getElementById('zspwhy'); return e && !e.hidden && e.textContent.length > 12 && __z.Z.bot.intent.kind !== 'idle'; }, {timeout: 120000});
@@ -1515,23 +1521,17 @@ if (want('explore')) {
     await p.waitForFunction(() => __z.G.wave >= 2 && __z.G.state === 'wave', {timeout: 400000});
     ok(true, 'Explore: the shop went on after the sortie and wave 2 started');
     await p.evaluate(() => __z.api.startDemo());
-    ok(!errs.length, 'Explore: visual run: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
-    await p.close();
-  }
-  // 1b. campaign choices: "Bot's choice" picks the doctrine and kit that answer the sector (Grain Silos: swarms, so a lure beacon; Air Mobile for the dash out), and the leaderboard shows each level's flying result
-  {
-    const {p, errs} = await page();
-    const lb = await p.waitForFunction(() => /flown: wave \d+, \d+% of the map, \d+ systems/.test(document.getElementById('zboard')?.textContent || ''), {timeout: 30000}).then(() => true, () => false);
-    ok(lb, 'Explore: the leaderboard shows what each bot level flew for real (wave, share of the map, systems used) beside the benchmark');
+    // campaign choices: "Bot's choice" picks the doctrine and kit that answer the sector (Grain Silos: swarms, so a lure beacon; Air Mobile for the dash out)
     const c = await p.evaluate(() => { const {spec, Z, G} = __z; spec.start({lv: 'Champion', d: 1, doc: 'std', kit: [], sec: 'silo', auto: true}); const o = spec.sp.o, r = {doc: o.doc, kit: o.kit, g: G.doc, camp: Z.bot.did('camp'), cp: !!Z.cp.on}; spec.stop(); return r; });
     ok(c.doc === 'air' && c.kit.includes('lure') && c.g === 'air' && c.camp && c.cp, `Explore: Bot's choice for Grain Silos: ${c.doc} doctrine with ${c.kit.join(' + ')}, flown in the campaign sector`);
     await p.evaluate(() => __z.api.startDemo());
-    ok(!errs.length, 'Explore: campaign choice: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+    lap('visual run and campaign choice');
+    ok(!errs.length, 'Explore: visual run: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
     await p.close();
   }
-  // 2. headless runs in their own contexts (as tools/zombies-bench.mjs): Champion on Normal, a fresh profile
+  // 2. headless runs: Champion on Normal, a fresh profile, in parallel. Locally each in its own context (as tools/zombies-bench.mjs); on CI each in a window with its draw calls stubbed
   async function botRun(lv, d, o = {}) {
-    const ctx = await browser.createBrowserContext(), errs = [], p = await open(browser, origin + '/games/interceptor/', errs, {w: 640, h: 360, page: await ctx.newPage()});
+    const ctx = CI ? null : await browser.createBrowserContext(), errs = [], p = await open(browser, origin + '/games/interceptor/', errs, {w: 640, h: 360, page: CI ? await newWindow(browser, {noRender: true}) : await ctx.newPage()});
     try {
       await p.evaluate(zd => { localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd, wx: 'clear', zwx: 'menu', zmus: 0})); sessionStorage.setItem('zbossRoster', '0'); }, d);  /* no random boss events: the Mirror outruns a tail chase and can hold a wave for good (bosses have their own section) */
       await p.reload({waitUntil: 'load', timeout: 180000}); await p.waitForFunction(() => window.__z, {timeout: 180000});
@@ -1548,16 +1548,18 @@ if (want('explore')) {
       }
       const sum = await p.evaluate(() => { const B = __z.Z.bot; return {s: B.summary(), stuck: B.stuckLog, over: __z.G.state === 'over', modeT: B.modeT}; });
       return {log, st, sum, errs};
-    } finally { await ctx.close().catch(() => {}); }
+    } finally { await (ctx || p).close().catch(() => {}); }
   }
   const med = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n % 2 ? s[n >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2; };
-  const [R0, R1, R2, RS] = await Promise.all([botRun('Champion', 1, {cap: BASE_CAP}), botRun('Champion', 1, {cap: BASE_CAP}), botRun('Champion', 1, {cap: BASE_CAP}), botRun('Champion', 1, {jump: 15, cash: 60000, waves: 5})]);
-  const RUNS = [R0, R1, R2];
+  const jobs = [...Array.from({length: N_RUNS}, () => () => botRun('Champion', 1, {cap: BASE_CAP})), () => botRun('Champion', 1, {jump: 15, cash: 60000, waves: SYS_WAVES})];
+  const done = await Promise.all(jobs.map(j => j()));
+  const RS = done.pop(), RUNS = done, R0 = RUNS[0];
+  lap('headless runs');
   const waves = RUNS.map(r => r.log[r.log.length - 1].w), at = (r, w) => r.log.find(l => l.w >= w) || r.log[r.log.length - 1];
-  console.log('  Champion x3 (Normal): final waves', waves.join(' '), '| at wave 12: cells', RUNS.map(r => at(r, 12).cells).join(' '), 'places', RUNS.map(r => at(r, 12).places).join(' '), 'systems', RUNS.map(r => at(r, 12).sys).join(' '));
+  console.log('  Champion x' + N_RUNS + ' (Normal): final waves', waves.join(' '), '| at wave 12: cells', RUNS.map(r => at(r, 12).cells).join(' '), 'places', RUNS.map(r => at(r, 12).places).join(' '), 'systems', RUNS.map(r => at(r, 12).sys).join(' '));
   ok(RUNS.every(r => r.st !== 'wave'), `Explore: no wave runs on without end (no stuck state): ${RUNS.map(r => r.st).join(' ')}`);
   ok(RUNS.every(r => r.sum.s.stuck === 0), `Explore: the bot never sat still in a state that should move (${RUNS.map(r => r.sum.s.stuck).join(' / ')} stuck)${RUNS.some(r => r.sum.stuck.length) ? ' ' + JSON.stringify(RUNS.flatMap(r => r.sum.stuck).slice(0, 3)) : ''}`);
-  ok(med(RUNS.map(r => at(r, 12).cells)) >= COV_CELLS, `Explore: by wave 12 it has flown over ${med(RUNS.map(r => at(r, 12).cells))} map cells (median of 3; at least ${COV_CELLS} = ${Math.round(100 * COV_CELLS / RUNS[0].sum.s.cellTotal)}% of the operational area)`);
+  ok(med(RUNS.map(r => at(r, 12).cells)) >= COV_CELLS, `Explore: by wave 12 it has flown over ${med(RUNS.map(r => at(r, 12).cells))} map cells (median of ${N_RUNS}; at least ${COV_CELLS} = ${Math.round(100 * COV_CELLS / RUNS[0].sum.s.cellTotal)}% of the operational area)`);
   ok(med(RUNS.map(r => at(r, 12).places)) >= COV_PLACES, `Explore: and ${med(RUNS.map(r => at(r, 12).places))} of ${RUNS[0].sum.s.placesTotal} places (ridges, the river valley, villages, sites, forward positions; at least ${COV_PLACES})`);
   ok(med(RUNS.map(r => r.sum.s.sorties.n)) >= 3 && RUNS.every(r => r.sum.s.sorties.bombs >= 1), `Explore: sorties flown ${RUNS.map(r => r.sum.s.sorties.n).join(' / ')} (${RUNS.map(r => r.sum.s.sorties.home).join(' / ')} home), bombs dropped ${RUNS.map(r => r.sum.s.sorties.bombs).join(' / ')}, ${RUNS.map(r => Object.values(r.sum.s.sorties.kills).reduce((a, b) => a + b, 0)).join(' / ')} targets destroyed`);
   ok(med(waves) >= BASE_WAVE, `Explore: the wave baseline holds: Champion on Normal reached waves ${waves.join(' / ')} (median ${med(waves)}; the real-flying benchmark's median before roaming was 36.5, so at least ${BASE_WAVE})`);
@@ -1566,7 +1568,7 @@ if (want('explore')) {
   const has = pre => S.systemIds.filter(i => i.startsWith(pre)).length;
   ok(S.systems >= COV_SYS && has('wpn:') + has('def:') >= 2 && has('swarm:') >= 2 && has('perk:') >= 2 && S.systemIds.includes('lock') && has('shop:') >= 4, `Explore: a full purse from wave 15 uses ${S.systems} of ${S.systemsTotal} systems (arsenal ${has('wpn:') + has('def:')}, swarm commands ${has('swarm:')}, perks ${has('perk:')}, lock-on, shop actions ${has('shop:')}; at least ${COV_SYS})`);
   ok(RS.sum.s.stuck === 0, 'Explore: and sat still nowhere');
-  const errs = [R0, R1, R2, RS].flatMap(r => r.errs);
+  const errs = [...RUNS, RS].flatMap(r => r.errs);
   ok(!errs.length, 'Explore: headless runs: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
 }
 
