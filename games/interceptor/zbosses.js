@@ -294,6 +294,7 @@ export function initBosses(api,G,Z){
  Z.brwIn=ids=>{if(auth()||!Array.isArray(ids))return;const B=G.brw||(G.brw={});
   for(const id of ids){const R=typeof id==='string'?REWARDS[id]:null;if(!R||B[id])continue;B[id]=1;try{R.grant?.(ctx)}catch(e){console.warn('trophy',e)}feed(`<span class="cg">Boss trophy: <b>${R.n}</b></span> · ${R.txt}`)}};
  /* a co-op client: the host's win over a boss (znet.js event B: kind, bounty, trophy), shown and heard like the host's own */
+ Z.shootMe=why=>auth()?false:ctx.shoot(why);  /* a boss hit on this pilot, from the host (znet.js event H) */
  Z.bossWon=a=>{const D=BOSSES[a[0]];if(!D||D.minor||auth())return;const nm=String(a[2]||'').replace(/[<>&"'`]/g,'').slice(0,40);
   Z.an?.say(`${D.tag||D.n.toUpperCase()} DEFEATED`,`+${money(+a[1]||0)}${nm?' · '+nm:''}`,D.col||'#ff9a3c',3);Z.an?.radio('OVERLORD',D.winTxt||`${D.n} is down. Outstanding.`,2);Z.au?.bossDown()};
  Z.bossIn=(t,a)=>{if(!t.bs||!Array.isArray(a))return;const D=BOSSES[t.k];if(Number.isFinite(a[0]))t.bs.hp=a[0];if(Number.isFinite(a[1])&&a[1]>0)t.bs.max=a[1];if(Number.isFinite(a[2])&&a[2]!==t.bs.ph){t.bs.ph=a[2]|0;D.phase?.(ctx,t,t.bs.ph);if(!D.minor&&D.phases?.[t.bs.ph])Z.an?.say(D.phases[t.bs.ph],D.n,D.col||'#ff9a3c',2)}  /* the phase banner, as phaseCheck gives it on the host */
@@ -303,7 +304,8 @@ export function initBosses(api,G,Z){
  const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,HAZE:BHZ,haze,gfx,BOSSES,REWARDS,decal,D2,cl,rnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
   get wt(){return G.wt||0},
   // lose your interceptor to enemy fire (the Ace's missile, the Mirror's burst); the Deathless trophy may save it (zboss-ace.js)
-  shoot(why){const d=me();if(!d)return false;if(rew().some(R=>R.save?.(ctx,why)))return false;api.lose('shot');feed(`<span class="cr">Interceptor lost: ${why}</span>`);return true},
+  /* P: another pilot's interceptor (a co-op client's, znet.js): that pilot's own screen loses it */
+  shoot(why,P){if(P&&P!==api.player)return!!Z.netHit?.(P,why);const d=me();if(!d)return false;if(rew().some(R=>R.save?.(ctx,why)))return false;api.lose('shot');feed(`<span class="cr">Interceptor lost: ${why}</span>`);return true},
   // a tidy group: geometries made for one track are freed with it (interceptor.js dropMesh)
   group(){const g=new THREE.Group();g.userData.own=1;return g},
   mesh(g,geo,mat,x=0,y=0,z=0,shadow=true){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=shadow;g.add(m);return m},

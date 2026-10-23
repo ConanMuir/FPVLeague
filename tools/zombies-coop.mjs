@@ -342,6 +342,8 @@ const readyUp = async n => { for (const P of all) await tap(P, '#zgo'); for (con
 /* the wave's raid gone and nothing queued, so the boss is the last live track: the moment it falls the wave is clear */
 const lastBoss = kind => ev(H, kind => { const {G, api, Z} = __z; G.wq.length = 0; for (const t of api.TH) if (api.live(t)) t.st = 'dead';
   const t = kind === 'boss' ? Z.make('boss', 0, 150) : Z.bosses.spawn(kind, {R: 1800, brg: 0}); if (kind === 'boss') t.p.y = api.gh(0, 150) + 650; __z.sim(1); return t.id; }, kind);  /* a second of the host's sim: the boss starts with its real hit points on its first step */
+/* another boss into the wave in progress, started by a second of the host's sim */
+const lastBossToo = kind => ev(H, kind => { const t = __z.Z.bosses.spawn(kind, {R: 1500, brg: 0}); __z.sim(1); return t.id; }, kind);
 /* a burst from a client's interceptor parked 1 m behind the track as that client sees it; resolves with the readout the host sent back */
 const burstAt = async (C, id) => { await ev(C, () => { if (__z.api.player.dead > 0) __z.api.launch(); __z.G.det = null; });
   await ev(C, id => { const {api, Z} = __z, me = api.player, t = api.TH.find(t => t.id === id); me.p.copy(t.p).addScaledVector(t.v.clone().normalize(), -1); me.v.copy(t.v); Z.detonate(); }, id);
@@ -404,6 +406,20 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   ok(await until(A, id => __z.api.TH.some(t => t.id === id), gid), 'Ghost: it is on Ash\'s screen');
   await ev(A, id => { __z.api.TH.find(t => t.id === id).bs.lcd = 3; }, gid);  /* the lock slipped on Ash's screen */
   ok(await until(A, id => { const t = __z.api.TH.find(t => t.id === id); return !(t.bs.lcd > 0) && __z.Z.lockJam(t) < 10; }, gid), 'Ghost: three seconds after a slip Ash can lock it again');
+  /* a boss hit reaches a client's interceptor (it used to look only for the host's): the Hush runs over Ash's mat and he loses his interceptor on his own screen */
+  await ev(A, () => { if (__z.api.player.dead > 0) __z.api.launch(); });
+  const hid = await lastBossToo('hush');
+  ok(await until(H, k => { const r = __z.net.n.pil.get(k); return !!r && r.seen && !r.dead; }, aKey), 'Hush: the host sees Ash\'s interceptor on his mat');
+  await ev(H, ([id, k]) => { const t = __z.api.TH.find(t => t.id === id), B = t.bs, V = __z.api.THREE.Vector3, p = __z.net.n.pil.get(k).d.p, dir = new V(1, 0, 0), start = new V(p.x, p.y + 25, p.z).addScaledVector(dir, -500);
+    t.p.copy(start); t.pp = start.clone(); t.v.copy(dir).multiplyScalar(170); B.md = 2; B.tg = 'p'; B.site = null; B.A = new V(p.x, p.y + 25, p.z).addScaledVector(dir, 60); B.rv = 3; B.af = 0; B.ck = 0; B.tm = 0; B.cd = 1e9; }, [hid, aKey]);  /* a pass at his position, as the Hush's run would be */
+  ok(await until(A, () => __z.api.player.dead > 0 && /Hush clipped you/.test(document.getElementById('feed').textContent)), 'Hush: its pass over Ash\'s mat clips him: "Interceptor lost: the Hush clipped you" on his screen');
+  /* the Ace's lock warning (LOCKING 80 % · BREAK) is for the pilot it is on, not for every screen */
+  await ev(A, () => { if (__z.api.player.dead > 0) __z.api.launch(); }); await ev(B, () => { if (__z.api.player.dead > 0) __z.api.launch(); });
+  const aceId = await lastBossToo('ace');
+  ok(await onScreens(aceId), 'Ace: KOSCHEI is on both clients\' screens');
+  const lockShown = (C, key) => ev(C, ([id, key]) => { const t = __z.api.TH.find(t => t.id === id); t.bs.lock = .8; t.bs.tk = key; const seen = [], oc = new Proxy({}, {get: (_, k) => k === 'fillText' ? s => seen.push(String(s)) : k === 'measureText' ? () => ({width: 0}) : () => ({addColorStop() {}}), set: () => true});
+    __z.Z.overlay(oc); return seen.filter(s => /LOCKING/.test(s)).length; }, [aceId, key]);  /* set and drawn in one go: no snapshot lands between */
+  ok(await lockShown(A, aKey) === 1 && await lockShown(B, aKey) === 0 && await lockShown(A, 'host') === 0 && await lockShown(B, 'host') === 0, 'Ace: its LOCKING warning shows on the screen of the pilot it is locked on (Ash), and on no other');
   await ev(H, id => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; }, id);  /* the wave is over */
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }

@@ -50,6 +50,9 @@ export function initNet(api,G,Z){
  Z.pilotsK=()=>net?[[net.me||'host',api.player],...[...net.pil].filter(([,r])=>r.seen).map(([k,r])=>[k,r.d])]:null;
  Z.netMe=()=>net?net.me||'host':null;Z.netRole=()=>net?(net.host?'host':'client'):null;Z.isReady=()=>!!net&&net.rd===G.wave+1;
  Z.netEv=e=>{if(net?.host)ev(e)};Z.netName=k=>nameOf(k);
+ /* a boss hit on another pilot's interceptor: the host tells that pilot's screen, which loses it there (zbosses.js ctx.shoot); the key names a pilot (this one, or a mirrored drone) */
+ Z.netHit=(d,why)=>{if(!net?.host)return false;for(const[k,r]of net.pil)if(r.d===d&&r.seen&&!r.dead){ev(['H',k,String(why).replace(/[<>&"'`]/g,'').slice(0,60)]);return true}return false};
+ Z.pilotKey=d=>{if(!net||!d)return null;if(d===api.player)return net.me||'host';for(const[k,r]of net.pil)if(r.d===d)return k;return null};
  Z.netPlan=()=>net&&!net.host?net.nx:null;  /* a client's copy of the host's plan for the wave (zbosses.js: the boss warning) */
 
  // ---------- lobby on the Zombies start menu: name, Host co-op, code + Join (and open games, in a claude.ai room) ----------
@@ -266,6 +269,7 @@ export function initNet(api,G,Z){
   if(T==='m'){if(e[2]===net.me)feed(`<span class="co">${String(e[3]).replace(/[<>&]/g,'').slice(0,200)}</span>`);return}
   if(T==='g'){const d=Z.def.D.find(x=>x.id===e[2]),t=byId(e[3]);if(d&&t&&d.mesh)Z.def.burst(d,t);return}
   if(T==='S'){Z.so?.netEv?.(e.slice(2));return}  // sorties (zsortie.js): AA bursts, hits on this pilot, salvage carried, calls
+  if(T==='H'){if(e[2]===net.me)Z.shootMe?.(String(e[3]??'a boss').slice(0,60));return}  /* a boss hit on this pilot's interceptor (Z.netHit) */
   if(T==='B'){Z.bossWon?.(e.slice(2));return}  /* the host won a boss fight: the banner and the sting (zbosses.js) */
   const t=byId(e[2]);if(!t||t.st==='dead')return;
   if(T==='k'){if(t.paid)return;const by=String(e[4]||'');t.by=by===net.me?'p':by?'o':'h';t.byN=by;if(e[3])t.st='dead';else{t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3)}

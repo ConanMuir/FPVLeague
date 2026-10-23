@@ -42,7 +42,7 @@ registerBoss({id:'twins',n:'The Twins',tag:'TWINS',col:'#7fb2ff',spd:100,alt:[35
  init(C,t){const B=t.bs;if(B.role==null){B.role=0;B.runs=0;B.mode='form';const m=C.spawn('twins',{x:t.p.x+50,z:t.p.z+40,y:t.p.y,enc:B.enc,v:t.v.clone(),set:{role:1,mate:t}});if(m){B.mate=m;swap(C,m)}}
   t.p.y=Math.max(t.p.y,C.api.gh(t.p.x,t.p.z)+420)},
  tick(C,t,dt){const{api,V3}=C,B=t.bs,m=mate(C,t);B.snap=Math.max(0,(B.snap||0)-dt);if(m&&B.role===0)m.bs.snap=Math.max(m.bs.snap||0,B.snap);
-  if(B.rage){const d=C.nearPilot(t.p);if(d&&d.p.distanceTo(t.p)<700){C.steer(t,C.dirTo(t,d.p),150,1.6,dt,20);if(d.p.distanceTo(t.p)<9){C.api.boom(t.p,1);if(d===api.player)C.shoot(`${B.role?'POLLUX':'CASTOR'} rammed you`);C.hurt(t,1,{})}return true}
+  if(B.rage){const d=C.nearPilot(t.p);if(d&&d.p.distanceTo(t.p)<700){C.steer(t,C.dirTo(t,d.p),150,1.6,dt,20);if(d.p.distanceTo(t.p)<9){C.api.boom(t.p,1);C.shoot(`${B.role?'POLLUX':'CASTOR'} rammed you`,d);C.hurt(t,1,{})}return true}
    if(!B.site||B.site.hp<=0){let b=null,bd=1e9;for(const s of C.sites()){const q=Math.hypot(s.x-t.p.x,s.z-t.p.z);if(q<bd){bd=q;b=s}}B.site=b}const s=B.site;if(!s)return true;
    const dh=Math.hypot(s.x-t.p.x,s.z-t.p.z);C.steer(t,dh<700?C.dirTo(t,new V3(s.x,s.y+3,s.z)):C.levelTo(t,new V3(s.x,0,s.z),300),130,1.2,dt,5);if(dh<40&&t.p.y-s.y<30){C.strike(t,s,80);api.boom(t.p,3);t.p.y+=250;B.site=null}return true}
   if(B.role===1&&m){const lb=m.bs;if(lb.mode==='form'||lb.mode==='regroup'){const f=m.v.clone().setY(0).normalize(),r=new V3(-f.z,0,f.x),slot=m.p.clone().addScaledVector(r,45).addScaledVector(f,-15),e=slot.sub(t.p),d=e.length();
