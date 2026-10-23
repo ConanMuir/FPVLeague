@@ -2245,6 +2245,11 @@ if (want('scars')) {
   ok(E.back.craters === 6 && E.back.burns === 1 && E.back.rubble === 1 && E.sameBack && E.hid === 1, `Campaign: back in the first sector every scar is where it was, burns burnt out, the house still gone (${E.hid})`);
   ok(E.river3.craters === 3 && E.keys === 'mill,river', `Campaign: each sector keeps its own (${E.keys})`);
   ok(E.mid.craters + E.mid.burns + E.mid.rubble === 0 && E.newCamp.craters + E.newCamp.burns + E.newCamp.rubble === 0 && E.newKeys === '' && E.hid2 === 0, 'Campaign: New campaign clears them at once, nothing of the old one is saved into it, the houses are back');
+  // a wave cleared with no frame drawn since the sector started (only sim steps: a fast harness, a tab in the background) is still saved: nothing waits for a frame to have seen the state before
+  const E2 = await p.evaluate(() => { const {Z, G, api} = __z, S = Z.sc; Z.cp.put(Z.cp.cleanCamp(null, 1)); Z.cp.start('mill', true); for (let i = 0; i < 4; i++) { const [x, z] = __pos(5); S.add(0, x, z, 5, {fade: 1}); }
+    __z.cont(); G.wq.length = 0; for (const t of api.TH) t.st = 'dead'; let n = 0; while (G.state !== 'clear' && n++ < 60) api.step(1 / 120);  /* sim steps only: no visuals call between the start and the clear */
+    return {st: G.state, n, saved: (api.S.zcamp.sc?.mill || '').length / 8}; });
+  ok(E2.st === 'clear' && E2.saved === 4, `Campaign: a wave cleared before any frame was drawn is saved all the same (${E2.saved} scars after ${E2.n} sim steps, state ${E2.st})`);
   const F = await p.evaluate(() => { const {Z, G, api} = __z, S = Z.sc, o = {}; api.startMatch(); o.run = Z.cp.run?.id || null; o.s0 = S.stats(); S.add(0, -1000, -1000, 5, {fade: 1}); const h = S.houses(); S.houseDown(7); S.add(2, h.x[7], h.z[7], 7.4, {fade: 1});
     __z.cont(); __z.sim(1); o.w1 = S.stats(); G.wq.length = 0; for (const t of api.TH) t.st = 'dead'; __z.sim(8); __z.cont(); __z.sim(2); o.wave = G.wave; o.w2 = S.stats(); o.saved = !!api.S.zcamp.sc?.mill;
     api.startMatch(); o.again = S.stats(); o.hid = Array.from(S.houses().dead).reduce((a, b) => a + b, 0); return o; });
@@ -2299,13 +2304,19 @@ if (want('scars')) {
     window.__end = () => { for (const [o, v] of hide) o.visible = v; hide.length = 0; sc.onBeforeRender = ob; ren.shadowMap.autoUpdate = sh; };
     window.__view = (spot, d, el, off = 0) => { const x = spot.x, z = spot.z, gx = gh(x + 3, z) - gh(x - 3, z), gz = gh(x, z + 3) - gh(x, z - 3), l = Math.hypot(gx, gz), ux = l > .01 ? -gx / l : 0, uz = l > .01 ? -gz / l : 1, e = el * Math.PI / 180,
       cx = x + ux * d * Math.cos(e), cz = z + uz * d * Math.cos(e), y0 = gh(x, z); __cam([cx + off * -uz, Math.max(y0 + d * Math.sin(e), gh(cx, cz) + 2), cz + off * ux], [x, y0 + 1, z]); };
-    window.__grab = (name, mode) => __rd(() => { S.tick(1e-4); S.uniforms.uTime.value = 1;  /* the embers flicker with time: hold it still */ for (const m of M) { m.visible = mode !== 'off' && m.geometry.instanceCount > 0; m.material.depthTest = mode !== 'nodepth'; }
+    window.__grab = (name, mode) => __rd(() => { S.tick(1e-4); S.uniforms.uTime.value = 1; if (Z.so) Z.so.W.root.visible = !!window.__roads;  /* the embers flicker with time: hold it still */ for (const m of M) { m.visible = mode !== 'off' && m.geometry.instanceCount > 0; m.material.depthTest = mode !== 'nodepth'; }
       ren.render(sc, api.camera); const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, b = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, b); fr[name] = b; b.dims = w + 'x' + h; for (const m of M) m.material.depthTest = true; return w * h; });
     window.__diff = (a, b, thr) => { const A = fr[a], B = fr[b]; if (A.dims !== B.dims) return NaN; let n = 0; for (let i = 0; i < A.length; i += 4) if (Math.abs(A[i] - B[i]) > thr || Math.abs(A[i + 1] - B[i + 1]) > thr || Math.abs(A[i + 2] - B[i + 2]) > thr) n++; return n; };
     /* pixels where frames a and b differ by more than thr, counted only where m1 and m2 differ by more than 8 (the footprint of the scars) */
     window.__diffIn = (a, b, thr, m1, m2) => { const A = fr[a], B = fr[b], X = fr[m1], Y = fr[m2]; if (A.dims !== B.dims || A.dims !== X.dims || A.dims !== Y.dims) return NaN; let n = 0, f = 0; for (let i = 0; i < A.length; i += 4) { if (Math.abs(X[i] - Y[i]) <= 8 && Math.abs(X[i + 1] - Y[i + 1]) <= 8 && Math.abs(X[i + 2] - Y[i + 2]) <= 8) continue; f++; if (Math.abs(A[i] - B[i]) > thr || Math.abs(A[i + 1] - B[i + 1]) > thr || Math.abs(A[i + 2] - B[i + 2]) > thr) n++; } return [n, f]; };
     window.__flick = (a0, c0, a1, c1, thr) => { const A0 = fr[a0], C0 = fr[c0], A1 = fr[a1], C1 = fr[c1]; if (A0.dims !== A1.dims || A0.dims !== C0.dims || A0.dims !== C1.dims) return [NaN, 0]; let n = 0, m = 0; for (let i = 0; i < A0.length; i += 4) for (let k = 0; k < 3; k++) { const d0 = A0[i + k] - C0[i + k], d1 = A1[i + k] - C1[i + k]; if (d0 !== 0 || d1 !== 0) m++; if (Math.abs(d0 - d1) > thr) n++; } return [n, m]; };
-    window.__trio = (spot, d, el) => { __view(spot, d, el); __grab('on', 'on'); __grab('nd', 'nodepth'); __grab('off', 'off'); const [ab, ac] = __diffIn('on', 'nd', 5, 'nd', 'off'); return {ab, ac}; };  /* ac: where the scars would show with no depth test at all; ab: how much of that differs when the depth test is on */
+    /* which scar owns the pixels that differ (a failure's diagnosis: scar -> number of differing pixels) */
+    window.__who = (a, b, m1, m2) => { const A = fr[a], B = fr[b], X = fr[m1], Y = fr[m2], [w, h] = A.dims.split('x').map(Number), cam = api.camera, V = api.THREE.Vector3, L = [], by = {};
+      for (const t of [0, 1]) for (const r of S.list(t)) { const v = new V(r.x, gh(r.x, r.z), r.z), d = v.distanceTo(cam.position); v.project(cam); L.push({id: ['crater', 'burn'][t] + ' r' + Math.round(r.r) + ' @' + Math.round(r.x) + ',' + Math.round(r.z), x: (v.x * .5 + .5) * w, y: (v.y * .5 + .5) * h, rad: r.r * cam.projectionMatrix.elements[5] * h / 2 / d}); }
+      for (let i = 0, k = 0; i < A.length; i += 4, k++) { if (Math.abs(X[i] - Y[i]) <= 8 && Math.abs(X[i + 1] - Y[i + 1]) <= 8 && Math.abs(X[i + 2] - Y[i + 2]) <= 8) continue;
+        if (!(Math.abs(A[i] - B[i]) > 5 || Math.abs(A[i + 1] - B[i + 1]) > 5 || Math.abs(A[i + 2] - B[i + 2]) > 5)) continue; const px = k % w, py = k / w | 0; let best = null, bd = 1e9; for (const s of L) { const q = Math.hypot(px - s.x, py - s.y) / Math.max(1, s.rad); if (q < bd) { bd = q; best = s.id; } } by[best] = (by[best] | 0) + 1; }
+      return by; };
+    window.__trio = (spot, d, el) => { __view(spot, d, el); __grab('on', 'on'); __grab('nd', 'nodepth'); __grab('off', 'off'); const [ab, ac] = __diffIn('on', 'nd', 5, 'nd', 'off'); return {ab, ac, who: ab > Math.max(10, ac * .01) ? __who('on', 'nd', 'nd', 'off') : null}; };  /* ac: where the scars would show with no depth test at all; ab: how much of that differs when the depth test is on */
     window.__flk = (spot, d, el) => { for (let k = 0; k < 3; k++) { __view(spot, d, el, k * .001); __grab('a' + k, 'on'); __grab('c' + k, 'off'); } const x = __flick('a0', 'c0', 'a1', 'c1', 10), y = __flick('a1', 'c1', 'a2', 'c2', 10); return [x[0] + y[0], x[1]]; };
     __begin();
   });
@@ -2314,7 +2325,7 @@ if (want('scars')) {
     await p.evaluate(({x, z}) => __fill(x, z), spot);
     for (const [d, el] of [[14, 10], [14, 45], [60, 12], [60, 45], [200, 14], [200, 45], [500, 18], [500, 60]]) {
       const r = await p.evaluate(({spot, d, el}) => __trio(spot, d, el), {spot, d, el});
-      rep.push(`${nm} ${d} m ${el} deg: ${r.ac} scar px, ${r.ab} differ without depth`);
+      rep.push(`${nm} ${d} m ${el} deg: ${r.ac} scar px, ${r.ab} differ without depth` + (r.who ? ' ' + JSON.stringify(r.who) : ''));
       ok(r.ac > 40 && r.ab <= Math.max(10, r.ac * .01), `Pixels (${nm}, ${d} m, ${el} deg): the scars sit on the terrain, ${r.ab} of ${r.ac} scar pixels differ with the depth test off`);
     }
     for (const [d, el] of [[40, 20], [300, 30]]) {
@@ -2323,7 +2334,18 @@ if (want('scars')) {
     }
   }
   console.log('  ' + rep.join('\n  '));
-  // far away a scar is gone (distance and size on screen), not a shimmering speck
+  // the enemy's supply roads are raised ribbons: no scar is made on one or reaching one (it would be cut off along the ribbon's edge); a crater beside a road sits clear of it
+  const Rd = await p.evaluate(() => { const {Z, api} = __z, S = Z.sc, V = api.THREE.Vector3, gh = api.gh, o = {}, W = Z.so.W; S.clear(); let pick = null;
+    for (const r of W.routes) for (let i = 8; i < r.X.length - 8 && !pick; i += 6) { const tx = r.X[i + 1] - r.X[i - 1], tz = r.Z[i + 1] - r.Z[i - 1], l = Math.hypot(tx, tz), x = r.X[i], z = r.Z[i], bx = x - tz / l * 14, bz = z + tx / l * 14;
+      if (!S.bad(bx, bz, 6) && Math.abs(gh(bx, bz) - gh(x, z)) < 4 && Math.abs(x) < 4000 && Math.abs(z) < 4000) pick = {x, z, bx, bz}; }
+    o.found = !!pick; if (!pick) return o; const {x, z, bx, bz} = pick; o.gap = S.roadGap(x, z) < 1;
+    S.refill(); S.boom(new V(x, gh(x, z) + .5, z), 3); o.onRoad = S.stats().craters + S.stats().burns;                       /* a big hit on the road itself: no scar */
+    S.refill(); S.boom(new V(x + (bx - x) * 6 / 14, gh(x, z) + .5, z + (bz - z) * 6 / 14), 3); o.near = S.stats().craters + S.stats().burns;  /* 6 m off the centre line: still touching the ribbon */
+    S.refill(); S.boom(new V(bx, gh(bx, bz) + .5, bz), 1.6); o.beside = S.stats().craters; __z.sim(1); /* it fades in */ window.__roads = true; return Object.assign(o, {spot: {x: bx, z: bz}}); });
+  ok(Rd.found && Rd.gap && Rd.onRoad === 0 && Rd.near === 0 && Rd.beside === 1, `Roads: a hit on an enemy road or touching it leaves no scar (${Rd.onRoad} / ${Rd.near}); 14 m beside it a crater is made (${Rd.beside})`);
+  if (Rd.found) { const r = await p.evaluate(spot => { const [ab, ac] = (__view(spot, 30, 40), __grab('on', 'on'), __grab('nd', 'nodepth'), __grab('off', 'off'), __diffIn('on', 'nd', 5, 'nd', 'off')); window.__roads = false; return {ab, ac}; }, Rd.spot);
+    ok(r.ac > 40 && r.ab <= Math.max(10, r.ac * .01), `Roads: with the road drawn, a crater beside it sits on the ground: ${r.ab} of ${r.ac} scar pixels differ with the depth test off`); }
+
   const far = await p.evaluate(spot => { __fill(spot.x, spot.z); __view(spot, 2600, 20); __grab('fon', 'on'); __grab('foff', 'off'); return __diff('fon', 'foff', 4); }, sp.flat);
   ok(far <= 4, `Pixels: 2.6 km away the scars have faded out completely (${far} pixels)`);
   await p.evaluate(() => __end());
@@ -2334,7 +2356,7 @@ if (want('scars')) {
     for (let i = 0; i < 128; i++) S.add(1, cx + R(-70, 70), cz + R(-70, 70), R(8, 26), {v: i % 4, y: i % 32, p: i % 3 ? 31 : 14, fade: 1});
     const h = S.houses(); let k = 0; for (let i = 0; i < 400 && k < 64; i++) if (S.houseDown(i)) { S.add(2, h.x[i], h.z[i], 7.4, {fade: 1}); k++ }
     o.full = S.stats(); __begin(); __cam([cx, gh(cx, cz) + 120, cz + 60], [cx, gh(cx, cz), cz]);
-    const px = new Uint8Array(4), time = on => __rd(() => { S.tick(1e-4); S.uniforms.uTime.value = 1; for (const m of M) m.visible = on && m.geometry.instanceCount > 0; const t0 = performance.now(); ren.render(api.scene, api.camera); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); const dt = performance.now() - t0;  /* reading a pixel waits for the GPU: finish() does not in Chrome */ return [dt, ren.info.render.calls, ren.info.render.triangles]; });
+    const px = new Uint8Array(4), time = on => __rd(() => { S.tick(1e-4); S.uniforms.uTime.value = 1; if (Z.so) Z.so.W.root.visible = false; for (const m of M) m.visible = on && m.geometry.instanceCount > 0; const t0 = performance.now(); ren.render(api.scene, api.camera); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); const dt = performance.now() - t0;  /* reading a pixel waits for the GPU: finish() does not in Chrome */ return [dt, ren.info.render.calls, ren.info.render.triangles]; });
     time(true); time(false); const on = [], off = []; let ci = [0, 0], ti = [0, 0];
     for (let i = 0; i < 8; i++) { const a = time(true), b = time(false); on.push(a[0]); off.push(b[0]); ci = [a[1], b[1]]; ti = [a[2], b[2]]; }
     o.on = __med(on); o.off = __med(off); o.calls = ci[0] - ci[1]; o.tris = ti[0] - ti[1];
