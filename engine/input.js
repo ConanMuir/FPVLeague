@@ -13,7 +13,7 @@ export const keys={},inp={mouseFire:false};
 export let calib=null;
 export const CAL=()=>padX?S.xcal:S.cal,thrFull=()=>padX?CAL()[0].m!=='spring':S.thrMode==='full';
 // sources 0-99 are axes, 100+ are buttons/triggers (analog 0..1); b = paired button pulling the other way (RB/LB, RT/LT)
-const src=(g,a,f=0)=>a>=100?(g.buttons[a-100]?.value??f):(g.axes[a]??f);
+const src=(g,a,f=0)=>{const v=a>=100?g.buttons[a-100]?.value:g.axes[a];return typeof v==='number'&&Number.isFinite(v)?v:f};  // a missing, text or NaN reading is no reading (one NaN stick value poisoned the interceptor's state for good)
 // calibrated channel: (raw - centre) / signed half-range, so direction is baked in
 export const axv=(g,i)=>{const c=CAL()[i],v=(src(g,c.a,c.c)-c.c)/(c.s||1)-(c.b!=null?src(g,100+c.b):0);return cl(Math.abs(v)<S.dz?0:v,-1,1)};
 // switch mapping: -1 none, a button index, 'aN' = axis N above +0.5, '-aN' = axis N below -0.5, or a learned 'aN>m' / 'aN<m' = axis N past the midpoint m between the
