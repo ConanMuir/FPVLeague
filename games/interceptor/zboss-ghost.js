@@ -54,6 +54,7 @@ registerBoss({id:'ghost',n:'Ghost',tag:'GHOST',col:'#b8c4d0',spd:75,alt:[1050,11
   if((B.ct=(B.ct||0)-dt)<=0){B.ct=.15;for(const x of[-3.4,3.4]){const p=t.mesh.localToWorld(new C.V3(x,1,-8));
    if(B.ph===0&&t.p.y-api.gh(t.p.x,t.p.z)>800)C.SMK.emit(p,0xf4f6f8,1,.3,14,null,1.1,.55);else if(B.ph>0)C.SMK.emit(p,0x24221f,1,.6,9,null,1,.7)}}
   // the lock slips: about 2 s held, then 3 s before it can be locked again (each screen runs its own lock)
+  if(!C.auth()&&B.lcd>0)B.lcd=Math.max(0,B.lcd-dt);  /* the host's tick counts the cooldown down; a co-op client's copy of the Ghost has no tick, and its lock stayed shut for good after the first slip */
   if(Z.lk?.t===t){B.lh=(B.lh||0)+dt;if(B.lh>2.1){Z.lk.clear();B.lh=0;B.lcd=3;api.banner('LOCK SLIPPED','co',1)}}else B.lh=0},
  netOut:(C,t)=>[t.bs.pass|0],netIn(C,t,a){t.bs.pass=a[0]|0},
  aim(C,t,s){if(Math.random()>s*.8)return null;return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s?-1:-8)}},

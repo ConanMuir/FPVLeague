@@ -387,7 +387,8 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }
 
-// ---------- the Siren's song (zboss-siren.js): the drones near it read friendly (green, "FRIENDLY") on every screen, not only on the host's ----------
+// ---------- what a boss does to a client's screen on its own (zboss-siren.js, zboss-ghost.js): the Siren's song makes the drones near it read friendly (green, "FRIENDLY") on every screen, not only on the host's;
+// the Ghost's lock slip cools down on the client that suffered it ----------
 { await ev(H, () => { __z.G.cash = 4000; });
   await readyUp(5);
   const id = await lastBoss('siren');
@@ -395,6 +396,11 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   ok(await until(H, () => __z.api.TH.some(t => !__z.Z.bosses.BOSSES[t.k] && t.iff > 0)), 'Siren: the host\'s song covers the drones around it');
   const nh = await covered(H);
   for (const C of [A, B]) ok(await until(C, n => __z.api.TH.filter(t => __z.api.live(t) && !__z.Z.bosses.BOSSES[t.k] && t.iff > 0).length >= n - 1, nh) && await covered(C) > 0, `Siren: ${C.name} sees the covered drones read friendly too (${await covered(C)} of the host's ${nh})`);
+  /* the Ghost's lock cooldown runs down on a client's copy too (a slipped lock used to stay shut there for good: the countdown was in the host's tick) */
+  const gid = await ev(H, () => __z.Z.bosses.spawn('ghost', {R: 1500, brg: 0}).id);
+  ok(await until(A, id => __z.api.TH.some(t => t.id === id), gid), 'Ghost: it is on Ash\'s screen');
+  await ev(A, id => { __z.api.TH.find(t => t.id === id).bs.lcd = 3; }, gid);  /* the lock slipped on Ash's screen */
+  ok(await until(A, id => { const t = __z.api.TH.find(t => t.id === id); return !(t.bs.lcd > 0) && __z.Z.lockJam(t) < 10; }, gid), 'Ghost: three seconds after a slip Ash can lock it again');
   await ev(H, id => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; }, id);  /* the wave is over */
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }
