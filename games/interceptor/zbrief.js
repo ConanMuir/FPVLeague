@@ -62,8 +62,11 @@ export function initBrief(api,G,Z){
  /* the intel level: the warning time bought (Long-range radar, early-warning radar), the Blind early warning of a campaign sector shortens it */
  B.warn=()=>{const s=Z.warnS?.();return Number.isFinite(s)?s:36};
  B.tier=()=>tierOf(B.warn());
- /* a boss is due on this wave: the usual every 10, the campaign's Mothership escort (every 5), an Endless run's extra ones */
- B.bossDue=w=>isBoss(w)||(!!Z.cp?.has?.('boss5')&&w%5===0)||!!Z.endless?.due?.(w);
+ /* a boss is due on this wave, as far as what decides the plan can tell: a campaign sector plays its own set piece (zcodex.js SET) instead of the every-10 Mothership,
+    with the Mothership escort's every 5 on top; the Quick defence and Endless draw on the bosses the Enemies screen allows (none: a heavy raid, no boss) */
+ B.bossDue=w=>{const r=Z.cp?.run,C=Z.codex,esc=!!r?.mods?.some(m=>m.id==='boss5')&&w%5===0;
+  if(r&&!r.endless&&C?.SET)return C.SET[r.id]?.wave===w||esc;
+  return esc||(isBoss(w)||!!Z.endless?.due?.(w))&&(!C?.pool||C.pool(w).length>0)};
  B.nextBoss=w=>{for(let v=w+1;v<=w+12;v++)if(B.bossDue(v))return v;return 0};
  const wxInfo=p=>{const T=Z.wx?.T,A=p&&T?.[p.id];if(!A)return null;
   const vis=W=>{const d=W.fog[1]*.55;return d>=8000?'excellent':d<1000?`${Math.round(d/100)*100} m`:`${(d/1000).toFixed(1)} km`};
@@ -92,7 +95,7 @@ export function initBrief(api,G,Z){
  /* ---------- the card ---------- */
  const rows=D=>{const L=[];
   /* 1 the tracks */
-  L.push(['✈','',`<b>${D.n} tracks</b> · ${D.kinds.map(k=>`<span class="zbk${k.isNew?' new':''}${k.boss?' boss':''}" title="${esc(k.nm)}">${k.n}× ${esc(k.k==='swarm'?'FPV'+(k.g>1?` (${k.g} swarms)`:''):k.boss?k.nm:nm(k.k,k.n))}${k.isNew?' <em>NEW</em>':''}</span>`).join(' ')}`]);
+  L.push(['✈','',`<b>${D.n} track${D.n===1?'':'s'}</b> ·${D.kinds.map(k=>`<span class="zbk${k.isNew?' new':''}${k.boss?' boss':''}" title="${esc(k.nm)}">${k.n}× ${esc(k.k==='swarm'?'FPV'+(k.g>1?` (${k.g} swarms)`:''):k.boss?k.nm:nm(k.k,k.n))}${k.isNew?' <em>NEW</em>':''}</span>`).join(' ')}`]);
   /* 2 where from and when */
   const sec=D.secs.filter(s=>s.share>=.15).slice(0,3);
   if(D.tier<1)L.push(['⌖','',`From ${andL((sec.length?sec:D.secs.slice(0,1)).map(s=>`<b>${s.n}</b>`))}`]);
