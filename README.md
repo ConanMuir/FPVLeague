@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `cave-mouths`   Owner: Jared   Last updated: 2026-10-20 by Claude (Opus 5.5)
-Based on: origin/main d7cf82c (perf-hotpaths, PR #72)
-Doing: Dogfight cave entrances: each gold ring is now the real opening. The ground round each mouth is a plane (a terrain pad) that the entrance tunnel cuts in a clean ellipse, and the gold trim follows that rim flush with the ground. The trim has no collider and is not in the map SDF (the old rings floated half in the air, with capsule colliders). The canyon entrance bends down 60 m in, so it no longer breaks through the canyon floor a second time.
-Touches: src/world/terrain.js (MOUTHS pads), src/world/caves.js (mouth planes, rims, the canyon entrance route), src/world/highlands.js (gold trim; ring colliders and SDF removed), tools/physics-check.mjs (section h: mouth flights, trim collision, rim gaps, bots in at each mouth), rebuilt games/drone-league.
-Open items / help wanted: not flown by a pilot yet. The pads move some ground near the mouths (up to ~15 m fill on the hillside ramps, ~30 m cut into the canyon wall).
-Overlaps: none known on these files.
+Branch: `bots-unstoppable`   Owner: Jared   Last updated: 2026-10-21 by Claude (Opus 5.5)
+Based on: origin/main (merged up to the PR's base)
+Doing: League bots from Legend up are out of a human's reach and Dribbler / Freestyler are the top levels. Legend, Champion and Grand Champion all fly the shot planner with a player's full thrust (DIFF[].full, bots/league.js thrOf), goal-side defence (shadow a foe who gets there first, race home past a ball heading for the goal, never push it in from behind, clear wide in front of the goal) and no flying into the ball when not striking; the ladder is reaction, noise, speed and extras. Dribbler / Freestyler add the quickest reactions, demolishing a lone keeper before a shot, winning collisions, and the possession game (carry, pops, evasive pops) only when the ball is safely theirs, with an open-goal shot taking priority. Their teammates now play (the planner) instead of standing aside.
+Touches: src/bots/league.js, src/bots/dribble.js (dribbleSupport removed, full thrust), src/bots/freestyle.js (header), src/config/constants.js (Legend .. Freestyler: one profile object per tier, every knob a tier reads is on its entry), src/progress/xp.js (difficulty factors), tools/bot-match.mjs (kickoffs, possession, goal context).
+Open items / help wanted: Dribbler vs Grand Champion in 1v1 is only a narrow win (25-20 over 50 min); the possession game itself still loses the ball more often than the planner, so it is kept to safe moments and the visible mechanics are modest in matches (~0.7 pops/min, few chains). The 'human' gauge is a scripted profile (Champion-like planner, 0.2 s reaction), not a person.
+Overlaps: another agent is on the battery/OSD (src/ui/osd.js, untouched here).
 
 ## How to play
 
