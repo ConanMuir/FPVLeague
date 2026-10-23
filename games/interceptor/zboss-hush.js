@@ -68,8 +68,7 @@ function mountAssist(C) { const S = C.S; if (!S || typeof document === 'undefine
     l.textContent = 'Hush audio assist'; i.id = l.htmlFor = 'f_zassist'; o.id = 'o_zassist'; i.add(new Option('Off (the full experience)', '0')); i.add(new Option('On (a faint direction cue)', '1'));
     i.addEventListener('input', () => { S.zassist = +i.value; C.api.save(); });
     const after = document.getElementById('o_zsfxv'); if (after) after.after(l, i, o); else set.append(l, i, o);
-    const sync = () => { i.value = assistOn(C) ? '1' : '0'; for (const e of [l, i, o]) e.style.display = S.gmode === 'z' ? '' : 'none'; };
-    sync(); document.getElementById('gmode')?.addEventListener('click', () => setTimeout(sync)); }, 0); }
+    i.value = assistOn(C) ? '1' : '0'; }, 0); }
 
 /* ---------- the fight ---------- */
 const focus = (C, t) => { const d = C.nearPilot(t.p); if (d) return d.p; const s = C.sites()[0]; return _fc.set(s ? s.x : C.siteC.x, 0, s ? s.z : C.siteC.z); };
