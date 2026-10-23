@@ -1,9 +1,9 @@
-// ---------- the Dribbler bot (DIFF[].drib): the carry and pop mechanics, played to win ----------
-// Its attacker runs this possession game only while the ball is its own (bots/league.js possess: on its top, or clearly its own to
-// collect, away from its own third); otherwise it and its teammates play the shot planner (bots/league.js thinkIQ).
+/* ---------- the Dribbler bot (DIFF[].drib): the carry and pop mechanics, played to win ---------- */
+/* Its attacker runs this possession game only while the ball is its own (bots/league.js possess: on its top, or clearly its own to */
+/* collect, away from its own third); otherwise it and its teammates play the shot planner (bots/league.js thinkIQ). */
 // Its attacker scoops the ball off the floor (a low, nose-down run into its bottom half), gets under it and catches it on the top
 // of the frame, carries it toward the enemy goal over the pop zone (ball and quad share gravity, so the ball takes the tilted top's
-// acceleration and only drifts when their speeds differ), and spends the pop it earns toward the goal.
+/* acceleration and only drifts when their speeds differ), and spends the pop it earns toward the goal. */
 // Same flight model and thrust limits as everyone (the controller only chooses an acceleration, like botControl).
 import {GW,H,HL,HW,V3,cl} from '../config/constants.js';
 import {hyp2} from '../core/hypot.js';
@@ -33,7 +33,7 @@ export function dribble(d,D,dt){const ai=d.ai,s=d.team?1:-1,top=topOf(d),H0=top+
    let best=null,bd=.55;for(const p of PS){_px.set(p[3],p[4],p[5]).applyQuaternion(d.q);_px.y=0;const l=_px.length();if(l<.5)continue;const k=_px.dot(g)/l;if(k>bd){bd=k;best=p}}
    if(best&&d.tryPop(best))ai.ct=0}}
  else{ai.ct=0;if(!grounded)ai.sct=0;let foe=null;const md=d.p.distanceToSquared(ball.p);for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0){const q=o.p.distanceToSquared(ball.p);if(q<49&&q<md){foe=o;break}}
-  if(foe&&!D.iq){  // someone else is on the ball: give them room and shadow it (the levels with the planner, DIFF[].iq, fight for it instead: bots/league.js)
+  if(foe&&!D.iq){  /* someone else is on the ball: give them room and shadow it (the levels with the planner, DIFF[].iq, fight for it instead: bots/league.js) */
    ai.dm='wait';_q.subVectors(d.p,ball.p);_q.y=0;if(_q.lengthSq()<1)_q.set(1,0,0);_q.setLength(15).add(ball.p);_q.y=Math.max(6,ball.p.y);_v.subVectors(_q,d.p).multiplyScalar(2).clampLength(0,vm).add(ball.v);a.subVectors(_v,d.v).multiplyScalar(4)}
   else if(grounded&&hd<30){  // scoop: from behind (along its roll, or away from the goal when it is slow), skim in low (centre ~1 m up), nose down, into the bottom half of the ball: it leaves at ~45 degrees
    ai.dm='scoop';look=_lk.subVectors(ball.p,d.p);ai.sct=(ai.sct||0)+dt;const bs=hyp2(ball.v.x,ball.v.z),sw=sdf(ball.p.x,ball.p.y,ball.p.z);let sd=bs>5?_px.set(ball.v.x/bs,0,ball.v.z/bs):_px.copy(g);

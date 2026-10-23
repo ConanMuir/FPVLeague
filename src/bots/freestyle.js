@@ -1,6 +1,6 @@
 // ---------- the Freestyler bot (DIFF[].fs): pop chains, air dribbles, double taps and spin shots, on repeat ----------
-// The top level and the gauge for the mechanics; like the Dribbler it plays this only while the ball is its own (bots/league.js possess).
-// It gets the ball the Dribbler's way (bots/dribble.js: scoop, catch, carry),
+/* The top level and the gauge for the mechanics; like the Dribbler it plays this only while the ball is its own (bots/league.js possess). */
+/* It gets the ball the Dribbler's way (bots/dribble.js: scoop, catch, carry), */
 // then on the carry it holds the ball centred until it earns the pop (only a ball covering all four motors earns one), places it on
 // its top where the pop it wants comes from (the pop table below, measured from the real pop: the direction comes from the pop axis
 // and where the ball sits inside the motors), and fires it on purpose:
