@@ -45,6 +45,22 @@ export const LEVELS = [
     fly: {lockAim: 0.9, react: .22, aim: 1, det: .012, fire: 2, pick: 'smart', decoy: 0, line: .75, relaunch: 1, cruise: 1}},
   {n: 'Legend', rate: .03, miss: .04, dodgeK: .55, relaunch: .5, fast: .06, shop: 'smart', spend: 1, up: 1, repairAt: .9, repairShare: .6, perks: 'smart', domes: 4, sell: 1, expand: 1, refit: 1, supply: 1, rebuild: 1, swarm: 2, explore: 3, lock: .3, chain: 4, warn: {rate: .25, mode: 'best'}, tryNew: 1,
     fly: {lockAim: 1, react: .15, aim: .5, det: .006, fire: 1.6, pick: 'smart', decoy: 0, line: 1, relaunch: 1, cruise: 1}}];
+// the loadout a level of bot takes into a run, from the sector it plays (campaign choices): sec = a sector of zcampaign.js SECTORS (its mods: ids, or [id, number]) or
+// null for a quick defence. Returns {doc, kit, why}. The levels that explore like Air Mobile (Rocket Assist from wave 1 for the dash out to a far raid); the
+// sector's modifiers move it to the doctrine that answers them. The pilot's own kit perks (Lure, Salvage) are not worth much to a bot that flies far from the sites.
+export function loadout(P, sec) {
+  const m = new Map((sec?.mods || []).map(x => Array.isArray(x) ? x : [x, 1])), has = k => m.has(k), why = [];
+  let doc = P.explore >= 3 ? 'air' : 'std', kit = [];
+  if (has('poor')) { doc = 'qm'; why.push('thin supply line: no upkeep'); }
+  else if (has('fragile') || has('tot') || (m.get('big') || 0) >= 1.15 || (m.get('missile') || 0) >= 5) { doc = 'fortress'; why.push('heavy pressure: sturdier sites'); }
+  else if (doc === 'air') why.push('Rocket Assist from wave 1 for the dash out to a far raid');
+  if (has('jets') || has('armor') || has('missile') || has('hyper')) { kit.push('hflak'); why.push('heavy flak for jets and cruise missiles'); }
+  if (has('swarm')) { kit.push('lure'); why.push('a lure beacon for the swarms'); }
+  if (kit.length < 2 && P.shop !== 'naive') kit.push('lrack');
+  return {doc, kit: kit.slice(0, 2), why: why.join('; ') || 'the standard base'};
+}
+/* does this bot explore (P.explore, see above)? Only the flying pilot of the Bot Spectator does: the teleporting benchmark's numbers stay what they were */
+export const explores = (P, E, n) => P.explore >= n && !!E.spec?.on;
 const key = s => String(s).toLowerCase().replace(/[\s-]+/g, '');
 export const level = n => LEVELS.find(l => key(l.n) === key(n));
 
@@ -120,7 +136,7 @@ function* shopSteps0(P, E) {
     if (hp > 0) yield step(`Repairing ${s.n}: ${pct(s)}% hit points left`, 'repair', () => B.act.repair(i, Math.floor(G.cash * P.repairShare / 3)), {site: i}); } }
   if (P.rebuild && B.act.rebuild) for (let i = 0; i < api.SITES.length; i++) { const s = api.SITES[i]; if (s.hp <= 0 && G.cash > 9000) yield step(`Rebuilding ${s.n}: destroyed, back at 40%`, 'rebuild', () => B.act.rebuild(i), {site: i}); }
   const open = () => def.SLOTS.some((_, j) => def.slotFree(j)), keep = G.cash * (1 - (P.spend ?? 1)), afford = c => G.cash - c >= keep;
-  for (const h of hooks) if (h.early && P.explore >= 2) { try { yield* h.early(P, E, {afford, open, keep}); } catch (e) { console.warn('bot hook ' + h.name, e); } }  /* hooks that want a place ahead of the helpers (the arsenal's weapon and big defences) */
+  for (const h of hooks) if (h.early && explores(P, E, 2)) { try { yield* h.early(P, E, {afford, open, keep}); } catch (e) { console.warn('bot hook ' + h.name, e); } }  /* hooks that want a place ahead of the helpers (the arsenal's weapon and big defences) */
   if (P.chain >= 2) yield* chainSteps(P, E, afford);  // from All-Star up the kill chain comes before more helpers: it needs no free position
   for (let pass = 0; pass < 3; pass++) {
     const cards = G.cards.map((c, i) => ({...c, i})).filter(c => PRIO.includes(c.k) && IT[c.k] && nw >= from(c.k) && IT[c.k].type !== 'supply' && !(IT[c.k].type === 'perk' && Z.perkMaxed(c.k))).sort((a, b) => PRIO.indexOf(a.k) - PRIO.indexOf(b.k));
@@ -138,10 +154,10 @@ function* shopSteps0(P, E) {
       if (u && G.cash >= u.cost) yield step(`Upgrading the ${IT[d.type].n.toLowerCase()} at ${def.SLOTS[d.slot]?.n}: ${u.txt}`, 'upgrade', () => B.act.upgrade(d.id, w), {id: d.id, cost: u.cost});
       if (d.type === 'rack') { const u2 = upInfo(d, 'cap', E); if (u2 && G.cash >= u2.cost) yield step(`Upgrading the drone rack at ${def.SLOTS[d.slot]?.n}: ${u2.txt}`, 'upgrade', () => B.act.upgrade(d.id, 'cap'), {id: d.id, cost: u2.cost}); } }
   }
-  if (P.refit && B.act.refit) for (const d of def.D) { const R = E.REFIT[d.type]; if (!R || d.refit) continue;
+  if ((P.refit || explores(P, E, 3)) && B.act.refit) for (const d of def.D) { const R = E.REFIT[d.type]; if (!R || d.refit) continue;
     const want = {rack: nw >= kf('swarm') ? 'swarm' : 'range', flak: 'prox', gepard: nw >= kf('heavy') ? 'ap' : 'radar', sam: 'reload', ew: 'wide', idome: 'bal'}[d.type], r = R.find(x => x.id === want);
     if (r && G.cash > r.cost * 2.5) yield step(`Refitting the ${IT[d.type].n.toLowerCase()} at ${def.SLOTS[d.slot]?.n} with ${r.n}: ${REFIT_WHY[want] || r.txt}`, 'refit', () => B.act.refit(d.id, want), {id: d.id}); }
-  if (P.supply && nw >= 12) for (const k of ['reload', 'harden', 'drones', 'overtime']) if (B.act.supply && IT[k] && !G.sup?.[k] && nw >= from(k) && G.cash > cost(k) * 4)
+  if ((P.supply || explores(P, E, 3)) && nw >= 12) for (const k of ['reload', 'harden', 'drones', 'overtime']) if (B.act.supply && IT[k] && !G.sup?.[k] && nw >= from(k) && G.cash > cost(k) * 4)
     yield step(`Loading ${IT[k].n} for wave ${nw}: ${E.data?.SUPPLY?.[k]?.txt || 'this wave only'}`, 'supply', () => B.act.supply(k), {k});
   if (P.chain === 1) yield* chainSteps(P, E, afford);
   yield* tryNew(P, E, afford, open);
@@ -203,7 +219,7 @@ export function tactics(P, E, o = {}) {
   if (o.teleport && P.lock && alive && Z.lk && !Z.lk.t && Math.random() < P.lock) { const t = Z.urgent(); if (t && KIND[t.k].armor !== 'hard' && t.p.distanceTo(me.p) < 3500) Z.lk.force(t); }
   let sd = '';
   if (P.swarm && sw && sw.d.length && alive) { const L = live().filter(t => t.p.distanceTo(me.p) < 4500 && KIND[t.k].armor !== 'hard');
-    if (P.swarm >= 2) { const f = P.explore >= 3 ? swarmForm(E, sw, L, me) : 3; if (sw.form !== f && swarmHold(E, sw)) Z.sw.command('form#', f); if (sw.mode === 'escort' && L.length >= (P.explore >= 3 ? 2 : 0)) Z.sw.command('screen');
+    if (P.swarm >= 2) { const ex = explores(P, E, 3), f = ex ? swarmForm(E, sw, L, me) : 3; if (sw.form !== f && (!ex || swarmHold(E, sw))) Z.sw.command('form#', f); if (sw.mode === 'escort' && L.length >= (ex ? 2 : 0)) Z.sw.command('screen');
       if (Z.lk?.t && sw.mode !== 'attack' && (KIND[Z.lk.t.k].armor === 1 || Z.lk.t.k === 'boss' || L.length < 6)) Z.sw.command('attack');
       if (sw.ch > 0 && L.length >= 6) Z.sw.command('strike'); }
     else if (Math.random() < .02) { if (Z.lk?.t) Z.sw.command('attack'); else Z.sw.command(['screen', 'strike', 'next'][Math.random() * 3 | 0]); }

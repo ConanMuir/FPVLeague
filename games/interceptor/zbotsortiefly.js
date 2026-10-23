@@ -18,7 +18,7 @@ export function createFlier(E,B,F,P){
  const {S,W,SO,fog}=so,{gh,FOBS}=api,V3=api.THREE.Vector3;
  const SP=SORTIE[P.n]||SORTIE.Champion,GO=P.explore>=3?1:P.explore>=2?.6:0,DEPTH=P.explore>=3?Math.max(1,SP.depth):SP.depth;
  const st={ph:'idle',t:null,sc:null,u:[0,1],pass:0,abort:false,bombT:0,lastT:1e9,thinkT:0,slow:0,ban:new Set(),cash0:0};
- const out={x:0,y:0,z:0,speed:80,agl:40,floor:25,kv:1.8,fire:false,kind:'sortie',why:'',label:'',tgt:null};
+ const out={x:0,y:0,z:0,speed:80,agl:40,floor:25,kv:1.8,fire:false,kind:'sortie',why:'',what:'',label:'',tgt:null};
  const _c=new V3();
  const top=d=>(api.S.mod.maxv||115)+(d.bmax||0);
  const dHome=(x,z)=>W.dHome(x,z);
@@ -36,7 +36,7 @@ export function createFlier(E,B,F,P){
  /* the clock a target takes from a position: out, a pass or two, back */
  const need=(fx,fz,t)=>{const q=pos(t);return(Math.hypot(q.x-fx,q.z-fz)+dHome(q.x,q.z))/V+26};
  const known=()=>so.known().filter(t=>!t.dead&&!t.done&&!st.ban.has(t.id)&&t.tier<=DEPTH&&(t.t!=='factory'||G.wave>=6)&&mains(t).length);
- function best(fx,fz,left){let b=null,bs=-1;for(const t of known()){if(need(fx,fz,t)>left)continue;const q=pos(t),d=Math.hypot(q.x-fx,q.z-fz),sc=value(t)/guard(t)/(d/1000+1);if(sc>bs){bs=sc;b=t}}return b}
+ function best(fx,fz,left){let b=null,bs=-1;for(const t of known()){if(need(fx,fz,t)>left)continue;const q=pos(t),d=Math.hypot(q.x-fx,q.z-fz),sc=value(t)/guard(t)/(d/1000+1)*(B.did('sortie:'+t.t)?1:1.6);if(sc>bs){bs=sc;b=t}}return b}
  /* unseen ground along the supply roads first (convoys drive there, the launch sites sit near them), then any unexplored ground a kilometre on */
  function scoutPt(fx,fz){const D=c=>Math.hypot(c.x-fx,c.z-fz),ok=c=>!fog.known(c.x,c.z)&&W.tierOf(W.depth(c.x,c.z))<=DEPTH&&Math.abs(c.x)<3900&&Math.abs(c.z)<3900;
   const R2=W.routes.flatMap((r,i)=>[.3,.45,.6,.75].map(f=>({...W.at(r,r.L*f),road:r.sec}))).filter(ok);if(R2.length)return R2.sort((a,b)=>D(a)-D(b))[0];
@@ -84,7 +84,7 @@ export function createFlier(E,B,F,P){
  function canKami(t){if(!t||S.bombs>0)return false;const m=mains(t);if(!m.length)return false;
   if(t.t==='factory')return m[0].hp<=SO.kamiDmg&&S.hull>20;if(t.t==='launch')return m.length<=3&&S.hull>20;return false}
  const enter=(t,p)=>{st.t=t;st.u=axis(t,p.x,p.z);st.pass=0;st.ph='out'};
- function finishNow(d){if(S.home&&d.dead<=0){const c=Math.max(0,Math.round(G.cash-st.cash0));B.sr.banked+=c;B.sr.home++;B.set('return',`Sortie over: back inside the line${c?`, ${c} of salvage banked`:''}`,null);so.finish();st.ph='idle'}}
+ function finishNow(d){if(S.home&&d.dead<=0){const c=Math.max(0,Math.round(G.cash-st.cash0));B.sr.banked+=c;B.sr.home++;B.set('return',`Sortie over: back inside the line${c?`, $${c} of salvage banked`:''}`,null);so.finish();st.ph='idle'}}
  /* one physics step: fills and returns `out` (null when the sortie is over) */
  function nav(d,dt){if(!S.on){st.ph='idle';return null}
   const p=d.p,now=B.t,o=out;o.fire=false;o.kv=1.8;o.kind='sortie';o.tgt=null;
@@ -105,27 +105,27 @@ export function createFlier(E,B,F,P){
   switch(st.ph){
   case'scout':{if(!st.sc||fog.known(st.sc.x,st.sc.z)||Math.hypot(st.sc.x-p.x,st.sc.z-p.z)<350){st.sc=scoutPt(p.x,p.z);if(!st.sc){st.ph='home';return nav(d,dt)}}
    const s=st.sc,dd=Math.hypot(s.x-p.x,s.z-p.z);g=[s.x,s.z,gh(s.x,s.z)+60];o.speed=1e3;o.agl=60;o.floor=30;
-   why=`Sortie: scouting ${roadTxt(s.road)} · ${kmT(dd)} to unseen ground · ${Math.ceil(S.t)} s on the clock`;o.label='unseen ground';o.tgt={x:s.x,y:g[2],z:s.z};break}
+   why=`Sortie: scouting ${roadTxt(s.road)} · ${kmT(dd)} to unseen ground · ${Math.ceil(S.t)} s on the clock`;o.label='unseen ground';o.what=`sortie: scouting · ${kmT(dd)} to go`;o.tgt={x:s.x,y:g[2],z:s.z};break}
   case'out':{const q=pos(t),u=st.u,ex=q.x-u[0]*1100,ez=q.z-u[1]*1100,dd=Math.hypot(ex-p.x,ez-p.z),dT=Math.hypot(q.x-p.x,q.z-p.z),
     s0=(p.x-q.x)*u[0]+(p.z-q.z)*u[1],lat=Math.abs((p.x-q.x)*u[1]-(p.z-q.z)*u[0]);
    if(dd<260||(s0<-250&&s0>-1300&&lat<140)){st.ph='run';return nav(d,dt)}
    const a=dT<2800?25:45;g=[ex,ez,gh(ex,ez)+a];o.speed=1e3;o.agl=a;o.floor=a>30?30:20;
-   why=`Sortie: ${desc(t)} · ${kmT(dT)} out · ${Math.ceil(S.t)} s on the clock`;o.label=desc(t);o.tgt={x:q.x,y:gh(q.x,q.z)+10,z:q.z};break}
+   why=`Sortie: ${desc(t)} · ${kmT(dT)} out · ${Math.ceil(S.t)} s on the clock`;o.label=desc(t);o.what=`sortie: outbound · ${kmT(dT)} to the target`;o.tgt={x:q.x,y:gh(q.x,q.z)+10,z:q.z};break}
   case'run':{const q=pos(t),u=st.u,s0=(p.x-q.x)*u[0]+(p.z-q.z)*u[1];
    if(s0>(S.bombs>0?380:620)){/* past it: a second pass if there are bombs and time, else the warhead or home */
     if(S.bombs>0&&st.pass<1&&S.t>back+30&&S.hull>45){st.pass++;st.u=[-u[0],-u[1]];st.ph='out'}else st.ph=canKami(t)?'kami':'home';return nav(d,dt)}
    const sg=cl(s0+300,-1200,800);g=[q.x+u[0]*sg,q.z+u[1]*sg];g[2]=gh(g[0],g[1])+22;o.speed=Math.min(top(d)*.9,95);o.agl=22;o.floor=14;o.kv=2.4;
    if(release(d,t,now))o.fire=true;
-   const a=mains(t).length;why=`Bombing run on the ${desc(t)} · ${S.bombs} bomb${S.bombs===1?'':'s'} left · ${a} target${a===1?'':'s'} standing`;o.kind='bomb';o.label=desc(t);o.tgt={x:q.x,y:gh(q.x,q.z)+10,z:q.z};
+   const a=mains(t).length;why=`Bombing run on the ${desc(t)} · ${S.bombs} bomb${S.bombs===1?'':'s'} left · ${a} target${a===1?'':'s'} standing`;o.kind='bomb';o.label=desc(t);o.what=`bombing run · ${S.bombs} bomb${S.bombs===1?'':'s'} left`;o.tgt={x:q.x,y:gh(q.x,q.z)+10,z:q.z};
    if(S.bombs<=0&&now-st.bombT>2.6)st.ph=canKami(t)?'kami':'home';break}
   case'kami':{const q=mains(t)[0];if(!q||!canKami(t)){st.ph='home';return nav(d,dt)}
    g=[q.x,q.z,q.y+q.h*.5];o.speed=Math.min(top(d)*.85,80);o.agl=6;o.floor=3;o.kv=2.6;o.kind='bomb';const dd=Math.hypot(q.x-p.x,q.z-p.z,p.y-g[2]),reach=Math.hypot(Math.max(0,Math.hypot(q.x-p.x,q.z-p.z)-q.r),Math.max(0,p.y-(q.y+q.h)));
-   if(reach<SO.kamiR-3)o.fire=true;why=`Warhead run: finishing the ${desc(t)} · ${kmT(dd)}`;o.label=desc(t);o.tgt={x:q.x,y:g[2],z:q.z};break}
+   if(reach<SO.kamiR-3)o.fire=true;why=`Warhead run: finishing the ${desc(t)} · ${kmT(dd)}`;o.label=desc(t);o.what='warhead run';o.tgt={x:q.x,y:g[2],z:q.z};break}
   default:{/* home: to a point inside the line, then Enter */
    if(S.home){finishNow(d);return null}
    const h=nearHome(p.x,p.z),l=Math.hypot(h.x-p.x,h.z-p.z)||1,r=Math.max(0,l-(SO.homeR-350)),x=p.x+(h.x-p.x)/l*r,z=p.z+(h.z-p.z)/l*r;
    g=[x,z,gh(x,z)+45];o.speed=1e3;o.agl=45;o.floor=26;o.kind='return';
-   why=`Sortie: back to the line · ${kmT(Math.max(0,l-SO.homeR))} to go · ${Math.ceil(S.t)} s left${S.carry?` · $${S.carry|0} carried`:''}`;o.label='the line';o.tgt={x:h.x,y:gh(h.x,h.z)+30,z:h.z}}}
+   why=`Sortie: back to the line · ${kmT(Math.max(0,l-SO.homeR))} to go · ${Math.ceil(S.t)} s left${S.carry?` · $${S.carry|0} carried`:''}`;o.label='the line';o.what=`sortie: back to the line · ${kmT(Math.max(0,l-SO.homeR))}`;o.tgt={x:h.x,y:gh(h.x,h.z)+30,z:h.z}}}
   g=[cl(g[0],-AO,AO),cl(g[1],-AO,AO),g[2]];
   // a goal behind the nose: a dart turns wide and loses speed doing it, so first a point 700 m ahead and 450 m toward the goal's side
   let dx=g[0]-p.x,dz=g[1]-p.z,l=Math.hypot(dx,dz)||1;const sp=Math.hypot(d.v.x,d.v.z);
@@ -136,6 +136,6 @@ export function createFlier(E,B,F,P){
   return o}
  /* kills and the systems they count for, while the bot flies (wrapped once; E.bot is whichever run is current) */
  if(!W._botWrap){W._botWrap=1;const op=W.onPart,od=W.onDead;
-  W.onPart=(t,q,by)=>{op?.(t,q,by);const b=E.bot;if(!b?.on||!S.on||!by||!q.main)return;const k=t.t==='convoy'?'convoy':t.t==='launch'?'launch':null;if(k){b.sr.kills[k]++;b.use('sortie:'+k,{convoy:'Truck destroyed',launch:'Launcher destroyed'}[k])}};
+  W.onPart=(t,q,by)=>{op?.(t,q,by);const b=E.bot;if(!b?.on||!S.on||!by)return;b.sr.hits++;if(!q.main)return;const k=t.t==='convoy'?'convoy':t.t==='launch'?'launch':null;if(k){b.sr.kills[k]++;b.use('sortie:'+k,{convoy:'Truck destroyed',launch:'Launcher destroyed'}[k])}};
   W.onDead=(t,by,rem)=>{od?.(t,by,rem);const b=E.bot;if(!b?.on||!by)return;if(t.t==='factory'){b.sr.kills.factory++;b.use('sortie:factory','Drone factory destroyed')}}}
  return{plan,launch,nav,on,st,reset(){st.ph='idle';st.t=null;st.sc=null}}}

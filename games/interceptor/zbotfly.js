@@ -36,7 +36,8 @@ export function createPilot(api,G,Z,P,E){
  // ---------- choosing a target (every F.react seconds, or when the current one is gone) ----------
  function decoyOK(t){if(t.k!=='decoy')return true;if(t._bd==null)t._bd=!t.ident||Math.random()<F.decoy?1:0;return t.ident?!!t._bd&&Math.random()<F.decoy:true}
  function pick(me,from){const S0=Math.max(80,F.cruise*topV(me)),L=[];
-  for(const t of TH){if(!live(t)||KIND[t.k]?.armor==='hard')continue;const d=t.p.distanceTo(from);if(!(Z.seen?.(t)??true)&&d>1500)continue;if(t.k==='decoy'&&t.ident&&!decoyOK(t))continue;
+  const wall=(api.AW||4300)-380;
+  for(const t of TH){if(!live(t)||KIND[t.k]?.armor==='hard')continue;if(Math.abs(t.p.x)>wall||Math.abs(t.p.z)>wall)continue;const d=t.p.distanceTo(from);if(!(Z.seen?.(t)??true)&&d>1500)continue;if(t.k==='decoy'&&t.ident&&!decoyOK(t))continue;
    if(t.st==='dive'&&ttiOf(t)<3&&d>400)continue;L.push([t,d])}
   if(!L.length)return null;let best=null,bs=1e18;
   for(const[t,d]of L){let s;const tt=ttiOf(t),reach=F.pick==='smart'?Math.min(300,icpt(t,from,S0)+(t.spd<S0*.75?4:0)):d/S0;
@@ -46,6 +47,13 @@ export function createPilot(api,G,Z,P,E){
    if(t===st.tgt)s-=F.pick==='near'?150:d<700?120:6;  /* stick with what it is chasing unless something is clearly better; never mid-attack */
    if(s<bs){bs=s;best=t}}
   return best}
+ // a boss's turn, from its velocity: the horizontal acceleration is smoothed per track, and meet() finds where on the circle it is flying (constant turn rate) the
+ // dart, flying straight at speed S, can be when it gets there (null: it is not turning, or no meeting inside 14 s)
+ const accs=new WeakMap();
+ function turnOf(t,dt){let A=accs.get(t);if(!A){accs.set(t,A={v:new V3().copy(t.v),a:new V3(),n:0});return A}if(dt>0){const k=1-Math.exp(-dt/.5);A.a.x+=((t.v.x-A.v.x)/dt-A.a.x)*k;A.a.z+=((t.v.z-A.v.z)/dt-A.a.z)*k}A.v.copy(t.v);A.n++;return A}
+ function meet(t,from,S,out){const A=accs.get(t);if(!A||A.n<30)return null;const V=Math.hypot(t.v.x,t.v.z),al=Math.hypot(A.a.x,A.a.z);if(V<40||al<2.5)return null;
+  const om=al/V,nx=A.a.x/al,nz=A.a.z/al;for(let tau=.5;tau<=14;tau+=.25){const sn=Math.sin(om*tau)/om,cs=(1-Math.cos(om*tau))/om,x=t.p.x+t.v.x*sn+nx*V*cs,z=t.p.z+t.v.z*sn+nz*V*cs,y=t.p.y+t.v.y*tau;
+   if(Math.hypot(x-from.x,y-from.y,z-from.z)<=S*tau){out.set(x,y,z);return tau}}return null}
  // time to meet a track flying straight at speed S from here (Infinity: it outruns you)
  const icpt=(t,from,S)=>{const r=_b.subVectors(t.p,from),a=t.v.lengthSq()-S*S,b=2*r.dot(t.v),c=r.lengthSq();if(Math.abs(a)<1e-6)return b<0?-c/b:Infinity;const q=b*b-4*a*c;if(q<0)return Infinity;
   const r1=(-b-Math.sqrt(q))/(2*a),r2=(-b+Math.sqrt(q))/(2*a),m=Math.min(r1>0?r1:1e9,r2>0?r2:1e9);return m<1e9?m:Infinity};
@@ -73,6 +81,8 @@ export function createPilot(api,G,Z,P,E){
   if(alive&&F.relaunch&&st.t-st.launchT>6&&me.home){const bat=1-me.mah/Math.max(1,api.BCAP),goal=st.line?linePt(st.line,_a):t?t.p:null;
    if(goal){const d=goal.distanceTo(me.p);let df=1e9;for(const f of api.FOBS)df=Math.min(df,Math.hypot(f.x-goal.x,f.z-goal.z));
     if(d>3200&&df<d*.4||bat<.1&&d>1500){st.why=d>3200?'a fresh interceptor from the nearest pad is quicker':'battery low';api.relaunch?.();st.launchT=st.t;return}}}
+  // a boss that outruns the dart (the Mirror flies like you, and a tail chase never closes on it): a fresh interceptor's Rocket Assist burst is the way to catch it
+  if(alive&&F.relaunch&&t&&KIND[t.k]?.armor==='boss'&&t.spd>(S.mod.maxv||115)*.85&&Z.perkLevel?.('rocket')>0&&!(me.boost>0)&&me.t>10&&st.t-st.launchT>10&&me.p.distanceTo(t.p)>180){st.why='rocket burst for a boss it cannot catch';api.relaunch?.();st.launchT=st.t;return}
   // roaming with a spent pack and nothing to chase: a fresh interceptor from the pad (the rocket burst gets it back out quickly)
   if(alive&&roam&&roam.wantRelaunch&&!t&&!st.line&&G.state==='wave'&&me.home&&st.t-st.launchT>6){st.why='pack spent';api.relaunch?.();st.launchT=st.t;return}
   // tipped over on the ground: press R
@@ -107,7 +117,7 @@ export function createPilot(api,G,Z,P,E){
   return{thr,yaw,pit,rol}}
 
  // ---------- where it wants to go: a velocity, with terrain and the edge of the area kept clear ----------
- function want(me,Vd,kv,floor){const p=me.p,s=me.v.length();for(const q of api.SITES)if(Math.hypot(q.x-p.x,q.z-p.z)<(q.r||80)+200)floor=Math.max(floor,75);const ag=agl(p);  // the sites' buildings stand up to ~40 m: keep above them
+ function want(me,Vd,kv,floor,sfl=75){const p=me.p,s=me.v.length();for(const q of api.SITES)if(Math.hypot(q.x-p.x,q.z-p.z)<(q.r||80)+200)floor=Math.max(floor,sfl);const ag=agl(p);  // the sites' buildings stand up to ~40 m: keep above them
 
   Vd.y=Math.max(Vd.y,-Math.max(4,(ag-floor)*.35));  /* a glide slope: never sink faster than it can level off above the floor */
   for(const k of[.6,1.2,2.6,2.6+s/14]){_a.copy(p).addScaledVector(me.v,k);const ah=_a.y-gh(_a.x,_a.z);if(ah<floor)Vd.y=Math.max(Vd.y,(floor-ah)*1.3+2)}
@@ -119,7 +129,7 @@ export function createPilot(api,G,Z,P,E){
  const Vd=new V3(),head=new V3(0,0,-1),ip=new V3(),LOOK=new V3();
  // flying to a point and stopping on it: a speed that it can still brake from (drag, then thrust-vectoring), stiff for the last few metres. Sets Vd, returns the gain
  function approach(e,d,vmax){const sp=Math.min(vmax,d<8?2.2*d:Math.sqrt(12*d)+7);Vd.copy(e).multiplyScalar(sp/Math.max(d,1e-3));return d<8?4:d<60?2.5:2}
- function input(me,dt){st.t+=dt;let look=null;const ag=agl(me.p),s=me.v.length(),onMat=ag<3&&s<3&&me.t<6;let kv=1.6,floor=30;
+ function input(me,dt){st.t+=dt;let look=null;const ag=agl(me.p),s=me.v.length(),onMat=ag<3&&s<3&&me.t<6;let kv=1.6,floor=30,sfl=75;
   if(st.lastMe!==me.t&&me.t<.02)st.launchT=st.t;
   const k=dt/1.5,an=F.aim*Math.sqrt(2*k);st.aimN.multiplyScalar(1-k).add(_a.set(gauss()*an,gauss()*an*.6,gauss()*an));
   const SN=sortie&&sortie.on()?sortie.nav(me,dt):null,t=!SN&&st.tgt&&live(st.tgt)?st.tgt:null,L=!SN&&st.line&&api.live(st.line)?st.line:null;sortO=SN;
@@ -127,15 +137,17 @@ export function createPilot(api,G,Z,P,E){
   if(onMat||me.t<1.2&&ag<12){st.mode='mat';const rk=Z.rk?.st?.armed;Vd.set(rk?head.x*30:0,rk?10:16,rk?head.z*30:0);kv=2.5;floor=0;st.intent=`taking off from ${me.home?.n||'the mat'}${rk?' · rocket armed':''}`}  // Rocket Assist lights 4 m up: lean toward the target first
   else if(ag<18&&me.t<8&&!(me.boost>0)&&st.mode==='mat'){Vd.set(head.x*12,14,head.z*12);kv=2;floor=0;st.intent=`climbing out of ${me.home?.n||'the mat'}`}
   else if(st.hold){st.mode='hold';const e=_a.subVectors(st.hold,me.p),d=e.length();kv=approach(e,d,60);floor=10;st.intent=`holding position · ${d.toFixed(1)} m off`}  /* tests: hover on a point */
-  else if(SN){st.mode='sortie';const e=_a.set(SN.x-me.p.x,SN.y-me.p.y,SN.z-me.p.z),d=e.length();Vd.copy(e).multiplyScalar(Math.min(SN.speed,F.cruise*topV(me))/Math.max(d,1));kv=SN.kv;floor=SN.floor;st.intent=SN.why;if(SN.fire)st.fire=true}
+  else if(SN){st.mode='sortie';const e=_a.set(SN.x-me.p.x,SN.y-me.p.y,SN.z-me.p.z),d=e.length();Vd.copy(e).multiplyScalar(Math.min(SN.speed,F.cruise*topV(me))/Math.max(d,1));kv=SN.kv;floor=SN.floor;st.intent=SN.what;if(SN.fire)st.fire=true}
   else if(L){st.mode='line';head.set(L.p.x-me.p.x,0,L.p.z-me.p.z);if(head.lengthSq()>1)head.normalize();else head.set(0,0,-1);const H=linePt(L,ip),e=_a.subVectors(H,me.p),d=e.length(),tt=lineTT(L);
    kv=approach(e,d,F.cruise*topV(me));floor=12;
    st.intent=`sitting on the line of ${name(L)} · impact in ${Math.ceil(tt)} s${d>8?' · '+rng(d)+' to go':''}`}
   else if(t){st.mode='chase';const rel=_a.subVectors(t.p,me.p),d=rel.length(),top=topV(me),S0=Math.max(70,Math.min(top*.97,F.cruise*top)),fastT=t.spd>.75*S0||me.boost>0;
-   const vr=_b.subVectors(t.v,me.v),cv=Math.max(0,-vr.dot(rel)/Math.max(d,1)),dTerm=Math.max(350,4*cv),tAgl=agl(t.p);
+   const vr=_b.subVectors(t.v,me.v),cv=Math.max(0,-vr.dot(rel)/Math.max(d,1)),dTerm=Math.max(350,4*cv),tAgl=agl(t.p);if(d<700&&tAgl<70)sfl=cl(tAgl-5,14,75);
    if(d>dTerm||fastT){const sp=fastT?Math.max(S0,s):S0;let tau=d/sp;const a2=t.v.lengthSq()-sp*sp,b2=2*rel.dot(t.v),c2=rel.lengthSq();
     if(Math.abs(a2)>1e-6){const q=b2*b2-4*a2*c2;if(q>=0){const r1=(-b2-Math.sqrt(q))/(2*a2),r2=(-b2+Math.sqrt(q))/(2*a2),m=Math.min(r1>0?r1:1e9,r2>0?r2:1e9);if(m<1e9)tau=m}}
-    tau=Math.min(tau,60);ip.copy(t.p).addScaledVector(t.v,tau);if(!fastT&&t.v.lengthSq()>1){const f=_c.copy(t.v).normalize(),ahead=rel.dot(f)<0;ip.addScaledVector(f,-Math.min(ahead?420:220,d*(ahead?.35:.12)))}  /* slow tracks: come in toward their six, wider when meeting one head-on */
+    tau=Math.min(tau,60);ip.copy(t.p).addScaledVector(t.v,tau);
+    if(KIND[t.k]?.armor==='boss'&&t.spd>60){turnOf(t,dt);if(meet(t,me.p,sp*.95,_c))ip.copy(_c)}  /* a circling boss: where its turn takes it */
+    if(!fastT&&t.v.lengthSq()>1){const f=_c.copy(t.v).normalize(),ahead=rel.dot(f)<0;ip.addScaledVector(f,-Math.min(ahead?420:220,d*(ahead?.35:.12)))}  /* slow tracks: come in toward their six, wider when meeting one head-on */
     if(d<dTerm)ip.add(st.aimN);Vd.subVectors(ip,me.p).setLength(sp);kv=d<dTerm?3.2:1.6;
     st.intent=`${d<dTerm?'closing on':'chasing'} ${name(t)} · ${rng(d)}`;
     // lock-on: a pilot who uses it holds its sights on a track it is coming up behind or abeam (one meeting it head-on it turns into the six of first)
@@ -148,8 +160,9 @@ export function createPilot(api,G,Z,P,E){
     if(Z.lk&&t._la&&d>60){look=LOOK.copy(los);if(Z.lk.t!==t&&Z.lk.cand===t&&Z.lk.prog>0)st.intent+=` · locking ${Math.round(Z.lk.prog*100)}%`}}  // the run-in: sights on it (it is in front now), so a lock builds or holds
    floor=Math.max(d<500?cl(tAgl-10,t.k==='swarm'?8:15,30):30,s*(d<120?.08:.25));  // the faster it goes, the more ground it keeps under it (a pull-out at rocket speed takes hundreds of metres)
    if(d<90)detonate(me,t,dt);
-   if(st.plan)st.intent=`detonating on ${name(t)}`}
-  else if(roam&&!(me.mah/Math.max(1,api.BCAP)>.9&&!F.relaunch)){const o=roamO=roam.nav(me,dt),e=_a.set(o.x-me.p.x,o.y-me.p.y,o.z-me.p.z),d=e.length();st.mode='roam';kv=approach(e,d,Math.min(o.speed,F.cruise*topV(me)));floor=o.floor;st.intent=(G.state==='clear'?'wave cleared · ':'')+o.why}
+   if(st.plan)st.intent=`detonating on ${name(t)}`;
+   if(t.tgt)st.why2=`${me.boost>0?'Rocket dash to intercept':st.line?'Intercepting':d>1500?'Meeting it far out:':'Intercepting'} ${name(t)}, ${rng(d)} off and ${Math.ceil(ttiOf(t))} s from the ${t.tgt.n.toLowerCase()}${Z.lk?.t===t?' · lock held':''}`}
+  else if(roam&&!(me.mah/Math.max(1,api.BCAP)>.9&&!F.relaunch)){const o=roamO=roam.nav(me,dt),e=_a.set(o.x-me.p.x,o.y-me.p.y,o.z-me.p.z),d=e.length();st.mode='roam';kv=approach(e,d,Math.min(o.speed,F.cruise*topV(me)));floor=o.floor;st.intent=(G.state==='clear'?'wave cleared · ':'')+o.what}
   else{const lowBat=me.mah/Math.max(1,api.BCAP)>.9&&!F.relaunch,P0=lowBat&&me.home?_c.set(me.home.x,gh(me.home.x,me.home.z)+40,me.home.z):loiterPt(_c),e=_a.subVectors(P0,me.p),d=e.length();
    st.mode=lowBat?'home':'loiter';kv=approach(e,d,F.cruise*topV(me));
    st.intent=lowBat?'returning to mat':G.state==='clear'?'wave cleared · holding':'holding over the sites'+(st.sw?'':' · no tracks in reach')}
@@ -158,10 +171,10 @@ export function createPilot(api,G,Z,P,E){
   // camera tilt switch: level for take-off, 90 degrees once it is away from the mat (its sights look down the nose)
   if(!onMat&&ag>10&&!api.camUp)api.camUp=true;
   st.lastMe=me.t;st.lastIntent=st.intent;st.lastV=s;
-  {const tg=t||L;if(st.mode==='sortie'&&sortO)B.set(sortO.kind,st.intent,sortO.tgt?{...sortO.tgt,label:sortO.label}:null);
-   else if(st.mode==='roam'&&roamO)B.set(roamO.kind,st.intent,{x:roamO.st.x,y:roamO.st.y+roamO.st.agl,z:roamO.st.z,label:roamO.label});
-   else{const K={mat:'launch',hold:'idle',line:'line',home:'return',loiter:'station'}[st.mode]||(tg&&Z.lk?.t===tg?'lock':'intercept');B.set(K,st.intent,tg?{x:tg.p.x,y:tg.p.y,z:tg.p.z,label:name(tg)}:null)}}
-  const A=want(me,Vd,kv,floor);return sticks(me,A,head,dt,look)}
+  {const tg=t||L,wy=st.why2||st.intent;st.why2='';if(st.mode==='sortie'&&sortO)B.set(sortO.kind,sortO.why,sortO.tgt?{...sortO.tgt,label:sortO.label}:null);
+   else if(st.mode==='roam'&&roamO)B.set(roamO.kind,roamO.why,{x:roamO.st.x,y:roamO.st.y+roamO.st.agl,z:roamO.st.z,label:roamO.label});
+   else{const K={mat:'launch',hold:'idle',line:'line',home:'return',loiter:'station'}[st.mode]||(tg&&tg.k==='boss'?'boss':tg&&Z.lk?.t===tg?'lock':'intercept');B.set(K,wy,tg?{x:tg.p.x,y:tg.p.y,z:tg.p.z,label:name(tg)}:null)}}
+  const A=want(me,Vd,kv,floor,sfl);return sticks(me,A,head,dt,look)}
 
  // manual detonation: when the closest approach is a moment away and close enough, press detonate at that moment (with this pilot's timing
  // error); when it is already as close as it will get (sitting in the track's six, or passing), press now if that is close enough

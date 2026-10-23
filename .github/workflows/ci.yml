@@ -126,6 +126,10 @@ jobs:
           - check: flight-golden
             area: interceptor
             run: node tools/flight-golden.mjs
+          # the Bot Spectator explores: roams the map, flies the sorties, uses its systems, never sticks, holds the benchmark's wave (one visual run, four headless)
+          - check: zombies-test (explore)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=explore
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

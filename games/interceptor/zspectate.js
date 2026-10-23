@@ -50,22 +50,23 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
 .zsprep td.n{font-family:var(--mono);white-space:nowrap}`;document.head.append(css);
 
  // ---------- start menu: the Watch a bot card ----------
- const cfg=()=>{const c=S.zspec&&typeof S.zspec==='object'?S.zspec:{};return{lv:brain.level(c.lv)?brain.level(c.lv).n:'Champion',d:cl(c.d|0,0,ZDIFF.length-1),sec:SECTORS.some(s=>s.id===c.sec)?c.sec:'',doc:DOCS[c.doc]?c.doc:'std',kit:Array.isArray(c.kit)?c.kit.filter(k=>KIT[k]).slice(0,KIT_MAX):[]}};
+ const cfg=()=>{const c=S.zspec&&typeof S.zspec==='object'?S.zspec:{};return{lv:brain.level(c.lv)?brain.level(c.lv).n:'Champion',d:cl(c.d|0,0,ZDIFF.length-1),sec:SECTORS.some(s=>s.id===c.sec)?c.sec:'',doc:DOCS[c.doc]?c.doc:'std',auto:!!c.auto,kit:Array.isArray(c.kit)?c.kit.filter(k=>KIT[k]).slice(0,KIT_MAX):[]}};
  const card=document.createElement('details');card.className='zspc';card.id='zspc';($('zcpm')||$('zdiff')).after(card);
  function renderCard(){const c=cfg(),L=brain.level(c.lv);
-  card.innerHTML=`<summary>Watch a bot <span>${esc(c.lv)} · ${ZDIFF[c.d].n}${c.sec?' · '+esc(SECTORS.find(s=>s.id===c.sec).n):''} · ${DOCS[c.doc].n}${c.kit.length?' · '+c.kit.map(k=>KIT[k].n).join(', '):''}</span></summary>
+  card.innerHTML=`<summary>Watch a bot <span>${esc(c.lv)} · ${ZDIFF[c.d].n}${c.sec?' · '+esc(SECTORS.find(s=>s.id===c.sec).n):''} · ${c.auto?"Bot's choice":DOCS[c.doc].n}${!c.auto&&c.kit.length?' · '+c.kit.map(k=>KIT[k].n).join(', '):''}</span></summary>
    <div class="zmb"><p class="note" style="margin:0">A bot pilot plays the real game while you watch: it flies the interceptor, shops between waves and tells you why. Speed, cameras, a live tuning panel and a report at the end. Its runs never touch your saves.</p>
    <h4>Bot level</h4><div class="zdocs">${brain.LEVELS.map(l=>`<button class="sm ${l.n===c.lv?'on':''}" data-zsl="${esc(l.n)}">${esc(l.n)}</button>`).join('')}</div>
    <h4>Difficulty</h4><div class="zdocs">${ZDIFF.map((d,i)=>`<button class="sm ${i===c.d?'on':''}" data-zsd="${i}">${d.n}</button>`).join('')}</div>
    <h4>Campaign sector (optional)</h4><select id="zspsec" aria-label="Campaign sector"><option value="">Quick defence (endless)</option>${SECTORS.map(s=>`<option value="${s.id}" ${s.id===c.sec?'selected':''}>${esc(s.n)} · hold ${s.obj}</option>`).join('')}</select>
-   <h4>Doctrine</h4><div class="zdocs">${DOC_IDS.map(id=>`<button class="sm ${id===c.doc?'on':''}" data-zsdoc="${id}">${DOCS[id].n}</button>`).join('')}</div>
+   <h4>Doctrine</h4><div class="zdocs"><button class="sm ${c.auto?'on':''}" data-zsauto="1" title="The bot picks the doctrine and kit that answer the sector it plays">Bot's choice</button>${DOC_IDS.map(id=>`<button class="sm ${id===c.doc&&!c.auto?'on':''}" data-zsdoc="${id}">${DOCS[id].n}</button>`).join('')}</div>
    <h4>Kit (up to ${KIT_MAX})</h4><div class="zdocs">${KIT_IDS.map(id=>`<button class="sm ${c.kit.includes(id)?'on':''}" data-zskit="${id}">${KIT[id].n}</button>`).join('')}</div>
    <p class="note" style="margin:0">${esc(L.n)}: shops ${L.shop}, perks ${L.perks}, reaction ${L.fly.react} s, detonates within ${L.fly.fire} m${L.fly.line?', tries to sit on missile lines':''}${L.fly.relaunch?', relaunches from the nearest pad':''}. Every doctrine and kit is open to bots.</p>
    <button class="go zsp-go" id="zspgo">Watch ▸</button></div>`;
   const put=o=>{S.zspec={...cfg(),...o};save();renderCard();card.open=true};
   for(const b of card.querySelectorAll('[data-zsl]'))b.onclick=()=>put({lv:b.dataset.zsl});
   for(const b of card.querySelectorAll('[data-zsd]'))b.onclick=()=>put({d:+b.dataset.zsd});
-  for(const b of card.querySelectorAll('[data-zsdoc]'))b.onclick=()=>put({doc:b.dataset.zsdoc});
+  for(const b of card.querySelectorAll('[data-zsdoc]'))b.onclick=()=>put({doc:b.dataset.zsdoc,auto:false});
+  for(const b of card.querySelectorAll('[data-zsauto]'))b.onclick=()=>put({auto:!cfg().auto});
   for(const b of card.querySelectorAll('[data-zskit]'))b.onclick=()=>{const k=b.dataset.zskit,c0=cfg();let kit=c0.kit.includes(k)?c0.kit.filter(x=>x!==k):[...c0.kit,k];if(kit.length>KIT_MAX)kit=kit.slice(-KIT_MAX);put({kit})};
   $('zspsec').onchange=e=>put({sec:e.target.value});$('zspgo').onclick=()=>start(cfg())}
  const syncCard=()=>{card.hidden=S.gmode!=='z';if(!card.hidden)renderCard()};
@@ -74,8 +75,9 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
  // ---------- the run ----------
  const newStats=o=>({lv:o.lv,d:ZDIFF[o.d].n,doc:DOCS[o.doc]?.n||'Standard',kit:o.kit||[],sec:o.sec?SECTORS.find(s=>s.id===o.sec)?.n:'',simT:0,money:[],buys:[],kills:{},lastHit:null,dmg:{},bursts:0,deaths:{det:0,crash:0,bat:0},crashes:[],waves:[],sampleT:0,snap:new Map(),wasDead:false,relaunches:0});
  function start(o){if(sp.on)stop();const P=brain.level(o.lv);if(!P)return false;
+  let pickWhy='';if(o.auto){const c=brain.loadout(P,o.sec?SECTORS.find(s=>s.id===o.sec):null);o={...o,doc:c.doc,kit:c.kit};pickWhy=c.why}
   Object.assign(sp,{on:true,bench:!!o.bench,P,o:{...o},spd:1,paused:false,cam:'chase',site:0,gen:null,cur:null,next:0,stats:newStats(o),shopT:0});
-  sp.pilot=createPilot(api,G,Z,P,E);
+  sp.pilot=createPilot(api,G,Z,P,E);if(pickWhy)E.bot?.use('camp','Loadout: '+DOCS[o.doc].n+(o.kit.length?' + '+o.kit.map(k=>KIT[k].n).join(', '):'')+' · '+pickWhy);
   Z.botIn=(d,dt)=>sp.on&&(G.state!=='base'||Z.bot?.sortie?.on())&&G.state!=='over'?sp.pilot.input(d,dt):null;Z.botFire=()=>sp.on&&sp.pilot.fire();Z.sightCam=sight;
   const ld=Z.meta.load;Z.meta.load=()=>({doc:DOCS[o.doc]?o.doc:'std',kit:(o.kit||[]).filter(k=>KIT[k]).slice(0,KIT_MAX)});sp.starting=true;
   try{S.gmode='z';if(o.sec&&Z.cp?.start)Z.cp.start(o.sec,true);else api.startMatch()}finally{Z.meta.load=ld;sp.starting=false}
@@ -153,7 +155,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
   $('zsppause').classList.toggle('on',sp.paused);$('zsppause').textContent=sp.paused?'Resume':'Pause';$('zsptbtn').classList.toggle('on',!!$('zsptune'))}
  let hudLast='';
  function hudTick(){const b=$('zspbar');if(!b)return;const ov=G.state==='over';b.hidden=ov;const c=$('zspctl');if(c)c.hidden=ov;if(ov)return;const me=api.player,lk=Z.lk?.t,camN=CAMS.find(c=>c[0]===sp.cam)[1]+(sp.cam==='sites'?' · '+(SITES[sp.site%SITES.length]?.n||''):'');
-  const h=`<b>BOT ${esc(sp.P.n.toUpperCase())} · ${esc(sp.stats.d.toUpperCase())}</b><span>${esc(G.state==='base'?'on the base screen':sp.pilot?.intent||'')}</span><em>${camN} · ${sp.paused?'PAUSED':sp.spd+'×'}${lk?` · LOCK T${String(lk.id).padStart(2,'0')}`:Z.lk?.cand&&Z.lk.prog>0?` · LOCKING ${Math.round(Z.lk.prog*100)}%`:''}${me&&me.dead<=0?` · ${Math.round(me.v.length()*3.6)} km/h · ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m`:''}</em>`;
+  const h=`<b>BOT ${esc(sp.P.n.toUpperCase())} · ${esc(sp.stats.d.toUpperCase())}</b><span>${esc(G.state==='base'&&!Z.bot?.sortie?.on()?'on the base screen':sp.pilot?.intent||'')}</span><em>${camN} · ${sp.paused?'PAUSED':sp.spd+'×'}${lk?` · LOCK T${String(lk.id).padStart(2,'0')}`:Z.lk?.cand&&Z.lk.prog>0?` · LOCKING ${Math.round(Z.lk.prog*100)}%`:''}${me&&me.dead<=0?` · ${Math.round(me.v.length()*3.6)} km/h · ${Math.round(me.p.y-gh(me.p.x,me.p.z))} m`:''}</em>`;
   if(h!==hudLast)b.innerHTML=hudLast=h}
  function setSpeed(s){sp.spd=s;sp.paused=false;Z.stepCap=Math.ceil(12*s);syncCtl()}
  function setPause(v){sp.paused=v;syncCtl()}

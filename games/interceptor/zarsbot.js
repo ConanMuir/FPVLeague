@@ -25,14 +25,16 @@ export const ARSBOT={name:'arsenal',
   const wDone=!part&&G.__arsW===G.wave;if(part==='weapon')G.__arsW=G.wave;  // the weapon is decided once a base screen
   if((lv||P.force)&&(!part||part==='weapon')&&!wDone){const me=A.P(A.me()),pts=k=>(cnt[k]|0)*(KIND[k]?KIND[k].pts:0),hard=['ballistic','hyper','icbm'].reduce((a,k)=>a+(cnt[k]|0),0),noise={};
    const val=id=>{let v=0;for(const k in cnt)v+=pts(k)*(WEFF[id][k]??0);
-    if(lv>=3&&P.explore>=3){if(!me.own.has(id))v*=1.2;else if(!(A.stats().wk[id]>0))v*=1.08}  /* a bot that explores wants to see each weapon work once */
+    if(lv>=3&&P.explore>=3&&E.spec?.on){if(!me.own.has(id))v*=1.2;else if(!(A.stats().wk[id]>0))v*=1.08}  /* a bot that explores wants to see each weapon work once */
     if(lv>=3){if(id==='emp')v*=Math.min(1.25,.35+def.D.length/12);if(id==='flare')v+=(pts('jet')+pts('cruise'))*.25;if(id==='dart')v+=hard*40*(P.fast||0)*8;if(id==='net'&&nw<15)v*=1.15;if(id==='cluster')v*=(cnt.swarm|0)>=10?1.3:1.1}
     else if(lv===2)v*=noise[id]??=.8+Math.random()*.4;return v};
    const ok=id=>!A.ban.has(id)&&nw>=WPN[id].from;let L=WORDER.filter(ok);if(lv===1)L=L.filter(id=>id==='std'||id==='net'||id==='flech');
    const best=L.reduce((b,id)=>val(id)>val(b)?id:b,'std'),bestOwned=[...me.own].filter(ok).reduce((b,id)=>val(id)>val(b)?id:b,'std');
-   const pick=P.force&&WPN[P.force]?(ok(P.force)?P.force:'std'):lv===1?((cnt.swarm|0)>=6&&ok('flech')?'flech':nw<=9&&ok('net')?'net':'std'):best;
-   if(!me.own.has(pick)&&G.cash-WPN[pick].price>=Math.max(keep,WPN[pick].price*(lv>=3?1:2))&&(P.force||lv===1||val(pick)>val(bestOwned)*1.12))
-    yield step(`Buying the ${WPN[pick].n} (${money(WPN[pick].price)}): it suits wave ${nw}'s threats`,'weapon',()=>A.buyW(pick),{k:pick,cost:WPN[pick].price});
+   let trial=null;if(P.explore>=3&&E.spec?.on&&lv>=3&&!P.force){const tot=Object.keys(cnt).reduce((a,k)=>a+pts(k),0)||1;  /* a bot that explores wants to see each weapon work once: one it has never bought that fits most of the next wave, when the purse is comfortable */
+    for(const id of WORDER){if(id==='std'||me.own.has(id)||!ok(id)||A.stats().bought[id])continue;const fit=Object.keys(cnt).reduce((a,k)=>a+pts(k)*(WEFF[id][k]??0),0)/tot;if(fit>=.5&&G.cash>=WPN[id].price*2.2&&(!trial||fit>trial.fit))trial={id,fit}}}
+   const pick=trial?trial.id:P.force&&WPN[P.force]?(ok(P.force)?P.force:'std'):lv===1?((cnt.swarm|0)>=6&&ok('flech')?'flech':nw<=9&&ok('net')?'net':'std'):best;
+   if(!me.own.has(pick)&&G.cash-WPN[pick].price>=Math.max(keep,WPN[pick].price*(lv>=3?1:2))&&(P.force||trial||lv===1||val(pick)>val(bestOwned)*1.12))
+    yield step(`${trial?'Trying':'Buying'} the ${WPN[pick].n} (${money(WPN[pick].price)}): ${trial?`it fits ${Math.round(trial.fit*100)}% of wave ${nw}'s threats and the bot wants to see each weapon work`:`it suits wave ${nw}'s threats`}`,'weapon',()=>A.buyW(pick),{k:pick,cost:WPN[pick].price});
    const load=()=>me.own.has(pick)?pick:lv===1?'std':bestOwned;
    if(A.cur()!==load())yield step(`Loading the ${WPN[load()].n} for wave ${nw}`,'weapon',()=>A.equip(load()),{k:load()})}
   // ---- the defences ----
@@ -40,6 +42,9 @@ export const ARSBOT={name:'arsenal',
   const shop=DORDER[P.shop]?P.shop:'basic',caps=CAP[shop],nOf=k=>def.D.filter(d=>d.type===k).length,smart=shop==='smart';
   const nxw=G.next.wx&&Z.wx?.T[G.next.wx.id],lwx=nxw?laserWx(nxw):1,from=k=>Z.itemFrom?Z.itemFrom(k):IT[k].from;
   const siteSlot=k=>def.SLOTS.findIndex((s,j)=>def.slotFree(j)&&s.site&&!def.D.some(d=>d.type===k&&def.SLOTS[d.slot].site===s.site));
+  if(P.explore>=3&&E.spec?.on&&part!=='weapon')for(const k of ARS_HELPERS){if(A.ban.has(k)||!IT[k]||nw<from(k)||nOf(k)||(A.stats().dmax[k]|0)>0)continue;  /* each defence built once, when it is cheap next to the purse: the bot wants to see it work */
+   const price=Z.itemPrice?Z.itemPrice(k):IT[k].price;if(!afford(price)||price>G.cash*.4)continue;const j=def.SLOTS.findIndex((_,j)=>def.slotFree(j,k==='carrier'?'carrier':undefined));
+   if(j>=0)yield step(`Trying the ${IT[k].n.toLowerCase()} (${money(price)}) at ${def.SLOTS[j].n}: the bot wants to see each defence work once`,'place',()=>Z.base.act.place(k,j),{k,slot:j,cost:price})}
   for(const k of DORDER[shop]){if(part==='early'&&(shop==='naive'||k==='barrage'&&(nw<6||nOf(k))||k==='smoke'&&(!smart||nw<8||nOf(k))))continue;if(A.ban.has(k)||!IT[k]||nw<from(k)||nOf(k)>=caps[k])continue;if(k==='mwave'&&nw<kf('swarm')-1)continue;if(k==='laser'&&smart&&lwx<=.3&&!nOf(k))continue;
    const price=Z.itemPrice?Z.itemPrice(k):IT[k].price;if(!afford(price)||G.cash-price<keep)continue;
    if(k==='carrier'){const j=def.SLOTS.findIndex((_,j)=>def.slotFree(j,'carrier'));if(j>=0)yield step(`Buying a ${IT[k].n.toLowerCase()} (${money(price)}): ${WHY[k]}`,'place',()=>Z.base.act.place(k,j),{k,slot:j,cost:price});continue}

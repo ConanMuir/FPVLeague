@@ -26,13 +26,13 @@ export function installBot(E){
  if(E.bot)return E.bot;
  const {api,G,Z}=E,$=id=>document.getElementById(id);
  const B={get on(){return !!(B.pilot&&E.spec&&E.spec.on)},P:null,pilot:null,map:null,t:0,intent:{kind:'idle',sub:'',why:'',target:null,t:0,w:0},hist:[],used:new Map(),log:[],flashT:0,flash:'',stuck:0,stuckLog:[],modeT:{},
-  wait:()=>!!(B.sortie&&B.sortie.on()),sortie:null,wave0:0,sr:{n:0,home:0,bombs:0,hits:0,lost:0,late:0,shot:0,kills:{convoy:0,launch:0,factory:0},banked:0}};
+  wait:()=>!!(B.sortie&&B.sortie.on()),sortie:null,wave0:0,sr:{n:0,home:0,bombs:0,hits:0,lost:0,kills:{convoy:0,launch:0,factory:0},banked:0}};
  E.bot=B;Z.bot=B;
  B.map=createMap(E);
  B.get=()=>B.map;
  // ---------- a run starts (a pilot is created) ----------
  B.begin=(P,pilot)=>{B.P=P;B.pilot=pilot;B.t=0;B.hist.length=0;B.used.clear();B.log.length=0;B.stuck=0;B.stuckLog.length=0;B.modeT={};B.map.reset();B.flash='';B.flashT=0;B.still=null;B.lastW=0;B.wave0=0;
-  Object.assign(B.sr,{n:0,home:0,bombs:0,hits:0,lost:0,late:0,shot:0,kills:{convoy:0,launch:0,factory:0},banked:0});B.set('idle','Starting',null);return B};
+  Object.assign(B.sr,{n:0,home:0,bombs:0,hits:0,lost:0,kills:{convoy:0,launch:0,factory:0},banked:0});B.set('idle','Starting',null);return B};
  // ---------- intent ----------
  /* the history keeps a line when the kind or the words change, not when only a distance or a clock ticks over */
  const sig=s=>s.replace(/[0-9][0-9.,]*/g,'#');let sigNow='';
@@ -59,7 +59,7 @@ export function installBot(E){
    systems:used.length,systemsTotal:sys.length,systemIds:used.map(([id])=>id),unused:sys.filter(([id])=>!B.used.has(id)).map(([id])=>id),sorties:{...B.sr,kills:{...B.sr.kills}},stuck:B.stuck,stuckLog:B.stuckLog.slice(0,6),wave:G.wave,log:B.log.map(l=>[l.w,l.cells,l.places,l.systems])}};
  /* two or three rows for the spectator's report (zspectate.js over()) */
  B.statRow=()=>{const s=B.summary();return`<span>Map covered</span><b>${Math.round(s.pct*100)}% · ${s.cells} cells · ${s.places}/${s.placesTotal} places</b><span>Systems used</span><b>${s.systems} of ${s.systemsTotal}</b>${s.sorties.n?`<span>Sorties</span><b>${s.sorties.n} flown, ${s.sorties.home} home, ${s.sorties.bombs} bombs dropped</b>`:''}`};
- B.line=(final)=>{const s=B.summary();return`${final?'run':'wave '+G.wave}: ${s.cells} cells (${Math.round(s.pct*100)}% of the operational area), ${s.places}/${s.placesTotal} places, ${s.systems}/${s.systemsTotal} systems${B.sr.n?`, ${B.sr.n} sortie${B.sr.n>1?'s':''} (${B.sr.home} back home, ${B.sr.hits} hits)`:''}`};
+ B.line=(final)=>{const s=B.summary();return`${final?'run':'wave '+G.wave}: ${s.cells} cells (${Math.round(s.pct*100)}% of the operational area), ${s.places}/${s.placesTotal} places, ${s.systems}/${s.systemsTotal} systems${B.sr.n?`, ${B.sr.n} sortie${B.sr.n>1?'s':''} (${B.sr.home} back home, ${B.sr.hits} parts destroyed)`:''}`};
  /* wave end: log it, and put it on the spectator's wave record (its report and JSON export) */
  const ARSD=['laser','mwave','barrage','smoke','carrier'];
  function waveEnd(){const A=Z.ars?.stats?.();if(A){for(const[w,n]of Object.entries(A.wk||{}))if(n>0&&w!=='std'&&!B.did('wpn:'+w))B.use('wpn:'+w);for(const k of ARSD)if((A.dmax?.[k]|0)>0&&!B.did('def:'+k))B.use('def:'+k)}
@@ -85,10 +85,11 @@ export function installBot(E){
   else if(B.t-still.t>25){B.stuck++;if(B.stuckLog.length<12)B.stuckLog.push({w:G.wave,k,why:B.intent.why,x:Math.round(p.x),z:Math.round(p.z),agl:Math.round(agl)});still.t=B.t}};
  // ---------- the HUD line ----------
  {const css=document.createElement('style');css.textContent=`#zspwhy{position:fixed;left:50%;transform:translateX(-50%);z-index:7;pointer-events:none;font:700 13px var(--mono,monospace);color:#fff;text-shadow:0 0 4px #000;padding:3px 12px;border-radius:6px;background:rgba(4,18,26,.66);border:1px solid rgba(95,227,255,.35);max-width:min(780px,92vw);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#zspwhy[hidden]{display:none}#zspwhy b{color:#ffc640;letter-spacing:.12em;font-size:11px;margin-right:8px;text-transform:uppercase}#zspwhy em{font-style:normal;color:#3ddc84;margin-left:10px;font-size:12px}`;document.head.append(css)}
+body.zsp-sortie #zspbar{top:calc(140px + env(safe-area-inset-top,0px))}#zspwhy[hidden]{display:none}#zspwhy b{color:#ffc640;letter-spacing:.12em;font-size:11px;margin-right:8px;text-transform:uppercase}#zspwhy em{font-style:normal;color:#3ddc84;margin-left:10px;font-size:12px}`;document.head.append(css)}
  let hudLast='',hudT=0;
- B.hud=()=>{let el=$('zspwhy');const now=performance.now();if(now-hudT<90&&el)return;hudT=now;
-  const show=B.on&&G.state!=='over'&&(G.state!=='base'||B.sortie?.on?.());
+ B.hud=()=>{if(B.on&&G.state==='base'&&!(B.sortie&&B.sortie.on())){const c=E.spec.sp&&E.spec.sp.cur;B.set('shop',c?c.why:'Between waves: looking over the shop',null)}
+  let el=$('zspwhy');const now=performance.now();if(now-hudT<90&&el)return;hudT=now;
+  const so=!!(B.on&&B.sortie&&B.sortie.on());document.body.classList.toggle('zsp-sortie',so);const show=B.on&&G.state!=='over'&&(G.state!=='base'||so);
   if(!show){if(el)el.hidden=true;return}
   if(!el){el=document.createElement('div');el.id='zspwhy';el.setAttribute('aria-live','off');document.body.append(el)}
   const bar=$('zspbar'),r=bar&&!bar.hidden?bar.getBoundingClientRect():null;el.style.top=(r?Math.round(r.bottom+4):120)+'px';el.hidden=false;
@@ -97,6 +98,7 @@ export function installBot(E){
  const wrap=(o,k,f)=>{if(!o||typeof o[k]!=='function')return;const g=o[k];o[k]=function(...a){const r=g.apply(this,a);try{f(r,...a)}catch(e){}return r}};
  const st0=Z.step;Z.step=dt=>{st0(dt);if(B.on)B.tick(dt)};
  const hu0=Z.hud;Z.hud=dt=>{hu0(dt);if(B.on||$('zspwhy'))B.hud()};
+ const zs0=Z.stop;Z.stop=()=>{zs0();document.body.classList.remove('zsp-sortie');$('zspwhy')?.remove()};
  if(Z.sw)wrap(Z.sw,'command',(r,c,arg)=>{if(!B.on||!r)return;const s=Z.sw.mine,nm=c==='form#'||c==='next'||c==='form'?'form':c;
   B.use('swarm:'+(nm==='form'?'form':c),c==='strike'?'Swarm: strike':c==='attack'?'Swarm: attack the lock':c==='screen'?'Swarm: '+(s?.mode||'screen'):null)});
  if(Z.pk)wrap(Z.pk,'use',(r,k)=>{if(B.on&&r)B.use('perk:'+k,{freeze:'Freeze: the worst track slows',mark:'Mark: helpers hit it twice as hard',air:'Airstrike on the crowd',lure:'Lure beacon down'}[k])});
