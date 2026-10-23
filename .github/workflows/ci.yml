@@ -151,6 +151,10 @@ jobs:
           - check: zombies-test (sell)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=sell
+          # the Bot Spectator explores: roams the map, flies the sorties, uses its systems, never sticks, holds the benchmark's wave (one visual run, four headless)
+          - check: zombies-test (explore)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=explore
           # the spectator's Director camera: its moments, shots, framing, cuts, clean-up and cost (a scripted wave flown by a bot)
           - check: zombies-test (director)
             area: interceptor
