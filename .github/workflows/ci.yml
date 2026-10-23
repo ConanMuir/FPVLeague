@@ -130,6 +130,10 @@ jobs:
           - check: flight-golden
             area: interceptor
             run: node tools/flight-golden.mjs
+          # the Jammer King's electronic-warfare duel: the pip under jamming and after a burn-through, distance and emitters, the HUD, the bot, all cleared with the wave
+          - check: zombies-test (ew)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=ew
           # the living map: scars from bursts, crashes and destroyed houses; caps, save, campaign, co-op, pixel checks against the terrain, frame cost
           - check: zombies-test (scars)
             area: interceptor
