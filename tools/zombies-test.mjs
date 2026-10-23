@@ -1743,7 +1743,7 @@ if (want('codex')) {
 // ---------- radio chatter (zradio.js): callouts from the game's state, merged and rate-limited; the HUD log, a modest squelch, speech through
 // speechSynthesis (and without it); the old subtitle taken over and given back; muted in menus; nothing left behind when a wave ends ----------
 if (want('radio')) {
-  const {p, errs} = await page('z');
+  const {p, errs} = await page();
   await play(p);
   const r0 = await p.evaluate(() => { const {S} = __z.api, {Z} = __z, R = Z.radio;
     window.__syn = {spoken: [], cancels: 0, speaking: false, pending: false, speak(u) { this.spoken.push({text: u.text, pitch: u.pitch, rate: u.rate, volume: u.volume}); }, cancel() { this.cancels++; }, getVoices() { return []; }};

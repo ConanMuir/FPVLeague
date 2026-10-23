@@ -32,8 +32,8 @@ import './zboss-roster.js';
 import {initEW} from './zew.js';
 import {initSell} from './zsell.js';
 import {initCodex} from './zcodex.js';
-import {initRadio} from './zradio.js';
 import {initOnboard} from './zonboard.js';
+import {initRadio} from './zradio.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 
