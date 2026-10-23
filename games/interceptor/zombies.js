@@ -30,6 +30,7 @@ import {initStratRadar} from './zstratradar.js';
 import {initBosses} from './zbosses.js';
 import './zboss-roster.js';
 import {initEW} from './zew.js';
+import {initSell} from './zsell.js';
 import {initRadio} from './zradio.js';
 import {initOnboard} from './zonboard.js';
 
@@ -329,5 +330,6 @@ export function initZombies(api){
  initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
  initRadio(api,G,Z);  /* radio chatter (zradio.js): callouts from the game's state, a HUD log, squelch and speech; takes over the old radio subtitle */
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
+ initSell(api,G,Z);  // selling anything you own with an Undo until the wave starts (zsell.js); the base screen reads Z.sell, so it only wraps the base open / close and start / stop
  initOnboard(api,G,Z);  /* first-wave guide (zonboard.js): a one-time walkthrough on a pilot's very first run; never for bots, co-op or automated browsers */
  return Z}
