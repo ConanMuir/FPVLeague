@@ -87,12 +87,25 @@ const envOff=(()=>{const s=new THREE.Scene();s.background=new THREE.Color(0,0,0)
 
 // ---------- terrain: steppe farmland, windbreak tree belts, villages and a river; the defended sites sit on flattened ground in the south ----------
 const rivZ=x=>-300+190*Math.sin(x/840+1)+70*Math.sin(x/260);  // river centre line, crossing the AO west to east
+const rivN=x=>Math.hypot(1,190/840*Math.cos(x/840+1)+70/260*Math.cos(x/260));  // |z - rivZ(x)| / rivN(x) = distance across the river
 const PADP={n:'RADAR',x:0,z:1250,r:40},SITES=[{n:'SUBSTATION',x:-720,z:1750,r:75},{n:'FUEL DEPOT',x:660,z:1850,r:75},{n:'APARTMENTS',x:30,z:2180,r:95}];
 // forward positions on the south bank of the river line: pickup, launch mat, camo net
 const FOBS=[['POS WEST',-1700],['POS CENTRE',100],['POS EAST',1900]].map(([n,x])=>({n,x,z:rivZ(x)+330,r:22,fob:1})),SOLG=[PADP,...SITES,...FOBS];
-function th0(x,z){let y=(fbm(x/1500+3,z/1500-1)-.45)*150+(fbm(x/320+7,z/320)-.45)*18;
+function th1(x,z){let y=(fbm(x/1500+3,z/1500-1)-.45)*150+(fbm(x/320+7,z/320)-.45)*18;
  const e=Math.max(Math.abs(x),Math.abs(z))-AW+300;if(e>0)y+=e*.22*(.6+.6*vnoise(x/400,z/400));  // ridges beyond the AO
- return -14+sm((Math.abs(z-rivZ(x))-55)/160)*(y+14)}  // river valley
+ return y}
+// River water level per 25 m station along x: -10.5 m, or 4 m under the lowest bank 50-270 m either side where the land is lower (a river
+// on a fixed level used to sit on a raised levee across low ground there, the water a sheet floating over the fields). A running minimum over
+// +-600 m then a +-400 m average keep it under every bank it passes and its slope under ~3 %. The water ribbon and the carved bed follow it.
+const RWS=25,RW0=-TW/2-1000,RWN=(TW+2000)/RWS+1,RWL=(()=>{const m=new Float32Array(RWN),e=new Float32Array(RWN),w=new Float32Array(RWN);
+ for(let k=0;k<RWN;k++){const x=RW0+k*RWS,z=rivZ(x),n=rivN(x);let lo=1e9;for(let o=50;o<=270;o+=10)lo=Math.min(lo,th1(x,z+o*n),th1(x,z-o*n));m[k]=Math.min(-10.5,lo-4)}
+ for(let k=0;k<RWN;k++){let v=1e9;for(let j=Math.max(0,k-24);j<=Math.min(RWN-1,k+24);j++)v=Math.min(v,m[j]);e[k]=v}
+ for(let k=0;k<RWN;k++){let s=0;for(let j=k-16;j<=k+16;j++)s+=e[cl(j,0,RWN-1)];w[k]=s/33}return w})();
+const rivY=x=>{const f=cl((x-RW0)/RWS,0,RWN-1.001),k=f|0;return RWL[k]+(RWL[k+1]-RWL[k])*(f-k)};
+// river valley: a bed 3.5 m under the water, a straight 1:10 bank from 20 to 90 m out that crosses the waterline at 55 m (the painted water
+// edge; straight, so the 25 m terrain triangles cut the water plane on a clean line instead of a sawtooth) and buries the ribbon's 68 m
+// edge 1.3 m deep, then the land blends in over 140 m
+function th0(x,z){const y=th1(x,z),d=Math.abs(z-rivZ(x))/rivN(x),c=rivY(x)-3.5+.1*cl(d-20,0,70);return c+sm((d-90)/140)*(y-c)}
 SOLG.forEach(f=>{f.y=th0(f.x,f.z);f.sol=[]});
 function th(x,z){let y=th0(x,z);for(const f of SOLG){const d=Math.hypot(x-f.x,z-f.z);if(d<f.r+120)y+=(f.y-y)*(1-sm((d-f.r)/120))}return y}
 const SEG=TW/TN,HF=new Float32Array((TN+1)**2);for(let j=0;j<=TN;j++)for(let i=0;i<=TN;i++)HF[j*(TN+1)+i]=th(-TW/2+i*SEG,-TW/2+j*SEG);
@@ -147,9 +160,11 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
  const mT=new THREE.CanvasTexture(mkC);mT.anisotropy=4;
  const m=new THREE.Mesh(g,groundMaterial(groundTex,fieldData(FCELLS),mT));m.receiveShadow=true;scene.add(m);GSNOW=m.material.userData.snow;
  // river surface: a ribbon along the river line only (the low ground elsewhere stays dry)
- const rv=[];for(let x=-TW/2;x<=TW/2;x+=25){const z=rivZ(x),dz=(rivZ(x+1)-z),n=Math.hypot(1,dz),ox=-dz/n*68,oz=1/n*68;rv.push(x+ox,-10.5,z+oz,x-ox,-10.5,z-oz)}
+ /* each edge vertex takes the water level at its own x: the station's level put the water up to 0.4 m above the bank where the river
+    slants and slopes (the bank is cut for rivY at the vertex's own x) */
+ const rv=[];for(let x=-TW/2;x<=TW/2;x+=25){const z=rivZ(x),dz=(rivZ(x+1)-z),n=Math.hypot(1,dz),ox=-dz/n*68,oz=1/n*68;rv.push(x+ox,rivY(x+ox),z+oz,x-ox,rivY(x-ox),z-oz)}
  const ri=[];for(let k=0;k<rv.length/6-1;k++){const a=k*2;ri.push(a,a+2,a+1,a+1,a+2,a+3)}const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rv,3));rg.setIndex(ri);rg.computeVertexNormals();
- scene.add(new THREE.Mesh(rg,new THREE.MeshStandardMaterial({color:0x2f5562,roughness:.08,metalness:.1,side:THREE.DoubleSide})))}
+ const rm=new THREE.Mesh(rg,new THREE.MeshStandardMaterial({color:0x2f5562,roughness:.08,metalness:.1,side:THREE.DoubleSide}));rm.userData.river=1;scene.add(rm)}
 // trees (trunk + two-lobed crown), village houses, power line from the substation
 // The forest is cut into 1125 m tiles (one trunk + one crown InstancedMesh each, frustum-culled by their bounding spheres): the sun's 440 m
 // shadow box then only redraws the few tiles under it instead of all 17k trees, and the view only draws the tiles in front of the camera.
@@ -679,7 +694,7 @@ function step(dt){const me=player;TK++;IP.snap();GRID.open();try{
 // static scenery (terrain, river, houses, pylons and wires, the forest, the sites' props): matrices once, never walked again by updateMatrixWorld.
 // Moving things stay live: sky, sun, sun disc, cloud deck, rain, the radar's spinning antenna, the light, the sites' building roots (buildings.js freezes their stages)
 {const live=new Set([sky,deck,sunDisc,RADM,rainL,cloudG,sun,sun.target,boomL,hemi,...SITES.map(s=>s.root)]);for(const o of scene.children)if(!live.has(o)&&!o.isLight&&!o.isPoints&&(o.isMesh||o.isGroup||o.isLine))freeze(o)}
-const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,pdmg,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
+const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,rivN,rivY,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,pdmg,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
