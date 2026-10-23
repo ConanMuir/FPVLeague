@@ -58,9 +58,9 @@ export function initEndless(api,G,Z){
  /* n bosses for wave w, drawn from the boss codex's pool (zcodex.js Z.codex.pool(w): the bosses you have unlocked and allowed that may come on that wave), none twice while the pool lasts.
     With every boss switched off the codex gives its heavy raid instead (Z.codex.plan), as it does in the Quick defence. The codex also plans the Endless run's own boss waves (the
     Quick defence rotation: zcodex.js leaves Endless out of the campaign's set pieces), so this only tops them up to the count of the climb. */
- function bosses(w,n){const C=Z.codex,pool=()=>C?.pool?C.pool(w):['boss'],p=pool().slice();
-  if(!p.length){const t=['boss'];C.plan(t,w);return t.filter(k=>!isB(k))}
-  const out=[];while(out.length<n){if(!p.length)p.push(...pool());out.push(p.splice(Math.random()*p.length|0,1)[0])}return out}
+ function bosses(w,n,taken=[]){const C=Z.codex,pool=()=>C?.pool?C.pool(w):['boss'],all=pool(),p=all.filter(k=>!taken.includes(k));  /* taken: the bosses the plan already holds, so a wave never gets the same one twice while the pool has another */
+  if(!all.length){const t=['boss'];C.plan(t,w);return t.filter(k=>!isB(k))}
+  const out=[];while(out.length<n){if(!p.length)p.push(...all);out.push(p.splice(Math.random()*p.length|0,1)[0])}return out}
  function escalate(out,w){if(climb(w)<=0)return out;
   /* armour: three Shaheds out, one armored heavy in */
   const n=Math.round(out.filter(k=>k==='shahed').length*armorK(w)/3)*3;
@@ -68,7 +68,7 @@ export function initEndless(api,G,Z){
   /* bosses: the due waves get their count; a wave that was not a boss wave gives up a quarter of the rest */
   if(bossDue(w)){const have=out.filter(isB).length,want=bossCount(w);
    if(want>have){if(!have)for(let i=out.length-1;i>=0;i--)if(!isB(out[i])&&!/^(ballistic|hyper|icbm)$/.test(out[i])&&Math.random()<.25)out.splice(i,1);
-    out.push(...bosses(w,want-have))}}
+    out.push(...bosses(w,want-have,out))}}
   /* more of everything: each entry but the bosses is copied by the wave's extra share, up to the cap */
   const f=countK(w)-1;let room=CAP_TRACKS-units(out);
   if(f>0&&room>0){const add=[];for(const e of out)if(!isB(e)){const c=Math.floor(f)+(Math.random()<f%1?1:0);for(let j=0;j<c;j++)add.push(e)}
