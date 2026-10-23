@@ -151,6 +151,10 @@ jobs:
           - check: zombies-test (sell)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=sell
+          # Tournament mode: every format's bracket in node, then in the game a bot match simulated, one played, one watched, the save resumed
+          - check: tournament-check
+            area: league
+            run: node tools/tournament-check.mjs
           # audio levels: each game's sounds rendered offline and measured against their peak caps (over a cap only warns here, like the timing checks)
           - check: audio-levels (league)
             area: league
