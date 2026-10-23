@@ -199,7 +199,8 @@ export function initDefences(api,G,Z){
     if(d.slot!==a[2]){d.slot=a[2];free(d)}
     const rf=(REFIT[type]||[]).some(r=>r.id===a[12])?a[12]:'';
     Object.assign(d,{tier:cl(a[3]|0,0,RACK_TIERS.length-1),lvl:cl(a[4]|0,0,(HELP[type]?.lv.length||1)-1),cap:a[5]|0,kills:a[6]|0,spent:a[7]|0,shots:a[8]|0,ready:a[9]|0,ammo:a[10]|0,by:String(a[11]||'').replace(/[<>&"'`]/g,'').slice(0,16),refit:rf,short:a[13]?1:0,s0:a[14]|0})}
-   for(const d of[...D])if(!seen.has(d.id))remove(d)}
+   for(const d of[...D])if(!seen.has(d.id))remove(d);
+   const ord=new Map([...seen].map((id,i)=>[id,i]));D.sort((p,q)=>ord.get(p.id)-ord.get(q.id))}  /* the host's order: a defence taken back from a sale is where it was, not at the end */
   if(Array.isArray(S)){const old=new Map(shots.map(h=>[h.id,h])),nx=[];for(const a of S){if(!ok(a))continue;const kind=PKI[a[1]];if(!kind)continue;let h=old.get(a[0]);
     if(!h)h={id:a[0],kind,P:PK[kind],fuel:PK[kind].fuel,p:new V3(a[2],a[3],a[4]),v:new V3(),np:new V3(),nv:new V3(),d:null,tgt:null};h.np.set(a[2],a[3],a[4]);h.nv.set(a[5],a[6],a[7]);h.v.copy(h.nv);h.tgt=byId(a[8])||null;nx.push(h)}
    shots.length=0;shots.push(...nx)}}

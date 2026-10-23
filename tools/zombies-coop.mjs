@@ -158,12 +158,23 @@ for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && !docum
   ok(await until(H, () => __z.G.open[14] && __z.G.exp === 1) && await until(B, () => __z.G.open[14] && __z.Z.def.slotFree(14)), 'Expansion: Ash opens the substation rear position; the host and Bea see it open');
   const rid = await ev(H, () => __z.Z.def.D.find(d => d.type === 'rack').id);
   await tap(B, '[data-tab="armory"]'); await tap(B, `[data-fit="${rid}:range"]`);
-  ok(await until(H, id => __z.Z.def.D.find(d => d.id === id)?.refit === 'range', rid) && await until(A, id => __z.Z.def.D.find(d => d.id === id)?.refit === 'range', rid), 'Refit: Bea fits long-range drones to the rack; the host and Ash see it'); }
+  ok(await until(H, id => __z.Z.def.D.find(d => d.id === id)?.refit === 'range', rid) && await until(A, id => __z.Z.def.D.find(d => d.id === id)?.refit === 'range', rid), 'Refit: Bea fits long-range drones to the rack; the host and Ash see it');
+  /* selling goes through the host, and the defence taken back is where it was in the host's list, on every screen */
+  const first = await ev(H, () => __z.Z.def.D[0].id), order = P => ev(P, () => __z.Z.def.D.map(d => d.id).join());
+  await ev(A, id => __z.Z.req(['s', id]), first);
+  ok(await until(H, id => !__z.Z.def.D.some(d => d.id === id), first) && await until(B, id => !__z.Z.def.D.some(d => d.id === id), first), 'Sell: Ash sells the first defence; it is gone on the host and on Bea\'s screen');
+  const sid = await ev(H, () => __z.G.sold[0]?.id);
+  await ev(B, id => __z.Z.req(['U', id]), sid);
+  ok(await until(H, id => __z.Z.def.D[0]?.id === id, first), 'Undo: Bea takes the sale back; the host has the defence first again');
+  const ho = await order(H);
+  for (const C of [A, B]) ok(await until(C, o => __z.Z.def.D.map(d => d.id).join() === o, ho), `Undo: ${C.name}'s list of defences is in the host's order again (${ho})`); }
 
 // ---------- kill chain purchases (zchain.js) go through the host: the host's wave is moved up to unlock the tab, then put back ----------
 { await ev(H, () => { __z.G.wave = 29; __z.G.cash = 30000; }); await until(A, () => __z.G.wave === 29 && __z.G.cash === 30000); await until(B, () => __z.G.wave === 29);
   await tap(A, '[data-tab="chain"]'); await tap(A, '[data-kc="bb:1"]');
   ok(await until(H, () => !!__z.G.kc.boost[1] && __z.G.cash === 24000) && await until(B, () => !!__z.G.kc.boost[1]), 'Kill chain: Ash builds the north boost battery ($6,000) on the host; Bea sees it');
+  const bj = await ev(H, () => JSON.stringify(__z.G.kc.boost[1]));
+  ok(await until(B, bj => JSON.stringify(__z.G.kc.boost[1]) === bj, bj), `Kill chain: the battery is the same record on Bea's screen as on the host's (${bj})`);
   await tap(B, '[data-tab="chain"]'); await tap(B, '[data-kc="dc:1"]');
   ok(await until(H, () => __z.G.kc.decoys === 1) && await until(A, () => __z.G.kc.decoys === 1), 'Kill chain: Bea buys a decoy site; the host and Ash have it in stock');
   if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-chain.png'});
