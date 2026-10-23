@@ -45,7 +45,9 @@ export const ACH=[
  {id:'ace',cat:'df',name:'Ace',desc:'Shoot down 5 drones in one Dogfight match.',goal:5,val:best('kills'),reward:'led:ace'},
  {id:'kill100',cat:'df',name:'Top Gun',desc:'Shoot down 100 drones.',goal:100,val:st('df','kills'),reward:'trail:contrail'},
  {id:'tur10',cat:'df',name:'Tank Buster',desc:'Destroy 10 enemy turrets.',goal:10,val:st('df','turrets')},
- {id:'dfwin',cat:'df',name:'Air Superiority',desc:'Win a Dogfight match.',goal:1,val:st('df','w')}];
+ {id:'dfwin',cat:'df',name:'Air Superiority',desc:'Win a Dogfight match.',goal:1,val:st('df','w')},
+ {id:'tourn1',cat:'match',name:'Trophy Cabinet',desc:'Win a tournament (any format, any bracket).',goal:1,val:feat('tourn')},
+ {id:'tourn5',cat:'match',name:'Dynasty',desc:'Win 5 tournaments.',goal:5,val:feat('tourn')}];
 export const achById=id=>ACH.find(a=>a.id===id);
 // progress of one achievement in view V: {v: current (capped at goal), goal, f: 0..1, done}
 export function achProg(a,V){const v=Math.max(0,Math.min(a.goal,+a.val(V)||0));return{v,goal:a.goal,f:a.goal?v/a.goal:1,done:v>=a.goal}}
