@@ -9,5 +9,6 @@ export const GS={drones:[],player:null,state:'kickoff',stT:3,score:[0,0],clock:1
  rpOn:false,  // a replay is drawn this frame: the meshes show recorded state (render/replay.js), so visuals() leaves remote drones alone
  killedBy:null,killedAt:0,  // Dogfight: who last shot down your quad and when (performance.now()), for the kill cam
  lseed:Math.random()*1e9|0,  // bots' random part loadouts are seeded from this and their slot key (re-rolled per match)
- GM:S.game,OBSON:false};  // game mode; OBSON: Dogfight is on (Highlands SDF, spawns, guns)
+ GM:S.game,OBSON:false,  // game mode; OBSON: Dogfight is on (Highlands SDF, spawns, guns)
+ spect:''};  // spectating a match with no player of your own (a tournament's bot match, modes/tournament.js): the label the HUD shows; the camera follows the ball (render/camera.js)
 export const isBot=k=>/^b[01]\d$/.test(k),auth=()=>!GS.net||GS.net.host,SB=()=>GS.net&&!GS.net.host&&GS.net.sb!=null?GS.net.sb:!!S.sboost,esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';'),nick=()=>String(S.name||'').trim().slice(0,16)||'Pilot';
