@@ -12,6 +12,7 @@ import {attitude} from '../../engine/flight.js';
 import {rate,thrCurve} from '../../engine/rates.js';
 import {KIND} from './zdata.js';
 import {tactics} from './zbotbrain.js';
+import {installBot} from './zbotstat.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},gauss=()=>(Math.random()+Math.random()+Math.random()+Math.random()-2)*1.73;
 // stick that gives this output of a monotonic curve f on [lo, hi] (bisection): rates and throttle curves are the player's, so the bot inverts them
 function inv(f,y,lo,hi){let a=lo,b=hi;if(y<=f(a))return a;if(y>=f(b))return b;for(let i=0;i<22;i++){const m=(a+b)/2;if(f(m)<y)a=m;else b=m}return(a+b)/2}
@@ -19,6 +20,7 @@ export function createPilot(api,G,Z,P,E){
  const {THREE,TH,S,gh}=api,V3=THREE.Vector3,UP=new V3(0,1,0),F=P.fly;
  const _a=new V3(),_b=new V3(),_c=new V3(),_n=new V3(),_h=new V3(),_f=new V3(),_v=new V3(),_A=new V3(),_W=new V3(),WT=new V3(),fake={q:null,wt:WT};
  const st={t:0,look:0,tact:0,tgt:null,mode:'idle',intent:'',plan:null,fire:false,aimN:new V3(),line:null,lineT:null,stuck:0,launchT:0,lastMe:null,sw:'',passes:0,fired:0,tgtT:0,why:''};
+ const B=installBot(E);  /* intent, coverage and the HUD line (zbotstat.js) */
  const live=t=>api.live(t)&&t.st!=='fall';
  const topV=me=>(S.mod.maxv||115)+(me.bmax||0);
  const ttiOf=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
@@ -147,6 +149,7 @@ export function createPilot(api,G,Z,P,E){
   // camera tilt switch: level for take-off, 90 degrees once it is away from the mat (its sights look down the nose)
   if(!onMat&&ag>10&&!api.camUp)api.camUp=true;
   st.lastMe=me.t;st.lastIntent=st.intent;st.lastV=s;
+  {const tg=t||L,K={mat:'launch',hold:'idle',line:'line',home:'return',loiter:'station'}[st.mode]||(tg&&Z.lk?.t===tg?'lock':'intercept');B.set(K,st.intent,tg?{x:tg.p.x,y:tg.p.y,z:tg.p.z,label:name(tg)}:null)}
   const A=want(me,Vd,kv,floor);return sticks(me,A,head,dt,look)}
 
  // manual detonation: when the closest approach is a moment away and close enough, press detonate at that moment (with this pilot's timing
@@ -164,5 +167,6 @@ export function createPilot(api,G,Z,P,E){
   if((st.look-=dt)<=0){st.look=F.react*(.7+Math.random()*.6);think(me,alive)}
   if(st.tgt&&!live(st.tgt)){st.tgt=null;st.look=Math.min(st.look,F.react*.5)}
   if((st.tact-=dt)<=0){st.tact=.5;if(G.state==='wave')st.sw=tactics(P,E,{me})||''}
-  if(!alive)st.intent=me.dead>0?`next interceptor in ${me.dead.toFixed(1)} s`:st.intent}
- return{st,input,step,linePt:t=>linePt(t,new V3()),lineTT,fire(){const f=st.fire;st.fire=false;return f},get intent(){return st.intent},reset(){st.tgt=null;st.line=null;st.plan=null;st.fire=false;st.look=0}}}
+  if(!alive){st.intent=me.dead>0?`next interceptor in ${me.dead.toFixed(1)} s`:st.intent;B.set('relaunch',st.intent,null)}}
+ const pilot={st,input,step,linePt:t=>linePt(t,new V3()),lineTT,fire(){const f=st.fire;st.fire=false;return f},get intent(){return st.intent},reset(){st.tgt=null;st.line=null;st.plan=null;st.fire=false;st.look=0}};
+ B.begin(P,pilot);return pilot}

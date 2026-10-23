@@ -105,7 +105,9 @@ export function itemValue(k, E) {
 }
 
 // ---------- the base screen: a generator of shop steps (the spectator runs them one by one with a caption; the benchmark runs them at once) ----------
-export function* shopSteps(P, E) {
+/* every step it yields also tells the bot tracker (zbotstat.js) which system it used, when it runs */
+export function* shopSteps(P, E) { for (const s of shopSteps0(P, E)) { const r0 = s.run; s.run = () => { const r = r0(); try { E.bot?.shop?.(s, r); } catch (e) {} return r; }; yield s; } }
+function* shopSteps0(P, E) {
   const {api, G, Z, KIND} = E, IT = E.ITEMS, def = Z.def, B = Z.base, kf = k => Z.kindFrom ? Z.kindFrom(k) : KIND[k].from, nw = G.wave + 1;
   const PRIO = prio(P), top = PRIO.indexOf('gepard');
   const from = k => Z.itemFrom ? Z.itemFrom(k) : IT[k].from, cost = k => IT[k].type === 'perk' ? Z.perkPrice(k) : (Z.itemPrice ? Z.itemPrice(k) : IT[k].price);
