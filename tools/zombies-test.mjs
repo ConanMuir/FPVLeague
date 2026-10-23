@@ -2170,6 +2170,7 @@ if (want('scars')) {
     bm(new V(f.x, gh(f.x, f.z) + .5, f.z), 1.6); o.plough = {c: S.stats().craters, b: S.stats().burns};  /* a wreck on ploughed earth: a crater, it will not burn */
     for (const s of api.SITES) bm(new V(s.x + 10, gh(s.x, s.z) + 1, s.z), 6); o.site = S.stats().craters;  /* the defended ground has its own damage stages */
     bm(new V(w.x, gh(w.x, w.z) + .5, w.z), 3); o.wheat = {c: S.stats().craters, b: S.stats().burns};   /* a big hit on dry wheat: a crater and a fire */
+    const c2 = S.stats().craters; for (const q of Z.def.SLOTS) if (!q.park) bm(new V(q.x + 5, gh(q.x, q.z) + 1, q.z), 3); o.slots = S.stats().craters - c2;  /* nor under the positions a defence stands on */
     /* a downed Shahed falls on a field through the game's own path (threatStep -> boom -> Z.flash) */
     S.refill(); const w2 = __find(3) || __find(2) || w, c0 = S.stats().craters, t = __z.make('shahed', w2.x, w2.z); t.p.set(w2.x, gh(w2.x, w2.z) + 25, w2.z); t.v.set(0, -15, 0); t.st = 'fall'; t.spin = 2; __z.sim(4);
     o.fall = {dead: t.st === 'dead', craters: S.stats().craters - c0, near: S.list(0).some(r => Math.hypot(r.x - w2.x, r.z - w2.z) < 40)};
@@ -2185,6 +2186,7 @@ if (want('scars')) {
   ok(A.air === 0, 'Scars: an air burst high above the ground leaves nothing');
   ok(A.plough.c === 1 && A.plough.b === 0, `Scars: a wreck on ploughland leaves a crater and no fire (craters ${A.plough.c}, burns ${A.plough.b})`);
   ok(A.site === 1, 'Scars: hits on the defended sites add none (their damage stages are their rubble)');
+  ok(A.slots === 0, `Scars: nor do hits next to the positions a defence can stand on (${A.slots} new craters)`);
   ok(A.wheat.c === 2 && A.wheat.b === 1, `Scars: a big hit on dry wheat leaves a crater and a fire (craters ${A.wheat.c}, burns ${A.wheat.b})`);
   ok(A.fall.dead && A.fall.craters === 1 && A.fall.near, `Scars: a downed Shahed falling on a field leaves a crater where it lands (${A.fall.craters})`);
   ok(A.crash === 1, `Scars: the interceptor crashing into a field leaves a mark (${A.crash})`);

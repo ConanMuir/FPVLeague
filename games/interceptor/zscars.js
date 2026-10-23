@@ -226,7 +226,7 @@ export function initScars(api,G,Z){
  /* how far the nearest enemy supply road (zsites.js, a ribbon 7.2 m wide laid .35 m above the ground) is: a scar under it would be cut off along its edge */
  const roadGap=(x,z)=>{let d=1e9;const L=Z.so?.W?.routes;if(L)for(const r of L){const X=r.X,Zs=r.Z;for(let i=0;i<X.length-1;i++){const ax=X[i],az=Zs[i],bx=X[i+1]-ax,bz=Zs[i+1]-az,l=bx*bx+bz*bz,t=l>0?cl(((x-ax)*bx+(z-az)*bz)/l,0,1):0,dx=x-ax-t*bx,dz=z-az-t*bz,q=dx*dx+dz*dz;if(q<d)d=q}}return Math.sqrt(d)};
  /* not on the river, a steep slope or the defended ground (the sites' own meshes are their rubble), nor outside the map, nor reaching an enemy road (R: how far it extends) */
- const bad=(x,z,R)=>{if(!(Math.abs(x)<=4400&&Math.abs(z)<=4400&&gh(x,z)>=-9.5&&nrmY(x,z)>=.82))return true;for(const s of sol())if(Math.hypot(x-s.x,z-s.z)<s.r+R*.7+3)return true;return roadGap(x,z)<3.6+R+1};
+ const bad=(x,z,R)=>{if(!(Math.abs(x)<=4400&&Math.abs(z)<=4400&&gh(x,z)>=-9.5&&nrmY(x,z)>=.82))return true;for(const s of sol())if(Math.hypot(x-s.x,z-s.z)<s.r+R*.7+3)return true;for(const q of Z.def?.SLOTS||[])if(!q.park&&Math.hypot(x-q.x,z-q.z)<12+R*.7)return true;return roadGap(x,z)<3.6+R+1};  /* nor under a position a defence can stand on */
  let tok=8;  /* scars allowed right now: refilled 3 a second of frame time, 8 at most */
  const live=()=>sc.ready&&G.on&&!api.demo&&!Z.mirror;
  const add=(t,x,z,r,v,yq,pq,aq,fade)=>P[t].add(qpos(x),qpos(z),qsz(r),v,yq,pq,aq,gh,fade);
