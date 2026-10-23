@@ -1,5 +1,5 @@
 // ---------- human input ----------
-import {cl} from '../config/constants.js';
+import {$,cl} from '../config/constants.js';
 import {S,save} from '../config/settings.js';
 import {BZ,HOV} from '../config/tune.js';
 import {rate,stk,thrCurve} from '../flight/rates.js';
@@ -50,7 +50,7 @@ let flipPrev=false;const flipIn=()=>{if(keys.KeyE)return true;const g=pad();retu
 
 // ---------- input events ----------
 function cycleCam(){if(modeFlag('fixedCam'))return;GS.camMode=(GS.camMode+1)%3;S.cam=GS.camMode;save()}  // the Lab is FPV only
-function togglePause(){if(GS.demo)return;showMenu(!GS.menuOpen)}
+function togglePause(){if(GS.demo||!$('sens').hidden||!$('bind').hidden)return;showMenu(!GS.menuOpen)}  /* P / the pad's menu button leave a paused match alone while the sensitivity or controls dialog is open */
 addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!GS.menuOpen)e.preventDefault();if(e.repeat)return;
  if(e.code==='Escape'||e.code==='KeyP')togglePause();if(GS.menuOpen)return;
  if(e.code==='KeyC')cycleCam();if(e.code==='KeyM'&&!modeFlag('fixedFlightMode')){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}if(e.code==='KeyR'&&canReset())GS.player.spawn();if(e.code==='KeyO'){S.osd=!S.osd;save();syncUI();banner('OSD '+(S.osd?'ON':'OFF'),'',.8)}});

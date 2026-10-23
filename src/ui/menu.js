@@ -45,7 +45,7 @@ $('host').onclick=()=>{exitLab();enterGame(Math.random().toString(36).slice(2,6)
 for(const b of $('stabs').children)b.onclick=()=>{for(const x of $('stabs').children)x.classList.toggle('on',x===b);for(const p of document.querySelectorAll('#scr-settings .tabp'))p.hidden=p.dataset.tab!==b.dataset.tab};
  // sub-screens (Play online, Settings): open over the menu, Back or Esc returns to the main list
  for(const b of document.querySelectorAll('#home [data-scr]'))b.onclick=()=>menuScreen(b.dataset.scr);for(const b of document.querySelectorAll('#menu .back'))b.onclick=()=>menuScreen(null);
- addEventListener('keydown',e=>{if(e.code==='Escape'&&GS.menuOpen&&document.querySelector('#menu .scr:not([hidden])')){menuScreen(null);e.stopImmediatePropagation()}},true);
+ addEventListener('keydown',e=>{if(e.code==='Escape'&&GS.menuOpen&&document.querySelector('#menu .scr:not([hidden])')&&$('sens').hidden&&$('bind').hidden){  /* a dialog over the screen takes its own Esc (ui/sens.js, input/calibration.js) */menuScreen(null);e.stopImmediatePropagation()}},true);
  for(const M of modeList()){if(M.hidden)continue;const b=document.createElement('button');b.className='sm';b.id='m_'+M.id;b.dataset.m=M.id;b.textContent=M.name;b.onclick=()=>pickGame(M.id);$('modes').append(b)}  // one button per registered mode (modes/registry.js)
  {const b=document.createElement('button');b.className='sm';b.id='m_intercept';b.textContent='Interceptor';b.onclick=()=>menuScreen('intercept');$('modes').append(b);  // Riley's Interceptor (games/interceptor), its own page: Classic or Zombies
   const file=location.protocol==='file:',go=m=>{if(file){$('icnote').hidden=false;return}location.href=new URL('../interceptor/?mode='+m,location.href).href};
