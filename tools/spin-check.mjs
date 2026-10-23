@@ -1,8 +1,8 @@
 // Ball spin check: how much spin (rad/s) a touch leaves on the ball. The quad flies into a ball at rest at light / medium / hard
 // speed from several sideways offsets (square to glancing), level and pitched, with and without its own body rates, plus a quad
 // brushing past, the Freestyler's spin-up (yawing flat out under a ball resting on top, then a pop) and a carry that must keep
-// the ball on top, then a 5 minute bot match (Freestyler vs Grand Champion) splitting each step's spin change into the map's part
-// and the touches' part. Runs the real modules in headless Edge through the Vite dev server.
+// the ball on top, then a 5 minute bot match (Freestyler vs Grand Champion, seeded: the same match every run, on every branch) splitting
+// each step's spin change into the map's part and the touches' part. Runs the real modules in headless Edge through the Vite dev server.
 //   node tools/spin-check.mjs          prints the table and checks the limits at the end
 import {launchBrowser, gameReady} from './browser.mjs';
 const {createServer} = await import('vite');
@@ -47,16 +47,25 @@ const r = await p.evaluate(async () => {
     out.carry = {maxSpin: f1(wMax), maxSideOffset: +off.toFixed(2), onTop: !lost && Math.hypot(ball.p.x - d.p.x, ball.p.z - d.p.z) < 1.5 && ball.p.y > d.p.y}; }
   // a real bot match (Freestyler vs Grand Champion, 3 v 3, 5 sim minutes): the ball's spin in the air and after touches, and what changed it:
   // each step is split at the mode's tick hook (after the Rapier step and the map contact, before the touches) into a map part and a touch part
-  { const {DIFF} = await import('/src/config/constants.js'), RG = await import('/src/modes/registry.js'), FS = DIFF.findIndex(x => x.fs), GC = DIFF.findIndex(x => x.n === 'Grand Champion');
+  { const {DIFF} = await import('/src/config/constants.js'), RG = await import('/src/modes/registry.js'), {warmDFPhys} = await import('/src/physics/world.js'), FS = DIFF.findIndex(x => x.n === 'Freestyler'), GC = DIFF.findIndex(x => x.n === 'Grand Champion');
+    /* one seeded match, the same every run: the demo rolls the bots' random parts from Math.random and the bots, the flight model and the effects
+       draw from it every tick, so unseeded every run was a different sample and the p99 limit below a coin flip (6 runs on the same code: p99 18.4-20.5).
+       Seeded at every tick from (seed, tick) as tools/bot-ladder-lib.mjs does (the effects draw by amounts that depend on the graphics quality and
+       wall-clock cooldowns; inside a tick the bots and the flight model draw before any effect), with the Highlands colliders built up front (main.js
+       builds them in idle time, which would change the physics world between runs) and the ball's spin and contact from the sections above cleared */
+    warmDFPhys(); const R0 = Math.random, SEED = 1; let rs = 0;
+    Math.random = () => { rs = rs + 0x6D2B79F5 | 0; let t = Math.imul(rs ^ rs >>> 15, 1 | rs); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const reseed = i => { rs = Math.imul(SEED ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul(i + 1, 0xC2B2AE35); rs = Math.imul(rs ^ rs >>> 13, 0x27D4EB2F) | 0; }; reseed(-1);
+    ball.w.set(0, 0, 0); ball.q.set(0, 0, 0, 1); ball.v0.set(0, 0, 0); ball.c = false; ball.n.set(0, 1, 0); ball.hit = 0; GS.stepN = 0;
     DF.setGame('league'); MA.startDemo(); GS.paused = true; GS.menuOpen = true; for (const x of GS.drones) x.skill = x.team ? GC : FS;
     const M = RG.curMode(), tk0 = M.tick, wPrev = new V(), wMid = new V(), dv = new V(); M.tick = (dt, A) => { wMid.copy(ball.w); tk0?.(dt, A); };
     let tch = null, n = 0; const air = [], dTouch = [], dMap = [], big = [], ep = []; let cur = null; const off = onEv('touch', e => { tch = e; n++; });
-    for (let i = 0; i < 5 * 60 * 120; i++) { tch = null; wPrev.copy(ball.w); ST.step(dt); const w = ball.w.length();
+    for (let i = 0; i < 5 * 60 * 120; i++) { tch = null; wPrev.copy(ball.w); reseed(i); ST.step(dt); const w = ball.w.length();
       const dm = dv.subVectors(wMid, wPrev).length(), dt2 = dv.subVectors(ball.w, wMid).length(); if (dm > .5) { dMap.push(dm); if (dm > 15 && big.length < 6) big.push({from: f1(wPrev.length()), to: f1(wMid.length()), v: f1(ball.v.length()), hit: f1(ball.hit), ny: +ball.n.y.toFixed(2), y: f1(ball.p.y)}); }
       if (tch) { dTouch.push(dt2); if (!cur || cur.d !== tch.d || i - cur.i > 3) { if (cur) ep.push(cur); cur = {d: tch.d, i, w0: wMid.clone(), steps: 0, rate: 0, pop: false, sp: 0}; }
         cur.i = i; cur.steps++; cur.w1 = ball.w.clone(); cur.rate = Math.max(cur.rate, tch.d.w.length()); cur.pop ||= tch.d.popT > 0; cur.sp = Math.max(cur.sp, tch.speed); }
       if (!ball.c) air.push(w); }
-    if (cur) ep.push(cur); off(); M.tick = tk0;
+    if (cur) ep.push(cur); off(); M.tick = tk0; Math.random = R0;
     const pct = (a, q) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return f1(s[Math.min(s.length - 1, Math.floor(q * s.length))]); }, st = a => ({n: a.length, p50: pct(a, .5), p90: pct(a, .9), p99: pct(a, .99), max: pct(a, 1)});
     const eAdd = e => e.w1.length() - e.w0.length(), eAbs = e => e.w1.length();
     out.match = {touches: n, episodes: ep.length, airSpin: st(air), touchStepChange: st(dTouch), mapStepChange: st(dMap), biggestMapChanges: big,
