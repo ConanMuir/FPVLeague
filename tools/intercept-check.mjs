@@ -53,20 +53,30 @@ async function run(mode) {
       return {c, pip: +r.pip.distanceTo(cpa.tp).toFixed(1), tt: +Math.abs(r.tau - c).toFixed(2)}; });
     for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0;
     return {n: C.n, steady: !!C.steady, T: +T.toFixed(1), miss: +best.toFixed(2), chk, relock}; }, C, mode, OLD));
-  /* the drawn marker: real frames (the camera and the bodies interpolated between ticks), the label the overlay draws next to the point
-     against the projection of the same world point through that frame's camera, in each view */
+  /* the drawn marker, in real frames (the camera and the bodies interpolated between ticks): every frame the overlay draws the label, the
+     camera it projected with must be the camera that frame renders with, and the label must sit on the projection of the world point it was
+     given through that camera. Each label is paired with its own frame's render (renderer.render is hooked), so a later frame (the drone
+     down, the view changed) can't be mistaken for it. */
   const scr = [];
   for (const cm of mode === 'z' ? [0, 1, 2] : [1, 2]) {
     await p.evaluate((mode, cm) => { const {api, G, Z} = __z, V = api.THREE.Vector3, me = api.player;
       for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; if (mode === 'z') { G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); }
       const t = __z.make('shahed', 0, -2000); me.p.set(0, api.gh(0, 1000) + 400, 1000); t.p.set(600, me.p.y + 60, -4000); t.v.set(-51, 0, 0); const dir = t.p.clone().sub(me.p).normalize(); me.v.copy(dir).multiplyScalar(100); me.q.setFromUnitVectors(new V(0, 1, 0), dir); me.w.set(0, 0, 0); me.dead = 0; api.camUp = true;  /* nose and the tilted-up camera on the track */
       api.pickT = t; if (mode === 'z') Z.lk.force(t); api.camMode = cm;
-      const C2 = CanvasRenderingContext2D.prototype; if (!C2.__ft0) { C2.__ft0 = C2.fillText; C2.fillText = function (s, x, y) { if (/^(PIP|INTERCEPT)/.test(s)) window.__lbl = {s, x, y}; return C2.__ft0.apply(this, arguments); }; }
-      window.__lbl = null; }, mode, cm);
+      const C2 = CanvasRenderingContext2D.prototype, R = api.renderer;
+      if (!C2.__ft0) { C2.__ft0 = C2.fillText; C2.fillText = function (s, x, y) { if (/^(PIP|INTERCEPT)/.test(s) && window.__pend !== undefined) { const c = __z.api.camera, w = __z.G.on ? __z.Z.lk.ip : __z.api.pip?.p;
+        window.__pend = {s, x, y, cam: [...c.matrixWorldInverse.elements], pm: [...c.projectionMatrix.elements], w: w ? [w.x, w.y, w.z] : null}; } return C2.__ft0.apply(this, arguments); }; }
+      if (!R.__r0) { R.__r0 = R.render; R.render = function (sc, ca) { if (ca === __z.api.camera && window.__pend) { const P = window.__pend; window.__pend = null; ca.updateMatrixWorld();
+        P.rcam = [...ca.matrixWorldInverse.elements]; P.rpm = [...ca.projectionMatrix.elements]; window.__pairs.push(P); } return R.__r0.apply(this, arguments); }; }
+      window.__pairs = []; window.__pend = null; }, mode, cm);
     await frames(p, cm === 1 ? 45 : 6);  /* the chase camera eases onto a new heading over many frames */
-    scr.push(await p.evaluate((mode, cm) => { const {api, Z} = __z, L = window.__lbl, w = mode === 'z' ? Z.lk.ip : api.pip?.p; if (!L || !w) return {cm, none: true};
-      const q = w.clone().project(api.camera), X = (q.x * .5 + .5) * innerWidth, Y = (-q.y * .5 + .5) * innerHeight, on = q.z < 1 && Math.abs(q.x) < .95 && Math.abs(q.y) < .92;
-      return {cm, on, dx: +Math.abs(L.x - X).toFixed(2), dy: +Math.abs(L.y - (mode === 'z' ? 30 : 26) - Y).toFixed(2)}; }, mode, cm));
+    scr.push(await p.evaluate((mode, cm) => { const {api} = __z, M4 = api.THREE.Matrix4, V = api.THREE.Vector3, P = window.__pairs; window.__pend = undefined;
+      if (!P.length) return {cm, none: true};
+      let cam = 0, px = 0, n = 0, on = 0;
+      for (const L of P) { if (!L.w) continue; n++; cam = Math.max(cam, ...L.cam.map((v, i) => Math.abs(v - L.rcam[i])), ...L.pm.map((v, i) => Math.abs(v - L.rpm[i])));
+        const q = new V(...L.w).applyMatrix4(new M4().fromArray(L.rcam)).applyMatrix4(new M4().fromArray(L.rpm)), X = (q.x * .5 + .5) * innerWidth, Y = (-q.y * .5 + .5) * innerHeight;
+        if (q.z < 1 && Math.abs(q.x) < .95 && Math.abs(q.y) < .92) { on++; px = Math.max(px, Math.abs(L.x - X), Math.abs(L.y - (mode === 'z' ? 30 : 26) - Y)); } }
+      return {cm, frames: n, on, cam: +cam.toExponential(2), px: +px.toFixed(2)}; }, mode, cm));
   }
   await p.close(); return {out, errs, scr};
 }
@@ -77,8 +87,8 @@ for (const mode of ['classic', 'z']) {
   for (const r of out) { const line = r.chk.map(c => c ? `${c.c}s: pip ${c.pip} m, ttg ${c.tt} s` : '-').join(' | ');
     const worst = Math.max(...r.chk.filter(Boolean).map(c => c.pip)), fail = r.steady && (worst > TOL || r.miss > TOL); if (fail) bad++;
     console.log(`  ${fail ? 'FAIL' : 'ok  '} ${r.n.padEnd(28)} meets after ${r.T} s, miss ${r.miss} m | ${line}${r.relock ? ` (lock re-forced ${r.relock}x)` : ''}`); }
-  for (const r of scr) { const vn = ['FPV', 'chase', 'threat cam'][r.cm], fail = !r.none && r.on && (r.dx > 2 || r.dy > 2); if (fail) bad++;
-    console.log(`  ${fail ? 'FAIL' : 'ok  '} drawn in ${vn}: ${r.none ? 'no label drawn (off screen)' : r.on ? `label ${r.dx} / ${r.dy} px from the projected point` : 'point off screen (edge arrow)'}`); }
+  for (const r of scr) { const vn = ['FPV', 'chase', 'threat cam'][r.cm], fail = !r.none && (r.cam > 1e-6 || r.px > 1.5); if (fail) bad++;
+    console.log(`  ${fail ? 'FAIL' : 'ok  '} drawn in ${vn}: ${r.none ? 'no label drawn' : `${r.frames} frames, overlay camera vs that frame's render camera off by ${r.cam}, label within ${r.px} px of the projected point (${r.on} frames on screen)`}`); }
   if (errs.length) { bad++; console.log('  errors: ' + errs.slice(0, 3).join(' | ')); }
 }
 await browser.close(); server.close();
