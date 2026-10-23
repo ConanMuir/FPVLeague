@@ -17,7 +17,7 @@ async function run(L, id, idx) {
   const ctx = await browser.createBrowserContext(), errs = [], p = await open(browser, origin + '/games/interceptor/', errs, {w: 640, h: 360, page: await ctx.newPage()});
   try {
     const c = fresh(ZD); if (RELIC) { c.relics = [RELIC]; c.eq = RELIC; } if (PR) c.pr = {[id]: PR};
-    await p.evaluate((zd, c) => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd, wx: 'clear', zwx: 'menu', zmus: 0, zcamp: c})), ZD, c);
+    await p.evaluate((zd, c) => { localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd, wx: 'clear', zwx: 'menu', zmus: 0, zcamp: c})); sessionStorage.setItem('zcodex', 'all'); }, ZD, c);  /* the full boss roster (zcodex.js) */
     await p.reload({waitUntil: 'load', timeout: 180000}); await p.waitForFunction(() => window.__z, {timeout: 180000});
     await p.evaluate(id => __z.Z.cp.start(id, true), id);
     await p.waitForFunction(() => __z.G.state === 'base', {timeout: 60000});
