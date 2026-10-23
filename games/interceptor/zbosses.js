@@ -62,8 +62,9 @@ export function initBosses(api,G,Z){
  const rec=()=>{let r=S.zboss;if(!r||typeof r!=='object'||Array.isArray(r))r={};if(!r.b||typeof r.b!=='object'||Array.isArray(r.b))r.b={};
   for(const k of['ace','ghost']){if(!r[k]||typeof r[k]!=='object'||Array.isArray(r[k]))r[k]={};for(const f of Object.keys(r[k]))if(!Number.isFinite(r[k][f]))r[k][f]=0}
   for(const k of Object.keys(r.b)){const o=r.b[k];if(!o||typeof o!=='object'||Array.isArray(o))r.b[k]={met:0,won:0,lost:0};else for(const f of['met','won','lost'])o[f]=Number.isFinite(o[f])?o[f]:0}r.v=1;S.zboss=r;return r};
- const bump=(id,f,n=1)=>{const r=rec();const o=r.b[id]||(r.b[id]={met:0,won:0,lost:0});o[f]=(o[f]|0)+n;save()};
- const recAdd=(k,f,n=1)=>{const r=rec();r[k][f]=(r[k][f]|0)+n;save()};
+ const bot=()=>!!window.__z?.spec?.on;  /* a Bot Spectator run never writes your record: the Ace's tally, the wreck it unlocks, the wear on the bosses are yours */
+ const bump=(id,f,n=1)=>{if(bot())return;const r=rec();const o=r.b[id]||(r.b[id]={met:0,won:0,lost:0});o[f]=(o[f]|0)+n;save()};
+ const recAdd=(k,f,n=1)=>{if(bot())return;const r=rec();r[k][f]=(r[k][f]|0)+n;save()};
 
  // ---------- sound: a small synth on the effects volume (S.zsfxv). sting = the boss's signature, loop = its presence while alive ----------
  const SND={get ok(){return!!AC&&!!nbuf&&!api.demo},vol:()=>cl(S.zsfxv??1,0,1),

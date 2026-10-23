@@ -309,7 +309,7 @@ export function initScars(api,G,Z){
  sc.tick=tick;  /* the scars' own part of a frame, for a harness that must not move the rest of the world (weather, clouds) between two frames it compares */
  // ---------- the run: a sector loads its scars, a quick defence starts clean; they are saved at the end of a wave and of the run ----------
  const camp=()=>Z.cp?.run?.id||null,client=()=>!!Z.isClient?.();
- function persist(){const id=camp();if(!id||client()||!sc.ready||!Z.cp?.put)return;const c=Z.cp.C(),str=encode();c.sc={...(c.sc||{})};if(str)c.sc[id]=str;else delete c.sc[id];Z.cp.put(c)}
+ function persist(){const id=camp();if(!id||client()||window.__z?.spec?.on||!sc.ready||!Z.cp?.put)return;  /* a Bot Spectator run on a sector never scars your map */const c=Z.cp.C(),str=encode();c.sc={...(c.sc||{})};if(str)c.sc[id]=str;else delete c.sc[id];Z.cp.put(c)}
  sc.persist=persist;sc.refill=()=>{tok=8};
  Z.cpNew=()=>clear();  /* a new campaign (zcampaign.js): what the last run left must not be saved into it */
  const s0=Z.start;Z.start=()=>{if(G.on)persist();  /* a restart on the same sector keeps what the last run left */

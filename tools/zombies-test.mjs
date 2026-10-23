@@ -1085,6 +1085,11 @@ if (want('spectator')) {
   await p.click('#zmenu');
   const off = await p.evaluate(() => ({on: __z.spec.on, menu: !document.getElementById('menu').hidden, bar: !!document.getElementById('zspbar'), bot: typeof __z.Z.botIn, cam: __z.api.camMode === (__z.api.S.cam | 0)}));
   ok(!off.on && off.menu && !off.bar && off.bot === 'undefined' && off.cam, 'Spectator: Menu ends it (hooks off, your camera back)');
+  /* the boss record (the Ace's tally, the wreck it unlocks, the wear on the bosses) and a sector's scars are yours too: a bot's run on a sector writes neither */
+  const bz = await p.evaluate(() => { const {api, Z, spec} = __z, ctx = Z.bosses.ctx, rd = () => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); return JSON.stringify([s.zboss?.b ?? {}, s.zboss?.ace ?? {}, s.zboss?.ghost ?? {}, s.zcamp?.sc ?? {}]); };
+    const r0 = rd(); spec.bench.start('Rookie', 1, {sec: 'mill'}); __z.cont(); ctx.bump('mirror', 'won'); ctx.recAdd('ace', 'kills'); ctx.recAdd('ace', 'beaten'); Z.sc.add(0, 40, -300, 6); Z.sc.persist(); __z.sim(2);
+    const out = {r0, r1: rd(), scars: Z.sc.stats().craters}; api.startDemo(); out.r2 = rd(); out.off = !spec.on; return out; });
+  ok(bz.r0 === bz.r1 && bz.r1 === bz.r2 && bz.scars >= 1 && bz.off, `Spectator: a bot's run on a sector writes no boss record and no scars into your saves (${bz.scars} crater in the run, save unchanged)`);
   // lock-on from the chase view: a player flying behind and below a track with the interceptor pointed at it locks it (the sights are the
   // airframe's boresight in the chase and threat views; the chase camera itself only follows the heading, so a track above could never be locked)
   await p.click('#play'); await p.waitForFunction(() => __z.G.state === 'base', {timeout: 30000});
