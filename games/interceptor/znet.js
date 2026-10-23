@@ -16,6 +16,9 @@
 //   defences D (zdef.js netOut), events ev [id, type, ...] (b explosion, k kill + who, i impact, g gun burst, f team feed, m note to one pilot),
 //   per-pilot perks, detonation results dr, acks ak, roster pl, the next wave's plan nx, rejected pilots rj, the kill chain and warning state kc
 //   (zchain.js netOut). Client requests include W (a warning action: harden / evacuate / decoy, any time in a wave) and K (a kill chain purchase), U (take a sale back) and q (close a position you opened); sl in the snapshot carries the sales to undo (zsell.js).
+//  Later additions: g.bw (the trophies' ids: zbosses.js), g.cx (the host's boss pool: zcodex.js), g.sc (the scar records; a client's sr is the revision it applied, and a pilot with none gets
+//   them every third of a second), events B (a boss fight won: kind, bounty, trophy), H (a boss hit on one pilot's interceptor), I (a boss strike on a site: site, damage, aim); Z.stateSync() when the
+//   mirrored state opens the base or game-over screen (modules that watch the state in a sim step register in Z.stateHooks).
 // Clients dead-reckon tracks and shots from position + velocity and pull toward each snapshot; other pilots' drones are interpolated the same way.
 //
 // Loadouts (zmeta.js): the host's doctrine is the team's (it shapes the shared base: positions, purse, sites); each pilot brings their own kit

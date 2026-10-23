@@ -96,10 +96,10 @@ export function initEndless(api,G,Z){
  function cleared(){const w=G.wave;if(!milestone(w))return;const b=msBonus(w);G.cash+=b;G.earned+=b;
   for(const s of SITES)if(s.hp>0)s.hp=Math.min(s.max,s.hp+Math.round(s.max*MS_REPAIR));
   (G.end||(G.end={ms:[],rec:0})).ms.push(w);const e=rd();if(w>e.ms){e.ms=w;save()}
-  banner(`MILESTONE · WAVE ${w}`,'cg',2.6);feed(`<span class="cg">Milestone: wave ${w}</span> +${money(b)} and every site repaired by ${Math.round(MS_REPAIR*100)}%`);Z.an?.say?.('MILESTONE',`WAVE ${w}`,'#ffc640',2)}
+  banner(`MILESTONE · WAVE ${w}`,'cg',2.6);(Z.team||feed)(`<span class="cg">Milestone: wave ${w}</span> +${money(b)} and every site repaired by ${Math.round(MS_REPAIR*100)}%`);Z.an?.say?.('MILESTONE',`WAVE ${w}`,'#ffc640',2)}
 
  /* ---------- the leaderboard: the Endless table, on the start menu and on the end screen ---------- */
- function record(w){const r=run(),e=rd();if(!r||!(w>0))return null;const en=G.end||(G.end={ms:[],rec:0});if(en.rec)return null;en.rec=1;
+ function record(w){const r=run(),e=rd();if(!r||!(w>0)||Z.isClient?.())return null;  /* a co-op client's own table is left alone: the host's run moves the host's */const en=G.end||(G.end={ms:[],rec:0});if(en.rec)return null;en.rec=1;
   const x={d:Z.dfi?.()??1,w,sec:r.id,ms:en.ms.length?Math.max(...en.ms):0,t:Date.now()};e.runs=[...e.runs,x];S.zend=cleanEnd(e);S.zend.sec=r.id;save();syncBoard();return x}
  const rows=(cur,max)=>rd().runs.slice(0,max).map((r,i)=>`<li class="you${cur&&r.t===cur.t?' cur':''}"><b>${i+1}</b><span>${esc(label(r))}${r.ms?` · milestone ${r.ms}`:''}</span></li>`).join('');
  E.rows=rows;
@@ -109,8 +109,11 @@ export function initEndless(api,G,Z){
 
  /* ---------- the buttons: the sector briefing (zcampaign.js hook) and the campaign card on the start menu ---------- */
  E.btn=(c,id,t)=>{const held=t==='held',ok=c.done===1&&held,why=c.done!==1?'Hold the Launch Complex to unlock Endless':held?'':'Hold this sector first';
-  return`<button class="sm zendb" id="zcpend" ${ok?'':'disabled'} title="${esc(ok?'No objective: the waves keep climbing and the sector keeps its scars':why)}">Endless ∞</button>`};
- const ov=$('zcamp');ov?.addEventListener('click',e=>{if(!e.target.closest?.('#zcpend'))return;const id=Z.cp.C().sel;E.start(id)});
+  return`<button class="sm zendb" id="zcpend" ${ok?'':'disabled'} title="${esc(ok?'No objective: the waves keep climbing and the sector keeps its scars':why)}">Endless ∞</button>${$('zhost')&&!Z.online?`<button class="sm zendb" id="zcpendhost" ${ok?'':'disabled'} title="${esc(ok?'Host an Endless run in co-op: friends join with the code; your Endless table moves':why)}">Endless ∞ · host in co-op</button>`:''}`};
+ /* a co-op Endless run: the sector is armed as Endless and the lobby's Host co-op starts the game (znet.js sends the run to the clients, which play the same climb) */
+ E.hostCoop=id=>{const c=Z.cp.C(),sid=typeof id==='string'&&Object.hasOwn(SEC,id)?id:E.sector();if(!unlocked()||!c.held.includes(sid)||Z.online||Z.isClient?.()||!$('zhost'))return false;
+  const e=rd();e.sec=sid;save();Z.cp.arm(sid,true);Z.cp.closeMap();$('zover').hidden=true;$('zhost').click();return true};
+ const ov=$('zcamp');ov?.addEventListener('click',e=>{const id=Z.cp.C().sel;if(e.target.closest?.('#zcpend'))E.start(id);else if(e.target.closest?.('#zcpendhost'))E.hostCoop(id)});
  const card=$('zcpm');
  function syncCard(){if(!card)return;card.querySelector('#zendgo')?.remove();if(!unlocked())return;const id=E.sector();
   card.insertAdjacentHTML('beforeend',`<button class="sm zendb" id="zendgo" title="${esc('Endless: no objective on '+(SEC[id]?.n||'')+', the waves keep climbing')}">Endless ∞ · ${esc(SEC[id]?.n||'')}</button>`)}
@@ -120,14 +123,14 @@ export function initEndless(api,G,Z){
 
  /* ---------- the end of an Endless run ---------- */
  const co0=Z.cpOver;Z.cpOver=()=>{const r=run();if(!r)return co0?co0():false;banner('');
-  const w=G.wave,cur=record(w),e=rd(),best=e.runs[0]?.w||w,nb=cur&&cur.w>=best&&e.runs.filter(x=>x.w===best).length===1,ms=G.end?.ms||[];
+  const cl=!!Z.isClient?.(),host=!!Z.online&&!cl,w=G.wave,cur=record(w),e=rd(),best=e.runs[0]?.w||w,nb=cur&&cur.w>=best&&e.runs.filter(x=>x.w===best).length===1,ms=G.end?.ms||[];
   $('zover').innerHTML=`<div class="zpanel zgo zcpres lost zendover"><h2>Endless run over</h2><div class="zbig">WAVE ${w}</div>
    <div class="zstats"><span>Sector</span><b>${esc(r.sec.n)}</b><span>Intercepts</span><b>${G.kills.p+G.kills.h}</b><span>by helpers</span><b>${G.kills.h}</b><span>Money earned</span><b>${money(G.earned)}</b><span>Milestones</span><b>${ms.length?ms.join(' · '):'none yet'}</b><span>Best Endless</span><b>${nb?'NEW BEST · ':''}wave ${best}</b>${G.lastHit&&KIND[G.lastHit.k]?`<span>Final blow</span><b>${esc(KIND[G.lastHit.k].n)} · ${esc(String(G.lastHit.site).toLowerCase())}</b>`:''}</div>
    <div class="zlb"><ol>${rows(cur,5)}</ol></div>
-   <p class="zhint">The sector keeps its scars. The campaign is untouched: an Endless run never costs it a thing.</p>
-   <div class="btns"><button class="go" id="zendagain">Endless again</button><button id="zcpmap">Campaign map ▸</button><button id="zmenu">Menu</button></div></div>`;
+   <p class="zhint">The sector keeps its scars. The campaign is untouched: an Endless run never costs it a thing.</p>${cl?'<p class="zhint">The host\'s run: their Endless table moves. Waiting for the host…</p>':''}
+   <div class="btns">${cl?'<button id="zmenu">Leave the game</button>':`<button class="go" id="zendagain">${host?'Endless again (all pilots)':'Endless again'}</button><button id="zcpmap">Campaign map ▸</button><button id="zmenu">${host?'End the co-op game':'Menu'}</button>`}</div></div>`;
   $('zover').hidden=false;
-  $('zendagain').onclick=()=>{const id=r.id;$('zover').hidden=true;banner('');E.start(id,true)};
-  $('zcpmap').onclick=()=>Z.cp.openMap();$('zmenu').onclick=()=>{$('zover').hidden=true;api.startDemo()};
-  Z.syncMode?.();setTimeout(()=>$('zendagain')?.focus(),50);return true};
+  const ag=$('zendagain');if(ag)ag.onclick=()=>{const id=r.id;$('zover').hidden=true;banner('');E.start(id,true)};
+  const mp=$('zcpmap');if(mp)mp.onclick=()=>Z.cp.openMap();$('zmenu').onclick=()=>{$('zover').hidden=true;api.startDemo()};
+  Z.syncMode?.();setTimeout(()=>($('zendagain')||$('zmenu'))?.focus(),50);return true};
  return E}

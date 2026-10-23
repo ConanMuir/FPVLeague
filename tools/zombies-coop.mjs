@@ -524,10 +524,38 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   ok(await ev(A, () => JSON.stringify(__z.api.S.zcamp ?? null)) === c0, "Campaign co-op: a client's own campaign save is untouched");
   if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-campaign-held.png'}); }
 
+// ---------- Endless over co-op (zendless.js): the host's Endless run is the clients' too: the same climb, the milestone told to everyone, the host's table alone moves ----------
+{ const zend = P => ev(P, () => JSON.stringify(__z.api.S.zend ?? null)), z0 = await Promise.all([A, B].map(zend));
+  await ev(H, () => __z.Z.cp.start('hosp', true, true));
+  ok(await until(H, () => __z.G.state === 'base' && __z.Z.cp.run?.endless === true), 'Endless co-op: the host starts an Endless run of Hospital Hill for the whole team');
+  for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base' && __z.Z.cp.run?.endless === true && __z.Z.endless.on() && /ENDLESS/.test(document.querySelector('#zbase .zcpbar')?.textContent || '')), `${C.name}: in the host's Endless run (no objective, the strip reads ENDLESS)`);
+  /* the milestone at wave 10: $800 and a repair, told to every screen */
+  await ev(H, () => { __z.jump(10, 100); __z.G.next = __z.plan(10); });
+  for (const C of [A, B]) await until(C, () => __z.G.wave === 9 && __z.G.state === 'base');
+  await readyUp(10);
+  await ev(H, () => { __z.G.wq.length = 0; for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; });
+  for (const C of [A, B]) ok(await until(C, () => /Milestone: wave 10/.test(document.getElementById('feed').textContent)), `Endless co-op: ${C.name} reads the wave 10 milestone`);
+  ok(await until(H, () => __z.G.state === 'base' && __z.G.cash >= 900), 'Endless co-op: the milestone paid the host\'s purse its $800 on top of the wave\'s bonus');
+  /* the run ends: the host gets "Endless again" for everyone, a client only waits for the host, and the client's own table is left alone */
+  await ev(H, () => { __z.Z.gameOver(); __z.sim(.1); });
+  ok(await until(H, () => /Endless again \(all pilots\)/.test(document.getElementById('zover').textContent)), 'Endless co-op: the host\'s end screen offers "Endless again (all pilots)"');
+  for (const C of [A, B]) ok(await until(C, () => /Endless run over/.test(document.getElementById('zover').textContent) && /Waiting for the host/.test(document.getElementById('zover').textContent) && !document.getElementById('zendagain')), `Endless co-op: ${C.name}'s end screen waits for the host (no Endless again button)`);
+  const z1 = await Promise.all([A, B].map(zend));
+  ok(z1[0] === z0[0] && z1[1] === z0[1] && (await zend(H)) !== z0[0], 'Endless co-op: the clients\' own Endless tables are untouched, the host\'s moved');
+}
+
 // ---------- the host leaves: every client's game ends with a message ----------
 await ev(H, () => __z.api.showMenu(true)); await H.p.click('#leave');
 for (const C of [A, B]) ok(await until(C, () => !__z.G.on && /host left/i.test(document.getElementById('zmpnote').textContent) && !document.getElementById('menu').hidden), `${C.name}: host left -> back on the menu with "${'The host left the game'}"`);
 if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-host-left.png'});
+
+// ---------- hosting an Endless run (zendless.js hostCoop, the lobby's own path): the sector armed as Endless, the lobby's host button, the friends join the same climb ----------
+{ await ev(H, () => { const Z = __z.Z, c = Z.cp.C(); Z.cp.put({...c, done: 1, held: Z.cp.SECTORS.map(s => s.id)}); });  /* the campaign is done on the host's save: Endless is unlocked */
+  ok(await ev(H, () => __z.Z.endless.hostCoop('hosp')), 'Endless co-op: the host hosts an Endless run of Hospital Hill the way the campaign map would');
+  ok(await until(H, () => __z.G.on && __z.G.state === 'base' && __z.Z.cp.run?.endless === true && !!__z.net.n?.code), 'Endless co-op: the host is hosting, in the Endless run');
+  const code2 = await ev(H, () => __z.net.n.code);
+  for (const C of [A, B]) { await C.p.$eval('#zcode', (e, c) => { e.value = c; }, code2); await C.p.click('#zjoin'); }
+  for (const C of [A, B]) ok(await until(C, () => __z.G.on && __z.Z.cp.run?.endless === true && __z.Z.endless.on()), `Endless co-op: ${C.name} joins with the code and plays the host's Endless run`); }
 
 for (const P of all) ok(!P.errs.length, `${P.name}: no errors` + (P.errs.length ? '\n  ' + P.errs.slice(0, 6).join('\n  ') : ''));
 await browser.close(); server.close();
