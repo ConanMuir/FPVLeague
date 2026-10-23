@@ -37,7 +37,7 @@ async function play(p) { await p.click('#play'); await p.waitForFunction(() => !
 // ---------- saves: hand-edited or foreign values must not break the start menu or a game ----------
 if (want('saves')) {
   const errs = [], p = await open(browser, origin + '/games/interceptor/', errs), bad = [];
-  for (const save of [{gmode: 'z', zdiff: 'x'}, {gmode: 'z', zdiff: 9}, {gmode: 'z', zdiff: 1.5, zbests: 'oops'}, {gmode: 'z', zmusv: 'loud', zname: {a: 1}}, {gmode: 7, wx: 'nope', cam: 'x'},
+  for (const save of [{gmode: 'z', zdiff: 'x'}, {gmode: 'z', zdiff: 9}, {gmode: 'z', zdiff: 1.5, zbests: 'oops'}, {gmode: 'z', zmusv: 'loud', zname: {a: 1}}, {zsfxv: 'loud', zmusv: {}}, {zsfxv: [1, 2], zmusv: 9},{gmode: 7, wx: 'nope', cam: 'x'},
     {gmode: 'z', zmeta: 'x', zload: 5}, {gmode: 'z', zmeta: {g: [1, 2]}, zload: {doc: 'fortress', kit: 'lure'}}, {gmode: 'z', zmeta: {v: 1, g: {w10: '15', norep: 99, bogus: 3, boss: -1}}, zload: {doc: {}, kit: [null, 'lure', 'lure', 7]}},
     {gmode: 'z', zmeta: null, zload: {doc: 'qm', kit: ['lrack', 'hflak', 'mpads']}}, {gmode: 'z', zmeta: {v: 1, g: {w10: 2, helpers: 1, boss: 4}}, zload: {doc: 'fortress', kit: ['lrack', 'lure', 'mpads', 'toString']}}, {gmode: 'z', zruns: 'x'}, {gmode: 'z', zruns: [{d: 9, w: 'a'}, null, {d: 1, w: 5, doc: 7}, {d: 2, w: 1e9}]},
     {gmode: 'classic', diff: 2, fuse: 'manual', skin: 'strela', guide: 0, guideSw: 3, setV: 4, mod: {tspd: 2, tcnt: 3, bcap: 20000}}]) {  /* an old Classic save, with the Threats panel values */
@@ -1495,6 +1495,14 @@ if (want('sell')) {
   const a2 = await p.evaluate(() => { const {G, Z} = __z; document.querySelector('.zsold [data-undo]').click(); const d = Z.def.D[0];
     return {cash: G.cash, n: Z.def.D.length, type: d?.type, lvl: d?.lvl, spent: d?.spent, slot: d?.slot, sold: G.sold.length, ghost: !!document.querySelector('.zsold'), card: !!document.querySelector(`[data-sell="${d?.id}"]`)}; });
   ok(a2.cash === 19100 && a2.n === 1 && a2.type === 'flak' && a2.lvl === 1 && a2.spent === 900 && a2.slot === 0 && !a2.sold && !a2.ghost && a2.card, `Sell: Undo takes the $900 back and the flak mortar returns as it was (level ${a2.lvl + 1}, position ${a2.slot}, cash $${a2.cash})`);
+  // 1b. a sortie closes the base screen and opens it again: still the same break, so a defence bought before it sells in full and a sale keeps its Undo
+  const a1b = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const f = Z.def.SLOTS.map((s, i) => i).filter(i => Z.def.slotFree(i, 'flak')), keep = B.place('flak', f[0]), gone = B.place('flak', f[1]);
+    const v0 = Z.sell.dval(keep); B.sell(gone.id); const n0 = G.sold.length, sid = G.sold[0]?.id;
+    Z.so.S.on = true; Z.base.close(); const mid = G.sold.length; Z.so.S.on = false; Z.base.open();  /* what a sortie does (zsortie.js start and end) */
+    const v1 = Z.sell.dval(Z.def.D.find(d => d.id === keep.id)), n1 = G.sold.length, undo = !!Z.sell.undo(sid), back = Z.def.D.find(d => d.slot === f[1]);
+    Z.def.remove(Z.def.D.find(d => d.id === keep.id)); if (back) Z.def.remove(back); G.sold.length = 0;
+    return {v0, v1, n0, mid, n1, undo, back: !!back}; });
+  ok(a1b.v0 === 450 && a1b.v1 === 450 && a1b.n0 === 1 && a1b.mid === 1 && a1b.n1 === 1 && a1b.undo && a1b.back, `Sell: a sortie round trip (base screen closed and opened) keeps the break: a flak bought before it still sells for $${a1b.v1} of $${a1b.v0}, the sale is still in the ledger (${a1b.n1}) and its Undo works`);
   // 2. a position opened now (older by the next base screen) and a second flak sold; the wave starting ends the Undo
   const a3 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const j = Z.def.SLOTS.findIndex((s, i) => Z.def.canOpen(i, Z.meta.doc())), paid = B.expand(j), d2 = B.place('flak', 1), r = B.sell(d2.id), id = G.sold[0]?.id;
     __z.cont(); return {j, paid, r, id, ledger: G.sold.length, undo: Z.sell.undo(id), st: G.state}; });
@@ -1758,9 +1766,9 @@ if (want('radio')) {
     window.__rf = () => { R.flush(); for (let i = 0; i < 5; i++) R.step(2); };  /* make the merged calls due and let the channel run */
     window.__at = (brg, k = 'shahed', site = 1, rr = 5000) => __z.make(k, Math.sin(brg) * rr, 1950 - Math.cos(brg) * rr, __z.api.SITES[site]);
     window.__clr = () => { for (const u of __z.api.TH) __z.api.scene.remove(u.mesh); __z.api.TH.length = 0; const k = __at(.3, 'shahed', 0, 5000); k._rz = 1; };  /* the sky is emptied but for one far track nobody calls: the page's own loop would end the wave between two checks */
-    return {has: !!R, rows: ['f_zradio', 'f_zrspeech', 'f_zradiov'].map(id => !!document.getElementById(id)), css: !!document.querySelector('link[href*="zradio.css"]'), chat: !!document.getElementById('zchat'),
+    return {has: !!R, rows: ['f_zradio', 'f_zrspeech', 'f_zradiov'].map(id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; }), css: !!document.querySelector('link[href*="zradio.css"]'), chat: !!document.getElementById('zchat'),
       def: [S.zradio, S.zrspeech, S.zradiov], cap: R.cap, ac: !!__z.api.AC}; });
-  ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean), 'Radio: the module is up with its HUD log, stylesheet and three settings rows (chatter, speech, volume)');
+  ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean), 'Radio: the module is up with its HUD log, stylesheet and three settings rows (chatter, speech, volume), none of them hidden');
   ok(r0.def[0] === true && r0.def[1] === true && r0.def[2] === .6 && r0.cap <= .1, `Radio: defaults are chatter on, speech on, volume ${r0.def[2]}; the sound cap is ${r0.cap}`);
 
   // new tracks: three Shaheds from the east are one call, with the direction and the site they threaten

@@ -5,13 +5,14 @@
 // Your runs are saved as S.zruns = [{d: difficulty index, w: wave, doc: doctrine id, co: 1 if co-op, t: time}], checked on every read.
 import {ZDIFF} from './zdata.js';
 const DN=ZDIFF.map(d=>d.n),MAXRUNS=20;
+/* the benchmark file as the game reads it: any value in, null or levels out (a level or a difficulty missing, a cell without numbers, a fly block without its cell: skipped, never a throw) */
+export function cleanBench(j){if(!j||typeof j!=='object'||!Array.isArray(j.levels))return null;const levels=[];
+ for(const l of j.levels.slice(0,8)){if(!l||typeof l.n!=='string')continue;const d={};for(const n of DN){const c=l.d?.[n];if(c&&Number.isFinite(c.med)){d[n]={med:+c.med,min:+c.min||+c.med,max:+c.max||+c.med};const f=c.fly;if(f&&Number.isFinite(f.med)&&Number.isFinite(f.pct)&&Number.isFinite(f.systems))d[n].fly={med:+f.med,pct:Math.max(0,Math.min(1,+f.pct)),systems:f.systems|0}}}levels.push({n:l.n.replace(/[<>&"'`]/g,'').slice(0,24),d})}
+ return levels.length?{levels,date:String(j.date||'').slice(0,10),version:String(j.version||'').replace(/[<>&"'`]/g,'').slice(0,24),runs:j.runs|0}:null}
 export function initBoard(api,G,Z){
  const {S,save}=api,$=id=>document.getElementById(id);
  let B=null;  // the benchmark, once loaded
- fetch(new URL('zbench.json',import.meta.url)).then(r=>r.ok?r.json():null).then(j=>{B=clean(j);sync()}).catch(()=>{});
- function clean(j){if(!j||typeof j!=='object'||!Array.isArray(j.levels))return null;const levels=[];
-  for(const l of j.levels.slice(0,8)){if(!l||typeof l.n!=='string')continue;const d={};for(const n of DN){const c=l.d?.[n];if(c&&Number.isFinite(c.med))d[n]={med:+c.med,min:+c.min||+c.med,max:+c.max||+c.med};const f=c.fly;if(f&&Number.isFinite(f.med)&&Number.isFinite(f.pct)&&Number.isFinite(f.systems))d[n].fly={med:+f.med,pct:Math.max(0,Math.min(1,+f.pct)),systems:f.systems|0}}levels.push({n:l.n.replace(/[<>&"'`]/g,'').slice(0,24),d})}
-  return levels.length?{levels,date:String(j.date||'').slice(0,10),version:String(j.version||'').replace(/[<>&"'`]/g,'').slice(0,24),runs:j.runs|0}:null}
+ fetch(new URL('zbench.json',import.meta.url)).then(r=>r.ok?r.json():null).then(j=>{B=cleanBench(j);sync()}).catch(()=>{});
  // difficulty weights: Normal median / this difficulty's median, averaged over the levels (fallback when there is no benchmark)
  function weights(){const w=[.8,1,1.3,1.6];if(!B)return w;return DN.map((n,i)=>{const r=B.levels.filter(l=>l.d.Normal&&l.d[n]).map(l=>l.d.Normal.med/Math.max(1,l.d[n].med));return r.length?r.reduce((a,b)=>a+b,0)/r.length:w[i]})}
  const runs=()=>(Array.isArray(S.zruns)?S.zruns:[]).filter(r=>r&&Number.isInteger(r.d)&&r.d>=0&&r.d<DN.length&&Number.isInteger(r.w)&&r.w>0&&r.w<1000).map(r=>({d:r.d,w:r.w,doc:typeof r.doc==='string'?r.doc.slice(0,12):'std',co:r.co?1:0,t:+r.t||0}));
