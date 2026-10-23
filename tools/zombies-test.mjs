@@ -1758,9 +1758,9 @@ if (want('radio')) {
     window.__rf = () => { R.flush(); for (let i = 0; i < 5; i++) R.step(2); };  /* make the merged calls due and let the channel run */
     window.__at = (brg, k = 'shahed', site = 1, rr = 5000) => __z.make(k, Math.sin(brg) * rr, 1950 - Math.cos(brg) * rr, __z.api.SITES[site]);
     window.__clr = () => { for (const u of __z.api.TH) __z.api.scene.remove(u.mesh); __z.api.TH.length = 0; const k = __at(.3, 'shahed', 0, 5000); k._rz = 1; };  /* the sky is emptied but for one far track nobody calls: the page's own loop would end the wave between two checks */
-    return {has: !!R, rows: ['f_zradio', 'f_zrspeech', 'f_zradiov'].map(id => !!document.getElementById(id)), css: !!document.querySelector('link[href*="zradio.css"]'), chat: !!document.getElementById('zchat'),
+    return {has: !!R, rows: ['f_zradio', 'f_zrspeech', 'f_zradiov'].map(id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; }), css: !!document.querySelector('link[href*="zradio.css"]'), chat: !!document.getElementById('zchat'),
       def: [S.zradio, S.zrspeech, S.zradiov], cap: R.cap, ac: !!__z.api.AC}; });
-  ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean), 'Radio: the module is up with its HUD log, stylesheet and three settings rows (chatter, speech, volume)');
+  ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean), 'Radio: the module is up with its HUD log, stylesheet and three settings rows (chatter, speech, volume), none of them hidden');
   ok(r0.def[0] === true && r0.def[1] === true && r0.def[2] === .6 && r0.cap <= .1, `Radio: defaults are chatter on, speech on, volume ${r0.def[2]}; the sound cap is ${r0.cap}`);
 
   // new tracks: three Shaheds from the east are one call, with the direction and the site they threaten
