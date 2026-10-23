@@ -39,7 +39,7 @@ export const nextBots=()=>TN.T?B.playable(TN.T).find(m=>B.matchKind(TN.T,m)==='b
 /* the teams of a match: the drones rebuilt from its slots, each bot at its entrant's level (bots/league.js reads d.skill) */
 function build(m){const {keys,skill}=B.teamsOf(TN.T,m);GS.drones.forEach(d=>d.dispose());GS.drones=[];GS.player=null;GS.lseed=Math.random()*1e9|0;applySlots(keys);
  for(const d of GS.drones)if(d.key in skill)d.skill=skill[d.key];compileFor(GS.drones.flatMap(d=>d.trail?[d.mesh,d.trail]:[d.mesh]))}
-function begin(m,how){if(GS.net){mpMsg('Leave the online game to run a tournament.');return false}tournStop();exitTrain();exitLab();leaveGame();audioInit();AC?.resume();setGame('tourn');
+function begin(m,how){if(GS.net){mpMsg('Leave the online game to run a tournament.');return false}const q=TN.queue;tournStop();TN.queue=q;exitTrain();exitLab();leaveGame();audioInit();AC?.resume();setGame('tourn');  /* the queue (simulate all) outlives the stop of the match before it: it cleared the queue, so Simulate all ran one match */
  GS.demo=how==='sim';build(m);GS.score=[0,0];GS.clock=TN.T.len;GS.overtime=GS.endPending=false;GS.timeScale=1;GS.spect='';kickoff();TN.cur={id:m.id,how};TN.ver++;return true}
 /** play a match yourself (one human in it) */
 export function tournPlay(id){const m=pl(id);if(!m||B.matchKind(TN.T,m)!=='play'||!begin(m,'play'))return false;showMenu(false);$('hud').hidden=false;$('resume').hidden=false;return true}
