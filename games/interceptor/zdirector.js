@@ -31,9 +31,10 @@ const G_FPV=['fpv','pursuit','reverse','chase'];
 export function initDirector(api,G,Z,opts={}){
  const {THREE,TH,SITES,S:ST,gh}=api,V3=THREE.Vector3,QT=THREE.Quaternion,M4=new THREE.Matrix4(),UP=new V3(0,1,0),X1=new V3(1,0,0),cam=api.camera;
  const SC=new V3(0,0,1950),SCN=new V3(0,30,1950),_a=new V3(),_b=new V3(),_c=new V3(),_f=new V3(),_r=new V3(),_u=new V3(),_e=new V3(),_q=new QT(),LS={p:new V3(),tau:0,unc:0,ok:true};
- let ON=false,shotNo=0,sseq=0,lastKills=-1,prevState='',logN=0;
+ let ON=false,shotNo=0,sseq=0,lastKills=-1,prevState='',logN=0,nmT=null,nmDone=false;
  /* the clock, the last scorer run, the bot's flight time, the end and size of the explosion lock, the end of the name card: doubles live in a typed array because a closure variable boxes every new one */
- const T=new Float64Array(12);T[1]=-9;
+ const T=new Float64Array(12);T[1]=-9;T[10]=-99;
+ const BR=[null,null,null,null],BT=new Float64Array(4);let bossN=0;  /* the bosses seen: who, and when the director first saw them */
  const sub=()=>({ref:null,p:new V3(),v:new V3(),live:false,on:false,bot:false,sw:false,cls:3,id:0});
  const mkShot=()=>({on:false,type:'',kind:0,sa:null,st0:0,t0:0,age:0,len:0,min:0,A:sub(),B:sub(),sp:new V3(),h:new V3(0,0,-1),P:new V3(),L:new V3(),P0:new V3(),pe:new V3(),fov:60,fe:60,fovO:60,ease:0,side:1,ang:0,w:0,R:0,hg:0,score:0,blk:0,lost:0,mat:0,label:'',lab:''});
  let cur=mkShot(),nxt=mkShot();
@@ -132,12 +133,12 @@ export function initDirector(api,G,Z,opts={}){
   if(!inView(_a,S.L,A.p,S.fov,.9))return'frame';
   if(t==='pursuit'&&!inView(_a,S.L,B.p,S.fov,.95))return'frame2';
   return''}
- const gram=sl=>sl.i===INT&&sl.tau<7&&botOK()&&api.player.v.length()>8?G_FPV:GRAM[sl.i];
+ const gram=sl=>sl.i===INT&&sl.tau<7&&T[0]-T[10]>6&&botOK()&&api.player.v.length()>8?G_FPV:GRAM[sl.i];
  function begin(sl,why){const L=gram(sl),n=L.length;let k0=cur.on&&cur.type===L[0]?1%n:0;if(cur.on&&cur.kind===sl.i&&cur.sa===sl.a){const j=L.indexOf(cur.type);if(j>=0)k0=(j+1)%n}
   for(let k=0;k<=n;k++){const type=k<n?L[(k0+k)%n]:'wide';if(!roles(nxt,sl,type))continue;setup(nxt,sl,type);const bad=viable(nxt);if(!bad||k===n)return swap(sl,why);stats.rej[type+':'+bad]=(stats.rej[type+':'+bad]|0)+1}
   unbind(nxt.A);unbind(nxt.B);return false}
  function swap(sl,why){const was=cur.on,same=was&&cur.A.ref&&cur.A.ref===nxt.A.ref&&why!=='interrupt'&&why!=='forced'&&why!=='lost'&&cam.position.distanceTo(nxt.P)<600;
-  if(was)close(why,nxt.P);const t=cur;cur=nxt;nxt=t;unbind(nxt.A);unbind(nxt.B);nxt.on=false;cur.on=true;cur.ease=same?(sl.i===AMB||sl.i===WAVE?1.1:.55):0;
+  if(was){if(cur.type==='fpv'&&(why==='forced'||why==='lost'))T[10]=T[0];close(why,nxt.P)}const t=cur;cur=nxt;nxt=t;unbind(nxt.A);unbind(nxt.B);nxt.on=false;cur.on=true;cur.ease=same?(sl.i===AMB||sl.i===WAVE?1.1:.55):0;
   shotNo++;sl.shown=T[0];stats.shots++;stats.kinds[sl.n]++;stats.types[cur.type]++;if(same)stats.eases++;else stats.cuts++;if(why==='interrupt')stats.interrupts++;if(why==='forced'||why==='lost')stats.forced++;
   if(cur.A.ref&&cur.A.ref.k)cur.A.ref._ds=T[0];if(cur.B.ref&&cur.B.ref.k)cur.B.ref._ds=T[0];
   {const r=cur.A.ref&&cur.A.ref.id?cur.A.ref:cur.B.ref&&cur.B.ref.id?cur.B.ref:null;cur.label=`${sl.n}${r?' T'+String(r.id).padStart(2,'0'):''} · ${cur.type}`}cur.lab=' · '+cur.label;
@@ -164,7 +165,7 @@ export function initDirector(api,G,Z,opts={}){
    if(t.k==='swarm'){const g=t.grp&63;if(glead[g])continue;glead[g]=t}
    const boss=K.armor==='boss'&&!(BOSSES[t.k]&&BOSSES[t.k].minor);_a.subVectors(t.aim,t.p);const tti=_a.length()/Math.max(1,t.v.length())/spd,
     stake=boss?1:cl(cl(K.dmg/120,0,1)*.8+(K.armor?.2:0)+(t.k==='swarm'?cl(gN[t.grp&63]*.05,0,.5):0),0,1);
-   if(boss){if(t._dt===undefined){t._dt=T[0];card(t)}const age=T[0]-t._dt,en=age<14?1.1-.04*age:0,pres=.42+.4*(t.bs&&t.bs.max?1-t.bs.hp/t.bs.max:0),s=Math.max(en,pres);
+   if(boss){let k=BR.indexOf(t);if(k<0){k=bossN++&3;BR[k]=t;BT[k]=T[0];card(t)}const age=T[0]-BT[k],en=age<14?1.1-.04*age:0,pres=.42+.4*(t.bs&&t.bs.max?1-t.bs.hp/t.bs.max:0),s=Math.max(en,pres);
     if(s>B.s){B.s=s;B.mag=en>pres?3.2:1.6;B.a=t;B.at=false}}
    else if(K.dmg>0&&!t.spoof&&!(t.lure>0)&&t.k!=='decoy'){const w=1-ramp(tti,4,26),h=t.tgt&&t.tgt.max?1-t.tgt.hp/t.tgt.max:0,s=(.2+.8*w)*(.35+.65*stake)*(1+.8*h)*(t.claim?.7:1)*.95;
     if(s>Th.s){Th.s=s;Th.mag=tti<3?3:1.8;Th.a=t;Th.x=t.aim.x;Th.y=t.aim.y;Th.z=t.aim.z;Th.at=true}}
@@ -182,7 +183,8 @@ export function initDirector(api,G,Z,opts={}){
   {const sw=Z.sw&&Z.sw.mine;if(sw){if(sw.sseq!==sseq){if(sw.sseq>sseq&&wave){const p=sw.sp||sw.home;ev(C[SWM],.95,4.2,T[0]+8,p.x,p.y,p.z,sw)}sseq=sw.sseq}
     const q=C[SWM];if(q.a===sw&&q.until>T[0]&&q.until<q.t0+14)for(let i=0;i<sw.d.length;i++)if(sw.d[i].st==='strike'||sw.d[i].st==='gnd'){q.until=Math.max(q.until,T[0]+1.2);break}}}
   /* a pass that missed */
-  if(ok&&bi){const d=bi.p.distanceTo(me.p),m=bi._dd===undefined?1e9:bi._dd;if(d<m)bi._dd=d;else if(m<55&&d>m+7&&!bi._dn){bi._dn=1;ev(C[MISS],.62,2,T[0]+3.2,bi.p.x,bi.p.y,bi.p.z,bi,me)}if(d>260){bi._dd=1e9;bi._dn=0}}
+  if(ok&&bi){const d=bi.p.distanceTo(me.p);if(nmT!==bi){nmT=bi;T[9]=1e9;nmDone=false}const m=T[9];
+   if(d<m)T[9]=d;else if(m<55&&d>m+7&&!nmDone){nmDone=true;ev(C[MISS],.62,2,T[0]+3.2,bi.p.x,bi.p.y,bi.p.z,bi,me)}if(d>260){T[9]=1e9;nmDone=false}}
   /* a sortie run on a target: the brain's intent (bomb: it is bombing now; sortie: it is heading for one), else the known target the bot is near */
   {const so=Z.so,ib=Z.bot&&Z.bot.intent,sr=C[SORT];
    if(ok&&ib&&ib.target&&(IN.k==='bomb'||IN.k==='sortie')){const g=ib.target,bomb=IN.k==='bomb';sr.s=bomb?.95:.5;sr.mag=bomb?3.4:3;sr.a=me;sr.b=null;sr.x=g.x;sr.y=g.y;sr.z=g.z;sr.at=true}
@@ -246,9 +248,9 @@ export function initDirector(api,G,Z,opts={}){
  /* drops every body, event and timer: after a wave (keep: the shot on air finishes on frozen bodies) and on the way out */
  const freeze=s=>{s.ref=null;s.live=false;s.v.set(0,0,0)};
  function wipe(keep){if(keep&&cur.on){freeze(cur.A);freeze(cur.B)}else{if(cur.on)close('off');cur.on=false;unbind(cur.A);unbind(cur.B)}unbind(nxt.A);unbind(nxt.B);cur.sa=nxt.sa=null;
-  for(const s of C){s.s=s.s0=0;s.a=s.b=null;s.at=false;s.until=-1e9;s.t0=-1e9;s.shown=-1e9}IN.t=null;glead.fill(null);BM.n=0;T[3]=T[4]=0;SHP.fill(-1);T[1]=-9;
+  for(const s of C){s.s=s.s0=0;s.a=s.b=null;s.at=false;s.until=-1e9;s.t0=-1e9;s.shown=-1e9}IN.t=null;nmT=null;BR.fill(null);glead.fill(null);BM.n=0;T[3]=T[4]=0;SHP.fill(-1);T[1]=-9;
   if(lt){lt.classList.remove('on');T[5]=0}}
- function on(){if(ON)return;ON=true;T[0]=0;wipe();prevState=G.state;sseq=Z.sw&&Z.sw.mine?Z.sw.mine.sseq:0;lastKills=-1;
+ function on(){if(ON)return;ON=true;T[0]=0;T[10]=-99;wipe();prevState=G.state;sseq=Z.sw&&Z.sw.mine?Z.sw.mine.sseq:0;lastKills=-1;
   document.head.append(css);lt=document.createElement('div');lt.id='zdirlt';kb=document.createElement('div');kb.id='zdirk';document.body.append(lt,kb)}
  function off(){if(!ON)return;ON=false;wipe();for(const el of[css,lt,kb])if(el)el.remove();lt=kb=null;
   const m=api.player;if(m&&m.mesh&&m.dead<=0)m.mesh.visible=true;
@@ -259,7 +261,7 @@ export function initDirector(api,G,Z,opts={}){
   const iv=Math.min(.1,.1/Math.max(1,opts.speed?opts.speed():1));
   if(T[0]-T[1]>=iv||!cur.on){const h=Math.min(.5,T[0]-T[1]);score();decide(h)}
   if(cur.on)frame(dt,false)}
- const leaks=()=>{let tr=0;const chk=r=>{if(r&&r.p&&r.k)tr++};chk(cur.A.ref);chk(cur.B.ref);chk(nxt.A.ref);chk(nxt.B.ref);chk(IN.t);for(const s of C){chk(s.a);chk(s.b)}for(const g of glead)chk(g);
+ const leaks=()=>{let tr=0;const chk=r=>{if(r&&r.p&&r.k)tr++};chk(cur.A.ref);chk(cur.B.ref);chk(nxt.A.ref);chk(nxt.B.ref);chk(IN.t);chk(nmT);for(const r of BR)chk(r);for(const s of C){chk(s.a);chk(s.b)}for(const g of glead)chk(g);
   let m=0;for(const s of C)if(s.s>0)m++;return{tracks:tr,moments:m,shot:cur.on?1:0,lock:T[0]<T[3]?1:0,booms:BM.n,card:T[5]?1:0,dom:(lt?1:0)+(kb?1:0)}};
  return{on,off,tick,score,decide,wipe,leaks,boom,lockFor,stats,HARD,MINL,get active(){return ON},get cur(){return cur},get slots(){return C},get now(){return T[0]},get lock(){return{until:T[3],pow:T[4]}},
   get log(){const n=Math.min(logN,64),o=[];for(let i=logN-n;i<logN;i++)o.push(LOG[i%64]);return o},label:()=>cur.on?cur.lab:''}}

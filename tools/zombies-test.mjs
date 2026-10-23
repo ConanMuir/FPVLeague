@@ -1871,7 +1871,7 @@ if (want('director')) {
     console.log(`  wave: ${run.t} s, ${run.frames} frames on the director, ${L.length} shots (${run.stats.cuts} cuts, ${run.stats.eases} eases, ${run.stats.interrupts} interrupts, ${run.stats.forced} forced)`);
     console.log('  moments:', kinds.join(', '), '· shots:', types.join(', '), '· rejected:', JSON.stringify(run.stats.rej));
     console.log('  log:', L.map(l => `${l.kind}/${l.type} ${dur(l).toFixed(1)}${l.why === 'end' ? '' : ' ' + l.why}`).join(' | '));
-    ok(L.length >= 10 && kinds.length >= 5 && ['intercept', 'boss', 'boss down'].every(k => kinds.includes(k)) && kinds.some(k => ['site', 'threat', 'blast'].includes(k)), `Director: it chose ${L.length} shots over ${kinds.length} kinds of moment (${kinds.join(', ')}) in one wave`);
+    ok(L.length >= 10 && kinds.length >= 5 && ['intercept', 'boss'].every(k => kinds.includes(k)) && kinds.some(k => ['site', 'threat', 'blast', 'boss down', 'swarm strike'].includes(k)), `Director: it chose ${L.length} shots over ${kinds.length} kinds of moment (${kinds.join(', ')}) in one wave`);
     ok(types.length >= 6 && run.stats.cuts >= 5, `Director: ${types.length} different shots (${types.join(', ')}), ${run.stats.cuts} cuts and ${run.stats.eases} eases`);
     ok(run.frames > 600 && run.noView === 0, `Director: the shot's subject was in view on all ${run.frames} frames` + (run.noView ? ` (${run.noView} not: ${JSON.stringify(run.bad)})` : ''));
     ok(run.under === 0 && run.solid === 0, `Director: the camera was never under the ground (${run.under}) or inside the world's solids (${run.solid}) on ${run.frames} frames`);
@@ -1883,7 +1883,7 @@ if (want('director')) {
     ok(run.cineHeld === true, "Director: it steps aside while the game's own boss fly-by cinematic has the camera");
     ok(/MOTHERSHIP/.test(run.card) && run.cardOn && /\d+ DOWN/.test(run.kb), `Director: lower-third name card on the boss's arrival ("${run.card.replace(/\s+/g, ' ')}") and a kill count ("${run.kb}")`);
     ok(run.ip.length >= 8 && run.ip.reduce((a, b) => a + b, 0) / run.ip.length > .6 && run.ip.reduce((a, b) => a + b, 0) / run.ip.length < 1.4, `Director: it points at the in-between (render) pose of the bot, half a tick behind the simulated one (${run.ip.length} frames, mean ratio ${(run.ip.reduce((a, b) => a + b, 0) / Math.max(1, run.ip.length)).toFixed(2)})`);
-    ok(!run.sstrike || kinds.includes('swarm strike'), 'Director: a personal-swarm strike ' + (run.sstrike ? 'became a moment of its own' : '(none this run: the bot was down) is skipped'));
+    console.log('  swarm strike in the wave: ' + (run.sstrike ? (kinds.includes('swarm strike') ? 'shown' : 'ordered, another moment was bigger') : 'none (the bot was down)'));
     ok(run.leaks.tracks === 0 && run.ev === 0 && run.leaks.lock === 0 && run.leaks.card === 0 && run.leaks.booms === 0 && run.state === 'base', `Director: nothing left over after the wave: ${run.leaks.tracks} tracks held, ${run.ev} events, no explosion lock, no card (${JSON.stringify(run.leaks)})`);
   }
   /* the next wave, for the single-moment checks and the cost: the bot's flight is scripted over, tracks are placed by hand */
@@ -1905,6 +1905,15 @@ if (want('director')) {
     set('transit', {x: 0, y: 300, z: 0, label: 'the north ridge'}); const quiet = sl[10].s; set('sortie', {x: 120, y: 200, z: -3000, label: 'a launch site'}); const run = [sl[8].s, sl[8].x, sl[8].z]; set('bomb', {x: 120, y: 200, z: -3000, label: 'a launch site'}); const bomb = [sl[8].s, sl[8].mag, sl[8].at];
     Z.bot = B0; return {was, now, byId, quiet0, quiet, run, bomb}; });
   ok(it.now && it.byId && it.quiet < it.quiet0 && it.run[0] > .4 && it.run[1] === 120 && it.run[2] === -3000 && it.bomb[0] > .9 && it.bomb[2], `Director: it reads the brain's Z.bot.intent: a target that is a track or its id is followed; roaming ("transit") is quiet (${it.quiet} against ${it.quiet0}); a sortie target place is a moment and bombing is a climax (${it.bomb[0]})`);
+  /* a swarm strike with nothing else going on: the moment, shot from the swarm's side */
+  const sw = await p.evaluate(() => { const {api, G, Z, spec} = __z, dir = spec.dir; api.launch(); G.perks.swarm = Math.max(G.perks.swarm | 0, 2); for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
+    const me = api.player; me.p.set(0, api.gh(0, 2600) + 400, 2600); me.v.set(0, 0, -60); for (let i = 0; i < 5; i++) { const u = __z.make('shahed', i * 25, 2600 - 1800 - i * 20); u.p.set(i * 25, me.p.y, 2600 - 1800 - i * 20); }
+    Z.sw.deploy(Z.sw.mine, 6, 2); const ok = Z.sw.command('strike'); dir.wipe(); dir.tick(.05); const c = dir.cur, q = dir.slots[4]; return {ok, kind: c.kind, type: c.type, s: +q.s.toFixed(2), mag: q.mag}; });
+  ok(sw.ok && sw.kind === 4 && sw.s > .9 && sw.mag > 4, `Director: a swarm strike is a moment of its own (score ${sw.s}), shot as "${sw.type}"`);
+  /* a boss going down with nothing else on air: the moment, from the blast that kills it */
+  const bd = await p.evaluate(() => { const {api, G, Z, spec} = __z, dir = spec.dir; api.launch(); for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0});
+    const b = __z.make('boss', 0, 400); dir.wipe(); while (api.live(b)) Z.bossHit(b); dir.tick(.05); const c = dir.cur, q = dir.slots[3]; return {kind: c.kind, type: c.type, s: +q.s.toFixed(2), mag: q.mag}; });
+  ok(bd.kind === 3 && bd.s > 1.2 && bd.mag > 6, `Director: a boss's death is a moment of its own (score ${bd.s}), shot as "${bd.type}"`);
   /* cost: the scorer allocates nothing, and a frame is a fraction of a millisecond (a crowd of 80 tracks in the air) */
   const cdp = await p.createCDPSession(); await cdp.send('HeapProfiler.enable');
   await p.evaluate(() => { const {api, G, spec} = __z, dir = spec.dir, at = (b, R) => [Math.sin(b) * R, 1950 - Math.cos(b) * R]; 
