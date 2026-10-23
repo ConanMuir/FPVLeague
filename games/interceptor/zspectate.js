@@ -68,8 +68,8 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
   for(const b of card.querySelectorAll('[data-zsdoc]'))b.onclick=()=>put({doc:b.dataset.zsdoc});
   for(const b of card.querySelectorAll('[data-zskit]'))b.onclick=()=>{const k=b.dataset.zskit,c0=cfg();let kit=c0.kit.includes(k)?c0.kit.filter(x=>x!==k):[...c0.kit,k];if(kit.length>KIT_MAX)kit=kit.slice(-KIT_MAX);put({kit})};
   $('zspsec').onchange=e=>put({sec:e.target.value});$('zspgo').onclick=()=>start(cfg())}
- const syncCard=()=>{card.hidden=S.gmode!=='z';if(!card.hidden)renderCard()};
- syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};$('gmode').addEventListener('click',()=>setTimeout(syncCard,0));
+ const syncCard=()=>renderCard();
+ syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};
 
  // ---------- the run ----------
  const newStats=o=>({lv:o.lv,d:ZDIFF[o.d].n,doc:DOCS[o.doc]?.n||'Standard',kit:o.kit||[],sec:o.sec?SECTORS.find(s=>s.id===o.sec)?.n:'',simT:0,money:[],buys:[],kills:{},lastHit:null,dmg:{},bursts:0,deaths:{det:0,crash:0,bat:0},crashes:[],waves:[],sampleT:0,snap:new Map(),wasDead:false,relaunches:0});
@@ -78,7 +78,7 @@ body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.z
   sp.pilot=createPilot(api,G,Z,P,E);
   Z.botIn=(d,dt)=>sp.on&&G.state!=='base'&&G.state!=='over'?sp.pilot.input(d,dt):null;Z.botFire=()=>sp.on&&sp.pilot.fire();Z.sightCam=sight;
   const ld=Z.meta.load;Z.meta.load=()=>({doc:DOCS[o.doc]?o.doc:'std',kit:(o.kit||[]).filter(k=>KIT[k]).slice(0,KIT_MAX)});sp.starting=true;
-  try{S.gmode='z';if(o.sec&&Z.cp?.start)Z.cp.start(o.sec,true);else api.startMatch()}finally{Z.meta.load=ld;sp.starting=false}
+  try{if(o.sec&&Z.cp?.start)Z.cp.start(o.sec,true);else api.startMatch()}finally{Z.meta.load=ld;sp.starting=false}
   reseed(o.d);document.body.classList.add('zsp-on');api.camMode=1;
   if(!sp.bench){ui();api.feed(`<span class="cb">Bot spectator: ${esc(P.n)} on ${ZDIFF[o.d].n}</span>. Keys: C camera · 1-4 speed · Space pause · . step · K tuning · Esc menu`)}
   logMoney();return true}

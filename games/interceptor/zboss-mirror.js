@@ -17,7 +17,7 @@ const MC=new Map();
 function darken(C,m){let d=MC.get(m);if(d)return d;const T=C.THREE;if(m.map){d=new T.MeshStandardMaterial({map:invSkin(C),roughness:.35,metalness:.6})}
  else if(m.isMeshBasicMaterial&&!m.transparent){d=new T.MeshBasicMaterial({color:new T.Color(0xff1010).multiplyScalar(4),toneMapped:false})}
  else{d=m.clone();if(d.color)d.color.multiplyScalar(.12);if(d.emissive)d.emissive.set(0x1a0000)}MC.set(m,d);return d}
-function model(C){const T=C.THREE,g=new T.Group(),dr=C.api.newDrone(),inner=dr.mesh;C.api.scene.remove(inner);inner.traverse(o=>{if(o.isMesh)o.material=darken(C,o.material)});inner.visible=true;dr.look();
+function model(C){const T=C.THREE,g=new T.Group(),dr=C.api.newDrone(),inner=dr.mesh;C.api.scene.remove(inner);inner.traverse(o=>{if(o.isMesh)o.material=darken(C,o.material)});inner.visible=true;
  inner.rotation.x=Math.PI/2;inner.scale.setScalar(2.6);g.add(inner);const eye=new T.Sprite(new T.SpriteMaterial({map:dot,color:new T.Color(0xff1010).multiplyScalar(3),transparent:true,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false}));
  eye.scale.set(1.6,1.6,1);eye.position.set(0,0,1.05);g.add(eye);const au=new T.Sprite(new T.SpriteMaterial({map:dot,color:new T.Color(0x300000),transparent:true,opacity:.6,depthWrite:false}));au.scale.set(9,9,1);g.add(au);
  Object.assign(g.userData,{dr,eye,au});return g}

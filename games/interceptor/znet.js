@@ -55,14 +55,14 @@ export function initNet(api,G,Z){
  const box=document.createElement('div');box.id='zmp';box.className='zmp';
  box.innerHTML=`<h3>Co-op <small>2–4 pilots, one shared purse</small></h3><div class="mp"><input id="zname" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><button class="sm" id="zhost">Host co-op</button></div>
   <div class="mp"><input id="zcode" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="zjoin">Join</button></div><div id="zgames"></div>
-  <p class="note" id="zmpnote">One pilot hosts and gets a game code; friends open this page, pick Zombies, type the code and press Join. Pilots who join mid-wave come in at the next base screen.</p>`;
+  <p class="note" id="zmpnote">One pilot hosts and gets a game code; friends open this page, type the code and press Join. Pilots who join mid-wave come in at the next base screen.</p>`;
  ($('zboard')||$('zmeta')||$('zdiff')).after(box);
- const lobby=()=>{box.hidden=S.gmode!=='z';$('zhost').disabled=$('zjoin').disabled=!!net};
- const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();lobby()};lobby();$('gmode').addEventListener('click',()=>setTimeout(lobby,0));
+ const lobby=()=>{$('zhost').disabled=$('zjoin').disabled=!!net};
+ const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();lobby()};lobby();
  $('zname').value=S.zname||'';$('zname').onchange=()=>{S.zname=clean($('zname').value);save()};
  $('zhost').onclick=()=>enter(Math.random().toString(36).slice(2,6),true);$('zjoin').onclick=()=>enter($('zcode').value,false);$('zcode').onkeydown=e=>{if(e.key==='Enter')enter($('zcode').value,false)};
  const msg=(t,warn)=>{const n=$('zmpnote');n.textContent=t;n.classList.toggle('warn',!!warn);if(G.on&&!api.menuOpen)feed(t.replace(/[<>&]/g,''))};
- // while in a co-op game, Hold the line just goes back to it (a restart is the host's call)
+ // while in a co-op game, Quick defence just goes back to it (a restart is the host's call)
  $('play').addEventListener('click',e=>{if(net&&G.on){e.stopImmediatePropagation();api.showMenu(false)}},true);
  function games(peers){const b=$('zgames');b.textContent='';for(const p of peers){const pr=p.presence;if(!pr?.zg||p.sameTab)continue;const code=String(pr.zg).replace(/[^a-z0-9]/g,'').slice(0,6);if(!code||net?.code===code)continue;
   const e=document.createElement('button');e.className='sm';e.textContent=`Join ${clean(pr.host)} · Zombies co-op · ${code.toUpperCase()} · ${cl(pr.pl|0,1,MAXP)}/${MAXP} pilots`;e.onclick=()=>enter(code,false);b.append(e)}}
@@ -81,8 +81,8 @@ export function initNet(api,G,Z){
   r.onPeers(ch=>{if(net!==n)return;n.peers=ch.peers;const me=ch.peers.find(p=>p.sameTab);if(me)n.me=me.peer},
    e=>{if(net===n)ended(e.code==='host_left'?'The host left the game. Co-op game over.':`Lost connection to the game (${e.code}).`)});
   r.presence({z:1,n:myName(),kt:Z.meta.load().kit}).catch(()=>{});lobby();document.body.classList.add('zcoop');  // the kit goes with the first presence, so the host never lists this pilot without it
-  if(isHost){if(S.gmode!=='z'){S.gmode='z';save();Z.syncMode?.()}G.dfo=undefined;api.startMatch();if(room.p2p){try{history.replaceState(null,'','#z'+code)}catch(e){}}
-   msg(`Hosting co-op game ${code.toUpperCase()}. Friends open this page, pick Zombies, type ${code.toUpperCase()} and press Join${room.p2p?' (or open this page\'s link, it now ends in #z'+code+')':''}.`)}
+  if(isHost){G.dfo=undefined;api.startMatch();if(room.p2p){try{history.replaceState(null,'','#z'+code)}catch(e){}}
+   msg(`Hosting co-op game ${code.toUpperCase()}. Friends open this page, type ${code.toUpperCase()} and press Join${room.p2p?' (or open this page\'s link, it now ends in #z'+code+')':''}.`)}
   else msg(`Joining ${code.toUpperCase()}… waiting for the host.`)}
  function leave(){if(!net)return;const n=net;net=null;n.r.leave().catch(()=>{});for(const r of n.pil.values())api.scene.remove(r.d.mesh);n.pil.clear();Z.swGone?.();G.dfo=undefined;G.docO=undefined;for(const t of TH)t.pc=null;
   if(n.host&&!room?.p2p)room?.presence?.({zg:null,host:null,pl:null})?.catch?.(()=>{});
@@ -225,7 +225,7 @@ export function initNet(api,G,Z){
   if(Array.isArray(g.rj)&&g.rj.includes(n.me))return ended(`Game ${n.code.toUpperCase()} is full (${MAXP} pilots).`);
   n.pl=Array.isArray(g.pl)?g.pl.filter(a=>Array.isArray(a)&&typeof a[0]==='string').slice(0,MAXP).map(a=>[a[0],clean(a[1]),a[2]|0,a[3]?1:0,a[4]?1:0]):[];
   if(g.gid!==n.gid0){n.gid0=g.gid;G.dfo=cl(g.df|0,0,3);G.docO=docOf(g.doc);n.ts.clear();n.evSeen=g.eid|0;n.late=g.st!=='base'&&g.st!=='over';n.nxJ='';n.pkJ='';n.rd=0;
-   if(S.gmode!=='z'){S.gmode='z';save();Z.syncMode?.()}$('zover').hidden=true;api.startMatch();if(net!==n)return;msg(`In co-op game ${n.code.toUpperCase()}.`)}
+   $('zover').hidden=true;api.startMatch();if(net!==n)return;msg(`In co-op game ${n.code.toUpperCase()}.`)}
   G.dfo=cl(g.df|0,0,3);G.docO=G.doc=docOf(g.doc);loadoutIn(g);G.cash=+g.c||0;G.earned=+g.e||0;if(okArr(g.k,2))G.kills={p:g.k[0],h:g.k[1]};G.wt=+g.wt||0;
   if(!!g.bk!==SITES.length>3)Z.bunker(!!g.bk);
   if(Array.isArray(g.sh))SITES.forEach((s,i)=>{if(Number.isFinite(g.sm?.[i]))s.max=g.sm[i];if(Number.isFinite(g.sh[i]))s.hp=g.sh[i]});

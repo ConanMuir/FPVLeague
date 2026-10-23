@@ -2,7 +2,7 @@
  olive, a small bluish glass seeker dome on a short tapered nose, four small canards just behind it, four thin narrow tail fins and a plain
  nozzle, with a couple of thin painted bands and faint stencils from a small canvas texture. Also the matching launch tube (strelaLauncher).
  All geometry and textures are built in code and merged into one mesh per material (shared by every body). It covers the same envelope as
- Riley's dart (nose tip y ~0.38, fin tips at r 0.15 / y -0.36), so the collision hull, camera and props stay where they are; the quad arms,
+ the dart it replaced (nose tip y ~0.38, fin tips at r 0.15 / y -0.36), so the collision hull, camera and props stay where they are; the quad arms,
  motors and props are shared and added by interceptor.js. Body +Y = nose. The nozzle exit sits at (0, -0.375, 0); the exhaust points along local -Y. */
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
