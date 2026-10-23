@@ -202,6 +202,7 @@ async function zombies() {
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 120000}); await sleep(300); await p.addScriptTag({content: PAGE});
   const r = await p.evaluate(async (QUICK) => {
     const {Z, G, api} = __z, S = api.S, E = await import('/engine/audio.js'), {PATCH} = await import('/games/interceptor/zthreatsfx.js');
+    const KILL = {t0: 0, len: .6}, OSC = [];  /* the real-kill row's window; every oscillator started on the context, by its frequency sweep (below) */
     let c, A, me, dart;  /* the context, zaudio's bus, your interceptor: bound once the game is up (below); the timeline is built first, so the context is sized from it */
     const cam = api.camera.position, V = api.THREE.Vector3, at = (dx, dy, dz) => new V(cam.x + dx, cam.y + dy, cam.z + dz), now = () => c.currentTime, nb = () => E.nbuf;
     const boomLv = (B, d) => B / (1 + (d / 700) ** 1.3), dly = d => d > 100 ? Math.min(3.2, d / 343) : 0;
@@ -230,7 +231,9 @@ async function zombies() {
       one('ICBM impact via api.boom k=6 at 300 m', 'big', 3 + dly(300), () => api.boom(at(0, 0, -300), 6));
       one('your kill: confirm (zaudio kill, 1)', 'mid', 1, () => Z.au.kill(1, false));
       one('quad kill + clutch (zaudio kill, 4)', 'mid', 1.2, () => Z.au.kill(4, true));
-      one('kill beep (interceptor.js killThreat tone)', 'ui', .6, () => api.tone(660, 1320, .25, .12, 'triangle'));
+      /* a player kill the way the game does it (killThreat: boom + Z.kill, then the next visuals() plays zaudio's confirm); the window is kept short so the other rows keep their place on the timeline (the music windows' peaks depend on it) */
+      if (!tl.S.sweep) KILL.t0 = tl.T;
+      one('your kill, the real path (killThreat: explosion + zaudio confirm, no interceptor.js beep)', 'big', KILL.len, () => { const L = park('shahed', 100); if (!L[0]) return; L[0].by = 'p'; G.burst = {n: 0}; api.killThreat(L[0], true); G.burst = null; vis(); rm(L); });
       one('Mothership down (chord + rumble)', 'big', 4, () => Z.au.bossDown());
       one('boss wave sting', 'big', 3.6, () => Z.au.sting(true));
       one('wave clear chord', 'mid', 2.5, () => Z.au.clearChord());
@@ -321,6 +324,8 @@ async function zombies() {
     document.getElementById('play').click(); await __lv.until(() => !api.demo && !!api.player, 90000); await new Promise(q => setTimeout(q, 300));
     window.requestAnimationFrame = () => 0; await new Promise(q => setTimeout(q, 200)); c = window.__oac;  /* the game loop stops: only the timeline makes sound */
     if (!c || E.AC !== c) return {err: 'no offline context'};
+    { const mk = c.createOscillator.bind(c); c.createOscillator = () => { const o = mk(), e = {}, f = o.frequency, sv = f.setValueAtTime.bind(f), xr = f.exponentialRampToValueAtTime.bind(f), st = o.start.bind(o);
+      f.setValueAtTime = (v, t) => { e.f0 = e.f0 ?? v; return sv(v, t); }; f.exponentialRampToValueAtTime = (v, t) => { e.f1 = v; return xr(v, t); }; o.start = t => { e.type = o.type; e.at = t ?? c.currentTime; OSC.push(e); return st(t); }; return o; }; }
     if (c.length / c.sampleRate < tl.end) return {err: 'timeline longer than the render: ' + tl.end.toFixed(1) + ' s of ' + (c.length / c.sampleRate).toFixed(1)};
     S.zmus = 0; A = Z.au.bus; if (!A) return {err: 'no zaudio bus'}; Z.au.stopMusic(); Z.au.music(0, 'off', .05);  /* the frame loop had started the base screen's pad: off; the music stays muted (B) except in its own windows */
     E.AC.destination.connect(c.__tap(2));  /* the engine's master gain, before its limiter */
@@ -329,7 +334,8 @@ async function zombies() {
     AS?.warm?.();  /* the arsenal's bus now, not on its first sound: a fresh compressor fades in over its release time */
     Z.an?.radioClear?.(); G.state = 'clear';  /* a wave's quiet end: the threat voices and the re-entry rumble play, the front's random artillery does not */
     const rows = await __lv.render(c, tl.ev, tl.W, [E.LIM, A.c], 40, 4);
-    return {rows, sErr: window.__lvErr || null, limiter: !!E.LIM, state: G.state, dur: c.length / c.sampleRate};
+    const inKill = e => e.at >= KILL.t0 && e.at <= KILL.t0 + KILL.len, kill = {beeps: OSC.filter(e => inKill(e) && e.type === 'triangle' && e.f0 === 660 && e.f1 === 1320).length, thunks: OSC.filter(e => inKill(e) && e.type === 'sine' && e.f0 === 160 && e.f1 === 48).length};  /* interceptor.js's beep (660 to 1320 Hz triangle) and zaudio's kill thunk (160 to 48 Hz sine) */
+    return {rows, kill, sErr: window.__lvErr || null, limiter: !!E.LIM, state: G.state, dur: c.length / c.sampleRate};
   }, QUICK);
   await b.close(); server.close();
   return {...r, errs};
@@ -360,6 +366,8 @@ for (const [g, run] of [['league', league], ['zombies', zombies]]) {
     /* the RMS or the peak before the limiter: a sound with a random part (a 20% ricochet, noise bursts) differs between the two passes in one of them, a voice outside the sliders in both */
     drops.push(d); if ((d < lo || d > hi) && (dp < lo || dp > hi)) bad.push(`${w.name}: rms ${d.toFixed(1)} dB, peak ${dp.toFixed(1)} dB (expected ${lo.toFixed(1)}..${hi.toFixed(1)}${rC ? ', compressor ' + rC + ' dB' : ''}; at 100% peak ${w.peak} pre ${w.pre} rms ${w.preRms}, at 50% peak ${h.peak} pre ${h.pre} rms ${h.preRms})`); }
   check(paired.length >= 30 && drops.length >= paired.length * .9 && !bad.length, `${g}: slider sweep: ${drops.length} of ${paired.length} sounds measured, all drop ${Math.min(...drops).toFixed(1)}..${Math.max(...drops).toFixed(1)} dB with the group sliders at 50% (step ${STEP}): every voice sits under a slider` + (bad.length ? '. NOT: ' + bad.join('; ') : ''));
+  /* a player kill is one confirm: zaudio's thunk + notes, not also interceptor.js's killThreat beep (a 660 to 1320 Hz triangle sweep) */
+  if (g === 'zombies') check(r.kill && r.kill.thunks === 1 && r.kill.beeps === 0, `zombies: a player kill has one confirm voice (zaudio kill: ${r.kill?.thunks} of 1; interceptor.js killThreat beep: ${r.kill?.beeps} of 0)`);
   const row = n => main.find(w => w.name === n || w.name.startsWith(n)), near = (a, b, d, tol) => a && b && Math.abs((a.rms - b.rms) - d) <= tol;
   if (!QUICK && g === 'league') {
     const h = row('ball hit 20 m/s'), st = row('stacked');
