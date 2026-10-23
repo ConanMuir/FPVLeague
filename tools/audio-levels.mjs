@@ -177,7 +177,7 @@ async function league() {
 async function zombies() {
   const {server, origin} = await serve(); const b = await launch(); const errs = [];
   const p = await b.newPage();
-  await p.evaluateOnNewDocument(OAC, QUICK ? 210 : 330);
+  await p.evaluateOnNewDocument(OAC, QUICK ? 280 : 330);
   await open(b, origin + '/games/interceptor/?mode=zombies', errs, {page: p});
   await p.evaluate(() => { sessionStorage.setItem('zbossRoster', '0'); localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', zsfxv: 1, zmusv: 1})); });
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 120000}); await sleep(300);
@@ -208,7 +208,11 @@ async function zombies() {
     one('ICBM impact via api.boom k=6 at 300 m', 'big', 3 + dly(300), () => api.boom(at(0, 0, -300), 6));
     one('your kill: confirm (zaudio kill, 1)', 'mid', 1, () => Z.au.kill(1, false));
     one('quad kill + clutch (zaudio kill, 4)', 'mid', 1.2, () => Z.au.kill(4, true));
-    one('kill beep (interceptor.js killThreat tone)', 'ui', .6, () => api.tone(660, 1320, .25, .12, 'triangle'));
+    /* the real kill path (killThreat -> boom + Z.kill -> the next visuals() -> zaudio kill): oscillators are logged by their frequency sweep, so the check below can count the confirm's voices */
+    const OSC = []; { const mk = c.createOscillator.bind(c); c.createOscillator = () => { const o = mk(), e = {}, f = o.frequency, sv = f.setValueAtTime.bind(f), xr = f.exponentialRampToValueAtTime.bind(f), st = o.start.bind(o);
+      f.setValueAtTime = (v, t) => { e.f0 = e.f0 ?? v; return sv(v, t); }; f.exponentialRampToValueAtTime = (v, t) => { e.f1 = v; return xr(v, t); }; o.start = t => { e.type = o.type; e.at = t ?? c.currentTime; OSC.push(e); return st(t); }; return o; }; }
+    const KT0 = tl.T, KLEN = .6;  /* short on purpose: the music windows' peaks depend on where the timeline puts them, so rows keep their length when others are swapped */
+    one('your kill, the real path (killThreat: explosion + zaudio confirm, no interceptor.js beep)', 'big', KLEN, () => { const t = __z.make('shahed', cam.x, cam.z - 100); t.p.set(cam.x, cam.y + 5, cam.z - 100); t.by = 'p'; G.burst = {n: 0}; api.killThreat(t, true); G.burst = null; vis(); Z.an?.radioClear?.(); t.mesh.visible = false; });  /* the banner / radio line the kill queues must not play into later windows */
     one('Mothership down (chord + rumble)', 'big', 4, () => Z.au.bossDown());
     one('boss wave sting', 'big', 3.6, () => Z.au.sting(true));
     one('wave clear chord', 'mid', 2.5, () => Z.au.clearChord());
@@ -286,7 +290,8 @@ async function zombies() {
     }
     if (tl.T > c.length / c.sampleRate) return {err: 'timeline longer than the render: ' + tl.T.toFixed(1) + ' s'};
     const rows = await __lv.render(c, tl.ev, tl.W, [E.LIM, A.c], 40, 4);
-    return {rows, sErr: window.__lvErr || null, limiter: !!E.LIM, state: G.state};
+    const inKill = e => e.at >= KT0 && e.at <= KT0 + KLEN, kill = {beeps: OSC.filter(e => inKill(e) && e.type === 'triangle' && e.f0 === 660 && e.f1 === 1320).length, thunks: OSC.filter(e => inKill(e) && e.type === 'sine' && e.f0 === 160 && e.f1 === 48).length};
+    return {rows, kill, sErr: window.__lvErr || null, limiter: !!E.LIM, state: G.state};
   }, QUICK);
   await b.close(); server.close();
   return {...r, errs};
@@ -306,6 +311,8 @@ for (const [g, run] of [['league', league], ['zombies', zombies]]) {
   soft(!over.length, `${g}: every sound under its class cap (big ${CAP.big}, mid ${CAP.mid}, ui / bed ${CAP.ui} dBFS peak)` + (over.length ? ': over: ' + over.map(w => `${w.name} ${w.peak} (${w.cls} cap ${CAP[w.cls]})`).join('; ') : ''));
   const mx = Math.max(...r.rows.map(w => w.peak));
   check(r.limiter && mx <= -0.5, `${g}: the master limiter is in and nothing reaches -0.5 dBFS (loudest peak ${mx})`);
+  /* a player kill is one confirm: zaudio's thunk + notes, not also interceptor.js's killThreat beep (a 660 to 1320 Hz triangle sweep) */
+  if (g === 'zombies') check(r.kill && r.kill.thunks === 1 && r.kill.beeps === 0, `zombies: a player kill has one confirm voice (zaudio kill: ${r.kill?.thunks} of 1; interceptor.js killThreat beep: ${r.kill?.beeps} of 0)`);
   const row = n => r.rows.find(w => w.name === n || w.name.startsWith(n)), near = (a, b, d, tol) => a && b && Math.abs((a.rms - b.rms) - d) <= tol;
   if (!QUICK && g === 'league') {
     const h = row('ball hit 20 m/s'), st = row('stacked');

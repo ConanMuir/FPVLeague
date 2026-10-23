@@ -7,7 +7,7 @@
 // rest are skipped, so 100+ tracks cost the same as 8. The perf governor (tree shadows off) lowers VMAX.
 // Also the late-game event sounds for zreentry.js: the re-entry alarm, the rising rumble, the Golden Dome uplink and the intercept crack.
 // Everything goes into zaudio's effects bus: the Zombies effects slider, the slow-mo muffle and the compressor apply. Zombies only.
-// PATCH holds the synth on its own (context, noise buffer, destination, start time, level), so tools/zombies-audio-levels.mjs renders the
+// PATCH holds the synth on its own (context, noise buffer, destination, start time, level), so tools/audio-levels.mjs renders the
 // same sounds in an OfflineAudioContext and measures them against the explosions and the music. Levels are game values chosen by ear and meter.
 import {AC,nbuf} from '../../engine/audio.js';
 import {KIND} from './zdata.js';
