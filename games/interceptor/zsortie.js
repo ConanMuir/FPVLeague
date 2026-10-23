@@ -40,7 +40,7 @@ export function initSortie(api,G,Z){
  const team=h=>{feed(h);Z.netEv?.(['f',h])};
  const avail=()=>G.on&&G.state==='base'&&G.wave>=SO.from&&S.used!==G.wave;
  const strikeCost=()=>Math.round((SO.strike.base+SO.strike.perW*G.wave)/50)*50;
- Z.so={S,W,fog};
+ Z.so={S,W,fog};(Z.feat||(Z.feat={})).sorties=1;  /* the campaign's modifiers that need sorties (zcampaign.js raid: Enemy launch sites) read this */
 
  // ---------- what strikes take out of the waves (G.cuts), applied to plans ----------
  // a cut: {src, label, k (kind) | sec (launch), n | f (share) | all, w0, w1}. The one for the next wave is applied to G.next when it is made;
@@ -84,7 +84,8 @@ export function initSortie(api,G,Z){
  W.onPat=(t,q,by)=>{if(auth())carry(by,salv(TGT.pat.salv,t.tier),q.p)};
  W.onDead=(t,by,remote)=>{if(remote||!auth())return;const T=TGT[t.t];if(T.bonus)carry(by,by?salv(T.bonus,t.tier):0,_a.set(t.x,t.y+30,t.z));
   if(t.t!=='convoy')t.rebuild=G.wave+1+(T.rebuild|0);
-  if(t.t==='launch'){const m=cut({src:'launch',label:`launch site, ${SEC(t.sec)}`,sec:t.sec,w1:G.wave+2}),tx=Object.keys(m).length?fxTxt(m):'nothing from there';
+  if(t.t==='launch'&&W.list.some(u=>u!==t&&u.t==='launch'&&u.sec===t.sec&&!u.dead)){say(by,'LAUNCH SITE DESTROYED',`${SEC(t.sec)}: a second site still feeds it`,'#ffc640');team(`<span class="cg">${SEC(t.sec)} launch site destroyed</span>: the sector has a second one, nothing is cut until both are down (rebuilt in ${T.rebuild} breaks)`)}  /* the campaign's Enemy launch sites: a doubled sector */
+  else if(t.t==='launch'){const m=cut({src:'launch',label:`launch site, ${SEC(t.sec)}`,sec:t.sec,w1:G.wave+2}),tx=Object.keys(m).length?fxTxt(m):'nothing from there';
    say(by,'LAUNCH SITE DESTROYED',`${SEC(t.sec)}: ${tx} next wave`,'#3ddc84');team(`<span class="cg">${SEC(t.sec)} launch site destroyed</span>: ${tx} next wave, half the fast missiles the wave after (it is rebuilt in ${T.rebuild} breaks)`)}
   else if(t.t==='factory'){const m=cut({src:'factory',label:'factory',k:t.kind,f:.35,w1:G.wave+3});say(by,'FACTORY DESTROYED',`−35% ${PL[t.kind]} for 3 waves`,'#3ddc84');
    team(`<span class="cg">Drone factory destroyed</span>: a third of the ${PL[t.kind]} stay away for 3 waves${Object.keys(m).length?` (${fxTxt(m)} next wave)`:''}`)}
@@ -206,6 +207,7 @@ export function initSortie(api,G,Z){
  // ---------- the Sortie tab: launch, known targets with what destroying them does, strikes; a wide map with the fog ----------
  const effect=t=>{const P=G.next;if(!P)return'';const L=P.list,cn=k=>L.reduce((a,q)=>{const[x,c]=q.split(':');return a+(x===k?+c||1:0)},0);
   if(t.t==='convoy'){const k=t.cargo.k;return t.cargo.all?`carries the first ${PL[k]}: destroy it and they come a wave later`:`carries ${nk(k,t.cargo.left??t.cargo.n)} for wave ${G.wave+1}: each truck you destroy takes its share out`}
+  if(t.t==='launch'&&W.list.some(u=>u!==t&&u.t==='launch'&&u.sec===t.sec&&!u.dead))return`the ${SEC(t.sec)} has a second launch site: nothing is cut until both are down`;
   if(t.t==='launch'){const f=Z.fastPlan?.()?.[t.sec],fn=f?.total|0,q=P.q?.filter(e=>sectorOf(e.brg)===t.sec)||[],cj=q.filter(e=>e.k==='cruise'||e.k==='jet').length;
    if(!fn&&!cj)return`nothing launches from the ${SEC(t.sec)} next wave. Destroyed, it is down for 2 breaks: half the ${SEC(t.sec)} fast missiles the wave after`;
    return`next wave from the ${SEC(t.sec)}: ${fn?`${fn} fast missile${fn>1?'s':''}, `:''}${cj} jets / cruise. Destroyed: ${fn?`all ${fn} fast missiles and `:''}half the jets / cruise stay home, then half the fast missiles the wave after`}

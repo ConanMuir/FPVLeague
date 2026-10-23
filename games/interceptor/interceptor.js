@@ -37,7 +37,7 @@ const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3()
 const RRS=[2000,5000,10000];
 const DEF={mode:"acro",tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,nextSw:-1,zwx:'wave',gfx:'auto',fps:true,haze:false,fcap:0};
 loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the dart's camera sits at 90°, a 5-inch quad's at 30°
-S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;
+if(typeof S.wx!=='string')S.wx=DEF.wx;  /* an array or object here is taken for a whole weather object by setWeather and threw at the first start */S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
 if((S.setV|0)<5){for(const k of['gmode','diff','fuse','skin','guide','guideSw'])delete S[k];S.setV=5}  /* v5: Classic is gone, Zombies is the game: the settings only Classic read (mode, threat level, fuse, look, midcourse guidance) are dropped */
 
@@ -199,7 +199,7 @@ const groundTex=tex(GT,GT,g=>{const rnd=seeded(7),R=(a,b)=>a+rnd()*(b-a);
 const OC=50,ON=Math.ceil(TW/OC),OG=new Map(),oc0=v=>Math.floor((v+TW/2)/OC);
 function oAdd(o,x,z,rad){for(let i=oc0(x-rad);i<=oc0(x+rad);i++)for(let j=oc0(z-rad);j<=oc0(z+rad);j++){let a=OG.get(i+j*ON);if(!a)OG.set(i+j*ON,a=[]);a.push(o)}}
 TREES.forEach(([x,z,h])=>{const r=h*.26;oAdd({t:1,x,z,y:gh(x,z)-.3,h,r},x,z,r*1.5)});
-HOUSES.forEach(([x,z,a])=>oAdd({x,z,y:gh(x,z)-.3,c:Math.cos(a),s:Math.sin(a)},x,z,8));
+scene.userData.hcol=HOUSES.map(([x,z,a])=>{const o={x,z,y:gh(x,z)-.3,c:Math.cos(a),s:Math.sin(a)};oAdd(o,x,z,8);return o});  /* the living map (zscars.js) lifts a destroyed house's collider away */
 function sdObs(x,y,z){const L=OG.get(oc0(x)+oc0(z)*ON);let d=1e9;if(!L)return d;
  for(const o of L){const dx=x-o.x,dy=y-o.y,dz=z-o.z;
   if(o.t){const r=o.r;if(dy>o.h+r)continue;d=Math.min(d,sdCyl(dx,dy,dz,.3,0,o.h*.5),hyp3(dx+.3*r,(dy-o.h*.55)/1.15,dz-.3*r)-r,hyp3(dx-.4*r,dy-o.h*.72,dz+.3*r)-.8*r)}
@@ -335,7 +335,7 @@ const boomL=new THREE.PointLight(0xffa040,0,600,1.2);scene.add(boomL);
 // ---------- audio (engine motor synth; bigger interceptor props turn slower than a 5", wind noise follows airspeed) ----------
 let bzo,bzg,bzf;const _ad=new V3();
 // nearest threat: the Shahed's two-stroke "moped" buzz, or a jet's turbine whine
-const audioStart=()=>audioInit({motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:AC=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(AC.destination);bzo.start()}});
+const audioStart=()=>audioInit({motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:(AC,out)=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(out||AC.destination);bzo.start()}});  /* out: the engine's effects gain (the Zombies effects slider) */
 function audioTick(dt){const me=player,on=!demo&&!paused&&me&&me.dead<=0,t=AC.currentTime;
  const nt=nearestThreat(camera.position);let g=0,fz=95;if(nt&&!paused){const r=_a.subVectors(nt.p,camera.position),d=r.length();g=Math.pow(cl(1-d/(nt.jet?1400:800),0,1),2)*(nt.jet?.07:.1);fz=(nt.jet?nt.spd>70?1400:900:95)*(1-nt.v.dot(r)/d/343)}  // Doppler
  bzg.gain.setTargetAtTime(demo?g*.4:g,t,.1);bzo.frequency.setTargetAtTime(fz,t,.1);bzf.frequency.setTargetAtTime(nt?.jet?4000:900,t,.2);
@@ -455,9 +455,9 @@ function shahedMesh(jet){const g=new THREE.Group(),m=jet?SHJ:SHM[Math.random()*3
  if(jet){add(SHG.pod,SHEN,0,.36,-1.05);add(SHG.pylon,m,0,.2,-1.0);add(SHG.ex,EXM,0,.36,-1.64)}else{add(SHG.hub,SHEN,0,0,-1.86);add(SHG.disc,MAT.prop,0,0,-1.96);prop=add(SHG.blade,MS.dark,0,0,-1.96)}
  scene.add(g);return{g,prop}}
 const TH=[];let tid=0;
-// render interpolation (engine/interp.js): the sim ticks at 120 Hz, frames draw the interceptor and the tracks between their last two ticks.
+// render interpolation (engine/interp.js): the sim ticks at 120 Hz, frames draw the tracks between their last two ticks and the interceptor ahead of its last one (lead).
 // Zombies registers its own movers (helper shots, swarm drones) through api.interp.
-const IP=makeInterp();IP.add(each=>{if(player)each(player)});IP.add(TH);
+const IP=makeInterp();IP.lead(each=>{if(player)each(player)});IP.add(TH);  /* the player's craft is drawn ahead (extrapolated to real time), everything else a tick behind: engine/interp.js */
 // spatial grid over the tracks for neighbour queries (grid.js): open while a tick runs (not while the threats move) and while a frame is drawn
 const GRID=makeGrid(TH);
 const live=t=>t.st==='cruise'||t.st==='dive',liveSites=()=>SITES.filter(s=>s.hp>0);
@@ -698,7 +698,7 @@ const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone()
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
- interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get spent(){return spent}});
+ sdf,interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get spent(){return spent}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
 // Graphics quality and the FPS meter (igfx.js); the shader warm-up (engine/warm.js) runs once the menu is up, and one frame through the camera-feed
 // pass. No environment-map variant to warm: cloud decks, night and thermal swap in a black map of the same size (envOff), the same programs

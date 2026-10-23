@@ -18,4 +18,4 @@ export function initSens(){{const W={max:670,feel:1,yaw:1},FEEL=[[120,55,'Smooth
   $('sbars').innerHTML=st<3?'':AXN.map((n,i)=>{const r=Math.abs(deg(rate(i,v[i])));return `<div>${n}<b><i style="width:${Math.min(100,r/15)}%"></i></b>${Math.round(r)}°/s</div>`}).join('')};
  const close=ok=>{if(!ok&&bak)S.rprof[S.rpi]=bak;else{apply();save();syncRates()}$('sens').hidden=true;clearInterval(iv);bak=null};
  $('sensbtn').onclick=()=>{bak=JSON.parse(JSON.stringify(RT()));st=0;$('sens').hidden=false;show();iv=setInterval(tick,80)};
- $('sx').onclick=()=>close(false);$('sback').onclick=()=>{st=Math.max(0,st-1);show()};$('snext').onclick=()=>{if(st<3){st++;show()}else{close(true);$('calmsg').textContent='Sensitivity saved (rate profile '+(S.rpi+1)+'). Fine-tune any time in Rates.'}}}}
+ $('sx').onclick=()=>close(false);addEventListener('keydown',e=>{if(e.code==='Escape'&&!$('sens').hidden){close(false);e.stopImmediatePropagation()}},true);$('sback').onclick=()=>{st=Math.max(0,st-1);show()};$('snext').onclick=()=>{if(st<3){st++;show()}else{close(true);$('calmsg').textContent='Sensitivity saved (rate profile '+(S.rpi+1)+'). Fine-tune any time in Rates.'}}}}

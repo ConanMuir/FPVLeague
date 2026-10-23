@@ -21,7 +21,9 @@ import {GS} from '../state.js';
 import {onEv} from '../core/events.js';
 import {dribble,fly,steer,topOf} from './dribble.js';
 import {PRED,PV,plan,strikeV} from './league.js';
-const _v=new V3(),_t=new V3(),_f=new V3(),_r=new V3(),_q=new V3(),_a=new V3(),_lk=new V3();
+import {shield} from './shield.js';
+import {dropOpen,goalCovered} from './aerial.js';
+const _v=new V3(),_t=new V3(),_f=new V3(),_r=new V3(),_q=new V3(),_a=new V3(),_lk=new V3(),_sh=new V3();
 // pop moves: stick [roll, pitch, yaw] and where the ball should sit on the top, in body coordinates (x right, z back), as a fraction of the motor offset
 const MOVES={hop:{st:[0,.9,0],x:0,z:0},lob:{st:[0,.9,0],x:0,z:.6},drive:{st:[0,.9,0],x:0,z:-.6},upR:{st:[.9,0,0],x:-.6,z:0},upL:{st:[-.9,0,0],x:.6,z:0},sideR:{st:[.9,0,0],x:0,z:0},sideL:{st:[-.9,0,0],x:0,z:0},hopB:{st:[0,-.9,0],x:0,z:0}};
 const FIN=[['drive',3],['air',3],['spin',3]],FIN_TAP=[['tap',5],['drive',1],['air',2],['spin',1]];  // inside the double-tap window (16-32 m out: a lob from there comes down above the crossbar) it mostly goes for the backboard
@@ -31,21 +33,23 @@ function motorOf(d){return d.popM?Math.max(...d.popM.map(m=>Math.hypot(m[0],m[2]
 function choose(d,gl,D){const ai=d.ai;ai.swt=0;if(!(ai.cht>0))ai.cht=1+Math.floor(Math.random()*2);
  const s=d.team?1:-1;let foe=null;for(const o of GS.drones)if(o.team!==d.team&&o.dead<=0&&(o.p.z-d.p.z)*s>0&&(o.p.z-d.p.z)*s<30&&Math.abs(o.p.x-d.p.x)<12)foe=o;
  if(foe){ai.fin=null;return foe.p.x>d.p.x===(s<0)?'sideL':'sideR'}  // a defender ahead: pop it past him, away from his side
- if(HW-Math.abs(d.p.x)<(D.ceR??40)&&gl>(D.ceA??40)&&gl<(D.ceB??170)&&Math.random()<(D.ceP??.15)){ai.fin='ceil';return 'hop'}  // a ceiling play: carry it straight up beside the wall onto the ceiling, drop with it and shoot
- if(HW-Math.abs(d.p.x)<(D.wpR??40)&&Math.random()<(D.wpP??.35)){ai.fin='wall';return 'hop'}  // a wall feed: pop it at the side wall, take it high off the wall and pop it back off toward the middle (the wall pop, below)
+ const cov=D.aerial?goalCovered(d,D)&&dropOpen(d,D,d.p.x*.3):null;  /* aerial (bots/aerial.js): the ceiling play and the wall feed go over a covered goal whose drop zone no foe reaches in time, instead of by chance */
+ if(HW-Math.abs(d.p.x)<(D.ceR??40)&&gl>(D.ceA??40)&&gl<(D.ceB??170)&&(cov??Math.random()<(D.ceP??.15))){ai.fin='ceil';return 'hop'}  // a ceiling play: carry it straight up beside the wall onto the ceiling, drop with it and shoot
+ if(HW-Math.abs(d.p.x)<(D.wpR??40)&&(cov!=null?cov&&Math.random()<.5:Math.random()<(D.wpP??.35))){ai.fin='wall';return 'hop'}  // a wall feed: pop it at the side wall, take it high off the wall and pop it back off toward the middle (the wall pop, below)
  if(gl<(D.tapR??80)&&gl>(D.tapA??16)&&Math.random()<(D.tapP??0)){ai.fin='tap';return 'lob'}  // a double tap: carry it into the window, then lob it at the backboard
  const tapW=gl>(D.tapA??16)&&gl<(D.tapB??32);
  if((ai.ch||0)<ai.cht||gl>150){ai.fin=null;ai.spc=0;if(Math.random()<(D.spP??.3)){ai.fin='spin';ai.spc=1;return 'hop'}return gl<55&&Math.random()<(D.upP??.4)||Math.random()<(D.upA??0)?(Math.random()<.5?'upR':'upL'):Math.random()<(ai.hopP??.6)?'hop':'lob'}  // a chain step: a spin pop now and then (fsCarry), the rest hops, lobs and up pops
  ai.spc=0;ai.fin=pick(tapW?FIN_TAP:FIN);return ai.fin==='drive'?'drive':ai.fin==='air'?(Math.random()<.5?'upR':'lob'):ai.fin==='spin'?'hop':'lob'}
 // on a carry (called from dribble()): hold the ball where the chosen pop needs it, climb to working height, then pop
 export function fsCarry(d,D,dt,a,g,gl){const ai=d.ai;if(!ai.mv)ai.mv=choose(d,gl,D);ai.yw=0;if(ai.hopP==null)ai.hopP=D.hopP??.6;const k=motorOf(d);
+ if(D.shield)shield(d,D,_sh,g);else _sh.set(0,0,0);  /* the shield (bots/shield.js): sit toward the nearest foe under the ball, carry round a foe ahead */
  // body axes, flattened: the quad faces the goal while it carries (look), so x is to its right and z behind it
  const fx=_f.set(0,0,-1).applyQuaternion(d.q);fx.y=0;fx.normalize();const rx=_r.crossVectors(fx,UP).normalize();
  const ws=Math.sign(d.p.x)||1,wx=HW-Math.abs(d.p.x),ce=ai.roof=ai.fin==='ceil',wh=!ce&&wx<(D.wpN??18)&&d.p.y>(D.wpY??9),wp=ai.fin==='wall'||wh;
  if(wp){let best=-2;for(const[m,x,z]of[['hop',fx.x,fx.z],['hopB',-fx.x,-fx.z],['sideR',rx.x,rx.z],['sideL',-rx.x,-rx.z]]){const k2=(wh?-ws:ws)*x;if(k2>best){best=k2;ai.mv=m}}}  // high by a side wall: the pop that points off it, toward the middle (a wall pop); a wall feed: the pop that sends it to the wall
  const M=MOVES[ai.mv],pk=d.popC>0?k:k*(D.pk0??.5);  // a pop is only earned with the ball centred over all four motors (flight/drone.js popZone): hold it centred until then, then move it where the pop needs it
  const off=_q.copy(rx).multiplyScalar(M.x*pk).addScaledVector(fx,-M.z*pk);  // where the ball should be relative to the quad
- const ex=ball.p.x-off.x-d.p.x,ez=ball.p.z-off.z-d.p.z,ke=D.ke??4,kv=D.kv??8;
+ const ex=ball.p.x-off.x+_sh.x-d.p.x,ez=ball.p.z-off.z+_sh.z-d.p.z,ke=D.ke??4,kv=D.kv??8;
  const tap=ai.fin==='tap',vc=tap?12:cl(gl/12,4,D.dv||10);const ox=((ce?0:g.x*vc)-ball.v.x)*.8,oz=((ce?0:g.z*vc)-ball.v.z)*.8;
  a.x=kv*(ball.v.x+ke*ex-d.v.x)+ox;a.z=kv*(ball.v.z+ke*ez-d.v.z)+oz;const ah=hyp2(a.x,a.z);const am=D.am??40;if(ah>am){a.x*=am/ah;a.z*=am/ah}
  const cy=ce?H-2*BR-topOf(d)+.2:wh?Math.max(D.cy||9,d.p.y-1):D.cy||9;a.y=6*(cl((cy-d.p.y)*1.5,-4,ce?D.ceV??14:5)-d.v.y);  // high by the wall it stays up there; a ceiling play climbs until the ball touches the ceiling

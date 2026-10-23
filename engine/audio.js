@@ -4,13 +4,13 @@ export let AC=null,nbuf;let MOT={rot:[70,470],wind:[40,1.3],phys:()=>[15,1.6,240
 // 4 motors, each a tri-blade prop buzz (blade-pass sawtooth + harmonic) over the shaft tone; a slight per-motor offset gives the real beating
 // extra(AC) adds a game's own sounds; motor: {rot:[idle Hz, span], wind:[speed scale, cap], phys:()=>[gravity, thrust curve exponent, prop pitch speed]}
 // for the game's flight model (the default phys is the old League quad's: 15, 1.6, 240)
-export function audioInit({extra,motor}={}){if(AC)return;if(motor)MOT={...MOT,...motor};try{AC=new(window.AudioContext||window.webkitAudioContext)();masterBus(AC);mf=AC.createBiquadFilter();mf.type='lowpass';mf.Q.value=.9;mg=AC.createGain();mg.gain.value=0;mf.connect(mg).connect(AC.destination);
+export function audioInit({extra,motor}={}){if(AC)return;if(motor)MOT={...MOT,...motor};try{AC=new(window.AudioContext||window.webkitAudioContext)();masterBus(AC);mf=AC.createBiquadFilter();mf.type='lowpass';mf.Q.value=.9;mg=AC.createGain();mg.gain.value=0;mf.connect(mg).connect(SFX);  /* the motors, wash and wind sit under the effects gain too (setSfx) */
  for(let i=0;i<4;i++){const v=[];[['sawtooth',.3,3],['square',.05,6],['sine',.16,1]].forEach(([t,g0,h])=>{const o=AC.createOscillator(),g=AC.createGain();o.type=t;g.gain.value=g0;o.connect(g).connect(mf);o.start();v.push([o,h])});mo.push({v,off:1+(i-1.5)*.009})}
  mw=AC.createOscillator();mw.type='triangle';const wg0=AC.createGain();wg0.gain.value=.02;mw.connect(wg0).connect(mg);mw.start();mw.g=wg0;  // ESC/motor whine: shaft rpm x 7 pole pairs
  nbuf=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate);const ch=nbuf.getChannelData(0);for(let i=0;i<ch.length;i++)ch[i]=Math.random()*2-1;
- const loop=(type,q,out=AC.destination)=>{const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();s.buffer=nbuf;s.loop=true;f.type=type;f.Q.value=q;g.gain.value=0;s.connect(f).connect(g).connect(out);s.start();return[f,g]};
+ const loop=(type,q,out=SFX)=>{const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();s.buffer=nbuf;s.loop=true;f.type=type;f.Q.value=q;g.gain.value=0;s.connect(f).connect(g).connect(out);s.start();return[f,g]};
  [pf,pg]=loop('bandpass',.7);[wf,wg]=loop('lowpass',.4);  // prop wash hiss, wind over the camera
- extra?.(AC);
+ extra?.(AC,SFX);  /* a game's own voices connect to the effects gain (second argument), so its effects slider moves them too */
 }catch(e){AC=null}}
 export const audioOn=()=>!!(AC&&mo.length);
 // master bus: every sound in the game (engine, Zombies) reaches the speakers through one gain and a limiter. AC.destination is

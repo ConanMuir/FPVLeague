@@ -16,10 +16,11 @@
 //   withdraws (save(ctx,t) keeps its run state; the track and its effects go) and comes back when the next wave starts (restore(ctx,t,state))
 //   clear(ctx)            drop every effect the module draws or plays (wires, tethers, debris, missiles...): called at the end of each wave,
 //                         at game over, quit and restart, together with the director's own cleanup (clearAll below)
-//   netOut(ctx,t) / netIn(ctx,t,a) co-op extras; aim(ctx,t,skill) where a bot pilot would burst (tools/zbot.mjs)
+//   netOut(ctx,t) / netIn(ctx,t,a) co-op extras; aim(ctx,t,skill) where a bot pilot would burst (tools/zbot.mjs),
+//                         hear(ctx,t,pilot) what a pilot perceives of a boss that is heard, not seen (the Hush; the bots read it, zboss-brain.js)
 //   spawn {boss: first boss wave it can replace the Mothership on, event: {from, p, once}}, reward {id, n, txt, ...effect hooks},
 //   intro {title, sub, col} (or introFn), sting(snd) its signature sound, loop(snd) its presence sound (volume from loopVol(ctx,t))
-//   g {start, step, vis, overlay, radar, wave, base, stop, note}: run-wide hooks (the Ghost of the Ace's wreck, the Undertaker's trigger)
+//   g {init, start, step, vis, overlay, radar, wave, base, stop, note}: run-wide hooks (the Ghost of the Ace's wreck, the Undertaker's trigger)
 // Numbers are game-balance values for feel, not real-world figures.
 import {KIND,RESIST} from './zdata.js';
 import {tex,dot} from '../../engine/render.js';
@@ -322,4 +323,6 @@ export function initBosses(api,G,Z){
   // bot pilots (tools/zbot.mjs): a burst on a live boss from where the boss module says a pilot of this skill would be
   bot(skill){const d=me();if(!d)return null;const L=TH.filter(t=>mine(t)&&live(t)&&BOSSES[t.k].aim).sort((a,b)=>(BOSSES[a.k].minor?1:0)-(BOSSES[b.k].minor?1:0));for(const t of L){const A=BOSSES[t.k].aim(ctx,t,skill);if(!A)continue;
    d.p.copy(A.p);d.v.copy(A.v||t.v);t.by='p';Z.detonate();return t.k}return null}};
+ /* run-wide setup that needs the finished ctx (the Hush mounts its audio-assist setting) */
+ for(const D of Object.values(BOSSES)){try{D.g?.init?.(ctx)}catch(e){console.warn('boss init',e)}}
  return Z.bosses}

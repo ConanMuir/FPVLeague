@@ -7,6 +7,7 @@ name: CI
 
 on:
   push:
+    branches: [main]  # a PR branch runs through its pull_request event only (a push used to start a second, identical run)
   pull_request:
   workflow_dispatch:
 
@@ -83,9 +84,6 @@ jobs:
           - check: sound-check
             area: league
             run: node tools/sound-check.mjs
-          - check: sound-level
-            area: league
-            run: node tools/sound-level.mjs
           - check: spin-check
             area: league
             run: node tools/spin-check.mjs
@@ -147,6 +145,332 @@ jobs:
           - check: bot-ladder-check
             area: league
             run: node tools/bot-ladder-check.mjs
+          # selling with an Undo until the wave starts (the refund rule, opened positions, a dome's stock, the kill chain, a co-op client's request to the host) and the campaign map's three-modifier cap
+          - check: zombies-test (sell)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=sell
+          # Tournament mode: every format's bracket in node, then in the game a bot match simulated, one played, one watched, the save resumed
+          - check: tournament-check
+            area: league
+            run: node tools/tournament-check.mjs
+          # the enemies codex: each campaign sector's boss set piece at its wave, beaten / seen in the save, silhouettes vs full entries, the Allowed switch and the Quick defence boss pool (a heavy raid with none unlocked), the save round-trip, bots and the bench with the whole roster
+          - check: zombies-test (codex)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=codex
+          # radio chatter (zradio.js): callouts, merging and rate limits, the HUD log, the sound cap, speech with and without speechSynthesis
+          - check: zombies-test (radio)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=radio
+          # the one-time first-wave guide (zonboard.js): the prompts in order on the actions, Skip, the flag across reloads, a second run, bots / co-op / benches, nothing left at wave end
+          - check: zombies-test (onboard)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=onboard
+    env:
+      DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
+      DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Does this change touch the ${{ matrix.area }} files?
+        id: scope
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-scope.mjs ${{ matrix.area }} "$BASE"
+
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - name: Browser (the runner's Chrome; download one only if it has none)
+        id: sys
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p=$(command -v google-chrome || command -v google-chrome-stable || true)
+          echo "path=$p" >> "$GITHUB_OUTPUT"
+          if [ -n "$p" ]; then "$p" --version; else echo "no Chrome on the runner"; fi
+
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        if: steps.scope.outputs.run == 'true' && steps.sys.outputs.path == ''
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Build (smoke tests the built file)
+        if: steps.scope.outputs.run == 'true' && matrix.build
+        run: npm run build
+
+      - name: ${{ matrix.check }}
+        if: steps.scope.outputs.run == 'true'
+        env:
+          CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
+          # the living map: scars from bursts, crashes and destroyed houses; caps, save, campaign, co-op, pixel checks against the terrain, frame cost
+          - check: zombies-test (scars)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=scars
+    env:
+      DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
+      DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Does this change touch the ${{ matrix.area }} files?
+        id: scope
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-scope.mjs ${{ matrix.area }} "$BASE"
+
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - name: Browser (the runner's Chrome; download one only if it has none)
+        id: sys
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p=$(command -v google-chrome || command -v google-chrome-stable || true)
+          echo "path=$p" >> "$GITHUB_OUTPUT"
+          if [ -n "$p" ]; then "$p" --version; else echo "no Chrome on the runner"; fi
+
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        if: steps.scope.outputs.run == 'true' && steps.sys.outputs.path == ''
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Build (smoke tests the built file)
+        if: steps.scope.outputs.run == 'true' && matrix.build
+        run: npm run build
+
+      - name: ${{ matrix.check }}
+        if: steps.scope.outputs.run == 'true'
+        env:
+          CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
+          # the threat briefing: the base screen's card against the wave that then spawns (types, numbers, directions, timing), the intel levels, the boss warning, the toggle, the radio line
+          - check: zombies-test (briefing)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=briefing
+          # Endless: opens only after the capstone, climbs past the caps, milestones, scars across waves and a reload, the Endless table, leaks
+          - check: zombies-test (endless)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=endless
+    env:
+      DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
+      DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Does this change touch the ${{ matrix.area }} files?
+        id: scope
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-scope.mjs ${{ matrix.area }} "$BASE"
+
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - name: Browser (the runner's Chrome; download one only if it has none)
+        id: sys
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p=$(command -v google-chrome || command -v google-chrome-stable || true)
+          echo "path=$p" >> "$GITHUB_OUTPUT"
+          if [ -n "$p" ]; then "$p" --version; else echo "no Chrome on the runner"; fi
+
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        if: steps.scope.outputs.run == 'true' && steps.sys.outputs.path == ''
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Build (smoke tests the built file)
+        if: steps.scope.outputs.run == 'true' && matrix.build
+        run: npm run build
+
+      - name: ${{ matrix.check }}
+        if: steps.scope.outputs.run == 'true'
+        env:
+          CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
+          # Little Buddy (zbuddy.js): the Drone League garage quad as a free helper (also covered: zombies-coop for the co-op sync)
+          - check: zombies-test (buddy)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=buddy
+    env:
+      DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
+      DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Does this change touch the ${{ matrix.area }} files?
+        id: scope
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-scope.mjs ${{ matrix.area }} "$BASE"
+
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - name: Browser (the runner's Chrome; download one only if it has none)
+        id: sys
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p=$(command -v google-chrome || command -v google-chrome-stable || true)
+          echo "path=$p" >> "$GITHUB_OUTPUT"
+          if [ -n "$p" ]; then "$p" --version; else echo "no Chrome on the runner"; fi
+
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        if: steps.scope.outputs.run == 'true' && steps.sys.outputs.path == ''
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Build (smoke tests the built file)
+        if: steps.scope.outputs.run == 'true' && matrix.build
+        run: npm run build
+
+      - name: ${{ matrix.check }}
+        if: steps.scope.outputs.run == 'true'
+        env:
+          CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
+          # the Bot Spectator explores: roams the map, flies the sorties, uses its systems, never sticks, holds the benchmark's wave (one visual run, four headless)
+          - check: zombies-test (explore)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=explore
+    env:
+      DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
+      DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Does this change touch the ${{ matrix.area }} files?
+        id: scope
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-scope.mjs ${{ matrix.area }} "$BASE"
+
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - name: Browser (the runner's Chrome; download one only if it has none)
+        id: sys
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p=$(command -v google-chrome || command -v google-chrome-stable || true)
+          echo "path=$p" >> "$GITHUB_OUTPUT"
+          if [ -n "$p" ]; then "$p" --version; else echo "no Chrome on the runner"; fi
+
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        if: steps.scope.outputs.run == 'true' && steps.sys.outputs.path == ''
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Build (smoke tests the built file)
+        if: steps.scope.outputs.run == 'true' && matrix.build
+        run: npm run build
+
+      - name: ${{ matrix.check }}
+        if: steps.scope.outputs.run == 'true'
+        env:
+          CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
+          # the spectator's Director camera: its moments, shots, framing, cuts, clean-up and cost (a scripted wave flown by a bot)
+          - check: zombies-test (director)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=director
+    env:
+      DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
+      DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Does this change touch the ${{ matrix.area }} files?
+        id: scope
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-scope.mjs ${{ matrix.area }} "$BASE"
+
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - name: Browser (the runner's Chrome; download one only if it has none)
+        id: sys
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p=$(command -v google-chrome || command -v google-chrome-stable || true)
+          echo "path=$p" >> "$GITHUB_OUTPUT"
+          if [ -n "$p" ]; then "$p" --version; else echo "no Chrome on the runner"; fi
+
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        if: steps.scope.outputs.run == 'true' && steps.sys.outputs.path == ''
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Build (smoke tests the built file)
+        if: steps.scope.outputs.run == 'true' && matrix.build
+        run: npm run build
+
+      - name: ${{ matrix.check }}
+        if: steps.scope.outputs.run == 'true'
+        env:
+          CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
           # audio levels: each game's sounds rendered offline and measured against their peak caps (over a cap only warns here, like the timing checks)
           - check: audio-levels (league)
             area: league
@@ -201,4 +525,126 @@ jobs:
           CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
         # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
         run: |
+          # the arsenal's kill ledger: one short bot run (Pro, Normal, 12 waves); the tool must run and book every kill to an item (the full table is docs/ARSENAL-STATS.md)
+          - check: arsenal-stats (quick)
+            area: interceptor
+            run: node tools/arsenal-stats.mjs --quick
+    env:
+      DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
+      DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Does this change touch the ${{ matrix.area }} files?
+        id: scope
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-scope.mjs ${{ matrix.area }} "$BASE"
+
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - name: Browser (the runner's Chrome; download one only if it has none)
+        id: sys
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p=$(command -v google-chrome || command -v google-chrome-stable || true)
+          echo "path=$p" >> "$GITHUB_OUTPUT"
+          if [ -n "$p" ]; then "$p" --version; else echo "no Chrome on the runner"; fi
+
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        if: steps.scope.outputs.run == 'true' && steps.sys.outputs.path == ''
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Build (smoke tests the built file)
+        if: steps.scope.outputs.run == 'true' && matrix.build
+        run: npm run build
+
+      - name: ${{ matrix.check }}
+        if: steps.scope.outputs.run == 'true'
+        env:
+          CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
+          # the QA sweep (tools/qa-sweep.mjs): every mode played with scripted inputs, then NaN scans, layout / keyboard, leak, save and hardware-oddity probes (fast pass)
+          - check: qa-sweep (League, fast)
+            area: league
+            build: true
+            run: node tools/qa-sweep.mjs --fast --area=league
+          - check: qa-sweep (Zombies, fast)
+            area: interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor
+    env:
+      DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
+      DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
+      DL_TIMING_WARN: '1'   # wall-clock budgets (e.g. physics-check's ms per tick) only warn here
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Does this change touch the ${{ matrix.area }} files?
+        id: scope
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-scope.mjs ${{ matrix.area }} "$BASE"
+
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - name: Browser (the runner's Chrome; download one only if it has none)
+        id: sys
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p=$(command -v google-chrome || command -v google-chrome-stable || true)
+          echo "path=$p" >> "$GITHUB_OUTPUT"
+          if [ -n "$p" ]; then "$p" --version; else echo "no Chrome on the runner"; fi
+
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        if: steps.scope.outputs.run == 'true' && steps.sys.outputs.path == ''
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Build (smoke tests the built file)
+        if: steps.scope.outputs.run == 'true' && matrix.build
+        run: npm run build
+
+      - name: ${{ matrix.check }}
+        if: steps.scope.outputs.run == 'true'
+        env:
+          CHROME_PATH: ${{ steps.sys.outputs.path || steps.chrome.outputs.chrome-path }}
+        # a browser check that fails is run once more: a real break fails twice, a timing flake on a slow runner passes and is flagged
+        run: |
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }
+
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }
+
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }
+
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }
+
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }
+
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }
+
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }
+
+          ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }
+
           ${{ matrix.run }} || { echo "::warning title=Flaky check::${{ matrix.check }} failed once and was retried"; ${{ matrix.run }}; }

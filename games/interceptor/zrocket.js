@@ -18,7 +18,7 @@ export function initRocket(api,G,Z){
  function sound(on){const AC=api.AC;if(!AC)return;const t=AC.currentTime;
   if(on&&!st.snd){const n=AC.createBufferSource(),len=AC.sampleRate*2,b=AC.createBuffer(1,len,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;n.buffer=b;n.loop=true;
    const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=900;f.Q.value=.7;const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=48;const og=AC.createGain();og.gain.value=.25;
-   const g=AC.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.22,t+.25);n.connect(f);o.connect(og).connect(f);f.connect(g).connect(AC.destination);n.start();o.start();st.snd={n,o,g,f}}
+   const g=AC.createGain();g.gain.value=0;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.22,t+.25);n.connect(f);o.connect(og).connect(f);f.connect(g).connect(Z.au?.bus?.sfx||AC.destination);n.start();o.start();st.snd={n,o,g,f}}  /* on zaudio's effects bus: the effects slider, the slow-mo muffle and the compressor apply */
   if(!on&&st.snd){const s=st.snd;s.g.gain.cancelScheduledValues(t);s.g.gain.setTargetAtTime(0,t,.25);s.n.stop(t+1.2);s.o.stop(t+1.2);st.snd=null}}
  function stop(){const me=api.player;if(me){me.boost=0;me.bmax=0}st.t=0;flame.visible=false;bar.hidden=true;sound(false)}
  function step(dt){const me=api.player;if(!me||!G.on){if(st.t>0)stop();return}
@@ -34,4 +34,4 @@ export function initRocket(api,G,Z){
   if(on){const k=.85+Math.random()*.3;flame.position.copy(me.nozzle.position);flame.scale.set(k,.9+Math.random()*.4,k);const f=Math.max(0,st.t)/RK.burn;$i.style.width=(f*100).toFixed(1)+'%';$t.textContent=Math.max(0,st.t).toFixed(1)+' s'}
   bar.hidden=!on&&!(st.armed&&owned()&&me&&me.dead<=0);if(!on&&!bar.hidden){$i.style.width='100%';$t.textContent='READY'}}
  const $i=document.getElementById('zrki'),$t=document.getElementById('zrkt');
- return{step,visuals,stop,st}}
+ return{step,visuals,stop,st,sound}}  /* sound: tools/audio-levels.mjs measures the roar */

@@ -54,7 +54,12 @@ const SCHEMA=[
  field('cal',chanExtras),field('xcal',chanExtras),
  field('train',v=>cleanTrain(v)),  // skill training packs: best result per pack {id: {n, of, t}}; older saves start empty, malformed entries are dropped
  field('fps',v=>v===false?false:DROP,{if:S=>'fps' in S}),  // FPS meter (src/ui/fpsmeter.js): only an Off is kept (absent = on), so older saves load as before
- field('fcap',v=>[120,80,60].includes(v)?v:DROP,{if:S=>'fcap' in S})];  // frame cap in FPS (ui/fpsmeter.js): only a cap is kept (absent = unlimited)
+ field('fcap',v=>[120,80,60].includes(v)?v:DROP,{if:S=>'fcap' in S}),  // frame cap in FPS (ui/fpsmeter.js): only a cap is kept (absent = unlimited)
+ // settings the game reads as they are, so a damaged or hand-edited save could hang the tab (team size 1e9), start a match with nobody in it (null),
+ // stop the clock (NaN) or blow the camera up (found by tools/qa-sweep.mjs): back to the menu's own range, or the default
+ field('size',int(1,4,DEF.size)),field('len',num(30,3600,DEF.len,true)),field('tilt',num(0,60,DEF.tilt)),field('fov',num(80,150,DEF.fov)),field('cam',int(0,3,DEF.cam)),
+ field('dz',num(0,.15,DEF.dz)),field('mode',oneOf(['acro','angle'],DEF.mode)),field('thrMode',oneOf(['full','spring'],DEF.thrMode)),
+ field('name',v=>typeof v==='string'?v.slice(0,16):DEF.name)];  // the pilot name (the FPV OSD calls .toUpperCase() on it every frame)
 /** the settings from a saved JSON: read() returns it (null for none; it may throw), write(S) saves (called by migrations) */
 export const loadSettings=(read,write)=>loadSchema(read,DEF,SCHEMA,write);
 const write=o=>{try{localStorage.setItem('droneleague',JSON.stringify(o))}catch(e){}};

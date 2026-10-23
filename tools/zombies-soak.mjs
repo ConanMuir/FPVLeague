@@ -74,7 +74,7 @@ else for (const zd of DIFFS) {  // a fresh browser per difficulty; a crash fails
 async function soak(browser, zd, errs) {
   const T0 = Date.now();
   const p = await open(browser, origin + '/games/interceptor/', errs, {w: 960, h: 540});
-  await p.evaluate(zd => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd})), zd);
+  await p.evaluate(zd => { localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', zdiff: zd})); sessionStorage.setItem('zcodex', 'all'); }, zd);  /* the full boss roster (zcodex.js) */
   await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await sleep(500);
   // leak probe: every geometry the renderer uploads is remembered until it is disposed; one that is neither disposed nor in the scene any more is leaked GPU memory
   // (where it was made: the first game-code frame when its first attribute was set, i.e. while it was built)
