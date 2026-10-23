@@ -2434,11 +2434,13 @@ if (want('briefing')) {
   ok(!CL.a.col && CL.a.rows === 1 && CL.a.exp === 'true' && CL.b.col && CL.b.rows === 0 && /^Wave 12: \d+ tracks/.test(CL.b.line) && /wind \d+–\d+ km\/h/.test(CL.b.line) && CL.b.exp === 'false' && CL.b.s === 1 && !CL.c.col && CL.c.s === 0 && CL.d.col && CL.d.s === 1, `Collapse: the button folds the card to one line ("${CL.b.line.trim().slice(0, 90)}") and back, the choice goes to the settings`);
   // ---- nothing leaks: many redraws, toggles and restarts add no nodes, listeners, GPU objects or wrappers ----
   const LK = await p.evaluate(() => { const {Z, G, api} = __z, S = api.S, m = () => { const i = api.renderer.info.memory; return [i.geometries, i.textures, api.renderer.info.programs.length].join(); }, nodes = () => document.querySelectorAll('#zbase *').length;
-    if (Z.brief.collapsed()) Z.brief.toggle(); __brk(12, 3, 0); const o = {m0: m(), n0: nodes(), c0: Z.continue, h0: Z.briefHTML};
+    /* the baseline is taken after one of everything (a redraw, a toggle, a restart: whatever the base screen, the codex strip, the scars or the onboarding card build lazily), on this very page: what is checked is growth, not a count */
+    if (Z.brief.collapsed()) Z.brief.toggle(); __brk(12, 3, 0); Z.base.refresh(); Z.brief.toggle(); Z.brief.toggle(); api.startMatch(); __brk(12, 3, 0); Z.base.refresh();
+    const o = {m0: m(), n0: nodes(), c0: Z.continue, h0: Z.briefHTML};
     for (let i = 0; i < 60; i++) { Z.base.refresh(); if (i % 3 === 0) Z.brief.toggle(); } if (Z.brief.collapsed()) Z.brief.toggle(); o.n1 = nodes(); o.m1 = m(); o.cards = document.querySelectorAll('#zbrief').length;
     for (let i = 0; i < 3; i++) api.startMatch(); o.same = Z.continue === o.c0 && Z.briefHTML === o.h0; o.cards2 = document.querySelectorAll('#zbrief').length; document.getElementById('zbtog').click(); o.once = (S.zbrief | 0) === 1; document.getElementById('zbtog').click();
-    __brk(12, 3, 0); o.m2 = m(); return o; });
-  ok(LK.n0 === LK.n1 && LK.m0 === LK.m1 && LK.m1 === LK.m2 && LK.cards === 1 && LK.cards2 === 1, `Leaks: 60 redraws, 20 toggles and 3 restarts leave the base screen at ${LK.n0} nodes, one card, the GPU objects at ${LK.m0}`);
+    __brk(12, 3, 0); Z.base.refresh(); o.m2 = m(); o.n2 = nodes(); return o; });
+  ok(LK.n1 === LK.n0 && LK.m1 === LK.m0 && LK.m2 === LK.m0 && LK.cards === 1 && LK.cards2 === 1, `Leaks: 60 redraws, 20 toggles and 3 restarts add nothing to the base screen (${LK.n0} -> ${LK.n1} nodes over the redraws, one card) or the GPU (${LK.m0} -> ${LK.m1} -> ${LK.m2})`);
   ok(LK.same && LK.once, 'Leaks: the hooks are wrapped once (Continue, the base screen hook) and the toggle fires once per click after restarts');
   // ---- the choice survives a reload ----
   await p.evaluate(() => { __z.api.S.zbrief = 1; __z.api.save(); });
