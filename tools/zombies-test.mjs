@@ -1495,6 +1495,14 @@ if (want('sell')) {
   const a2 = await p.evaluate(() => { const {G, Z} = __z; document.querySelector('.zsold [data-undo]').click(); const d = Z.def.D[0];
     return {cash: G.cash, n: Z.def.D.length, type: d?.type, lvl: d?.lvl, spent: d?.spent, slot: d?.slot, sold: G.sold.length, ghost: !!document.querySelector('.zsold'), card: !!document.querySelector(`[data-sell="${d?.id}"]`)}; });
   ok(a2.cash === 19100 && a2.n === 1 && a2.type === 'flak' && a2.lvl === 1 && a2.spent === 900 && a2.slot === 0 && !a2.sold && !a2.ghost && a2.card, `Sell: Undo takes the $900 back and the flak mortar returns as it was (level ${a2.lvl + 1}, position ${a2.slot}, cash $${a2.cash})`);
+  // 1b. a sortie closes the base screen and opens it again: still the same break, so a defence bought before it sells in full and a sale keeps its Undo
+  const a1b = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const f = Z.def.SLOTS.map((s, i) => i).filter(i => Z.def.slotFree(i, 'flak')), keep = B.place('flak', f[0]), gone = B.place('flak', f[1]);
+    const v0 = Z.sell.dval(keep); B.sell(gone.id); const n0 = G.sold.length, sid = G.sold[0]?.id;
+    Z.so.S.on = true; Z.base.close(); const mid = G.sold.length; Z.so.S.on = false; Z.base.open();  /* what a sortie does (zsortie.js start and end) */
+    const v1 = Z.sell.dval(Z.def.D.find(d => d.id === keep.id)), n1 = G.sold.length, undo = !!Z.sell.undo(sid), back = Z.def.D.find(d => d.slot === f[1]);
+    Z.def.remove(Z.def.D.find(d => d.id === keep.id)); if (back) Z.def.remove(back); G.sold.length = 0;
+    return {v0, v1, n0, mid, n1, undo, back: !!back}; });
+  ok(a1b.v0 === 450 && a1b.v1 === 450 && a1b.n0 === 1 && a1b.mid === 1 && a1b.n1 === 1 && a1b.undo && a1b.back, `Sell: a sortie round trip (base screen closed and opened) keeps the break: a flak bought before it still sells for $${a1b.v1} of $${a1b.v0}, the sale is still in the ledger (${a1b.n1}) and its Undo works`);
   // 2. a position opened now (older by the next base screen) and a second flak sold; the wave starting ends the Undo
   const a3 = await p.evaluate(() => { const {G, Z} = __z, B = Z.base.act; G.cash = 20000; const j = Z.def.SLOTS.findIndex((s, i) => Z.def.canOpen(i, Z.meta.doc())), paid = B.expand(j), d2 = B.place('flak', 1), r = B.sell(d2.id), id = G.sold[0]?.id;
     __z.cont(); return {j, paid, r, id, ledger: G.sold.length, undo: Z.sell.undo(id), st: G.state}; });
