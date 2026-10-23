@@ -476,7 +476,7 @@ function impact(t){if(Z.on)return Z.impact(t);t.st='dead';boom(t.aim,4)}
 function killThreat(t,cat){if(Z.on)Z.kill(t,cat);if(cat){t.st='dead';boom(t.p,3.2);SMK.emit(t.p,0x1c1a18,30,14,6,_t.set(0,3,0),1.4,.85);if(!demo)tone(660,1320,.25,.12,'triangle');return}t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3);t.v.multiplyScalar(.7).add(_t.set((Math.random()-.5)*6,2,(Math.random()-.5)*6));
  boom(t.p,1.2);if(demo)return;tone(660,1320,.25,.12,'triangle')}
 function boom(p,k){if(Z.on)Z.flash(p,k);FX.emit(p,0xffb040,Math.round(150*k),30*Math.sqrt(k),1.1,null,3);FX.emit(p,0xff5a1a,Math.round(80*k),18*Math.sqrt(k),.9,null,2.5);SMK.emit(p,0x3a3632,Math.round(24*k),8*Math.sqrt(k),5,_t.set(0,5,0),1,.8);
- boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*(Z.on?Math.min(k,3):k));shake=Math.max(shake,near(p)*k*.6);noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}
+ boomL.position.copy(p);boomL.intensity=Math.max(boomL.intensity,3e4*(Z.on?Math.min(k,3):k));shake=Math.max(shake,near(p)*k*.6);if(!Z.on&&!demo)noise(.8*Math.sqrt(k)+.3,130,Math.min(1,.9*near(p)*k+.03))}  /* Zombies hears its own placed explosion (Z.flash -> zaudio); the menu's demo is quiet */
 const nearestThreat=p=>GRID.nearest(p,live);
 // most urgent track: least time to reach its target
 const urgent=()=>Z.urgent();

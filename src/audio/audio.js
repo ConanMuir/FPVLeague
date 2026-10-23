@@ -36,9 +36,9 @@ export function audioTick(dt){sfxTick(dt);const me=GS.player,on=!GS.demo&&!GS.pa
  const mix=[[-1,1,-1],[-1,-1,1],[1,1,1],[1,-1,-1]];  // Betaflight quad-X: RR, FR, RL, FL (roll, pitch, yaw)
  mo.forEach((m,i)=>{const[a,b,c]=mix[i],k=cl((a*aw.z+b*aw.x)*.0035+c*aw.y*.002,-.35,.35),f=r*m.off*(1+k);for(const[o,h]of m.v)o.frequency.setTargetAtTime(f*h,t,.012)});
  const wash=va<-6?cl((-va-6)/18,0,1)*ms:0,flut=1+wash*(Math.random()-.5)*1.4;  // falling into your own wash: the props chop through dirty air
- mg.gain.setTargetAtTime((.04+.075*ms**.9+(me.boostOn?.03:0))*flut,t,.02);mf.frequency.setTargetAtTime(900+r*3*2.6,t,.03);
+ mg.gain.setTargetAtTime((.03+.053*ms**.9+(me.boostOn?.02:0))*flut,t,.02);mf.frequency.setTargetAtTime(900+r*3*2.6,t,.03);  /* full throttle + boost peaks near -14 dBFS: a bed, 3 dB under a ball hit (tools/audio-levels.mjs) */
  mw.frequency.setTargetAtTime(r*7,t,.02);mw.g.gain.setTargetAtTime(.006+.018*ms,t,.05);
- pf.frequency.setTargetAtTime(r*4.2,t,.03);pg.gain.setTargetAtTime((.015+.09*ms**1.5)*(1+wash*1.5),t,.03);
+ pf.frequency.setTargetAtTime(r*4.2,t,.03);pg.gain.setTargetAtTime((.012+.07*ms**1.5)*(1+wash*1.5),t,.03);
  const ws=cl(sp/WS/40,0,1.3);wf.frequency.setTargetAtTime(200+ws*1400,t,.1);wg.gain.setTargetAtTime(.17*ws*ws,t,.1);
  let o=null,od=1e9;for(const d of GS.drones)if(d!==me&&d.dead<=0){const q=d.p.distanceTo(camera.position);if(q<od){od=q;o=d}}
  const R0=160;if(!o||od>R0){ov.og.gain.setTargetAtTime(0,t,.1);return}

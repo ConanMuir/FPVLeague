@@ -50,7 +50,7 @@ registerBoss({id:'hive',n:'The Hive',tag:'HIVE',col:'#ffb21e',spd:24,alt:[580,62
  netOut:(C,t)=>[Math.ceil(t.bs.rel||0),t.bs.split|0],netIn(C,t,a){t.bs.rel=a[0]|0;t.bs.split=a[1]|0},
  aim:(C,t,s)=>({p:t.p.clone().add(new C.V3(0,-4,0)).addScaledVector(t.v.clone().normalize(),Math.random()<s?-10:-22)}),
  winTxt:'The Hive and every brood are down.',
- sting(S){const t0=S.t+.05,o=S.out(.8),lp=S.filt('lowpass',900,1.5);lp.connect(S.env(t0,.16,1.2,4,o));for(let i=0;i<9;i++){const x=S.osc('sawtooth',105+i*9.3,t0,4),am=S.osc('sine',18+i*3,t0,4),ag=x.context.createGain();ag.gain.value=.5;am.connect(ag.gain);x.connect(ag).connect(lp)}},  // a swelling buzz
+ sting(S){const t0=S.t+.05,o=S.out(.8),lp=S.filt('lowpass',900,1.5);lp.connect(S.env(t0,.1,1.2,4,o));for(let i=0;i<9;i++){const x=S.osc('sawtooth',105+i*9.3,t0,4),am=S.osc('sine',18+i*3,t0,4),ag=x.context.createGain();ag.gain.value=.5;am.connect(ag.gain);x.connect(ag).connect(lp)}},  // a swelling buzz
  loop(S){const o=S.out(0),lp=S.filt('lowpass',700,1.2);lp.connect(o);const X=[];for(let i=0;i<4;i++){const x=S.osc('sawtooth',118+i*11,S.t,0);x.connect(lp);X.push(x)}return{g:o,stop(){for(const x of X)x.stop()}}},
  reward:{id:'hive',n:'Captured Hive',short:'a counter-swarm hits the first FPV swarm near your sites each wave',txt:'Each wave, when the first enemy FPV swarm comes within 2.5 km of a site, the captured hive launches six friendly FPVs at it from the radar pad (80% each).',
   step(C){const{G,api}=C;if(G.state!=='wave'||G.hvw===G.wave||!C.auth())return;const S=C.sites(),sw=api.TH.filter(t=>t.k==='swarm'&&api.live(t)&&S.some(s=>Math.hypot(s.x-t.p.x,s.z-t.p.z)<2500));if(!sw.length)return;G.hvw=G.wave;
