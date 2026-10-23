@@ -1048,6 +1048,12 @@ if (want('bosses')) {
   const bar = await p.evaluate(() => { __z.Z.hud(1 / 60); const b = document.getElementById('zbb'); return {on: !b.hidden, txt: b.textContent.slice(0, 120), dbg: JSON.stringify({st: __z.G.state, on: __z.G.on, demo: __z.api.demo, menu: __z.api.menuOpen, e: __z.Z.bosses.encs.map(e => [e.id, e.over]), t: __z.api.TH.filter(t => t.k === 'hive').map(t => t.st)})}; });
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-boss-bar.png'});
   ok(bar.on && /HIVE/.test(bar.txt), `HUD: boss bar "${bar.txt}"` + (bar.on ? '' : ' ' + bar.dbg));
+  /* no boss holds a wave for ever against a pilot who cannot hurt it: past six minutes (those with timers of their own go sooner) it breaks off with a radio call and flies out, its whole encounter with it */
+  const lv = await p.evaluate(() => { const {Z} = __z, B = Z.bosses, R = Z.radio, out = {};
+    for (const id of ['mirror', 'jugg', 'twins', 'hive']) { __b.clear(); R.hush(); R.calls.length = 0; B.spawn(id); __z.sim(12); const L = B.alive().filter(t => !B.BOSSES[t.k].minor); for (const t of L) t.bs.age = 361; __z.sim(1);
+      const flagged = L.every(t => t.bs.out); __z.sim(140); out[id] = {n: L.length, flagged, gone: L.every(t => t.bs.gone === 'escaped'), left: B.alive().length, call: R.calls.some(c => /breaking off/.test(c.txt))}; }
+    return out; });
+  ok(Object.values(lv).every(o => o.n >= 1 && o.flagged && o.gone && !o.left && o.call) && lv.twins.n === 2, `Bosses: after six minutes the Mirror, the Juggernaut, the Twins (both) and the Hive break off, say so on the radio and are gone (${JSON.stringify(lv)})`);
   const cls = await p.evaluate(() => { __z.api.startDemo(); return {on: __z.Z.on, boss: __z.api.TH.some(t => __z.Z.bosses.BOSSES[t.k]), bar: document.getElementById('zbb').hidden || getComputedStyle(document.getElementById('zbb')).display === 'none'}; });
   ok(!cls.on && !cls.boss && cls.bar, 'Menu: no bosses, no boss bar');
   ok(!errs.length, 'Bosses: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
