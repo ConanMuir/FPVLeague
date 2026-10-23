@@ -4,7 +4,7 @@
 // Run: node tools/zombies-boss-shots.mjs OUTDIR [ids...]
 import fs from 'node:fs';
 import {serve, launch, open, frames, drawFrames} from './zlib.mjs';
-const OUT = process.argv[2], ONLY = process.argv.slice(3);
+const OUT = process.argv[2], CMP = process.argv.includes('--compare'), ONLY = process.argv.slice(3).filter(a => a !== '--compare');  // --compare: each shot twice, without and with the boss atmosphere (zatmos.js)
 if (!OUT) { console.log('usage: node tools/zombies-boss-shots.mjs OUTDIR [ids...]'); process.exit(1); }
 fs.mkdirSync(OUT, {recursive: true});
 const {server, origin} = await serve();
@@ -20,10 +20,14 @@ await p.evaluate(() => { const {api, G, Z} = __z, V = api.THREE.Vector3; G.cash 
     const r = new V(-f.z, 0, f.x), P = t.p.clone().addScaledVector(r, s.off.x).add(new V(0, s.off.y, 0)).addScaledVector(f, s.off.z); cam.position.copy(P); cam.up.set(0, 1, 0); cam.lookAt(t.p.clone().add(s.look)); cam.fov = s.fov; cam.updateProjectionMatrix(); };
   window.__clear = () => { for (const t of api.TH) t.st = 'dead'; __z.sim(.1); G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); for (const s of api.SITES) s.hp = s.max; Z.fxTest?.endCine(); }; });
 const settle = async n => { await frames(p, n); await drawFrames(p, 3); };
-const shot = async name => { await p.evaluate(() => __z.Z.fxTest?.endCine()); await drawFrames(p, 2); await p.screenshot({path: `${OUT}/${name}.png`}); console.log('wrote', name); };
+const shot = async name => { await p.evaluate(() => __z.Z.fxTest?.endCine());
+  if (CMP) { await p.evaluate(() => { __z.Z.atmos.off = true; }); await drawFrames(p, 3); await p.screenshot({path: `${OUT}/${name}-before.png`}); await p.evaluate(() => { __z.Z.atmos.off = false; }); }
+  await drawFrames(p, 3); await p.screenshot({path: `${OUT}/${name}${CMP ? '-after' : ''}.png`}); console.log('wrote', name); };
 const want = id => !ONLY.length || ONLY.includes(id);
 const show = async (id, off, look = [0, 0, 0], fov = 50, setup = '') => { await p.evaluate((id, off, look, fov, setup) => { __clear(); const {Z, api} = __z, V = api.THREE.Vector3; const t = Z.bosses.spawn(id); __z.sim(.5); if (setup) new Function('t', setup)(t);
   __sc.t = t; __sc.off.set(...off); __sc.look.set(...look); __sc.fov = fov; }, id, off, look, fov, setup); await settle(30); };
+if (want('mothership')) { await p.evaluate(() => { __clear(); const {Z, api} = __z, V = api.THREE.Vector3; const t = Z.make('boss', 0, -900); t.p.y = api.gh(0, -900) + 650; __z.sim(2.5); const m = Z.bosses.shadows[0];
+  __sc.t = {p: m.position, v: new V(1, 0, 0), st: 'cruise'}; __sc.off.set(220, 300, 160); __sc.look.set(0, 40, 0); __sc.fov = 70; }); await settle(60); await shot('boss-mothership-shadow'); }
 if (want('ace')) { await show('ace', [13, 3, 4], [0, 0, -1], 45); await shot('boss-ace'); await p.evaluate(() => __sc.off.set(-10, 6, -14)); await settle(10); await shot('boss-ace-tail'); }
 if (want('gace')) { await p.evaluate(() => { __z.G.fallen = {jet: 6, shahed: 8, heavy: 2}; }); await show('gace', [18, 5, 10], [0, 0, 0], 55); await settle(60); await shot('boss-ghost-of-the-ace');
   await p.evaluate(() => __sc.off.set(70, 30, 60)); await settle(40); await shot('boss-ghost-legion'); }

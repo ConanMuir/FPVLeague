@@ -119,6 +119,9 @@ jobs:
           - check: zombies-test (bosses)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=bosses
+          - check: zombies-test (arsenal)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=arsenal
           # the PIP / lock-on intercept point against where you actually meet the track, and where it is drawn in each view
           - check: intercept-check
             area: interceptor

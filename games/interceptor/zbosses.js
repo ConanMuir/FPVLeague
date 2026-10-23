@@ -24,6 +24,10 @@
 import {KIND,RESIST} from './zdata.js';
 import {tex,dot} from '../../engine/render.js';
 import {AC,nbuf} from '../../engine/audio.js';
+import {gfx} from '../../engine/gfx.js';
+import {warm} from '../../engine/warm.js';
+import {initAtmos} from './zatmos.js';
+import {particlePool} from '../../engine/particles.js';
 import {ownRandom} from '../../engine/idle.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -85,7 +89,16 @@ export function initBosses(api,G,Z){
     VV[i3]=VV[i3]*dm+wx;VV[i3+1]=VV[i3+1]*dm-grav*dt;VV[i3+2]=VV[i3+2]*dm+wz;P[i3]+=VV[i3]*dt;P[i3+1]+=VV[i3+1]*dt;P[i3+2]+=VV[i3+2]*dt;const f=Math.min(1,LF[i]/L0[i]*2);C[i4]=B[i4];C[i4+1]=B[i4+1];C[i4+2]=B[i4+2];C[i4+3]=B[i4+3]*f}
     g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true},
    clear(){live=0;LF.fill(0);P.fill(-1e5);C.fill(0);g.attributes.position.needsUpdate=g.attributes.color.needsUpdate=true},get active(){let n=0;for(let i=0;i<N;i++)if(LF[i]>0)n++;return n}}}
- const BFX=pool(1500,1.6,THREE.AdditiveBlending,3,1.8),BSMK=pool(1800,10,THREE.NormalBlending,-2.5,.6);
+ // the bosses' own two pools on the engine's pooled particles (engine/particles.js: one draw per blend mode, only the live window of each
+ // emitter is walked and uploaded, so idle emitters cost nothing); their own budget, so the game's pools keep theirs (the pool above is the fallback
+ // for a build without engine/particles.js)
+ const PA=particlePool?particlePool(scene,{max:1500,blend:THREE.AdditiveBlending,map:dot,toneMapped:false,wind:api.WIND}):null,PN=particlePool?particlePool(scene,{max:2400,map:dot,wind:api.WIND}):null;
+ function shared(N,size,blend,grav,drag,scaled){const P=blend===THREE.AdditiveBlending?PA:PN;if(!P)return pool(N,size,blend,grav,drag);const e=P.emitter(N,size,grav,drag,scaled);
+  return{pts:P.pts,emit:e.emit,upd:e.upd,clear:e.clear,get active(){return e.live}}}
+ const BFX=shared(1500,1.6,THREE.AdditiveBlending,3,1.8,true),BSMK=shared(1800,10,THREE.NormalBlending,-2.5,.6,true);
+ // haze: big slow puffs (a smoke pall, fog banks, mist, a swarm cloud) for the bosses' atmosphere (zatmos.js); counts scale with gfx.k.fx
+ const BHZ=shared(600,70,THREE.NormalBlending,-.25,.12,false);  // not scaled by the pool: haze() below thins it with gfx.k.fx itself
+ const haze=(p,hex,a,life,spd=1.5)=>{if(Math.random()<gfx.k.fx)BHZ.emit(p,hex,1,spd,life,null,1,a)};
  // ---------- flight helpers for the movers ----------
  const _tv=new V3();
  // turn the velocity toward des (unit) at rate rad/s, speed toward spd, bank into the turn, move, keep agl metres off the ground
@@ -198,7 +211,7 @@ export function initBosses(api,G,Z){
  // ---------- the one cleanup path: every boss effect ends with the wave (and at game over, quit, restart). Kept: records, trophies, withdrawn
  // bosses' run state, the Ghost of the Ace's wreck (a map feature, not an effect). A boss still in the air here is simply gone. ----------
  function clearAll(why){for(const t of TH){if(mine(t)&&t.st!=='dead'){if(t.bs&&!t.bs.dead){t.bs.dead=1;t.bs.gone=why}t.st='dead'}if(t.iff)t.iff=0}
-  for(const e of encs())e.over=true;G.benc=[];stopLoops();BO.length=0;bGeo.setDrawRange(0,0);BFX.clear();BSMK.clear();bar.hidden=true;barH='';
+  for(const e of encs())e.over=true;G.benc=[];stopLoops();BO.length=0;bGeo.setDrawRange(0,0);BFX.clear();BSMK.clear();BHZ.clear();atmos.clear();for(const m of SHD){m.visible=false;m.userData.a=0}bar.hidden=true;barH='';
   for(const D of Object.values(BOSSES)){try{D.clear?.(ctx)}catch(e){console.warn('boss clear',e)}}}
  Z.bossClear=clearAll;
  function waveStart(){const K=G.bkeep||{};G.bkeep={};if(auth())for(const[id,st]of Object.entries(K)){const D=BOSSES[id];if(!D||!st||st.gone)continue;const t=spawn(id,{...(st.at||{}),set:{keep:st}});if(t)t.bs.wake=1}for(const D of Object.values(BOSSES))D.g?.wave?.(ctx);for(const R of rew())R.wave?.(ctx);
@@ -254,7 +267,7 @@ export function initBosses(api,G,Z){
   bar.style.setProperty('--bc',D.col||'#ff4d4d');if(h!==barH)bar.innerHTML=barH=h;bar.hidden=false}
 
  // ---------- hooks: visuals, overlay, radar, hud, start / stop ----------
- const v0=Z.visuals;Z.visuals=dt=>{v0(dt);BFX.pts.visible=BSMK.pts.visible=G.on;if(!G.on)return;BFX.upd(dt);BSMK.upd(dt);for(const t of TH)if(mine(t)&&t.bs&&t.st!=='dead')BOSSES[t.k].vis?.(ctx,t,dt);for(const D of Object.values(BOSSES))D.g?.vis?.(ctx,dt);boltTick(api.menuOpen?0:dt);loops()};
+ const v0=Z.visuals;Z.visuals=dt=>{v0(dt);BFX.pts.visible=BSMK.pts.visible=BHZ.pts.visible=G.on;atmos.tick(api.menuOpen?0:dt);if(!G.on)return;BFX.upd(dt);BSMK.upd(dt);BHZ.upd(dt);shadows(dt);for(const t of TH)if(mine(t)&&t.bs&&t.st!=='dead')BOSSES[t.k].vis?.(ctx,t,dt);for(const D of Object.values(BOSSES))D.g?.vis?.(ctx,dt);boltTick(api.menuOpen?0:dt);loops()};
  const o0=Z.overlay;Z.overlay=oc=>{o0(oc);if(!G.on||api.demo||Z.cine)return;const W=innerWidth,H=innerHeight;oc.save();oc.textAlign='center';oc.font='700 12px "JetBrains Mono",monospace';oc.shadowColor='#000';oc.shadowBlur=4;
   for(const t of TH)if(mine(t)&&t.bs&&t.st!=='dead')BOSSES[t.k].overlay?.(ctx,oc,t,W,H);for(const D of Object.values(BOSSES))D.g?.overlay?.(ctx,oc,W,H);oc.restore()};
  const r0=Z.radar;Z.radar=(rc,P,sel,K)=>{r0(rc,P,sel,K);if(!G.on)return;rc.save();for(const t of TH)if(mine(t)&&t.bs&&t.st!=='dead')BOSSES[t.k].radar?.(ctx,rc,P,t);for(const D of Object.values(BOSSES))D.g?.radar?.(ctx,rc,P);rc.restore()};
@@ -271,7 +284,7 @@ export function initBosses(api,G,Z){
   if(!t.bs.enc&&!D.minor){t.bs.init=1;newEnc(t)}D.netIn?.(ctx,t,a.slice(3))};
 
  // ---------- what the boss modules get ----------
- const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,BOSSES,REWARDS,decal,D2,cl,rnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
+ const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,HAZE:BHZ,haze,gfx,BOSSES,REWARDS,decal,D2,cl,rnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
   get wt(){return G.wt||0},
   // lose your interceptor to enemy fire (the Ace's missile, the Mirror's burst); the Deathless trophy may save it (zboss-ace.js)
   shoot(why){const d=me();if(!d)return false;if(rew().some(R=>R.save?.(ctx,why)))return false;api.lose('shot');feed(`<span class="cr">Interceptor lost: ${why}</span>`);return true},
@@ -279,15 +292,30 @@ export function initBosses(api,G,Z){
   group(){const g=new THREE.Group();g.userData.own=1;return g},
   mesh(g,geo,mat,x=0,y=0,z=0,shadow=true){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=shadow;g.add(m);return m},
   sites:()=>api.liveSites(),siteC:SITE_C};
+ // ---------- atmosphere (zatmos.js): what each boss does to the battlefield's look, eased in and out, composed with the weather ----------
+ const atmos=initAtmos(api,G,Z,BOSSES);atmos.ctx=ctx;Z.atmos=atmos;
+ // the Mothership (zenemy.js): a looming soft shadow on the ground under it, cast along the sun, and the light dims as you pass beneath
+ // its silhouette (the flying wing, nose toward +z = the top of the canvas... drawn flipped so +z is up), blurred, inside a soft dark pool
+ const shTex=decal('mship-shadow',256,256,(g,w)=>{const c=w/2,r=g.createRadialGradient(c,c,10,c,c,c);r.addColorStop(0,'rgba(0,0,0,.55)');r.addColorStop(.6,'rgba(0,0,0,.3)');r.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=r;g.fillRect(0,0,w,w);
+  g.filter='blur(7px)';g.fillStyle='rgba(0,0,0,.95)';g.beginPath();g.moveTo(c,c+80);g.lineTo(c+110,c-30);g.lineTo(c+92,c-52);g.lineTo(c,c-24);g.lineTo(c-92,c-52);g.lineTo(c-110,c-30);g.closePath();g.fill();g.filter='none'});
+ const shMat=new THREE.MeshBasicMaterial({map:shTex,color:0x000000,transparent:true,opacity:0,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
+ const SHD=[0,1,2].map(()=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1,12,12).rotateX(-Math.PI/2),shMat.clone());m.visible=false;m.renderOrder=1;m.frustumCulled=false;m.userData.a=0;scene.add(m);return m});warm(shMat);
+ const _sd=new V3(),_gp=new V3();
+ function shGround(t,out){_sd.subVectors(api.sun.position,api.sun.target.position).normalize();const y=gh(t.p.x,t.p.z),k=_sd.y>.2?(t.p.y-y)/_sd.y:0;out.copy(t.p).addScaledVector(_sd,-k);out.y=gh(out.x,out.z)+.6;return t.p.y-y}
+ // draped over the ground: each vertex sits on the terrain (a flat plane would sink into the hills)
+ function drape(m){const a=m.geometry.attributes.position,s=m.scale.x,c=m.position,co=Math.cos(m.rotation.y),si=Math.sin(m.rotation.y);for(let i=0;i<a.count;i++){const lx=a.getX(i),lz=a.getZ(i),x=c.x+(lx*co+lz*si)*s,z=c.z+(lz*co-lx*si)*s;a.setY(i,(gh(x,z)+1.2-c.y)/s)}a.needsUpdate=true}
+ function shadows(dt){let i=0;for(const t of TH){if(t.k!=='boss'||!live(t)||i>=SHD.length)continue;const m=SHD[i++],alt=shGround(t,m.position);m.scale.setScalar(110+alt*.05);m.rotation.y=Math.atan2(t.v.x,t.v.z);if((m.userData.dr=(m.userData.dr||0)-dt)<=0){m.userData.dr=.1;drape(m)}m.userData.a+=(.85-m.userData.a)*Math.min(1,dt*.8);m.material.opacity=m.userData.a;m.visible=true}
+  for(;i<SHD.length;i++){const m=SHD[i];if(!m.visible)continue;m.userData.a*=Math.exp(-dt*1.2);m.material.opacity=m.userData.a;if(m.userData.a<.01)m.visible=false}}
+ atmos.ext.boss=(t,o)=>{shGround(t,_gp);const d=Math.hypot(api.camera.position.x-_gp.x,api.camera.position.z-_gp.z);o.light=.42;o.dark=.5;o.vign=.42;o.desat=.18;o.fog=.75;o.fogC.set(0x23262c);o.fogMix=.35;return cl(1.15-d/1000,0,1)};
  const dr0=Z.en.dress;Z.en.dress=t=>{const D=BOSSES[t.k];if(!D)return dr0(t);t.inst=false;t.shade=0;t._seen=1;t.bank=t.bank||0;t.bs={hp:1,max:1,ph:0,init:0,dead:0};
   let m=null;try{m=D.build?D.build(ctx,t):null}catch(e){console.warn('boss build',t.k,e)}t.mesh=m||new THREE.Object3D();if(t.mesh.parent!==scene)scene.add(t.mesh)};
 
  // harness and the spectator: spawn any boss now, force one into the next plan, read the record, grant a trophy
  Z.bosses={BOSSES,ROSTER,REWARDS,ctx,roster:(()=>{try{return sessionStorage.getItem('zbossRoster')!=='0'}catch(e){return true}})(),  /* the harness turns it off for its plain-Zombies sections */
  spawn:(id,o)=>spawn(id,o),force:id=>{if(BOSSES[id])G.bforce=id;return!!BOSSES[id]},rec,grant,habit,
-  get encs(){return encs()},
+  get encs(){return encs()},get shadows(){return SHD},
   // what is left of the bosses' effects (tests: all zero after a wave ends)
-  fx(){const o={tracks:TH.filter(t=>mine(t)&&t.st!=='dead').length,loops:LOOPS.size,fx:BFX.active,smoke:BSMK.active,bolts:BO.length,bar:!bar.hidden,iff:TH.filter(t=>t.iff>0&&t.st!=='dead').length,encs:encs().filter(e=>!e.over).length};
+  fx(){const o={tracks:TH.filter(t=>mine(t)&&t.st!=='dead').length,loops:LOOPS.size,fx:BFX.active,smoke:BSMK.active,haze:BHZ.active,atmos:atmos.sources,grade:atmos.pass.enabled?1:0,shadows:SHD.filter(m=>m.visible).length,bolts:BO.length,bar:!bar.hidden,iff:TH.filter(t=>t.iff>0&&t.st!=='dead').length,encs:encs().filter(e=>!e.over).length};
    for(const D of Object.values(BOSSES))if(D.fxLeft)Object.assign(o,D.fxLeft(ctx));return o},alive:()=>TH.filter(t=>mine(t)&&t.st!=='dead'),
   // a pilot hit as if your warhead went off at the given point (tests): q 'kill' direct, 'damage' proximity
   hitAt(t,q,at){const d=api.player;if(at&&d)d.p.copy(at);inDet=1;try{hitBy(t,q,'p')}finally{inDet=0}},

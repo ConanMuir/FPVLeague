@@ -80,6 +80,8 @@ registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14
   if(B.mv){const d=Math.hypot(B.mv.x-t.p.x,B.mv.z-t.p.z),des=new C.V3(B.mv.x-t.p.x,0,B.mv.z-t.p.z).normalize();C.steer(t,des,B.exposed?22:14,.8,dt,0);t.p.y=api.gh(t.p.x,t.p.z)+.1;
    if(d<12){B.mv=null;B.next=B.exposed?C.rnd(18,26):C.rnd(35,50);const o=B.dis;B.dis=C.pick(DIS.filter(k=>k!==o));show(t,B.exposed?'spider':B.dis);t.v.set(t.v.x,0,t.v.z).setLength(.5)}}
   else{t.v.setY(0).setLength(.5);t.p.y=api.gh(t.p.x,t.p.z)+.1}return true},
+ atmos(C,t,o){const c=C.api.camera.position;let d=c.distanceTo(t.p);for(const w of W)if(w.pp===t&&w.u)d=Math.min(d,c.distanceTo(w.u.p));const p=.5+.5*Math.sin(performance.now()/900);
+  o.dark=.3+.08*p;o.vign=.48;o.desat=.25;o.light=.75;o.tint.set(0xd8c8a8);o.tintA=.08;return C.cl(1.1-d/700,0,1)},
  seen:()=>false,hid:(C,t)=>!(t.bs.exposed&&t.p.distanceTo(C.api.camera.position)<400),lockSelf:()=>1e3,
  hit(C,t,h){if(h.q==='damage'||h.q==='helper'){h.txt='NOTHING · it takes a direct strike';return 0}return 1},
  phase(C,t,i){if(i>=1&&!t.bs.exposed){t.bs.exposed=1;show(t,'spider');t.bs.next=0;C.Z.an?.say('PUPPETEER EXPOSED','it bolts · one more direct strike','#e8e2d0',2)}},

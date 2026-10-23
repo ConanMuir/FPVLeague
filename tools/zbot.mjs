@@ -9,7 +9,11 @@
 export {DODGE, LEVELS, level} from '../games/interceptor/zbotbrain.js';
 
 // in-page source: the base-screen shopper (zbotbrain.js shopSteps, every step at once). (P) = a level.
-export const SHOP = `(function(P){ return __z.brain.shopNow(P, __z).length; })`;
+// The arsenal (games/interceptor/zarsbot.js, a brain hook): its weapon and big defences are shopped before the brain's helpers, the rest in the
+// brain's hook pass after them.
+export const SHOP = `(function(P){ const {G, Z} = __z, AB = Z.ars && Z.ars.bot, keep = G.cash * (1 - (P.spend ?? 1)); let n = 0;
+  if (AB) for (const part of ['weapon', 'early']) for (const s of AB.shop(P, __z, {afford: c => G.cash - c >= keep, keep, part})) { s.run(); n++; }
+  return n + __z.brain.shopNow(P, __z).length; })`;
 
 // in-page source: one wave of play. (P, dodge) = a level and the difficulty's base dodge chance. Returns the state at the end.
 //   rate      chance per half second of running a track down (reaction, finding the next target)
@@ -19,12 +23,13 @@ export const SHOP = `(function(P){ return __z.brain.shopNow(P, __z).length; })`;
 //   relaunch  chance per half second of getting the next interceptor off the mat after losing one
 // Perks, launch alerts, lock and the swarm: zbotbrain.js tactics (the teleporting pilot forces its locks).
 export const WAVE = `(function(P, dodge){
-  const {api, G, Z, KIND} = __z; let n = 0;
+  const {api, G, Z, KIND} = __z, AB = Z.ars && Z.ars.bot; let n = 0;  /* AB: how to fire the loaded arsenal weapon (zarsbot.js) */
   const evades = t => { if (Z.evades) return Z.evades(t); const m = Z.evadeMode(); return m !== 'none' && KIND[t.k].armor !== 'hard' && (m === 'all' || ['jet', 'heavy', 'cruise', 'swarm', 'boss'].includes(t.k)); };
   while (G.state === 'wave' && n++ < 2400) { __z.sim(.5); const me = api.player, alive = me && me.dead <= 0;
-    if (P.fast && alive && Math.random() < P.fast) { const h = api.TH.filter(t => api.live(t) && KIND[t.k].armor === 'hard' && t.p.distanceTo(t.aim) < 15000).sort((a, b) => a.p.distanceTo(a.aim) - b.p.distanceTo(b.aim))[0];
+    if (P.fast && alive && Math.random() < P.fast * (AB ? AB.fastK(__z) : 1)) { const h = api.TH.filter(t => api.live(t) && KIND[t.k].armor === 'hard' && t.p.distanceTo(t.aim) < 15000).sort((a, b) => a.p.distanceTo(a.aim) - b.p.distanceTo(b.aim))[0];
       if (h) { me.p.copy(h.p).addScaledVector(h.v.clone().normalize(), -.5); me.v.set(0, 0, 0); Z.detonate(); continue; } }
-    if (Math.random() < P.rate) { const t = Z.urgent(); if (t && KIND[t.k].armor !== 'hard' && alive) { const off = Math.random() < P.miss || evades(t) && Math.random() < Math.min(.9, dodge * P.dodgeK) ? 7 : .8; __z.botKill(off); } }
+    if (Math.random() < P.rate) { const t = Z.urgent(); if (t && KIND[t.k].armor !== 'hard' && alive) { const bad = Math.random() < P.miss || evades(t) && Math.random() < Math.min(.9, dodge * P.dodgeK), r = AB ? AB.run(P, __z, t, bad) : null;
+      if (r) { me.p.copy(r.at || r.t.p).addScaledVector(r.t.v.clone().normalize(), -r.off); me.v.copy(r.t.v); Z.detonate(); } else __z.botKill(bad ? 7 : .8); } }
     if (me && me.dead > 0 && Math.random() < P.relaunch) api.launch();
     __z.brain.tactics(P, __z, {teleport: true}); }
   if (G.state === 'clear') __z.sim(4);
