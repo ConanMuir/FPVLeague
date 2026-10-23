@@ -14,7 +14,7 @@ p.setDefaultTimeout(0);
 const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
   const DF = await import('/src/modes/dogfight.js'), DFm = DF, MA = await import('/src/modes/match.js'), {GS} = await import('/src/state.js'), ST = await import('/src/modes/step.js'),
     {ball} = await import('/src/physics/ball.js'), C = await import('/src/config/constants.js'), {DIFF} = C, {STOCK} = await import('/src/parts/index.js'),
-    LB = await import('/src/bots/league.js'), DB = await import('/src/bots/dogfight.js'), {topOf} = await import('/src/bots/dribble.js'), {BR} = await import('/src/config/tune.js'), W = await import('/src/physics/world.js');
+    LB = await import('/src/bots/league.js'), DB = await import('/src/bots/dogfight.js'), {topOf} = await import('/src/bots/dribble.js'), {BR} = await import('/src/config/tune.js'), W = await import('/src/physics/world.js'), {LOOK} = await import('/src/bots/lookahead.js');
   let hitBy = null; W.onHit(e => { if (e.type === 'ball') hitBy = e.d; });  // who touched the ball this tick (ball.last keeps the last toucher for the bots)
   // carry and pop bookkeeping (League): time with the ball resting on a quad's top, pops earned, pops fired, and pops that sent the ball goalward
   const _r = new (ball.p.constructor)(), pend = [], prevC = new Map(), prevT = new Map();
@@ -135,9 +135,10 @@ const r = await p.evaluate(async (mode, la, lb, mins, size, bt) => {
   for (const L of [A, B]) { for (const d of GS.drones) d.skill = L; MA.kickoff(); GS.state = 'play'; for (let i = 0; i < 240; i++) ST.step(dt);
     const f = mode === 'league' ? LB.botControl : DB.dfBot, N = 300; let t0 = performance.now();
     for (let i = 0; i < N; i++) for (const d of GS.drones) { if (d.dead > 0) continue; d.ai.t = 0; f(d, dt); }
-    const think = (performance.now() - t0) / N / GS.drones.length; t0 = performance.now(); const M = 1200; for (let i = 0; i < M; i++) ST.step(dt);
+    const think = (performance.now() - t0) / N / GS.drones.length; t0 = performance.now(); const M = 1200; LOOK.calls = LOOK.skipped = LOOK.total = 0; for (const k in LOOK.picks) LOOK.picks[k] = 0; for (let i = 0; i < M; i++) ST.step(dt);
     const stepMs = (performance.now() - t0) / M; let pr = 0; if (mode === 'league') { t0 = performance.now(); for (let i = 0; i < 200; i++) LB.predict(); pr = (performance.now() - t0) / 200; }
-    cost[DIFF[L].n] = {thinkMsPerBot: +think.toFixed(4), stepMs: +stepMs.toFixed(3), predictMs: +pr.toFixed(3)}; }
+    // the look-ahead (bots/lookahead.js) over those M ticks of play: how many ran, how many were deferred by the per-tick budget, the cost of one and per tick
+    cost[DIFF[L].n] = {thinkMsPerBot: +think.toFixed(4), stepMs: +stepMs.toFixed(3), predictMs: +pr.toFixed(3), lookCalls: LOOK.calls, lookDeferred: LOOK.skipped, lookMsPerCall: +(LOOK.total / (LOOK.calls || 1)).toFixed(3), lookMsPerTick: +(LOOK.total / M).toFixed(4), lookPicks: {...LOOK.picks}}; }
   if (mode === 'league') { out.goals = GOALS; out.kickoffs = KO; const pt = POS.A + POS.B || 1; out.possessionA = Math.round(100 * POS.A / pt); }
   out.cost = cost; for (const k in q) { const o = q[k]; out['shots' + k] = {touches: o.n, onTarget: o.onT, avgSpeed: +(o.spd / (o.n || 1)).toFixed(1), normalErrDeg: o.nc ? +(o.nErr / o.nc).toFixed(1) : null, demolished: o.demoed || 0, turretsLost: o.turretsLost || 0, pops: o.pops || 0, ...(mode === 'league' ? {...rates(o, out.playS / 60), ...trickStats(o, out.playS / 60)} : {})}; } out.playS = +out.playS.toFixed(0); return out;
 }, mode, la, lb, +mins, +size, JSON.parse(process.env.BT || '{}'));

@@ -2,12 +2,12 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `bot-ladder`   Owner: Jared   Last updated: 2026-10-22 by Claude (Fable 5.1)
-Based on: origin/main + origin/bots-unstoppable 28e2da6 (PR #87)
-Doing: a headless self-play ladder for the top bots (`tools/bot-ladder.mjs`): Legend, Dribbler and Freestyler play each other and mutated children of themselves bot vs bot (1v1 and 2v2, Elo ratings, Grand Champion as the yardstick), each generation's winners go to `src/bots/evolved.json`, and the game offers the latest generation per archetype as "Gen N Dribbler" levels above Freestyler (`src/bots/evolved.js`, nothing changes without the file). Deterministic given the seed; a promotion gate refuses wins without football (touches, possession, shots, own-touch goals, the ball never stuck outside the arena). `tools/bot-ladder-check.mjs` runs one tiny generation twice in CI.
-Touches: new tools/bot-ladder.mjs, tools/bot-ladder-lib.mjs, tools/bot-ladder-check.mjs, src/bots/evolved.js, src/bots/evolved-levels.js, src/bots/evolved.json (+ evolved-log.json); src/bots/league.js (one import line), tools/ci-scope.mjs, .github/workflows/ci.yml (the matrix entry), rebuilt games/drone-league.
-Open items / help wanted: the ladder's children only step the profiles' numbers (bounds in bot-ladder-lib.mjs BOUNDS); new behaviour still needs code. A 3 sim-minute match is noisy (a promotion needs +2 goals over three matches vs the parent plus no regression vs Grand Champion), so expect slow, conservative progress; longer runs (`--minutes 120`) resume from the file.
-Overlaps: none known; it merges the final bots-unstoppable (every tier's knobs explicit on its DIFF entry).
+Branch: `bots-pass-5`   Owner: Jared   Last updated: 2026-10-22 by Claude (Fable 5.1)
+Based on: origin/main 6cc9b6d (PR #92 sound-boss, after #98 tournament), merged in on 2026-10-23
+Doing: five League bot behaviours as code, one module each under `src/bots/`, gated by profile keys from Legend up (lower tiers unchanged): the opponent model and the fake (`model.js`), possession shielding on the carry (`shield.js`), team rotation and passes into a teammate's lane (`team.js`), look-ahead planning with the real flight model under a deterministic CPU budget (`lookahead.js`) and wall / ceiling set-ups over a covered goal (`aerial.js`). See *League bots* below and the notes file.
+Touches: new src/bots/model.js, shield.js, team.js, lookahead.js, aerial.js; src/bots/league.js (hooks), dribble.js and freestyle.js (the shield, aerial-gated choices), src/config/constants.js (keys on Legend and up), tools/bot-match.mjs (look-ahead cost), tools/bot-ladder-lib.mjs (bounds for the new tunables), src/bots/evolved.json (the stored profiles got the new keys), rebuilt games/drone-league and the standalone copy.
+Open items / help wanted: see the results in *League bots* for what each matchup did; the 1v1 defender against a close-range shot is still the weak spot.
+Overlaps: none known.
 
 ## How to play
 
@@ -100,6 +100,18 @@ node tools/lint-comments.mjs --all           # every line (it is tuned to report
 node tools/lint-comments.mjs --strict        # exit 1 on findings (CI runs it this way: a finding fails the fast job)
 ```
 Fix a finding by moving the comment to the end of the line or using `/* */`. If a comment really means to quote code, put `lint-ok` in it.
+
+### League bots
+Eight skill levels (`DIFF` in `src/config/constants.js`, one profile object per tier; every knob a tier reads lives on its entry, a missing key falls back to the code's value). Rookie to All-Star fly the simple intercept controller; Legend, Champion and Grand Champion the shot planner (`src/bots/league.js`: placed shots at the open corner, goal-side shadowing, racing home, clearing) with a player's full thrust; Dribbler and Freestyler add the carry and pop mechanics (`dribble.js`, `freestyle.js`) whenever the ball is safely theirs. Same flight model, thrust and rate limits as a player for everyone. `node tools/bot-match.mjs league A B minutes size` plays two levels headless (`BT='{"D":{...},"DB":{...}}'` overrides keys per side).
+
+From Legend up, five behaviours (bots pass 5), each its own module and key, so a tier opts in:
+- **Opponent model and fakes** (`model.js`, `model`): each foe's commitment (speed toward where the ball will be) and closing time (his first touch plus his hesitation). The planner challenges a hesitating foe early and starts a run at the ball to draw a committed one, pulling out to the shadow spot once he commits.
+- **Possession shielding** (`shield.js`, `shield`, the carry): the body sits toward the nearest foe under the ball, the carry goes round a foe ahead, and the evasive pop (or a pass down a teammate's lane) fires at the modelled closing time, before contact.
+- **Team play** (`team.js`, `team`): rotation (a quad that just struck the ball drops back, the second man takes over, the last man keeps), the second man waits in a lane ahead of the ball, and the planner passes into a teammate's open lane when the lane is worth more than a covered shot.
+- **Look-ahead** (`lookahead.js`, `look`): every 0.15 s the attacker flies shot, pass, carry and defend a couple of seconds ahead with the real flight model (`flight/core.js quadAir`) and the real ball model, and picks the best expected goal value. Budget: `LOOK.perTick` look-aheads per tick for everyone (a count, so matches stay deterministic); the rest wait, and the planner plays as before. Measured 0.1-0.3 ms per look-ahead, ~0.01-0.02 ms per tick in a match (`bot-match` prints it).
+- **Ceiling and wall plays** (`aerial.js`, `aerial`): with the goal covered and the drop zone clear, the ball goes into the side wall or onto the ceiling and the next touch is the aerial on the way down; the Freestyler's ceiling play and wall feed are chosen the same way instead of by chance.
+
+Results (10-minute matches, half each side, `tools/bot-match.mjs`; main = every new key off): Dribbler v Grand Champion 16-7 -> 19-12 (1v1), 2-2 -> 8-4 (3v3); Legend v a scripted human (Champion-like planner, 200 ms reaction, vmax 80) 13-11 -> 18-7; Grand Champion v Champion 15-9 -> 36-11; Champion v Legend 27-8 -> 32-14. A 10-minute match between these levels swings by about 8 goals an hour under the same code, so the full tables, the ablations and the look-ahead's measured cost are in `Drone League/claude-project/drone-league-notes.md` (*Bots pass 5*).
 
 ### Bot self-play ladder
 The top League bots face each other headless and get better from it (`tools/bot-ladder.mjs`, shared pieces in `tools/bot-ladder-lib.mjs`). Matches run through the real modules in a headless browser (Vite dev server on a free port, draw calls stubbed) at full sim speed, bot vs bot, half the match each way.

@@ -24,13 +24,18 @@ export const BOUNDS = {
   top: {evT: [.2, 1, .45], kdR: [30, 120, 75], kdB: [60, 200, 120], bump: [60, 400], posT: [.3, 1.2, .6], posK: [.2, 1.2, .6], posG: [.6, 3, 1.5], posZ: [.4, .9, .66]},  /* posG: the carry loses the ball to a strong defender more than the planner does, so a wider margin may win */
   drib: {dv: [5, 20, 10], hold: [.2, 1.5], cm: [.3, 1, .6], cl: [2, 40, 4], nr: [5, 30, 10], sa: [8, 24, 12], sbk: [10, 36, 24], kc: [1, 6, 2.5], kn: [6, 24, 10], kv: [3, 14], ke: [2, 8], topR: [1, 3],
     apA: [12, 40, 22], apW: [2, 10, 5], apM: [.7, 1.1, .95], apG: [0, 1, .25], brk: [10, 40, 20], ayM: [20, 60, 40], sy: [1, 2.5, 1.4], sdc: [20, 80, 40], am: [15, 60], ah: [30, 80, 55], kg: [.5, 2.5, 1.2], wallR: [10, 35, 20], rm: [20, 100, 50], nh: [6, 20, 12], cy: [2, 14]},
-  fs: {tapP: [0, .6, 0], rdE: [.2, .9, .3], rdU: [.7, .98, .93], rdY: [.5, 4, 1], spP: [0, .6, .3], upP: [0, .8, .4], airP: [0, .7, .35], rsC: [0, .5, .25], ceP: [0, .4, .15], wpP: [0, .6, .35], hopP: [.2, .9, .6], tapA: [10, 24, 16], tapB: [24, 45, 32], spinL: [0, .8, .3], cutO: [2, 5, 3.5]}};
+  fs: {tapP: [0, .6, 0], rdE: [.2, .9, .3], rdU: [.7, .98, .93], rdY: [.5, 4, 1], spP: [0, .6, .3], upP: [0, .8, .4], airP: [0, .7, .35], rsC: [0, .5, .25], ceP: [0, .4, .15], wpP: [0, .6, .35], hopP: [.2, .9, .6], tapA: [10, 24, 16], tapB: [24, 45, 32], spinL: [0, .8, .3], cutO: [2, 5, 3.5]},
+  /* bots pass 5 (bots/model.js, shield.js, team.js, lookahead.js, aerial.js): the opponent model's hesitation, the fake, the carry's shield, passes and rotation, the look-ahead's values and the aerial set-ups */
+  play: {hes: [0, 1, .35], hesT: [.1, .8, .3], hesC: [.1, .7, .35], fkD: [4, 20, 10], shO: [.1, .5, .3], shA: [10, 40, 25], shD: [.3, 1.5, 1], shT: [.3, 1.2, .6], passG: [-.3, .3, -.1], passV: [.1, .8, .4], passW: [.5, 2.5, 1.2], laneD: [6, 24, 12], laneR: [5, 20, 10], laneM: [0, 1, .4], laneX: [8, 30, 18], laneB: [4, 24, 10], rotT: [.3, 3, .8], rotP: [.2, 2, .6], shF: [.2, 1, 1],
+    lkT: [.08, .4, .15], lkH: [1, 3, 2], lkM: [.3, 2, 1], lkC: [0, .6, .25], lkV: [0, .6, .35], lkD: [.2, 1.2, .8], lkF: [0, .5, .3], lkS: [.9, 1.4, 1.1], aerM: [-.3, .2, -.05], aerW: [20, 100, 60], aerD: [15, 45, 28], aerC: [12, 40, 24], aerK: [8, 30, 16], aerLo: [10, 40, 25]}};
 export const META = new Set(['n', 'id', 'gen', 'arch', 'parent']);  /* profile fields that are not tunables */
 /* the keys a profile may mutate, with their bounds */
 export function mutableKeys(p) {
   const out = [], add = (g, cond = true) => { if (!cond) return; for (const [k, b] of Object.entries(BOUNDS[g])) if (k in p || b.length > 2) out.push([k, b]); };
-  add('plan'); add('top', !!(p.drib || p.kdemo || 'bump' in p)); add('drib', !!p.drib); add('fs', !!p.fs);
-  return out.filter(([k, b]) => !(k === 'bump' && !('bump' in p)) && !(['kdR', 'kdB'].includes(k) && !p.kdemo) && !(['evT', 'posT', 'posK', 'posG', 'posZ'].includes(k) && !p.drib));
+  add('plan'); add('top', !!(p.drib || p.kdemo || 'bump' in p)); add('drib', !!p.drib); add('fs', !!p.fs); add('play', !!(p.model || p.shield || p.team || p.look || p.aerial));
+  const PLAY = {hes: 'model', hesT: 'model', hesC: 'model', fkD: 'model', shO: 'shield', shA: 'shield', shD: 'shield', shT: 'shield', passG: 'team', passV: 'team', passW: 'team', laneD: 'team', laneR: 'team', laneM: 'team', laneX: 'team', rotT: 'team', rotP: 'team',
+    lkT: 'look', lkH: 'look', lkM: 'look', lkC: 'look', lkV: 'look', lkD: 'look', lkF: 'look', lkS: 'look', aerM: 'aerial', aerW: 'aerial', aerD: 'aerial', aerC: 'aerial', aerK: 'aerial', aerLo: 'aerial'};  /* each play tunable belongs to one behaviour flag */
+  return out.filter(([k, b]) => !(k === 'bump' && !('bump' in p)) && !(['kdR', 'kdB'].includes(k) && !p.kdemo) && !(['evT', 'posT', 'posK', 'posG', 'posZ'].includes(k) && !p.drib) && !(PLAY[k] && !p[PLAY[k]]));
 }
 export const round4 = v => +(+v).toPrecision(4);
 /** a child of profile p: 1-3 of its tunables stepped by a gaussian of 8% of their range, clamped; returns {profile, keys: {k: [from, to]}} */
