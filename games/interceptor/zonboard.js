@@ -82,12 +82,14 @@ export function initOnboard(api,G,Z){
  function paint(){const c=A.cur;if(!card||!c)return;const h=c.fin?`✓ ${c.step.ok}`:c.step.hud();if(h!==last){card.querySelector('.t').innerHTML=last=h}
   card.classList.toggle('ok',!!c.fin);vis()}
  /* the base screen redraws itself; the button a prompt points at gets its glow back after each redraw */
- function glow(show){const s=A.cur?.step;for(const e of document.querySelectorAll('.zob-hl'))e.classList.remove('zob-hl');if(!s?.hl||!base())return;try{const e=s.hl();if(e){e.classList.add('zob-hl');if(show===true)e.scrollIntoView?.({block:'nearest'})}}catch(e){}}  /* show: scroll it into view (once, when the prompt opens, not on every redraw) */
+ /* the card is docked at the bottom of the base screen: a button scrolled to the bottom edge of its list sat under it, so the list scrolls a little further */
+ function clear(e){const c=card&&!card.hidden&&card.getBoundingClientRect(),r=e.getBoundingClientRect(),t=e.closest('.ztab');if(c&&t&&!(r.right<=c.left||r.left>=c.right||r.bottom<=c.top||r.top>=c.bottom))t.scrollTop+=r.bottom-c.top+12}
+ function glow(show){const s=A.cur?.step;for(const e of document.querySelectorAll('.zob-hl'))e.classList.remove('zob-hl');if(!s?.hl||!base())return;try{const e=s.hl();if(e){e.classList.add('zob-hl');if(show===true){e.scrollIntoView?.({block:'nearest'});clear(e)}}}catch(e){}}  /* show: scroll it into view (once, when the prompt opens, not on every redraw) */
  function say(s){const R=Z.radio;if(!R||!s.say)return;try{R.say('guide',2,'OVERLORD',s.say,{nb:1,over:true})}catch(e){}}
 
  /* ---------- the flow ---------- */
  function open(s){A.cur={step:s,left:s.ttl,fin:0};A.n[s.id]=(A.n[s.id]|0)+1;A.log.push(s.id);s.on?.();last='';say(s);
-  if(s.hl&&!mo&&Z.base.el){mo=new MutationObserver(()=>glow());mo.observe(Z.base.el,{childList:true,subtree:true})}glow(true);paint()}
+  if(s.hl&&!mo&&Z.base.el){mo=new MutationObserver(()=>glow());mo.observe(Z.base.el,{childList:true,subtree:true})}paint();glow(true)}
  function close(res){const c=A.cur;if(!c)return;const s=c.step;A.cur=null;A.gap=GAP;last='';
   if(res==='drop')A.st[s.id]=A.n[s.id]>=OPENS?'timeout':A.st[s.id];else A.st[s.id]=res;
   if(mo){mo.disconnect();mo=null}glow();if(card)card.hidden=true}

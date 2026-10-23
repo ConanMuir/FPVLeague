@@ -2050,6 +2050,8 @@ if (want('onboard')) {
   await p.evaluate(() => __u(() => __z.Z.onboard.step === 'helper', 6));
   const h0 = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); return {g: __g(), hl: document.querySelector('.zob-hl')?.dataset.buy === String(i), base: document.body.classList.contains('zb-open')}; });
   ok(h0.g.step === 'helper' && /Interceptor drone rack/.test(h0.g.text) && h0.hl && h0.base, `Onboard: on the base screen it asks for the first helper and glows the drone rack's button`);
+  const cov = await p.evaluate(() => { const c = document.getElementById('zob').getBoundingClientRect(), r = document.querySelector('.zob-hl').getBoundingClientRect(); return {hidden: !(r.right <= c.left || r.left >= c.right || r.bottom <= c.top || r.top >= c.bottom), card: [c.left, c.top, c.right, c.bottom].map(Math.round), btn: [r.left, r.top, r.right, r.bottom].map(Math.round)}; });
+  ok(!cov.hidden, `Onboard: the glowing Buy button is not under the guide card (card ${cov.card}, button ${cov.btn})`);
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-guide-helper.png'});
   /* the sell cards (zsell.js: a Sold card with an Undo in the Armory) do not confuse the glow: with another tab open it is the Shop tab, back on the Shop it is the rack's Buy button */
   const sc = await p.evaluate(async () => { const {Z, G} = __z, wait = () => new Promise(r => setTimeout(r, 40)), d = Z.base.act.place('rack', Z.def.SLOTS.findIndex((_, j) => Z.def.slotFree(j, 'rack')));
