@@ -1985,6 +1985,7 @@ if (want('scars')) {
 // warning; what the intel level shows; it follows the plan when a strike cuts it; the collapse toggle (and its memory); the radio line; nothing leaks ----------
 if (want('briefing')) {
   const {p, errs} = await page();
+  await p.evaluate(() => { const S = __z.api.S; S.zwx = 'wave'; delete S.zbrief; });  /* the weather plan on and the card open, whatever an earlier section left in the shared saved settings (the bosses section turns Zombies weather off) */
   await play(p);
   // inside the page: open the break of wave w at an intel level, read the card, spawn the wave (launch times squeezed under 1.5 s unless told otherwise) and measure what appeared
   await p.evaluate(() => {
@@ -2160,11 +2161,27 @@ if (want('endless')) {
   ok(CL.sp[1] / CL.sp[0] > 1.3 && CL.sp[2] > CL.sp[1] * 1.08 && Math.abs(CL.sp[3] / CL.sp[2] - 1) < .05 && CL.spOff < CL.sp[1] * .8, `Climb, speed: a Shahed flies ${CL.sp.map(v => v.toFixed(1)).join(' / ')} m/s at waves 20 / 60 / 100 / 140 (+40% at 60, capped at +60%; ${CL.spOff.toFixed(1)} at 60 without the climb)`);
   ok(CL.dk[0] === 1 && Math.abs(CL.dk[1] - 1.2) < 1e-9 && Math.abs(CL.dk[2] - 1.4) < 1e-9, `Climb, damage: a hit on a site is x${CL.dk.join(' / ')} at waves 20 / 40 / 60`);
   ok(CL.b[23] === 0 && CL.b[25] === 1 && CL.b[30] === 1 && CL.b[51] === 2 && CL.b[52] === 0 && CL.b[60] === 2 && CL.b[80] === 3 && CL.b25off === 0 && CL.b51off === 0, `Climb, bosses: ${JSON.stringify(CL.b)} (waves 23 / 25 / 30 / 51 / 52 / 60 / 80: every 5 waves past 20, every 3 past 50, two at a time from wave 50, three from 80); wave 25 without the climb has ${CL.b25off}`);
-  // the boss codex's pool, if that module is loaded (Z.codex.pool(wave), or Z.codexPool()), is drawn from;the Mothership escort of the Launch Complex does not double the boss
-  const CX = await p.evaluate(() => { const {Z, KIND} = __z, nb = L => L.filter(k => KIND[k.split(':')[0]].armor === 'boss'), none = nb(__z.plan(25).list).join(); Z.codexPool = () => ['jammer']; const a = nb(__z.plan(25).list).join(), b = nb(__z.plan(23).list).join(); delete Z.codexPool;
-    const asked = []; Z.codex = {pool: w => { asked.push(w); return ['hive']; }}; const c = nb(__z.plan(25).list).join(); delete Z.codex;  /* zcodex.js: Z.codex.pool(wave) wins over Z.codexPool() */
-    Z.endless.start('gate'); const g = nb(__z.plan(25).list).length, g2 = nb(__z.plan(30).list).length; return {none, a, b, c, asked: asked.join(), g, g2}; });
-  ok(CX.none === 'boss' && CX.a === 'jammer' && CX.b === '' && CX.c === 'hive' && CX.asked === '25' && CX.g === 1 && CX.g2 === 1, `Boss codex hook: with Z.codexPool = ["jammer"] the extra boss of wave 25 is the Jammer King, with Z.codex.pool(wave) = ["hive"] (asked for wave ${CX.asked}) it is the Hive (without either: ${CX.none}); none on wave 23; the Launch Complex's own Mothership escort is not doubled (${CX.g} on 25)`);
+  // the boss codex (zcodex.js): an Endless run's bosses come from its pool (unlocked and allowed), never from the sector's set piece; the Launch Complex's own Mothership escort does not double the boss
+  const CX = await p.evaluate(() => { const {Z, G, api, KIND} = __z, S = api.S, X = Z.codex, o = {}, R0 = Z.bosses.roster;
+    const bs = L => L.filter(k => { const K = KIND[k.split(':')[0]]; return K.armor === 'boss' || !!K.bossy; }), seen = (w, n) => { const m = {}; for (let i = 0; i < n; i++) for (const k of bs(__z.plan(w).list)) m[k] = (m[k] | 0) + 1; return m; };
+    const dex = (ids, off = []) => ({v: 1, b: Object.fromEntries([...ids, ...off].map(id => [id, {seen: true, beaten: true, allowed: !off.includes(id)}]))});
+    o.real = !!X && typeof X.pool === 'function' && typeof X.plan === 'function';
+    S.zcodex = dex([]); o.p0 = X.pool(25).join(); o.m0 = Object.keys(seen(25, 20)).join(); o.m23 = Object.keys(seen(23, 20)).join();
+    S.zcodex = dex(['jammer', 'hive']); o.p1 = X.pool(54); o.m1 = Object.keys(seen(54, 80)).sort(); o.dup = 0; o.n54 = new Set();  /* wave 54: two bosses a wave (climb 34) */
+    for (let i = 0; i < 40; i++) { const L = bs(__z.plan(54).list); o.n54.add(L.length); if (new Set(L).size !== L.length) o.dup++; } o.n54 = [...o.n54].join();
+    S.zcodex = dex(['hive'], ['jammer']); o.p2 = X.pool(54); o.m2 = Object.keys(seen(54, 80)).sort();
+    S.zcodex = dex([], ['boss', 'jammer', 'hive']); o.p3 = X.pool(25).length; const l3 = __z.plan(25).list; o.m3 = bs(l3).length; o.l3 = l3.length;  /* every boss switched off: the codex's heavy raid instead */
+    S.zcodex = dex(['jammer']); Z.bosses.roster = true;  /* the real rotation, as a player has it: an Endless run is planned by the codex's Quick defence rotation, a campaign sector by its set piece (the every-10 Mothership goes) */
+    o.endless10 = bs(Z.bossCompose(['boss', 'shahed'], 10)).length;
+    Z.cp.start('river', true); o.camp = !Z.endless.on(); o.camp10 = bs(Z.bossCompose(['boss', 'shahed'], 10)).length;
+    Z.bosses.roster = R0; delete S.zcodex; Z.endless.start('gate');
+    o.g = bs(__z.plan(25).list).length; o.g2 = bs(__z.plan(30).list).length; return o; });
+  ok(CX.real && CX.p0 === 'boss' && CX.m0 === 'boss' && CX.m23 === '', 'Boss codex: with nothing beaten the pool is the Mothership alone, and the extra boss of Endless wave 25 is that; wave 23 has none (' + CX.p0 + ' / ' + CX.m0 + ')');
+  ok(CX.p1.includes('jammer') && CX.m1.includes('jammer') && CX.m1.every(k => CX.p1.includes(k)) && CX.m1.length >= 2 && CX.n54 === '2' && CX.dup === 0, 'Boss codex: with the Jammer King and the Hive beaten, wave 54\'s two Endless bosses come from the pool (' + CX.p1 + ') and from nowhere else (' + CX.m1 + '), never the same twice in a wave');
+  ok(CX.p2.length > 0 && !CX.p2.includes('jammer') && !CX.m2.includes('jammer') && CX.m2.every(k => CX.p2.includes(k)), 'Boss codex: with the Jammer King switched off (Allowed) it never comes (' + CX.m2 + ' of ' + CX.p2 + ')');
+  ok(CX.p3 === 0 && CX.m3 === 0 && CX.l3 > 0, 'Boss codex: with every boss switched off Endless wave 25 brings the codex\'s heavy raid, no boss (' + CX.l3 + ' tracks)');
+  ok(CX.endless10 === 1 && CX.camp && CX.camp10 === 0, 'Boss codex: an Endless run keeps its every-10 boss through the Quick defence rotation (' + CX.endless10 + '), a campaign sector\'s set piece takes the Mothership out (' + CX.camp10 + ')');
+  ok(CX.g === 1 && CX.g2 === 1, 'Launch Complex Endless: its own Mothership escort is not doubled by the climb (' + CX.g + ' boss on wave 25, ' + CX.g2 + ' on 30)');
   // the Launch Complex's "Enemy launch sites": the sorties feature flag is set, so the modifier is real (not the second Heavy pressure it fell back to) and the world has the extra sites
   const LS = await p.evaluate(() => { const {Z, G} = __z, W = Z.so.W, o = {feat: Z.feat?.sorties, n: Z.cp.n('launchSites'), ids: Z.cp.run.mods.map(m => m.id).join()}, count = s => W.list.filter(t => t.t === 'launch' && t.sec === s).length;
     o.per = [0, 1, 2].map(count).join(); const two = W.list.filter(t => t.t === 'launch' && t.sec === 1), cuts = () => (G.cuts || []).filter(c => c.src === 'launch' && c.sec === 1).length; o.eff = '';

@@ -7,7 +7,7 @@
 //   armour     1.5% a wave of the Shahed points arrive as armored heavies instead (up to 60%): proximity bursts only damage them
 //   damage     every hit on a site is 1% a wave heavier (no limit)
 //   bosses     a boss every 10 waves up to wave 20, every 5 up to 50, every 3 after it; two at a time from RAMP + 30, three from RAMP + 60
-//              (extra boss waves are a quarter lighter in everything else). The roster picks which; the boss codex (Z.codex.pool(w), if loaded) narrows it to the bosses you have unlocked and allowed
+//              (extra boss waves are a quarter lighter in everything else). They are drawn from the boss codex's pool (zcodex.js): the bosses you have unlocked and allowed
 // Milestone every 10 waves: the wave is cleared and every site is repaired by a quarter, with a purse of $800 x (wave / 10).
 // The sector's scars (zscars.js) carry in from the campaign, grow with every wave and are saved at every wave clear and at the end,
 // into the same place the campaign keeps them (S.zcamp.sc), so the next run on that sector starts on the same ground.
@@ -55,8 +55,12 @@ export function initEndless(api,G,Z){
 
  /* ---------- the climb ---------- */
  const isB=k=>{const K=KIND[String(k).split(':')[0]];return!!K&&(K.armor==='boss'||!!K.bossy)};
- /* one boss: drawn from the boss codex's pool when that module is loaded (zcodex.js: Z.codex.pool(w), the unlocked and allowed bosses that may come on wave w; Z.codexPool() is the same without the wave), else the roster's pick for this wave */
- function bossId(w){const cp=Z.codex?.pool?.(w)||Z.codexPool?.();if(cp?.length)return cp[Math.random()*cp.length|0];const t=['boss'];Z.bossCompose?.(t,w);return t[0]}
+ /* n bosses for wave w, drawn from the boss codex's pool (zcodex.js Z.codex.pool(w): the bosses you have unlocked and allowed that may come on that wave), none twice while the pool lasts.
+    With every boss switched off the codex gives its heavy raid instead (Z.codex.plan), as it does in the Quick defence. The codex also plans the Endless run's own boss waves (the
+    Quick defence rotation: zcodex.js leaves Endless out of the campaign's set pieces), so this only tops them up to the count of the climb. */
+ function bosses(w,n){const C=Z.codex,pool=()=>C?.pool?C.pool(w):['boss'],p=pool().slice();
+  if(!p.length){const t=['boss'];C.plan(t,w);return t.filter(k=>!isB(k))}
+  const out=[];while(out.length<n){if(!p.length)p.push(...pool());out.push(p.splice(Math.random()*p.length|0,1)[0])}return out}
  function escalate(out,w){if(climb(w)<=0)return out;
   /* armour: three Shaheds out, one armored heavy in */
   const n=Math.round(out.filter(k=>k==='shahed').length*armorK(w)/3)*3;
@@ -64,7 +68,7 @@ export function initEndless(api,G,Z){
   /* bosses: the due waves get their count; a wave that was not a boss wave gives up a quarter of the rest */
   if(bossDue(w)){const have=out.filter(isB).length,want=bossCount(w);
    if(want>have){if(!have)for(let i=out.length-1;i>=0;i--)if(!isB(out[i])&&!/^(ballistic|hyper|icbm)$/.test(out[i])&&Math.random()<.25)out.splice(i,1);
-    for(let i=have;i<want;i++)out.push(bossId(w))}}
+    out.push(...bosses(w,want-have))}}
   /* more of everything: each entry but the bosses is copied by the wave's extra share, up to the cap */
   const f=countK(w)-1;let room=CAP_TRACKS-units(out);
   if(f>0&&room>0){const add=[];for(const e of out)if(!isB(e)){const c=Math.floor(f)+(Math.random()<f%1?1:0);for(let j=0;j<c;j++)add.push(e)}
