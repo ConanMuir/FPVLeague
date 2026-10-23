@@ -27,6 +27,7 @@ export const CAM={fn:null};
 export function updateCam(dt,now){const me=GS.player;bfov+=((me?.boostOn?14:0)-bfov)*Math.min(1,dt*(me?.boostOn?10:4));
  if(CAM.fn){chaseOn=false;CAM.fn(camera,dt,setFov);camEnd(dt);return}
  if(GS.menuOpen&&GS.demo&&GS.OBSON||!me&&GS.OBSON){chaseOn=false;const t=now*3e-5;camPos.set(Math.sin(t)*300,150+Math.sin(t*1.7)*25,Math.cos(t)*400);camera.position.copy(camPos);camera.lookAt(0,20,0);setFov(55,false);return}
+ if(!me&&GS.spect&&!GS.OBSON){chaseOn=false;tvCam(dt);camEnd(dt);return}
  if(GS.menuOpen&&GS.demo||!me){chaseOn=false;const t=now*4e-5;camPos.set(Math.sin(t)*W*.85,45+Math.sin(t*1.7)*10,Math.cos(t)*L*.75);camera.position.copy(camPos);camera.lookAt(ball.p.x*.5,6,ball.p.z*.5);setFov(55,false);return}
  const fpv=GS.camMode===0&&me.dead<=0;me.mesh.visible=!fpv&&me.dead<=0;me.mark.visible=!fpv;
  if(fpv){chaseOn=false;camera.position.copy(me.p).add(_cp.set(0,.25,-.38).multiplyScalar(DRAD/.6).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camTilt(dt)*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);
@@ -48,6 +49,9 @@ if(GS.OBSON){_cp.x=cl(_cp.x,-DHW+1,DHW-1);_cp.z=cl(_cp.z,-DHL+1,DHL-1);if(me.p.y
    else camPos.y=Math.max(camPos.y,dfHt(camPos.x,camPos.z)+1.5)}
   camera.position.copy(camPos);camera.lookAt(GS.camMode===2||me.dead>0?foc:_t.copy(me.p).addScaledVector(camFwd,8).setY(me.p.y+1));setFov(100+bfov)}
  camEnd(dt)}
+// spectating (GS.spect, a tournament's bot match): a broadcast seat high over the side line that slides along with the ball and tracks it
+const _tv=new V3();
+function tvCam(dt){const b=ball.p;_cp.set(HW*1.2,34+b.y*.25,b.z*.5);camPos.lerp(_cp,1-Math.exp(-dt*2));_tv.lerp(_t.set(b.x*.85,b.y*.7+3,b.z*.85),1-Math.exp(-dt*5));camera.position.copy(camPos);camera.lookAt(_tv);setFov(62,false)}
 // every camera but the menu orbits: the Highlands sun, fog and tree LOD follow it, then the shake
 function camEnd(dt){if(GS.OBSON){sun.target.position.set(camera.position.x,0,camera.position.z);sun.position.copy(sun.target.position).add(LOOKS.df.sp);dfAtmos(camera,dt);dfLod(camera)}  // dfAtmos: fog closes in underground; dfLod: far forests draw low-detail trees
  if(GS.shake>.01){camera.position.add(_t.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(GS.shake*.7*SHK));GS.shake*=Math.exp(-dt*4)}}

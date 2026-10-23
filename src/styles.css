@@ -300,3 +300,24 @@ body.fpson #toasts{top:calc(56px + env(safe-area-inset-top,0px))}body.fpson #lsi
 .toast.out{opacity:0;transform:translateX(30px);transition:opacity .4s,transform .4s}@keyframes toastin{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
 @media (max-width:760px){.pfgrid,.achg{grid-template-columns:1fr}.pfunl.gcat.gcos{grid-template-columns:repeat(3,1fr)}.pfhead{flex-wrap:wrap;justify-content:space-between}.pfid{flex:1 1 100%;order:3}.pflv{width:60px;height:60px}.pflv b{font-size:28px}}
 @media (max-height:760px) and (min-width:761px){.nav{gap:5px}.nav button{padding-block:9px}.nav button.go{padding-block:12px}}  /* eight menu buttons still fit a 720p screen */
+/* Tournament (ui/tournament.js): the setup grid and slot rows, the bracket columns and match boxes, the standings table, the champion card */
+.tnset{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;margin:0 0 12px}.tnset label{display:flex;flex-direction:column;gap:3px;font:700 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.tnslots{display:grid;grid-template-columns:repeat(2,1fr);gap:5px 12px}
+.tnslot{display:grid;grid-template-columns:28px 1fr auto auto;gap:5px;align-items:center;padding:3px 6px 3px 3px;background:rgba(255,255,255,.035);border-left:3px solid rgba(255,255,255,.15);cursor:grab}
+.tnslot.hu{border-left-color:var(--blue);background:rgba(61,149,255,.1)}.tnslot.over{outline:2px dashed var(--amber);outline-offset:-2px}.tnslot select{min-width:0}
+.tnseed{font:700 12px var(--mono);color:var(--dim);text-align:center}.tnmv{padding:4px 8px;font-size:10px}
+.tnbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px}.tnbar .note{margin:0;flex:1}
+.tnb{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 8px;align-items:stretch}
+.tnr{display:flex;flex-direction:column;justify-content:space-around;gap:10px;min-width:200px;flex:none}.tnr h4{margin:0;font:700 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.tnm{display:flex;flex-direction:column;background:linear-gradient(165deg,rgba(26,34,56,.9),rgba(10,14,26,.86));border:1px solid rgba(150,180,255,.12);border-left:3px solid rgba(255,255,255,.15)}
+.tnm.next{border-left-color:var(--amber)}.tnm.live{border-left-color:#7dff9a;box-shadow:0 0 0 1px rgba(125,255,154,.4)}.tnm.void{opacity:.4}
+.tns{display:grid;grid-template-columns:22px 1fr auto;gap:6px;align-items:center;padding:5px 8px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.05)}
+.tns u{font:700 10px var(--mono);color:var(--dim);text-decoration:none}.tns span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tns i{color:var(--dim);font-style:italic}.tns b{font:700 14px var(--mono);min-width:1.2em;text-align:right}
+.tns.win{color:#fff}.tns.win b{color:#7dff9a}.tns.lose{color:var(--dim)}.tns.hu span{color:#9fd0ff;font-weight:700}
+.tna{display:flex;gap:5px;padding:5px 8px;align-items:center}.tna button{padding:5px 10px;font-size:12px;flex:1}.tna small{font:700 11px var(--mono);color:#7dff9a}
+.tnt td,.tnt th{text-align:center}.tnt td:nth-child(2),.tnt th:nth-child(2){text-align:left}.tnt td{font-family:var(--mono)}.tnt td:nth-child(2){font-family:var(--disp);font-weight:600}.tnt tr.hu td:nth-child(2){color:#9fd0ff}.tnt tr.champ td{color:var(--amber)}
+.tnwin{display:flex;align-items:center;gap:16px;padding:14px 16px;margin:0 0 6px;background:linear-gradient(90deg,rgba(255,198,64,.14),rgba(255,198,64,.02));border-left:3px solid var(--amber)}
+.tnwin i{flex:none;display:flex;width:52px;height:52px;align-items:center;justify-content:center;transform:skewX(-10deg);background:linear-gradient(160deg,#ffe08a,var(--amber));color:#140a00}.tnwin i svg{width:30px;height:30px}
+.tnwin div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.tnwin span{font:700 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--amber)}.tnwin b{font:italic 700 26px/1.1 var(--disp);text-transform:uppercase}.tnwin small{font:12px var(--disp);color:var(--dim)}
+.tnwin.mine b{color:#fff;text-shadow:0 0 18px rgba(255,198,64,.5)}.tnwin .mp{margin:0}
+@media (max-width:760px){.tnset{grid-template-columns:1fr 1fr}.tnslots{grid-template-columns:1fr}.tnr{min-width:170px}}
