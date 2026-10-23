@@ -3,7 +3,7 @@ Rocket league but with drones
 
 ## Branch status
 Branch: `bots-pass-5`   Owner: Jared   Last updated: 2026-10-22 by Claude (Fable 5.1)
-Based on: origin/main febf1b4 (PR #88, after the bot ladder #94)
+Based on: origin/main 6cc9b6d (PR #92 sound-boss, after #98 tournament), merged in on 2026-10-23
 Doing: five League bot behaviours as code, one module each under `src/bots/`, gated by profile keys from Legend up (lower tiers unchanged): the opponent model and the fake (`model.js`), possession shielding on the carry (`shield.js`), team rotation and passes into a teammate's lane (`team.js`), look-ahead planning with the real flight model under a deterministic CPU budget (`lookahead.js`) and wall / ceiling set-ups over a covered goal (`aerial.js`). See *League bots* below and the notes file.
 Touches: new src/bots/model.js, shield.js, team.js, lookahead.js, aerial.js; src/bots/league.js (hooks), dribble.js and freestyle.js (the shield, aerial-gated choices), src/config/constants.js (keys on Legend and up), tools/bot-match.mjs (look-ahead cost), tools/bot-ladder-lib.mjs (bounds for the new tunables), src/bots/evolved.json (the stored profiles got the new keys), rebuilt games/drone-league and the standalone copy.
 Open items / help wanted: see the results in *League bots* for what each matchup did; the 1v1 defender against a close-range shot is still the weak spot.
