@@ -20,8 +20,8 @@ export const gauss = rnd => { let u = 0, v = 0; while (u === 0) u = rnd(); while
    everyone, so nothing here makes a bot stronger than a player's quad). A key without a default is only mutated when the profile has it
    (its default differs between code paths, e.g. kv / ke / am / cy in bots/dribble.js and bots/freestyle.js). */
 export const BOUNDS = {
-  plan: {kp: [1, 3], kd: [2, 6], vmax: [60, 120], att: [8, 30], rate: [8, 30], react: [.01, .15], noise: [0, .6], slack: [.8, 1.25], ka: [.5, 3, 1.5], fl: [.2, .9, .55], shd: [0, .6, .2], clrZ: [20, 90, 50]},
-  top: {evT: [.2, 1, .45], kdR: [30, 120, 75], kdB: [60, 200, 120], bump: [60, 400], posT: [.3, 1.2, .6], posK: [.2, 1.2, .6], posG: [.6, 2.5, 1.5], posZ: [.4, .9, .66]},
+  plan: {kp: [1, 3], kd: [2, 6], vmax: [60, 115], att: [8, 30], rate: [8, 30], react: [.01, .15], noise: [0, .6], slack: [.8, 1.25], ka: [.5, 3, 1.5], fl: [.2, .9, .55], shd: [0, .6, .2], clrZ: [20, 90, 50]},  /* vmax: above ~110 every tier got worse (own goals from wild touches), so the top stays at the profiles' 115 */
+  top: {evT: [.2, 1, .45], kdR: [30, 120, 75], kdB: [60, 200, 120], bump: [60, 400], posT: [.3, 1.2, .6], posK: [.2, 1.2, .6], posG: [.6, 3, 1.5], posZ: [.4, .9, .66]},  /* posG: the carry loses the ball to a strong defender more than the planner does, so a wider margin may win */
   drib: {dv: [5, 20, 10], hold: [.2, 1.5], cm: [.3, 1, .6], cl: [2, 40, 4], nr: [5, 30, 10], sa: [8, 24, 12], sbk: [10, 36, 24], kc: [1, 6, 2.5], kn: [6, 24, 10], kv: [3, 14], ke: [2, 8], topR: [1, 3],
     apA: [12, 40, 22], apW: [2, 10, 5], apM: [.7, 1.1, .95], apG: [0, 1, .25], brk: [10, 40, 20], ayM: [20, 60, 40], sy: [1, 2.5, 1.4], sdc: [20, 80, 40], am: [15, 60], ah: [30, 80, 55], kg: [.5, 2.5, 1.2], wallR: [10, 35, 20], rm: [20, 100, 50], nh: [6, 20, 12], cy: [2, 14]},
   fs: {tapP: [0, .6, 0], rdE: [.2, .9, .3], rdU: [.7, .98, .93], rdY: [.5, 4, 1], spP: [0, .6, .3], upP: [0, .8, .4], airP: [0, .7, .35], rsC: [0, .5, .25], ceP: [0, .4, .15], wpP: [0, .6, .35], hopP: [.2, .9, .6], tapA: [10, 24, 16], tapB: [24, 45, 32], spinL: [0, .8, .3], cutO: [2, 5, 3.5]}};
@@ -71,10 +71,15 @@ export function gate(S) {
   return {ok: why.length === 0, why, stats: {min: f(min), touchesPerMin: f(S.touches / min), possession: S.posAll ? f(S.pos / S.posAll) : null, shotsPerMin: f(S.shots / min), gf: S.gf, ga: S.ga, scored: S.scored, ownGoals: S.own, carrySPerMin: f(S.carry / min), popsPerMin: f(S.pops / min), demoed: S.demoed, out: S.out, outRun: S.outRun, outMax: f(S.outMax), nan: S.nan}};
 }
 
-/* ---------- the file (src/bots/evolved.json): every generation's result, resumable ---------- */
+/* ---------- the file (src/bots/evolved.json): the ladder's state, resumable: generation, ratings, records, champions and every promoted
+   profile with its lineage. The game bundles this file (bots/evolved.js), so the match-by-match log goes beside it in evolved-log.json
+   (the last 400 entries), which nothing imports. */
 export const emptyFile = seed => ({v: FILE_V, seed, gen: 0, games: 0, ratings: {}, records: {}, champs: {}, profiles: [], log: []});
-export function loadFile(file) { if (!fs.existsSync(file)) return null; const d = JSON.parse(fs.readFileSync(file, 'utf8')); if (d.v !== FILE_V) throw new Error(`${file}: version ${d.v}, expected ${FILE_V}`); return d; }
-export function saveFile(file, d) { d.log = d.log.slice(-400); fs.mkdirSync(path.dirname(file), {recursive: true}); fs.writeFileSync(file, JSON.stringify(d, (k, v) => typeof v === 'number' && !Number.isInteger(v) ? round4(v) : v) + '\n'); }
+export const logFileOf = file => file.replace(/\.json$/i, '') + '-log.json';
+export function loadFile(file) { if (!fs.existsSync(file)) return null; const d = JSON.parse(fs.readFileSync(file, 'utf8')); if (d.v !== FILE_V) throw new Error(`${file}: version ${d.v}, expected ${FILE_V}`);
+  if (!Array.isArray(d.log)) d.log = fs.existsSync(logFileOf(file)) ? JSON.parse(fs.readFileSync(logFileOf(file), 'utf8')) : []; return d; }
+export function saveFile(file, d) { const num = (k, v) => typeof v === 'number' && !Number.isInteger(v) ? round4(v) : v; d.log = d.log.slice(-400); fs.mkdirSync(path.dirname(file), {recursive: true});
+  const {log, table, page, ...main} = d; fs.writeFileSync(file, JSON.stringify(main, num) + '\n'); fs.writeFileSync(logFileOf(file), JSON.stringify(log, num) + '\n'); }
 export function validateFile(d, roster = []) {
   const bad = [];
   if (!d || d.v !== FILE_V) bad.push('version');
@@ -91,17 +96,20 @@ export function validateFile(d, roster = []) {
 /* ---------- the browser: one headless window, N pages, each with the game booted and the match runner installed ---------- */
 export async function openPages(n, errs) {
   const {createServer} = await import('vite');
-  const server = await createServer({root, logLevel: 'error', server: {port: 0, host: '127.0.0.1'}}); await server.listen();
+  /* no file watcher and no HMR: the ladder writes src/bots/evolved.json between generations, which bots/evolved.js imports, and a watching dev server would reload every page mid-match */
+  const server = await createServer({root, logLevel: 'error', server: {port: 0, host: '127.0.0.1', hmr: false, watch: null}}); await server.listen();
   const b = await launchBrowser({protocolTimeout: 0, args: ['--ignore-gpu-blocklist']}), pages = [], url = server.resolvedUrls.local[0] + 'app.html';
+  const boot = async (p, i) => {
+    await p.goto(url); await gameReady(p); p.info = await p.evaluate(PAGE_SETUP);
+    /* main.js queues first-use work for idle time (render/warm.js: shaders, textures, the Highlands and its Rapier colliders); a task landing
+       between two matches would change the physics world's collider set mid-ladder, so PAGE_SETUP does them all and the queue is waited out
+       here (nothing else runs in idle time after it) */
+    await until(() => p.evaluate(async () => (await import('/src/render/warm.js')).warmLeft().length === 0), {timeout: 240000, every: 250, what: 'the warm-up queue'});
+  };
   for (let i = 0; i < n; i++) {
     const p = await b.newPage(); await installRenderStub(p, true); p.setDefaultTimeout(0);
     p.on('pageerror', e => errs.push(`page ${i}: ${e.message}`)); p.on('error', e => errs.push(`page ${i} crashed: ${e.message}`));
-    await p.goto(url); await gameReady(p); p.info = await p.evaluate(PAGE_SETUP);
-    /* main.js queues first-use work for idle time (render/warm.js: shaders, textures, the Highlands and its Rapier colliders); a task landing
-       between two matches would change the physics world's collider set mid-ladder, so the Rapier part is built in PAGE_SETUP and the rest is
-       waited out here (nothing else runs in idle time after it) */
-    await until(() => p.evaluate(async () => (await import('/src/render/warm.js')).warmLeft().length === 0), {timeout: 240000, every: 250, what: 'the warm-up queue'});
-    pages.push(p);
+    await boot(p, i); p.reboot = () => boot(p, i); pages.push(p);
   }
   return {pages, close: async () => { await b.close(); await server.close(); }};
 }
@@ -110,26 +118,31 @@ const PAGE_SETUP = async () => {
   const DF = await import('/src/modes/dogfight.js'), MA = await import('/src/modes/match.js'), {GS} = await import('/src/state.js'), ST = await import('/src/modes/step.js'),
     {ball} = await import('/src/physics/ball.js'), {DIFF} = await import('/src/config/constants.js'), {STOCK} = await import('/src/parts/index.js'),
     {onEv} = await import('/src/core/events.js'), {sdf} = await import('/src/physics/sdf.js'), {BR} = await import('/src/config/tune.js'), {topOf} = await import('/src/bots/dribble.js'),
-    {warmDFPhys} = await import('/src/physics/world.js');
+    {warmDFPhys} = await import('/src/physics/world.js'), {compileFor, scene} = await import('/src/render/renderer.js'), {warmOutdoor} = await import('/src/world/outdoor.js'),
+    {warmGarage} = await import('/src/ui/garage.js'), {buildDF} = await import('/src/world/highlands.js'), {warmLook} = await import('/src/world/maps.js');
   let touch = null, shot = null; onEv('touch', e => { touch = e.d; if (e.verdict === 'shot') shot = e.d; });
-  warmDFPhys();  /* the Highlands colliders now, not in idle time between two matches (openPages) */
+  for (const f of [() => compileFor(scene), warmOutdoor, warmGarage, buildDF, warmDFPhys, () => warmLook('df')]) try { f(); } catch (e) { console.warn('warm-up failed', e); }  /* main.js's idle-time first-use work, done now (the Highlands colliders change the physics world; openPages waits for the queue itself) */
   DF.setGame('league'); MA.startDemo(); GS.paused = true; GS.menuOpen = true;
-  const mulberry = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  /* the match's Math.random: seeded afresh at every tick from (match seed, tick), because the effects and sound the sim's events trigger draw
+     from the same generator and how much they draw depends on wall-clock things (graphics quality, cooldowns); inside a tick the bots and the
+     flight model draw before any touch or demolition effect does, so the sim's draws never move */
+  let rs = 0; const seeded = () => { rs = rs + 0x6D2B79F5 | 0; let t = Math.imul(rs ^ rs >>> 15, 1 | rs); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const reseed = (seed, i) => { rs = Math.imul(seed ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul(i + 1, 0xC2B2AE35); rs = Math.imul(rs ^ rs >>> 13, 0x27D4EB2F) | 0; };
   const _r = new (ball.p.constructor)(), onTop = d => { _r.subVectors(ball.p, d.p); const h = topOf(d) + BR; return Math.hypot(_r.x, _r.z) < 1.2 && _r.y > h - .5 && _r.y < h + .6; };
   const fresh = () => ({touches: 0, pos: 0, shots: 0, gf: 0, ga: 0, scored: 0, own: 0, carry: 0, pops: 0, demoed: 0}), BASE = DIFF.length;
   /* one match: profile objects pa, pb (full DIFF entries), team size, sim seconds (half each way), seed. Side A is blue in the first half, orange in the second. */
   window.__ladder = {match(pa, pb, size, secs, seed) {
-    DIFF.length = BASE; const ia = DIFF.push({...pa}) - 1, ib = DIFF.push({...pb}) - 1, R0 = Math.random; Math.random = mulberry(seed);
+    DIFF.length = BASE; const ia = DIFF.push({...pa}) - 1, ib = DIFF.push({...pb}) - 1, R0 = Math.random; Math.random = seeded; reseed(seed, -1);
     try {
       for (const d of GS.drones) d.dispose(); GS.drones = []; GS.player = null;
       MA.applySlots([0, 1].map(t => Array.from({length: size}, (_, i) => 'b' + t + i))); for (const d of GS.drones) d.setLoadout(STOCK);
       ball.w.set(0, 0, 0); ball.q.identity(); ball.v0.set(0, 0, 0); ball.c = false; ball.n.set(0, 1, 0); ball.hit = 0; GS.stepN = 0;  /* what kickoff() leaves from the game before: spin, contact, the predict / roles phase */
       const dt = 1 / 120, n = Math.round(secs / 2 / dt), T = {A: fresh(), B: fresh()}; let play = 0, out = 0, outRun = 0, outMax = 0, run = 0, nan = 0;
       for (const half of [0, 1]) {
-        const side = d => d.team === half ? 'A' : 'B'; for (const d of GS.drones) d.skill = d.team === half ? ia : ib; GS.score = [0, 0]; MA.kickoff();
+        const side = d => d.team === half ? 'A' : 'B'; for (const d of GS.drones) d.skill = d.team === half ? ia : ib; GS.score = [0, 0]; reseed(seed, half * n - 1); MA.kickoff();
         let last = null, li = -1e9, ls = null, lsi = -1e9, sc = [0, 0];
         for (let i = 0; i < n; i++) {
-          touch = null; shot = null; const was = GS.drones.map(d => d.dead > 0), pt = GS.drones.map(d => d.popT > 0); ST.step(dt);
+          touch = null; shot = null; const was = GS.drones.map(d => d.dead > 0), pt = GS.drones.map(d => d.popT > 0); reseed(seed, half * n + i); ST.step(dt);
           const playing = GS.state === 'play';
           if (playing) { play += dt; if (ball.last) T[side(ball.last)].pos += dt; for (const d of GS.drones) if (d.dead <= 0 && onTop(d)) T[side(d)].carry += dt;
             if (!Number.isFinite(ball.p.x + ball.p.y + ball.p.z + ball.v.x + ball.v.y + ball.v.z)) nan++;
@@ -147,9 +160,13 @@ const PAGE_SETUP = async () => {
   }};
   return {levels: DIFF.map(d => d.n), select: [...document.querySelectorAll('#f_diff option')].map(o => o.textContent)};
 };
-/* a pool: jobs {pa, pb, size, secs, seed} run on free pages, results land in job.r in any order (ratings are applied in job order after) */
+/* a pool: jobs {pa, pb, size, secs, seed} run on free pages, results land in job.r in any order (ratings are applied in job order after).
+   A page whose match throws (a renderer crash, a navigation) is booted again and the match run once more: same seed, same result. */
 export async function runJobs(pages, jobs, onDone) {
-  let next = 0; const worker = async p => { for (;;) { const j = jobs[next++]; if (!j) return; j.r = await p.evaluate((pa, pb, size, secs, seed) => window.__ladder.match(pa, pb, size, secs, seed), j.pa, j.pb, j.size, j.secs, j.seed); if (onDone) onDone(j); } };
+  let next = 0; const one = (p, j) => p.evaluate((pa, pb, size, secs, seed) => window.__ladder.match(pa, pb, size, secs, seed), j.pa, j.pb, j.size, j.secs, j.seed);
+  const worker = async p => { for (;;) { const j = jobs[next++]; if (!j) return;
+    try { j.r = await one(p, j); } catch (e) { console.warn(`match ${j.pa.id} v ${j.pb.id} failed (${String(e.message).split('\n')[0]}); booting the page again`); await p.reboot(); j.r = await one(p, j); }
+    if (onDone) onDone(j); } };
   await Promise.all(pages.map(worker));
 }
 
@@ -158,28 +175,30 @@ export const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 export const strip = p => { const o = {}; for (const k in p) if (!META.has(k)) o[k] = p[k]; return o; };
 export const fmtRes = j => `${j.size}v${j.size} ${j.r.gA}-${j.r.gB}`;
 /**
- * opts: {out, seed, roster, cands, matchMin, parallel, minutes, gens, rr, rrEnd, fresh, log}; returns the file's data (also written to opts.out).
- * One generation: for each archetype, `cands` children of its champion each play it 1v1 and 2v2 (a confirmation 1v1 when ahead); the best
- * child that is ahead by 2 goals, has more wins than losses and passes the gate becomes the champion. The loop stops at `gens` or the
- * wall-clock budget `minutes` (a generation is only started when the last one's duration still fits).
+ * opts: {out, seed, roster, yardstick, cands, matchMin, parallel, minutes, gens, rr, rrEnd, fresh, log}; returns the file's data (also written to opts.out).
+ * One generation: for each archetype, `cands` children of its champion each play it 1v1 and 2v2 (a confirmation 1v1 when ahead) and the
+ * yardstick 1v1 (the champion plays it too, as the bar); the best child that is ahead of its parent by 2 goals with more wins than losses,
+ * does at least as well against the yardstick as the champion did, and passes the gate becomes the champion. The loop stops at `gens` or
+ * the wall-clock budget `minutes` (a generation is only started when the last one's duration still fits).
  */
 export async function runLadder(opts) {
-  const o = {out: path.join(root, 'src/bots/evolved.json'), seed: 1, roster: ['Legend', 'Dribbler', 'Freestyler'], cands: 3, matchMin: 3, parallel: 2, minutes: 0, gens: 0, rr: true, rrEnd: true, fresh: false, log: console.log, ...opts};
+  const o = {out: path.join(root, 'src/bots/evolved.json'), seed: 1, roster: ['Legend', 'Dribbler', 'Freestyler'], yardstick: 'Grand Champion', cands: 3, matchMin: 3, parallel: 2, minutes: 0, gens: 0, rr: true, rrEnd: true, fresh: false, log: console.log, ...opts};
   const say = o.log || (() => {}), T0 = Date.now(), el = () => `[${((Date.now() - T0) / 1000).toFixed(0).padStart(4)} s]`;
   const {DIFF} = await import(pathToFileURL(path.join(root, 'src/config/constants.js')).href);
   const BASES = Object.fromEntries(DIFF.map(d => [d.n, d]));
-  for (const n of o.roster) if (!BASES[n]) throw new Error(`unknown level ${n}; levels: ${Object.keys(BASES).join(', ')}`);
+  for (const n of [...o.roster, ...(o.yardstick ? [o.yardstick] : [])]) if (!BASES[n]) throw new Error(`unknown level ${n}; levels: ${Object.keys(BASES).join(', ')}`);
   const D = (!o.fresh && loadFile(o.out)) || emptyFile(o.seed);
   if (D.seed !== o.seed) say(`note: the file was made with seed ${D.seed}, continuing with ${o.seed}`);
   const R = D.ratings, REC = D.records, byId = new Map(D.profiles.map(p => [p.id, p]));
   for (const n of o.roster) { if (!D.champs[n] || (!BASES[D.champs[n]] && !byId.has(D.champs[n]))) D.champs[n] = n; R[n] ??= START_ELO; }
   const profileOf = id => BASES[id] ? {...BASES[id], id} : {...byId.get(id).profile, n: `Gen ${byId.get(id).gen} ${byId.get(id).arch}`, id};
+  const yard = o.yardstick ? profileOf(o.yardstick) : null; if (yard) R[yard.id] ??= START_ELO;  /* the yardstick: a stock level every child must do at least as well against as its parent did (it does not evolve) */
   const errs = [], {pages, close} = await openPages(o.parallel, errs);
   say(`${el()} ${pages.length} page(s) ready; levels in the game: ${pages[0].info.levels.join(', ')}`);
   const secs = o.matchMin * 60;
   const settle = jobs => { for (const j of jobs) { const a = j.pa.id, b = j.pb.id; D.games++; tally(REC, a, b, j.r.gA, j.r.gB); eloUpdate(R, a, b, j.r.gA > j.r.gB ? 1 : j.r.gA < j.r.gB ? 0 : .5); } };
   const roundRobin = async tag => {
-    const ids = [...new Set([...o.roster, ...o.roster.map(n => D.champs[n])])], jobs = [];
+    const ids = [...new Set([...o.roster, ...(yard ? [yard.id] : []), ...o.roster.map(n => D.champs[n])])], jobs = [];
     for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) for (const size of [1, 2]) jobs.push({pa: profileOf(ids[i]), pb: profileOf(ids[j]), size, secs, seed: hash(o.seed, tag, D.gen, ids[i], ids[j], size)});
     say(`${el()} round robin (${tag}): ${ids.join(', ')}: ${jobs.length} matches of ${o.matchMin} sim min`);
     await runJobs(pages, jobs, j => say(`${el()}   ${j.pa.id} v ${j.pb.id} ${fmtRes(j)}`)); settle(jobs);
@@ -192,22 +211,27 @@ export async function runLadder(opts) {
       if (o.gens && g - gen0 >= o.gens) break;
       if (o.minutes && Date.now() - T0 + lastGen > o.minutes * 60e3) break;
       if (!o.gens && !o.minutes) break;
-      const t1 = Date.now(), G = g + 1, cands = [], jobs = [];
-      for (const arch of o.roster) { const champ = profileOf(D.champs[arch]);
+      const t1 = Date.now(), G = g + 1, cands = [], jobs = [], refs = {};
+      for (const arch of o.roster) { const champ = profileOf(D.champs[arch]), yd = yard && yard.id !== champ.id && yard.id !== arch ? yard : null;
+        if (yd) { const j = {ref: arch, pa: champ, pb: yd, size: 1, secs, seed: hash(o.seed, 'y', G, arch)}; refs[arch] = j; jobs.push(j); }  /* the reference: how the champion does against the yardstick this generation */
         for (let c = 0; c < o.cands; c++) { const m = mutate(champ, mulberry(hash(o.seed, 'mut', G, arch, c))), id = `g${G}-${slug(arch)}-${c}`, cand = {...m.profile, n: `Gen ${G} ${arch}`, id};
-          R[id] = R[champ.id]; const C = {arch, cand, champ, keys: m.keys, jobs: []}; cands.push(C);
-          for (const [k, size] of [[0, 1], [1, 2]]) { const j = {C, pa: cand, pb: champ, size, secs, seed: hash(o.seed, 'm', G, arch, c, k)}; C.jobs.push(j); jobs.push(j); } } }
-      say(`${el()} generation ${G}: ${cands.length} candidates x 2 matches of ${o.matchMin} sim min`);
-      const show = j => say(`${el()}   ${j.pa.id} (${Object.entries(j.C.keys).map(([k, [a, b]]) => `${k} ${a}->${b}`).join(', ')}) v ${j.pb.id} ${fmtRes(j)}`);
+          R[id] = R[champ.id]; const C = {arch, cand, champ, keys: m.keys, jobs: [], yjob: null}; cands.push(C);
+          for (const [k, size] of [[0, 1], [1, 2]]) { const j = {C, pa: cand, pb: champ, size, secs, seed: hash(o.seed, 'm', G, arch, c, k)}; C.jobs.push(j); jobs.push(j); }
+          if (yd) { const j = {C, pa: cand, pb: yd, size: 1, secs, seed: hash(o.seed, 'y', G, arch, c)}; C.yjob = j; jobs.push(j); } } }
+      say(`${el()} generation ${G}: ${cands.length} candidates, ${jobs.length} matches of ${o.matchMin} sim min${yard ? ` (yardstick ${yard.id})` : ''}`);
+      const show = j => say(`${el()}   ${j.pa.id}${j.C ? ` (${Object.entries(j.C.keys).map(([k, [a, b]]) => `${k} ${a}->${b}`).join(', ')})` : ''} v ${j.pb.id} ${fmtRes(j)}`);
       await runJobs(pages, jobs, show);
       const agg = C => { let gf = 0, ga = 0, w = 0, l = 0; for (const j of C.jobs) { gf += j.r.gA; ga += j.r.gB; if (j.r.gA > j.r.gB) w++; else if (j.r.gA < j.r.gB) l++; } return {gd: gf - ga, w, l}; };
       const conf = []; for (const C of cands) { const a = agg(C); if (a.gd >= 2 && a.w > a.l) { const j = {C, pa: C.cand, pb: C.champ, size: 1, secs, seed: hash(o.seed, 'm', G, C.arch, C.cand.id, 2)}; C.jobs.push(j); conf.push(j); } }
-      if (conf.length) { say(`${el()}   ${conf.length} ahead: confirmation 1v1`); await runJobs(pages, conf, show); }
+      if (conf.length) { say(`${el()}   ${conf.length} ahead of the parent: confirmation 1v1`); await runJobs(pages, conf, show); }
       settle([...jobs, ...conf]);
-      for (const arch of o.roster) { let best = null;
-        for (const C of cands.filter(c => c.arch === arch)) { const a = agg(C), S = freshStats(); for (const j of C.jobs) addStats(S, j.r, 'A'); const gt = gate(S), promoted = a.gd >= 2 && a.w > a.l && gt.ok; C.a = a; C.gt = gt;
-          D.log.push({gen: G, id: C.cand.id, arch, parent: C.champ.id, keys: C.keys, matches: C.jobs.map(j => ({vs: [j.pa.id, j.pb.id], size: j.size, seed: j.seed, score: [j.r.gA, j.r.gB]})), gd: a.gd, w: a.w, l: a.l, rating: round4(R[C.cand.id]), gate: gt, promoted});
-          say(`${el()}   ${C.cand.id}: ${a.w}-${C.jobs.length - a.w - a.l}-${a.l}, goals ${a.gd >= 0 ? '+' : ''}${a.gd}, rating ${R[C.cand.id].toFixed(0)}${promoted ? ' PROMOTED' : gt.ok ? '' : ' (gate: ' + gt.why.join('; ') + ')'}`);
+      for (const arch of o.roster) { let best = null; const ref = refs[arch], gyRef = ref ? ref.r.gA - ref.r.gB : null;
+        if (ref) say(`${el()}   ${arch}'s champion ${ref.pa.id} v ${yard.id}: ${fmtRes(ref)} (the bar for its children)`);
+        for (const C of cands.filter(c => c.arch === arch)) { const a = agg(C), S = freshStats(); for (const j of C.jobs) addStats(S, j.r, 'A'); const y = C.yjob ? C.yjob.r : null; if (y) addStats(S, y, 'A');
+          const gy = y ? y.gA - y.gB : null, yardOk = gy == null || gy >= gyRef, gt = gate(S), promoted = a.gd >= 2 && a.w > a.l && yardOk && gt.ok; C.a = a; C.gt = gt;
+          D.log.push({gen: G, id: C.cand.id, arch, parent: C.champ.id, keys: C.keys, matches: C.jobs.map(j => ({vs: [j.pa.id, j.pb.id], size: j.size, seed: j.seed, score: [j.r.gA, j.r.gB]})), gd: a.gd, w: a.w, l: a.l,
+            yard: y ? {vs: yard.id, seed: C.yjob.seed, score: [y.gA, y.gB], champScore: [ref.r.gA, ref.r.gB], ok: yardOk} : null, rating: round4(R[C.cand.id]), gate: gt, promoted});
+          say(`${el()}   ${C.cand.id}: v parent ${a.w}-${C.jobs.length - a.w - a.l}-${a.l}, goals ${a.gd >= 0 ? '+' : ''}${a.gd}${y ? `; v ${yard.id} ${y.gA}-${y.gB}${yardOk ? '' : ' (worse than the champion: no)'}` : ''}; rating ${R[C.cand.id].toFixed(0)}${promoted ? ' PROMOTED' : gt.ok ? '' : ' (gate: ' + gt.why.join('; ') + ')'}`);
           if (promoted && (!best || a.gd > best.a.gd || a.gd === best.a.gd && R[C.cand.id] > R[best.cand.id])) best = C; }
         for (const C of cands.filter(c => c.arch === arch)) if (C !== best) { delete R[C.cand.id]; delete REC[C.cand.id]; }
         if (best) { const p = {id: best.cand.id, n: best.cand.n, arch, gen: G, parent: best.champ.id, rating: round4(R[best.cand.id]), born: new Date().toISOString(), keys: best.keys, gate: best.gt.stats, profile: strip(best.cand)}; D.profiles.push(p); byId.set(p.id, p); D.champs[arch] = p.id;
