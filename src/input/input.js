@@ -21,7 +21,7 @@ export const OV={},dzOf=i=>i===1?OV.dzy??S.dzy??OV.dz??S.dz:OV.dz??S.dz,assist=(
 // sources 0-99 are axes, 100+ are buttons/triggers (analog 0..1; a digital button that reports value 0 while pressed counts as 1).
 // r: rest of an axis trigger, used until that axis first reports a non-zero value (some browsers read 0 until the first press).
 const seen={};
-const src=(g,a,f=0,r)=>{if(a>=100){const b=g.buttons[a-100];return b?(+b.value||(b.pressed?1:0)):f}const v=g.axes[a];if(v==null)return f;if(v!==0)seen[a]=1;return r!=null&&!seen[a]?r:v};
+const src=(g,a,f=0,r)=>{if(a>=100){const b=g.buttons[a-100];return b?(+b.value||(b.pressed?1:0)):f}const v=g.axes[a];if(typeof v!=='number'||!Number.isFinite(v))return f;if(v!==0)seen[a]=1;  /* a missing, text or NaN reading is no reading: one NaN stick value poisoned the drone's whole state for the rest of the session */return r!=null&&!seen[a]?r:v};
 // calibrated channel before the deadband: (raw - centre) / signed half-range, so direction is baked in, minus the other direction's
 // control for one-way inputs (b: paired button, nb: any channel)
 export const axr=(g,i)=>{const c=CAL()[i];return(src(g,c.a,c.c,c.r)-c.c)/(c.s||1)-(c.b!=null?src(g,100+c.b):0)-(c.nb?(src(g,c.nb.a,c.nb.c,c.nb.r)-c.nb.c)/(c.nb.s||1):0)};
