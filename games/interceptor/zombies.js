@@ -50,7 +50,7 @@ export function initZombies(api){
   dbox.innerHTML=ZDIFF.map((d,i)=>`<button data-d="${i}">${d.n}</button>`).join('');desc.before(dbox);
   const sync=()=>{const D=DF();G.best=bestOf(D);
    for(const b of dbox.querySelectorAll('button'))b.classList.toggle('on',+b.dataset.d===DFI());
-   desc.innerHTML=`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, and the bosses you have beaten in the campaign come back on boss waves (Enemies).<br><b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`};
+   desc.innerHTML=`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a Mothership every 10, and the other bosses you have beaten in the campaign join the boss waves (Enemies).<br><b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`};
   for(const b of dbox.querySelectorAll('button'))b.onclick=()=>{S.zdiff=+b.dataset.d;save();sync()};
   sync();Z.syncMode=sync}
  // doctrine & unlocks between runs (zmeta.js): the start-menu panel, the loadout, goals. DOC = the doctrine in play, dk = one of its numbers (default 1)

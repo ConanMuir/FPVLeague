@@ -4,7 +4,7 @@
 import {serve, launch, open, sleep, frames, drawFrames} from './zlib.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
-import {SET as CDX_SET, ORDER as CDX_ORDER, SECRET as CDX_SECRET, cleanCodex, rotate as cdxRotate, scripted as cdxScripted} from '../games/interceptor/zcodex.js';
+import {SET as CDX_SET, ORDER as CDX_ORDER, SECRET as CDX_SECRET, cleanCodex, rotate as cdxRotate, scripted as cdxScripted, isAllowed as cdxAllowed, FREE as CDX_FREE} from '../games/interceptor/zcodex.js';
 import fs from 'node:fs';
 const argv = process.argv.slice(2), SHOTS = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : null;
 const {server, origin} = await serve();
@@ -1471,7 +1471,7 @@ if (want('ew')) {
 
 /* ---------- enemies codex (zcodex.js): every campaign sector introduces one boss as a set piece (at its wave, with a radio warning); beating it marks it
    beaten in the save and losing to it marks it seen; the Enemies screen shows silhouettes until then and the full entry after, with an Allowed switch that
-   filters the Quick defence boss pool; with nothing unlocked the boss waves bring a heavy raid; the save round-trips; bots, the bench and the tests get the
+   filters the Quick defence boss pool (the Mothership is the free baseline boss; with every boss blocked the boss waves bring a heavy raid); the save round-trips; bots, the bench and the tests get the
    whole roster ---------- */
 if (want('codex')) {
   // the tables and the pure rotation (node side)
@@ -1483,6 +1483,9 @@ if (want('codex')) {
   const dirty = cleanCodex({v: 1, b: {twins: {beaten: 'yes', allowed: 7}, nope: {beaten: true}, hive: {beaten: true, allowed: false}, jugg: [1], ace: {seen: true}, mirv: {beaten: true}, constructor: {beaten: true}}});
   ok(bad.every(s => s === '{"v":1,"b":{}}') && JSON.stringify(Object.keys(dirty.b).sort()) === '["ace","hive","mirv","twins"]' && !dirty.b.twins.beaten && dirty.b.twins.allowed && dirty.b.hive.beaten && dirty.b.hive.seen && !dirty.b.hive.allowed && dirty.b.ace.seen && !dirty.b.ace.beaten
     && JSON.stringify(cleanCodex(JSON.parse(JSON.stringify(dirty)))) === JSON.stringify(dirty), 'Codex save: any value cleans to a valid codex (wrong types, unknown ids, a foreign version drop out; beaten implies seen), and it round-trips through JSON');
+  const c0 = cleanCodex(null);
+  ok(CDX_FREE.join() === 'boss' && cdxAllowed(c0, 'boss') && !cdxAllowed(c0, 'twins') && !cdxAllowed({v: 1, b: {boss: {seen: true, beaten: false, allowed: false}}}, 'boss') && cdxAllowed({v: 1, b: {twins: {seen: true, beaten: true, allowed: true}}}, 'twins'),
+    'Codex baseline: the Mothership is free (allowed on an empty codex, blockable); every other boss needs to be beaten, and is then allowed until blocked');
   const info = id => ({boss: {debut: 10}, twins: {debut: 20, event: {from: 14, p: .5}}, jugg: {debut: 20}})[id] || null, hv = () => ['heavy', 'jet'], isB = k => ['boss', 'twins', 'jugg'].includes(k), rot = (out, w, pool, rnd = () => .5, o = {}) => cdxRotate(out, w, {pool, info, heavy: hv, isBoss: isB, rnd, ...o}).out;
   const r1 = rot(['shahed', 'boss'], 10, []), r2 = rot(['shahed', 'boss'], 10, ['boss', 'twins']), r3 = rot(['shahed', 'boss'], 20, ['twins']), r4 = rot(['shahed', 'boss'], 40, ['boss', 'twins', 'jugg'], () => 0), r5 = rot(['shahed', 'boss'], 40, ['boss', 'twins', 'jugg'], () => .99), r6 = rot(['shahed', 'boss'], 60, ['boss', 'twins', 'jugg'], () => 0);
   const r7 = rot(['shahed', 'jet'], 16, ['twins'], () => 0), r8 = rot(['shahed', 'jet'], 16, ['twins'], () => 0, {bevW: 14}), r9 = rot(['shahed', 'jet'], 16, [], () => 0);
@@ -1498,14 +1501,16 @@ if (want('codex')) {
   const imgs = () => p.waitForFunction(() => { const im = [...document.querySelectorAll('#zcdx img[data-img]')]; return im.length >= 12 && im.every(i => i.src.startsWith('data:image/png')); }, {timeout: 30000});
 
   // the menu: an Enemies card, every boss a dark silhouette with its name hidden and a hint of the sector that introduces it
-  const m0 = await p.evaluate(() => { const X = __z.Z.codex, r = X.rows(); return {card: /0 of 12/.test(document.getElementById('zcdxm')?.textContent || ''), btn: !!document.getElementById('zcdxbtn'), n: r.length, st: [...new Set(r.map(x => x.st))].join(), names: [...new Set(r.map(x => x.name))].join(), all: X.all(), pool: X.pool().length}; });
-  ok(m0.card && m0.btn && m0.n === 12 && m0.st === 'new' && m0.names === '???' && !m0.all && m0.pool === 0, `Codex menu: an Enemies card ("0 of 12 bosses beaten"), 12 unknown entries, no boss allowed on a fresh profile (${JSON.stringify(m0)})`);
+  const m0 = await p.evaluate(() => { const X = __z.Z.codex, r = X.rows(); return {card: /0 of 12/.test(document.getElementById('zcdxm')?.textContent || ''), btn: !!document.getElementById('zcdxbtn'), n: r.length, st: [...new Set(r.map(x => x.st))].join(), names: [...new Set(r.map(x => x.name))].join(), all: X.all(), pool: X.pool().join()}; });
+  ok(m0.card && m0.btn && m0.n === 12 && m0.st === 'new' && m0.names === '???' && !m0.all && m0.pool === 'boss', `Codex menu: an Enemies card ("0 of 12 bosses beaten"), 12 unknown entries, and on a fresh profile only the free baseline boss (the Mothership) in the Quick defence pool (${JSON.stringify(m0)})`);
   await p.click('#zcdxbtn'); await imgs();
-  const sc = await p.evaluate(() => { const X = __z.Z.codex, B = __z.Z.bosses.BOSSES, txt = X.el.textContent, SEC = __z.Z.cp.SECTORS, px = {}; for (const id of X.ORDER) px[id] = [X.pixels(X.shot(id, false)), X.pixels(X.shot(id, true))];
+  const sc = await p.evaluate(() => { const X = __z.Z.codex, B = __z.Z.bosses.BOSSES, txt = X.el.querySelector('.zcdxg').textContent, SEC = __z.Z.cp.SECTORS, px = {}; for (const id of X.ORDER) px[id] = [X.pixels(X.shot(id, false)), X.pixels(X.shot(id, true))];
     return {opened: X.opened, cards: X.el.querySelectorAll('.zcdxc').length, sil: X.el.querySelectorAll('.zcdxc.new').length, leak: Object.values(B).filter(D => D.n && txt.includes(D.n)).map(D => D.n).concat(txt.includes('Mothership') ? ['Mothership'] : []),
       hints: X.rows().every(r => r.hint.includes(SEC.find(s => s.id === r.sector).n)), tog: X.el.querySelectorAll('[data-allow]').length, px}; });
   const ids = Object.keys(sc.px);
-  ok(sc.opened && sc.cards === 12 && sc.sil === 12 && !sc.leak.length && sc.hints && !sc.tog, `Codex screen: 12 unknown cards, no name or description in the text (${sc.leak.join() || 'none leaked'}), each with its sector ("Introduced in …"), no Allowed switch yet`);
+  ok(sc.opened && sc.cards === 12 && sc.sil === 12 && !sc.leak.length && sc.hints && sc.tog === 1, `Codex screen: 12 unknown cards, no name or description in the grid (${sc.leak.join() || 'none leaked'}), each with its sector ("Introduced in …"), an Allowed switch only on the free baseline boss (${sc.tog})`);
+  const fb = await p.evaluate(() => { const X = __z.Z.codex, b = () => X.el.querySelector('[data-id="boss"] [data-allow]'), o = {t0: b().textContent, p0: X.pool().join()}; b().click(); o.t1 = b().textContent; o.p1 = X.pool().join(); o.st = X.rows().find(r => r.id === 'boss').st; b().click(); o.t2 = b().textContent; o.p2 = X.pool().join(); X.reset(); X.open(); return o; });
+  ok(fb.t0 === 'Allowed ✓' && fb.p0 === 'boss' && fb.t1 === 'Blocked' && fb.p1 === '' && fb.t2 === 'Allowed ✓' && fb.p2 === 'boss' && fb.st === 'new', `Codex baseline boss: the Mothership's card is still dark until it is beaten, but its Allowed switch works (${fb.t0} → ${fb.t1} → ${fb.t2})`);
   ok(ids.every(id => sc.px[id][0].cover > .04 && sc.px[id][0].max <= 40 && !sc.px[id][0].col), `Codex silhouettes: each boss's model drawn flat and dark (coverage ${ids.map(id => Math.round(sc.px[id][0].cover * 100) + '%').join(' ')}, brightest pixel ${Math.max(...ids.map(id => sc.px[id][0].max))})`);
   ok(ids.every(id => sc.px[id][1].cover > .04 && sc.px[id][1].max >= 60) && ids.some(id => sc.px[id][1].col > .02), 'Codex full models: the same models drawn lit in their own colours (what a beaten entry shows)');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-codex-new.png'});
@@ -1513,15 +1518,17 @@ if (want('codex')) {
   const se = await p.evaluate(() => { const X = __z.Z.codex, n0 = X.rows().length; X.set('gace', 'seen', true); X.open(); const r = X.rows(), g = r.find(x => x.id === 'gace'), el = X.el.querySelector('[data-id="gace"]'); const o = {n0, n1: r.length, name: g?.name, st: g?.st, card: !!el && el.classList.contains('sec') && el.classList.contains('seen'), tog: !!el?.querySelector('[data-allow]')}; X.reset(); X.open(); o.n2 = X.rows().length; o.cards = X.el.querySelectorAll('.zcdxc').length; X.close(); return o; });
   ok(se.n0 === 12 && se.n1 === 13 && se.name === '???' && se.st === 'seen' && se.card && !se.tog && se.n2 === 12 && se.cards === 12, `Codex secrets: the Ghost of the Ace is not listed until it is found (12 → ${se.n1} once seen, still "???"), and is gone again with the reset`);
 
-  // Quick defence with nothing unlocked: no boss on any boss wave, a heavy raid instead; the base screen says so; the codex gates a boss's own trigger
+  // Quick defence on a fresh profile: the Mothership on its boss waves and no other boss; with it blocked a heavy raid instead; the base screen says so; the codex gates a boss's own trigger
   await p.click('#play'); await p.waitForFunction(() => !__z.api.demo && !!__z.api.player, {timeout: 30000}); await frames(p, 2);
-  const q0 = await p.evaluate(() => { const {Z} = __z, B = Z.bosses.BOSSES, out = {}, isB = k => k === 'boss' || B[k];
-    for (const w of [10, 20, 30, 40, 60]) { let bosses = 0, heavy = 0, n = 0; for (let i = 0; i < 40; i++) { const L = __z.plan(w).list; n += L.length; for (const k of L) { if (isB(k.split(':')[0])) bosses++; if (k === 'heavy' || k === 'cruise' || k === 'jet') heavy++; } } out[w] = {bosses, heavy: Math.round(heavy / 40), n: Math.round(n / 40)}; }
-    const C = Z.bosses.ctx, a = C.spawn('undertaker'), b = Z.bosses.spawn('undertaker'), c = C.spawn('gace'); Z.bossClear('test'); out.gate = {gated: a === null, debug: !!b, secret: !!c};
-    __z.G.next = __z.plan(10); Z.base.refresh(); out.bar = document.querySelector('#zbase .zcdxbar')?.textContent || ''; return out; });
-  ok([10, 20, 30, 40, 60].every(w => q0[w].bosses === 0 && q0[w].heavy >= 4), `Quick defence, nothing unlocked: no boss on waves 10 to 60, a heavy raid on the boss waves (jets, armoured heavies, cruise missiles: ${[10, 20, 30, 40, 60].map(w => w + ': ' + q0[w].heavy).join(', ')} a wave)`);
+  const q0 = await p.evaluate(() => { const {Z} = __z, X = Z.codex, B = Z.bosses.BOSSES, out = {}, isB = k => k === 'boss' || B[k], W = [10, 20, 30, 40, 60];
+    const meas = () => { const o = {}; for (const w of W) { let bosses = 0, other = 0, heavy = 0; for (let i = 0; i < 40; i++) for (const k of __z.plan(w).list) { const b = k.split(':')[0]; if (isB(b)) { bosses++; if (b !== 'boss') other++; } if (k === 'heavy' || k === 'cruise' || k === 'jet') heavy++; } o[w] = {bosses, other, heavy: Math.round(heavy / 40)}; } return o; };
+    __z.G.next = __z.plan(10); Z.base.refresh(); out.bar = document.querySelector('#zbase .zcdxbar')?.textContent || ''; out.free = meas();
+    X.set('boss', 'allowed', false); out.blocked = meas(); __z.G.next = __z.plan(10); Z.base.refresh(); out.bar2 = document.querySelector('#zbase .zcdxbar')?.textContent || ''; X.reset();
+    const C = Z.bosses.ctx, a = C.spawn('undertaker'), b = Z.bosses.spawn('undertaker'), c = C.spawn('gace'); Z.bossClear('test'); out.gate = {gated: a === null, debug: !!b, secret: !!c}; return out; });
+  ok(q0.free[10].bosses === 40 && [10, 20, 30, 40, 60].every(w => q0.free[w].bosses === 40 && !q0.free[w].other), `Quick defence, fresh profile: the Mothership on every boss wave (10 to 60), one a wave and no other boss (${[10, 20, 30, 40, 60].map(w => w + ': ' + q0.free[w].bosses / 40).join(', ')} per plan)`);
+  ok([10, 20, 30, 40, 60].every(w => q0.blocked[w].bosses === 0 && q0.blocked[w].heavy >= 4), `Quick defence, the Mothership blocked and nothing else unlocked: no boss on waves 10 to 60, a heavy raid on the boss waves (jets, armoured heavies, cruise missiles: ${[10, 20, 30, 40, 60].map(w => w + ': ' + q0.blocked[w].heavy).join(', ')} a wave)`);
   ok(q0.gate.gated && q0.gate.debug && q0.gate.secret, 'Codex gate: a locked boss does not start by its own trigger (the Undertaker through the registry) but the debug trigger and the secret chain do');
-  ok(/0 of 12 bosses beaten/.test(q0.bar) && /none \(boss waves bring a heavy raid\)/.test(q0.bar), `Codex base screen: the Enemies strip shows the pool ("${q0.bar.replace(/Enemies ▸$/, '').trim()}")`);
+  ok(/0 of 12 bosses beaten/.test(q0.bar) && /boss pool: Mothership/.test(q0.bar) && !/heavy raid/.test(q0.bar) && /none \(boss waves bring a heavy raid\)/.test(q0.bar2), `Codex base screen: the Enemies strip shows the pool ("${q0.bar.replace(/Enemies ▸$/, '').trim()}"), and "none (boss waves bring a heavy raid)" with the Mothership blocked`);
   await p.click('#zcdxb'); await p.waitForFunction(() => __z.Z.codex.opened, {timeout: 5000});
   await p.keyboard.press('Escape'); await sleep(150);
   const esc = await p.evaluate(() => ({closed: !__z.Z.codex.opened, menu: __z.api.menuOpen, base: !document.getElementById('zbase').hidden, focus: document.activeElement?.id}));
@@ -1597,7 +1604,7 @@ if (want('codex')) {
   for (const z of ['x', 7, [], {v: 1, b: [1]}, {v: 2, b: {twins: {beaten: true}}}, {v: 1, b: {twins: {beaten: 'true', allowed: 3}, nope: {beaten: true}, __proto__: {beaten: true}}}]) {
     const n0 = errs.length; await p.evaluate(z => { const s = JSON.parse(localStorage.getItem('dl-interceptor')); s.zcodex = z; localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, z); await p.reload({waitUntil: 'load'});
     const up = await p.waitForFunction(() => window.__z, {timeout: 60000}).then(() => true, () => false);
-    const r = up && await p.evaluate(() => { __z.Z.codex.open(); const r = __z.Z.codex.rows(); __z.Z.codex.close(); return r.length === 12 && r.every(x => x.st === 'new') && __z.Z.codex.pool().length === 0; });
+    const r = up && await p.evaluate(() => { __z.Z.codex.open(); const r = __z.Z.codex.rows(); __z.Z.codex.close(); return r.length === 12 && r.every(x => x.st === 'new') && __z.Z.codex.pool().join() === 'boss'; });
     if (!up || errs.length > n0 || !r) odd.push(JSON.stringify(z)); }
   ok(!odd.length, 'Codex save: odd saved values (text, numbers, arrays, a foreign version, wrong types, unknown ids) load as an empty codex and the screen opens' + (odd.length ? '\n  ' + odd.join('\n  ') + '\n  ' + errs.slice(0, 3).join('\n  ') : ''));
 

@@ -6,8 +6,9 @@
 // its "Mothership escort" modifier), and a boss wave without one brings a heavy raid.
 //
 // Quick defence (and the Endless mode): the boss rotation draws only from the bosses you have beaten AND left allowed (the Enemies screen has
-// the switch). Nothing unlocked: boss waves bring a heavy raid instead, so the game is playable before the campaign. Unlocked bosses come more
-// often than the old once-per-10-waves Mothership: the pool rotates on every boss wave, a second boss may join from wave 30 (a third from 60)
+// the switch), plus the free baseline boss (FREE: the Mothership, so a fresh profile still meets it on wave 10). With every boss blocked boss
+// waves bring a heavy raid instead. Unlocked bosses come more often than the old once-per-10-waves Mothership: the pool rotates on every
+// boss wave, a second boss may join from wave 30 (a third from 60)
 // and each unlocked boss rolls its own rare event as before. A boss does not come before its first boss wave (zbosses spawn.boss, or its
 // event wave), and the Undertaker's own trigger (a lost or neglected site) and the Ghost of the Ace's wreck follow the same rules.
 //
@@ -46,7 +47,7 @@ export const SET={
  factory:{boss:'ghost',wave:14,warn:'A flash on the scope and gone. Stealth bomber over the belt. Look for the contrail.'},
  gate:{boss:'hush',wave:17,warn:'All stations: lights out over the Launch Complex. Do not look for it. Listen.'}};
 // the grid's order is the map's: sector by sector. SECRET: never listed until found (reserved ids, the MIRV boss is not written yet).
-export const ORDER=SECTORS.filter(s=>SET[s.id]).map(s=>SET[s.id].boss),SECRET=['gace','mirv'],KNOWN=[...ORDER,...SECRET],FREE=[];  /* FREE: bosses always unlocked (none: the Mothership is the campaign's first) */
+export const ORDER=SECTORS.filter(s=>SET[s.id]).map(s=>SET[s.id].boss),SECRET=['gace','mirv'],KNOWN=[...ORDER,...SECRET],FREE=['boss'];  /* FREE: bosses that are in Quick defence from the start (the Mothership, the baseline boss; Old Mill still introduces it: beating it there marks it beaten in the codex) */
 export const sectorOf=id=>SECTORS.find(s=>SET[s.id]?.boss===id)||null;
 // the codex's own words (the boss modules' notes are long); the model, colours, trophy and numbers come from the registry
 export const DEX={
@@ -224,7 +225,7 @@ export function initCodex(api,G,Z){
  const view=(id,c)=>{const D=BOSSES[id],e=c.b[id]||{},bt=!!e.beaten,st=bt?'beaten':e.seen?'seen':'new',sec=sectorOf(id),rec=S.zboss?.b?.[id]||{},nf=info(id);
   return{id,st,secret:SECRET.includes(id)||!sec,name:bt?name(id):'???',one:bt?(DEX[id]?.one||D?.note||''):'',tr:bt&&D?.reward?{n:D.reward.n,short:D.reward.short||D.reward.txt}:null,col:col(id),
    hint:sec?`Introduced in ${sec.n}, wave ${SET[sec.id].wave}.${e.seen?' You have met it.':''}`:'Found, not introduced.',sector:sec?.id||null,
-   allowed:e.allowed!==false,pool:poolIds().includes(id),tog:poolIds().includes(id)||!!D&&!D.spawn&&!SECRET.includes(id),from:nf?nf.debut:0,won:rec.won|0,met:rec.met|0}};  /* tog: the Allowed switch (the Undertaker has no wave, only its trigger) */
+   allowed:e.allowed!==false,free:FREE.includes(id),pool:poolIds().includes(id),tog:poolIds().includes(id)||!!D&&!D.spawn&&!SECRET.includes(id),from:nf?nf.debut:0,won:rec.won|0,met:rec.met|0}};  /* tog: the Allowed switch (the Undertaker has no wave, only its trigger) */
  const rows=()=>{const c=load(),R=ORDER.map(id=>view(id,c));for(const id of ids())if(!ORDER.includes(id)&&(c.b[id]?.seen||c.b[id]?.beaten))R.push(view(id,c));return R};
  const count=()=>{const c=load();return{n:ORDER.filter(id=>c.b[id]?.beaten).length,of:ORDER.length}};
  const poolTxt=()=>{const p=pool();return p.length?p.map(name).join(', '):'none'};
@@ -236,18 +237,19 @@ export function initCodex(api,G,Z){
    <div class="zcdxn"><h3>${esc(r.name)}</h3><em>${bt?'BEATEN':r.st==='seen'?'MET':'UNKNOWN'}</em></div>
    ${bt?`<p class="zcdxd">${esc(r.one)}</p><p class="zcdxtr">${r.tr?`<b>Trophy: ${esc(r.tr.n)}</b> ${esc(r.tr.short)}`:'No trophy: the classic boss pays cash only.'}</p>
     <p class="zcdxm">${r.pool?`Quick defence from wave ${r.from}`:r.tog?'Comes when a site is neglected':'Appears only when you find it'}${r.met?` · beaten ${r.won}×`:''}</p>
-    ${r.tog?`<button class="sm zcdxa ${r.allowed?'on':''}" data-allow="${r.id}" aria-pressed="${r.allowed}" title="${r.allowed?'This boss can come to Quick defence':'Quick defence will not send this boss'}">${r.allowed?'Allowed ✓':'Blocked'}</button>`:''}`
-   :`<p class="zcdxh">${esc(r.hint)}</p>`}</article>`}
+    ${r.tog?togBtn(r):''}`
+   :`<p class="zcdxh">${esc(r.hint)}</p>${r.free&&r.tog?`<p class="zcdxm">In Quick defence from wave ${r.from}, from the start</p>${togBtn(r)}`:''}`}</article>`}
+ const togBtn=r=>`<button class="sm zcdxa ${r.allowed?'on':''}" data-allow="${r.id}" aria-pressed="${r.allowed}" title="${r.allowed?'This boss can come to Quick defence':'Quick defence will not send this boss'}">${r.allowed?'Allowed ✓':'Blocked'}</button>`;
  function render(){const R=rows(),c=count(),a=all();
   ov.innerHTML=`<div class="zpanel zcdxp" role="dialog" aria-modal="true" aria-label="Enemies"><header><div><h2>Enemies</h2><div class="zcdxs"><b>${c.n}</b> of ${c.of} bosses beaten${a?' · <span class="co">bots and tests: everything unlocked</span>':''}</div></div>
    <div class="zcdxact"><button class="sm" data-all="1">Allow all</button><button class="sm" data-all="0">Block all</button></div><button class="sm" id="zcdxx">Back <kbd>Esc</kbd></button></header>
-   <p class="zhint">Each campaign sector introduces one boss. Beat it and it joins your codex: it can then come to Quick defence on boss waves, and you choose which ones. With none allowed, boss waves bring a heavy raid instead.
+   <p class="zhint">Each campaign sector introduces one boss. Beat it and it joins your codex: it can then come to Quick defence on boss waves, and you choose which ones. The Mothership is the baseline: always in the pool unless you block it. With every boss blocked, boss waves bring a heavy raid instead.
    <b>Quick defence pool:</b> ${esc(poolTxt())}.</p>
    <div class="zcdxg">${R.map(card).join('')}</div>
    <footer class="zcdxf"><span class="zhint">Unknown contacts stay in the dark until you beat them in the campaign.</span><button class="sm zsell ${rst?'arm':''}" id="zcdxrs">${rst?'Confirm: forget every boss':'Forget all enemies…'}</button></footer></div>`;
   $('zcdxx').onclick=close;$('zcdxrs').onclick=()=>{if(!rst){rst=true;render();$('zcdxrs').focus();return}rst=false;put(cleanCodex(null));render()};
-  for(const b of ov.querySelectorAll('[data-allow]'))b.onclick=()=>{const id=b.dataset.allow,c=load(),e=c.b[id];if(!e?.beaten)return;e.allowed=e.allowed===false;put(c);render();ov.querySelector(`[data-allow="${id}"]`)?.focus()};
-  for(const b of ov.querySelectorAll('[data-all]'))b.onclick=()=>{const c=load(),v=b.dataset.all==='1';for(const id of ids())if(c.b[id]?.beaten)c.b[id].allowed=v;put(c);render();ov.querySelector(`[data-all="${b.dataset.all}"]`)?.focus()};
+  for(const b of ov.querySelectorAll('[data-allow]'))b.onclick=()=>{const id=b.dataset.allow,c=load();if(!isUnlocked(c,id))return;const e=c.b[id]||(c.b[id]={seen:false,beaten:false,allowed:true});e.allowed=e.allowed===false;put(c);render();ov.querySelector(`[data-allow="${id}"]`)?.focus()};
+  for(const b of ov.querySelectorAll('[data-all]'))b.onclick=()=>{const c=load(),v=b.dataset.all==='1';for(const id of ids())if(isUnlocked(c,id)){const e=c.b[id]||(c.b[id]={seen:false,beaten:false,allowed:true});e.allowed=v}put(c);render();ov.querySelector(`[data-all="${b.dataset.all}"]`)?.focus()};
   fill()}
  /* the pictures one slice at a time: the first open builds each model once (a few ms each), after that they are cached */
  function fill(){const els=[...ov.querySelectorAll('img[data-img]')];let i=0;const step=()=>{if(ov.hidden||i>=els.length)return;const el=els[i++];if(el.isConnected){const u=url(el.dataset.img,el.dataset.full==='1');if(u)el.src=u;el.parentNode.classList.add('rdy')}setTimeout(step,16)};setTimeout(step,10)}
