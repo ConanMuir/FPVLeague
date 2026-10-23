@@ -265,8 +265,8 @@ export function initRadio(api,G,Z){
   sel('zradio','Zombies radio chatter',()=>{if(!on())hush()});sel('zrspeech','Radio speech (voice)',()=>{if(!S.zrspeech)stopSpeech()});
   {const i=document.createElement('input'),o=document.createElement('output');i.id='f_zradiov';o.id='o_zradiov';i.type='range';i.min=0;i.max=1;i.step=.05;
    i.addEventListener('input',()=>{S.zradiov=+i.value;api.save();rows.forEach(r=>r.show())});row('Radio volume',i,o,()=>{i.value=S.zradiov;o.textContent=Math.round(S.zradiov*100)+'%'})}}
- const sync=()=>{for(const r of rows){r.show();for(const e of r.els)e.style.display=S.gmode==='z'?'':'none'}};
- sync();$('gmode')?.addEventListener('click',()=>setTimeout(sync));const sm0=Z.syncMode;Z.syncMode=()=>{sm0?.();sync()};
+ const sync=()=>{for(const r of rows)r.show()};  /* the rows used to hide unless S.gmode was 'z'; Classic is gone, the setting is dropped on load, and they never showed */
+ sync();const sm0=Z.syncMode;Z.syncMode=()=>{sm0?.();sync()};
 
  /* ---------- harness (tools/zombies-test.mjs): inject events, read the channel ---------- */
  R.note=note;R.say=say;R.scan=scan;R.hush=hush;R.flush=()=>{for(const k in pend){pend[k].t0=-99;last[k]=-99}flushDue();pump()};R.GEN=GEN;
