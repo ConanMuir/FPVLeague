@@ -387,11 +387,23 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }
 
-// ---------- the wave's end on a client (zbosses.js): the base and game-over screens pause a client's sim, so a client that never gets a step in the wave's clear state must still see the wave end ----------
+// ---------- the Siren's song (zboss-siren.js): the drones near it read friendly (green, "FRIENDLY") on every screen, not only on the host's ----------
 { await ev(H, () => { __z.G.cash = 4000; });
   await readyUp(5);
+  const id = await lastBoss('siren');
+  const covered = P => ev(P, () => __z.api.TH.filter(t => __z.api.live(t) && !__z.Z.bosses.BOSSES[t.k] && t.iff > 0).length);
+  ok(await until(H, () => __z.api.TH.some(t => !__z.Z.bosses.BOSSES[t.k] && t.iff > 0)), 'Siren: the host\'s song covers the drones around it');
+  const nh = await covered(H);
+  for (const C of [A, B]) ok(await until(C, n => __z.api.TH.filter(t => __z.api.live(t) && !__z.Z.bosses.BOSSES[t.k] && t.iff > 0).length >= n - 1, nh) && await covered(C) > 0, `Siren: ${C.name} sees the covered drones read friendly too (${await covered(C)} of the host's ${nh})`);
+  await ev(H, id => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; }, id);  /* the wave is over */
+  for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
+}
+
+// ---------- the wave's end on a client (zbosses.js): the base and game-over screens pause a client's sim, so a client that never gets a step in the wave's clear state must still see the wave end ----------
+{ await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(6);
   const id = await lastBoss('boss');
-  ok(await until(B, () => __z.Z.bosses.shadows.some(m => m.visible)), 'Wave end: the Mothership is the last track of wave 5 and its shadow is down on Bea\'s ground');
+  ok(await until(B, () => __z.Z.bosses.shadows.some(m => m.visible)), 'Wave end: the Mothership is the last track of wave 6 and its shadow is down on Bea\'s ground');
   const stages = () => ev(H, id => __z.api.TH.find(t => t.id === id)?.stages | 0, id);
   for (let i = 0; i < 8 && await stages() > 1; i++) await burstAt(A, id);
   ok(await stages() === 1, 'Wave end: Ash\'s bursts have taken the Mothership down to its last pod');
@@ -403,7 +415,7 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base') && await until(C, () => !__z.Z.bosses.shadows.some(m => m.visible)), `${C.name}: on the base screen the Mothership's shadow is gone, though ${C.name} never saw the clear state`);
   /* a game over with the Hush in the air: the darkness and the fight go from the client's screen as they do from the host's */
   await ev(H, () => { __z.G.cash = 4000; });
-  await readyUp(6);
+  await readyUp(7);
   await lastBoss('hush');
   ok(await until(A, () => __z.Z.atmos.sources > 0) && await until(B, () => __z.Z.atmos.sources > 0), 'Wave end: the Hush\'s darkness is down on both clients');
   await ev(H, () => { __z.Z.gameOver(); __z.sim(.1); });
