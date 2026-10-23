@@ -1488,6 +1488,7 @@ if (want('sell')) {
   ok(await until(H, j => __z.Z.def.slotOpen(j) && __z.G.exp === 1 && !__z.G.sold.length, jx), 'Sell, co-op: the client\'s Undo reopened the position on the host');
   ok(!cerrs.length, 'Sell, co-op: no errors' + (cerrs.length ? '\n  ' + cerrs.slice(0, 5).join('\n  ') : ''));
   await H.close(); await C.close();
+}
 
 // ---------- the living map (zscars.js): craters, burns and rubble that stay; caps and recycling, the save, the campaign, co-op, no glitches, frame cost, no leaks ----------
 if (want('scars')) {
@@ -1908,10 +1909,18 @@ if (want('endless')) {
   ok(CL.sp[1] / CL.sp[0] > 1.3 && CL.sp[2] > CL.sp[1] * 1.08 && Math.abs(CL.sp[3] / CL.sp[2] - 1) < .05 && CL.spOff < CL.sp[1] * .8, `Climb, speed: a Shahed flies ${CL.sp.map(v => v.toFixed(1)).join(' / ')} m/s at waves 20 / 60 / 100 / 140 (+40% at 60, capped at +60%; ${CL.spOff.toFixed(1)} at 60 without the climb)`);
   ok(CL.dk[0] === 1 && Math.abs(CL.dk[1] - 1.2) < 1e-9 && Math.abs(CL.dk[2] - 1.4) < 1e-9, `Climb, damage: a hit on a site is x${CL.dk.join(' / ')} at waves 20 / 40 / 60`);
   ok(CL.b[23] === 0 && CL.b[25] === 1 && CL.b[30] === 1 && CL.b[51] === 2 && CL.b[52] === 0 && CL.b[60] === 2 && CL.b[80] === 3 && CL.b25off === 0 && CL.b51off === 0, `Climb, bosses: ${JSON.stringify(CL.b)} (waves 23 / 25 / 30 / 51 / 52 / 60 / 80: every 5 waves past 20, every 3 past 50, two at a time from wave 50, three from 80); wave 25 without the climb has ${CL.b25off}`);
-  // the boss codex's pool, if that module is loaded (Z.codexPool), is drawn from; the Mothership escort of the Launch Complex does not double the boss
+  // the boss codex's pool, if that module is loaded (Z.codex.pool(wave), or Z.codexPool()), is drawn from;the Mothership escort of the Launch Complex does not double the boss
   const CX = await p.evaluate(() => { const {Z, KIND} = __z, nb = L => L.filter(k => KIND[k.split(':')[0]].armor === 'boss'), none = nb(__z.plan(25).list).join(); Z.codexPool = () => ['jammer']; const a = nb(__z.plan(25).list).join(), b = nb(__z.plan(23).list).join(); delete Z.codexPool;
-    Z.endless.start('gate'); const g = nb(__z.plan(25).list).length, g2 = nb(__z.plan(30).list).length; return {none, a, b, g, g2}; });
-  ok(CX.none === 'boss' && CX.a === 'jammer' && CX.b === '' && CX.g === 1 && CX.g2 === 1, `Boss codex hook: with Z.codexPool = ["jammer"] the extra boss of wave 25 is the Jammer King (without it: ${CX.none}); none on wave 23; the Launch Complex's own Mothership escort is not doubled (${CX.g} on 25)`);
+    const asked = []; Z.codex = {pool: w => { asked.push(w); return ['hive']; }}; const c = nb(__z.plan(25).list).join(); delete Z.codex;  /* zcodex.js: Z.codex.pool(wave) wins over Z.codexPool() */
+    Z.endless.start('gate'); const g = nb(__z.plan(25).list).length, g2 = nb(__z.plan(30).list).length; return {none, a, b, c, asked: asked.join(), g, g2}; });
+  ok(CX.none === 'boss' && CX.a === 'jammer' && CX.b === '' && CX.c === 'hive' && CX.asked === '25' && CX.g === 1 && CX.g2 === 1, `Boss codex hook: with Z.codexPool = ["jammer"] the extra boss of wave 25 is the Jammer King, with Z.codex.pool(wave) = ["hive"] (asked for wave ${CX.asked}) it is the Hive (without either: ${CX.none}); none on wave 23; the Launch Complex's own Mothership escort is not doubled (${CX.g} on 25)`);
+  // the Launch Complex's "Enemy launch sites": the sorties feature flag is set, so the modifier is real (not the second Heavy pressure it fell back to) and the world has the extra sites
+  const LS = await p.evaluate(() => { const {Z, G} = __z, W = Z.so.W, o = {feat: Z.feat?.sorties, n: Z.cp.n('launchSites'), ids: Z.cp.run.mods.map(m => m.id).join()}, count = s => W.list.filter(t => t.t === 'launch' && t.sec === s).length;
+    o.per = [0, 1, 2].map(count).join(); const two = W.list.filter(t => t.t === 'launch' && t.sec === 1), cuts = () => (G.cuts || []).filter(c => c.src === 'launch' && c.sec === 1).length; o.eff = '';
+    two[0].dead = true; W.onDead(two[0], null); o.afterOne = cuts(); two[1].dead = true; W.onDead(two[1], null); o.afterBoth = cuts();
+    Z.cp.openMap(); Z.cp.select('gate'); const names = [...document.querySelectorAll('#zcamp .zcpmods li b')].map(b => b.textContent); Z.cp.closeMap(); o.names = names.join(' | '); return o; });
+  ok(LS.feat === 1 && LS.n === 2 && LS.ids === 'missile,tot,boss5,raid,big' && LS.per === '2,2,1' && LS.afterOne === 0 && LS.afterBoth === 1, `Enemy launch sites (Launch Complex): the sorties flag is set, the sector's modifiers are ${LS.ids} (one Heavy pressure, no fallback), launch sites per sector ${LS.per}; the first site of a doubled sector cuts nothing (${LS.afterOne}), the second does (${LS.afterBoth})`);
+  ok((LS.names.match(/Heavy pressure/g) || []).length === 1 && /Enemy launch sites/.test(LS.names), `Enemy launch sites: the briefing lists it once, and Heavy pressure once ("${LS.names}")`);
 
   // ---- a campaign sector after it is a plain campaign sector ----
   const PL = await p.evaluate(() => { const {Z, G, api, KIND} = __z; Z.cp.start('mill', true); const r = {en: Z.endless.on(), obj: Z.cp.run?.obj, hud: (Z.hud(0), document.getElementById('zw').textContent), strip: document.querySelector('#zbase .zcpbar')?.textContent || '', b: __z.plan(60).list.filter(k => KIND[k.split(':')[0]].armor === 'boss').length};

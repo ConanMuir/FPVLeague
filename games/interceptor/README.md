@@ -278,7 +278,7 @@ Goals are tracked per difficulty (the letters next to each goal show where you h
 | Old Mill | 8 | Clear skies | Reserve: field repair crew |
 | River Crossing | 10 | Night-heavy | Relic: War chest |
 | Grain Silos | 10 | Swarm-heavy (swarms from wave 3) | Relic: Drill sergeant |
-| Rail Junction | 12 | Jet-heavy, +2 enemy launch sites (with sorties; otherwise waves +10%) | Reserve: engineer platoon |
+| Rail Junction | 12 | Jet-heavy, enemy launch sites (the North and the West get a second one: a sector's missiles are cut only when both are down) | Reserve: engineer platoon |
 | Hospital Hill | 12 | Fragile hospital (−40% hp; it falls, the sector is lost), storm season | Relic: Field engineers |
 | Power Station | 12 | Armored column (heavies from wave 6), income −15% | Relic: Sandbag stockpile |
 | Quarry | 15 | Dust and fog, coordinated raids, waves +15% | Reserve: field repair crew |
@@ -286,7 +286,7 @@ Goals are tracked per difficulty (the letters next to each goal show where you h
 | Radar Ridge | 15 | Blind early warning (radar −30%), night-heavy, waves +10% | Relic: Early-warning net |
 | The Dam | 18 | Swarm-heavy, storm season, coordinated raids, waves +10% | Reserve: engineer platoon |
 | Factory Belt | 18 | Hypersonic every third wave from 9, no Golden Dome, armored column | Reserve: field repair crew |
-| Launch Complex (capstone) | 20 | Missile front (8 early), coordinated raids, a Mothership every 5 waves, waves +8%, +2 launch sites (or another +10%) | Wins the campaign |
+| Launch Complex (capstone) | 20 | Missile front (8 early), coordinated raids, a Mothership every 5 waves, waves +8%, enemy launch sites (two sectors have a second one) | Wins the campaign |
 
 - **The front.** Sectors next to a held one (or our lines) are on the front. Winning holds the sector, puts its neighbours on the front and eases the pressure next door by one. Losing raises the **enemy pressure** on its unheld neighbours (per level: waves +8%, starting cash −10%; at most 2 levels). Nothing ever locks: a lost sector can be retried at once. The capstone opens once 7 sectors are held. Held sectors can be replayed for practice (no reward).
 - **Carry-over** is small on purpose. **Relics** are trades and only one is equipped per sector: War chest (+$1,200 at the start, income −10%), Drill sergeant (overtime crews free every wave, helper kills −25%), Field engineers (repairs −35%, upgrades +15%), Sandbag stockpile (sandbags free every wave, sites −15% hp), Ace's scarf (your kills +25%, helper kills −20%), Early-warning net (radar +30%, wave-clear bonuses −25%). **Reserves** are one-offs, at most 3 banked, one committed per sector: a field repair crew (every site to full once, from the base screen; spent only if used) or an engineer platoon (one extra open position). Doctrine and kit are the ordinary unlocks, picked on the briefing.

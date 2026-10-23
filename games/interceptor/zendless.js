@@ -7,7 +7,7 @@
 //   armour     1.5% a wave of the Shahed points arrive as armored heavies instead (up to 60%): proximity bursts only damage them
 //   damage     every hit on a site is 1% a wave heavier (no limit)
 //   bosses     a boss every 10 waves up to wave 20, every 5 up to 50, every 3 after it; two at a time from RAMP + 30, three from RAMP + 60
-//              (extra boss waves are a quarter lighter in everything else). The roster picks which; a boss codex (Z.codexPool, if loaded) narrows it
+//              (extra boss waves are a quarter lighter in everything else). The roster picks which; the boss codex (Z.codex.pool(w), if loaded) narrows it to the bosses you have unlocked and allowed
 // Milestone every 10 waves: the wave is cleared and every site is repaired by a quarter, with a purse of $800 x (wave / 10).
 // The sector's scars (zscars.js) carry in from the campaign, grow with every wave and are saved at every wave clear and at the end,
 // into the same place the campaign keeps them (S.zcamp.sc), so the next run on that sector starts on the same ground.
@@ -55,8 +55,8 @@ export function initEndless(api,G,Z){
 
  /* ---------- the climb ---------- */
  const isB=k=>{const K=KIND[String(k).split(':')[0]];return!!K&&(K.armor==='boss'||!!K.bossy)};
- /* one boss: the roster's pick for this wave; the boss codex's pool (Z.codexPool, when that module is loaded) narrows it */
- function bossId(w){const t=['boss'];Z.bossCompose?.(t,w);const cp=Z.codexPool?.();if(cp?.length)t[0]=cp[Math.random()*cp.length|0];return t[0]}
+ /* one boss: drawn from the boss codex's pool when that module is loaded (zcodex.js: Z.codex.pool(w), the unlocked and allowed bosses that may come on wave w; Z.codexPool() is the same without the wave), else the roster's pick for this wave */
+ function bossId(w){const cp=Z.codex?.pool?.(w)||Z.codexPool?.();if(cp?.length)return cp[Math.random()*cp.length|0];const t=['boss'];Z.bossCompose?.(t,w);return t[0]}
  function escalate(out,w){if(climb(w)<=0)return out;
   /* armour: three Shaheds out, one armored heavy in */
   const n=Math.round(out.filter(k=>k==='shahed').length*armorK(w)/3)*3;

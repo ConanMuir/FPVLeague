@@ -82,7 +82,7 @@ const TL = MERGE ? (results.push(...JSON.parse(fs.readFileSync(MERGE, 'utf8')).f
 
 const med = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n ? n % 2 ? s[n >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2 : 0; };
 const table = TL.map(L => ({n: L.n, d: DIFFS.map(zd => { const w = results.filter(r => r.lv === L.n && r.zd === zd).map(r => r.wave); return w.length ? {med: med(w), min: Math.min(...w), max: Math.max(...w), n: w.length} : null; })}));
-console.log(`\n${REAL ? 'REAL FLYING · ' : ''}${LOAD ? 'loadout ' + LOAD : 'fresh profile, Standard doctrine, no kit'}${META ? ', meta ' + META : ''}: wave reached, median [range] of ${RUNS} runs (cap ${CAP})`);
+console.log(`\n${REAL ? 'REAL FLYING · ' : ''}${ENDLESS ? 'ENDLESS on ' + ENDLESS + ' · ' : ''}${LOAD ? 'loadout ' + LOAD : 'fresh profile, Standard doctrine, no kit'}${META ? ', meta ' + META : ''}: wave reached, median [range] of ${RUNS} runs (cap ${CAP})`);
 console.log('level'.padEnd(16) + DIFFS.map(zd => DN[zd].padEnd(16)).join(''));
 for (const r of table) console.log(r.n.padEnd(16) + r.d.map(c => (c ? `${c.med} [${c.min}-${c.max}]` : '-').padEnd(16)).join(''));
 // the ladder: higher levels beat lower ones on every difficulty; harder difficulties lower every level (medians; a capped run counts as the cap)

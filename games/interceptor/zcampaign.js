@@ -43,7 +43,7 @@ export const MODS={
  poor:{g:'¤',n:'Thin supply line',txt:n=>`All income ${Math.round(100-n*100)}% lower.`,k:'cash'},
  blind:{g:'◌',n:'Blind early warning',txt:'Radar detection ranges 30% shorter.',radar:.7},
  boss5:{g:'⬢',n:'Mothership escort',txt:'A Mothership every 5 waves instead of every 10.',mix:'boss5'},
- raid:{g:'⌂',n:'Enemy launch sites',txt:'+2 enemy launch sites to raid.',need:'sorties',launchSites:2,alt:['big',1.1]}};
+ raid:{g:'⌂',n:'Enemy launch sites',txt:'Two sectors (the North, then the West) have a second enemy launch site: a sector sends its missiles until both are destroyed.',need:'sorties',launchSites:2,alt:['big',1.1]}};
 // The map shows only a sector's MAP_MODS strongest modifiers (a "+n" chip opens the rest); all of them stay in effect and the briefing lists every one.
 // Strength = how much the modifier changes the run, 0-10 (arcade judgement): a lost sector, a boss, no Golden Dome and a hypersonic range top the list,
 // weather and fair skies are at the bottom. Numbered ones scale with their number; an unknown modifier ranks in the middle.
