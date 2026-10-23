@@ -295,13 +295,15 @@ export function initScars(api,G,Z){
   for(let i=0;i<p.hw&&used<6;i++){if(p.st[i]!==1||p.glow[i]<=0||p.fade[i]<.5)continue;const x=p.aS[i*4],z=p.aS[i*4+1];if(Math.abs(x-cam.x)>lim||Math.abs(z-cam.z)>lim)continue;used++;
    if((p.ft[i]-=dt)>0)continue;p.ft[i]=.3+rr()*.5;const a=rr()*6.283,rd=p.pf[i]*.88*Math.sqrt(rr()),lx=Math.cos(a)*rd*p.aS[i*4+2],lz=Math.sin(a)*rd*p.aS[i*4+3],yw=p.aP[i*4],co=Math.cos(yw),si=Math.sin(yw),
     wx=x+lx*co-lz*si,wz=z+lx*si+lz*co;_w.set(wx,gh(wx,wz)+.4,wz);api.FX.emit(_w,0xff7a20,2,3,.5,null,2.2);if(rr()<.35)api.SMK.emit(_w,0x2d2926,1,2,8,_up,1,.5)}}
- const v0=Z.visuals;Z.visuals=dt=>{v0(dt);if(!sc.ready)return;
+ function tick(dt){if(!sc.ready)return;
   if(G.state!==st0){const was=st0;st0=G.state;if((st0==='clear'||st0==='over')&&was)persist()}
   if(G.wave!==wave0){if(wave0>=0&&G.wave>wave0)for(const p of P)for(let i=0;i<p.hw;i++)if(p.st[i]&&p.aq[i]<15)p.aq[i]++;wave0=G.wave}
   dt=Math.min(dt,.1);tok=Math.min(8,tok+dt*3);const run=!Z.hold?.()&&(!api.menuOpen||!!Z.online);let ch=false;  /* a fire waits while the game is paused or on the base screen (a co-op game keeps running behind its menu) */for(const p of P)ch=p.update(dt,run)||ch;if(ch)rank();
   U.uTime.value=performance.now()/1000%1000;U.uCam.value.x=camera.projectionMatrix.elements[5]*renderer.domElement.height*.5;
   if(run)fireFx(dt);
-  for(const p of P)p.flush();vis()};
+  for(const p of P)p.flush();vis()}
+ const v0=Z.visuals;Z.visuals=dt=>{v0(dt);tick(dt)};
+ sc.tick=tick;  /* the scars' own part of a frame, for a harness that must not move the rest of the world (weather, clouds) between two frames it compares */
  // ---------- the run: a sector loads its scars, a quick defence starts clean; they are saved at the end of a wave and of the run ----------
  const camp=()=>Z.cp?.run?.id||null,client=()=>!!Z.isClient?.();
  function persist(){const id=camp();if(!id||client()||!sc.ready||!Z.cp?.put)return;const c=Z.cp.C(),str=encode();c.sc={...(c.sc||{})};if(str)c.sc[id]=str;else delete c.sc[id];Z.cp.put(c)}
