@@ -1888,6 +1888,23 @@ if (want('radio')) {
   ok(q1.stale.dropped >= 1 && !q1.stale.said, 'Radio channel: an ambient call that waited too long is dropped, not said late');
   ok(q1.dup.again === false && q1.dup.n === 1 && q1.cool.again === false && q1.cool.n === 1, 'Radio channel: the same words twice, and a second call of a topic inside its cooldown, are not said');
 
+  /* the first-run guide's lines (soft, zonboard.js): in a wave a battle call goes first and may cut in on one (said again once), the guide does not use up the battle budget, and a line that waited is still said */
+  const gd = await p.evaluate(() => { const {G, Z} = __z, R = Z.radio, out = {wave: G.state}, L = 'A long guide line that keeps the channel busy for a good while yes, over.', soft = {nb: 1, over: true, soft: 1};
+    const heard = () => R.calls.map(c => c.txt.slice(0, 12) + (c.cut ? '*' : '')).join('|'), adv = s => { for (let t = 0; t < s; t += .25) R.step(.25); };  /* the channel runs frame by frame: a coarse step would only age the waiting guide line */
+    R.hush(); R.calls.length = 0; R.say('guide', 2, 'OVERLORD', L, soft); const c1 = R.cur; R.say('trk', 1, 'OVERLORD', 'Battle call one.'); adv(.25);
+    out.cut = {first: c1.cut === 1, now: R.cur?.txt, again: R.q.some(c => c.txt === L && c.re === 1)}; adv(12); out.cutHeard = heard();
+    R.hush(); R.calls.length = 0; R.say('x', 1, 'OVERLORD', 'A long routine call that is on the air while the other two wait their turn.'); R.say('guide', 2, 'OVERLORD', L, soft); R.say('trk', 1, 'OVERLORD', 'Battle call two.');
+    adv(16); out.order = heard();
+    R.hush(); R.calls.length = 0; const r0 = R.st.drop.rate; for (let i = 0; i < 6; i++) { R.say('guide', 2, 'OVERLORD', 'Guide line number ' + i + '.', soft); adv(3); }
+    for (const [k, t] of [['trk', 'Track one.'], ['fast', 'Track two.'], ['site', 'Track three.']]) { R.say(k, 1, 'OVERLORD', t); adv(3); }
+    out.budget = {rate: R.st.drop.rate - r0, battle: R.calls.filter(c => c.pri === 1).length, guide: R.calls.filter(c => c.topic === 'guide').length};
+    R.hush(); R.calls.length = 0; let gone = false; R.say('x', 1, 'OVERLORD', 'A long routine call that is on the air while the guide line waits.'); R.say('guide', 2, 'OVERLORD', L, {...soft, alive: () => !gone}); gone = true; adv(12); out.alive = heard();
+    R.hush(); R.calls.length = 0; return out; });
+  ok(gd.wave === 'wave' && gd.cut.first && gd.cut.now === 'Battle call one.' && gd.cut.again && gd.cutHeard === 'A long guide*|Battle call |A long guide', `Radio guide: a battle call cuts in on a guide line during the wave and the guide line is said again after it (${gd.cutHeard})`);
+  ok(gd.order === 'A long routi|Battle call |A long guide', `Radio guide: queued together, the battle call is said before the guide line (${gd.order}), and the guide line still comes (it was not starved)`);
+  ok(gd.budget.guide === 6 && gd.budget.battle === 3 && gd.budget.rate === 0, `Radio guide: six guide lines do not use up the battle budget (battle calls said ${gd.budget.battle} of 3, rate-limited ${gd.budget.rate}, guide lines ${gd.budget.guide})`);
+  ok(gd.alive === 'A long routi', `Radio guide: a guide line whose prompt is gone is not said late (${gd.alive})`);
+
   // the sites: small hits add up before they are called; a site in trouble and a site lost are urgent
   const st1 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, s = api.SITES[1], out = {}; __clr(); R.hush(); R.calls.length = 0; R.scan();
     for (let i = 0; i < 3; i++) { s.hp -= 5; R.scan(); } out.small = R.pend().includes('site');
@@ -2091,6 +2108,9 @@ if (want('onboard')) {
   const lg = await p.evaluate(() => { __clear(); return {g: __g(), tr: __z.api.TH.filter(__z.api.live).length}; });
   ok(lg.g.log.join().startsWith('brief,fly,look,lock,pip,burst') && ['fly', 'look', 'lock', 'pip', 'burst'].every(k => lg.g.st[k] === 'done'),`Onboard: the wave-1 prompts came in order (${lg.g.log.join(' > ')}) and all five were done (${JSON.stringify(lg.g.st)})`);
   ok(!lg.g.gentle && lg.g.card && lg.g.ended === '', `Onboard: wave 1 over: the gentle wave is switched off, the guide goes on to the base screen`);
+  /* the guide's radio lines (priority 2) used to starve the battle calls on wave 1: the wave's own call and the tracks' calls were dropped as stale or rate-limited behind them */
+  const gr = await p.evaluate(() => { const c = __z.Z.radio.calls; return c.filter(x => x.topic !== 'guide' && x.pri >= 1).map(x => x.topic); });
+  ok(gr.includes('wave') && gr.includes('trk'), `Onboard radio: the guided wave still gets its battle calls (the wave's own call and a new track's call were heard: ${gr.join(' ')})`);
   // the base screen: the first helper, then sorties
   await p.evaluate(() => __u(() => __z.Z.onboard.step === 'helper', 6));
   const h0 = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); return {g: __g(), hl: document.querySelector('.zob-hl')?.dataset.buy === String(i), base: document.body.classList.contains('zb-open')}; });
@@ -2142,6 +2162,9 @@ if (want('onboard')) {
   await fresh(p, '?guide=1'); await play(p);
   const t0 = await p.evaluate(() => { __z.cont(); __u(() => __z.Z.onboard.st.fly === 'timeout', 40); const g = __g(); __u(() => __z.Z.onboard.step === 'look', 5); return {g, g2: __g(), tracks: __z.api.TH.filter(__z.api.live).length, st: __z.G.state}; });
   ok(t0.g.st.fly === 'timeout' && t0.g2.step === 'look' && t0.st === 'wave', `Onboard: a prompt nobody acts on times out (flying: ${t0.g.st.fly}) and the next one comes; the wave ran on meanwhile (${t0.tracks} track(s) live)`);
+  /* and a pilot who takes their time hears everything: each prompt's line was said whole (none dropped for waiting) between the battle calls (the wave's call and the first track's) */
+  const ig = await p.evaluate(() => { __z.sim(2); const c = __z.Z.radio.calls; return {guide: new Set(c.filter(x => x.topic === 'guide' && !x.cut && x.t > 0).map(x => x.txt)).size, opened: __z.Z.onboard.log.filter(s => s !== 'brief').length, bat: c.filter(x => x.topic !== 'guide' && x.pri >= 1).map(x => x.topic).join(' '), seq: c.map(x => x.topic + (x.cut ? '*' : '')).join(' ')}; });
+  ok(ig.opened >= 2 && ig.guide >= ig.opened && /wave/.test(ig.bat) && /trk/.test(ig.bat), `Onboard radio: with nobody acting, each opened prompt's line was said (${ig.guide} lines for ${ig.opened} prompts) and so were the wave's call and a track's (${ig.seq})`);
   const me1 = await p.evaluate(() => { __z.api.showMenu(true); __z.sim(.3); return {g: __g(), skip2: document.getElementById('zobskip2').hidden, shown: __z.Z.onboard.shown}; });  /* the pause menu has its own Skip guide (on the base screen the menu sits behind the panel, the card's button is the one there) */
   ok(me1.g.on && !me1.skip2 && !me1.shown, 'Onboard: the pause menu shows Skip guide and the card steps aside while it is open');
   await p.click('#zobskip2'); await p.evaluate(() => { __z.api.showMenu(false); }); await frames(p, 2);
