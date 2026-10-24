@@ -33,10 +33,10 @@ export function initOnboard(api,G,Z){
    hud:()=>`Briefing. Money buys defenders and perks: fly wave 1 first and shop with what you earn, or spend it now. Press <b>Start wave 1</b> when you are ready; I will coach you in the air.`,
    say:'Welcome to the line, Dart One. Start the wave when you are ready and I will talk you through it.'},
   {id:'fly',ttl:25,flight:1,ready:()=>w1(),done:()=>!!A.ev.fly,ok:'Airborne.',
-   hud:()=>gp()?`Raise the throttle to take off. Left stick throttle and yaw, right stick pitch and roll. Fly out toward the blips on the radar.`:`Press ${k('W')} to take off. ${k('W')}${k('S')} throttle (let go to hover), ${k('A')}${k('D')} yaw, ${k('↑')}${k('↓')}${k('←')}${k('→')} pitch and roll. Fly out toward the blips on the radar.`,
+   hud:()=>Z.craft?.guide('fly',gp())||(gp()?`Raise the throttle to take off. Left stick throttle and yaw, right stick pitch and roll. Fly out toward the blips on the radar.`:`Press ${k('W')} to take off. ${k('W')}${k('S')} throttle (let go to hover), ${k('A')}${k('D')} yaw, ${k('↑')}${k('↓')}${k('←')}${k('→')} pitch and roll. Fly out toward the blips on the radar.`),
    say:'Dart One, you are cleared to launch. Get up and fly out toward the contacts.'},
   {id:'look',ttl:12,flight:1,ready:()=>w1()&&!near(SEE),done:()=>!!A.ev.look,ok:'Good view.',
-   hud:()=>gp()?`The camera switch sets 90° for cruising (level for hover). LB changes the view: FPV, chase, threat.`:`${k('L')} tilts the camera up to 90° for cruising (level for hover). ${k('C')} changes the view: FPV, chase, threat.`,
+   hud:()=>Z.craft?.guide('look',gp())||(gp()?`The camera switch sets 90° for cruising (level for hover). LB changes the view: FPV, chase, threat.`:`${k('L')} tilts the camera up to 90° for cruising (level for hover). ${k('C')} changes the view: FPV, chase, threat.`),
    say:'Tilt the camera up for the cruise. Change the view if you want a look around.'},
   {id:'lock',ttl:60,flight:1,ready:()=>w1()&&seen(),done:()=>!!A.ev.lock,ok:'Locked.',
    hud:()=>`Track inbound: the amber blip on the radar, bottom right. Fly at it and hold the dashed ring on it until it locks.`,
@@ -85,7 +85,8 @@ export function initOnboard(api,G,Z){
  /* the card is docked at the bottom of the base screen: a button scrolled to the bottom edge of its list sat under it, so the list scrolls a little further */
  function clear(e){const c=card&&!card.hidden&&card.getBoundingClientRect(),r=e.getBoundingClientRect(),t=e.closest('.ztab');if(c&&t&&!(r.right<=c.left||r.left>=c.right||r.bottom<=c.top||r.top>=c.bottom))t.scrollTop+=r.bottom-c.top+12}
  function glow(show){const s=A.cur?.step;for(const e of document.querySelectorAll('.zob-hl'))e.classList.remove('zob-hl');if(!s?.hl||!base())return;try{const e=s.hl();if(e){e.classList.add('zob-hl');if(show===true){e.scrollIntoView?.({block:'nearest'});clear(e)}}}catch(e){}}  /* show: scroll it into view (once, when the prompt opens, not on every redraw) */
- function say(s){const R=Z.radio;if(!R||!s.say)return;try{R.say('guide',2,'OVERLORD',s.say,{nb:1,over:true})}catch(e){}}
+ function say(s){const R=Z.radio;if(!R||!s.say)return;let t=Z.craft?.say(s.id)||s.say;if(Z.craft)t=t.replace(/Dart One/g,Z.craft.call());  /* the craft's own line for flying and the camera, and its call sign (ztypes.js) */
+  try{R.say('guide',2,'OVERLORD',t,{nb:1,over:true})}catch(e){}}
 
  /* ---------- the flow ---------- */
  function open(s){A.cur={step:s,left:s.ttl,fin:0};A.n[s.id]=(A.n[s.id]|0)+1;A.log.push(s.id);s.on?.();last='';say(s);

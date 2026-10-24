@@ -23,6 +23,7 @@ import {makeInterp} from '../../engine/interp.js';
 import {initZombies} from './zombies.js';
 import {makeGrid} from './grid.js';
 import {strelaBody} from './strela.js';
+import {typeOf,cleanId,cleanSave} from './ztypes.js';
 import {FA,CW,CH,CROPS,fieldLayout,partRects,fieldData,groundMaterial} from './ground.js';
 import {initBuildings,houseTex,houseWallGeo,houseRoofGeo,houseNight} from './buildings.js';
 import {gfx,cleanPref,NAMES as GFXN} from '../../engine/gfx.js';
@@ -38,7 +39,7 @@ const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3()
 const RRS=[2000,5000,10000];
 const DEF={mode:"acro",tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,nextSw:-1,zwx:'wave',gfx:'auto',fps:true,haze:false,fcap:0};
 loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the dart's camera sits at 90°, a 5-inch quad's at 30°
-if(typeof S.wx!=='string')S.wx=DEF.wx;  /* an array or object here is taken for a whole weather object by setWeather and threw at the first start */S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;
+if(typeof S.wx!=='string')S.wx=DEF.wx;  /* an array or object here is taken for a whole weather object by setWeather and threw at the first start */S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;S.zty=cleanSave(S.zty);  /* the craft type (ztypes.js): {v, id}; an old save, a hand-edited value or an unknown type is the Dart */
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
 if((S.setV|0)<5){for(const k of['gmode','diff','fuse','skin','guide','guideSw'])delete S[k];S.setV=5}  /* v5: Classic is gone, Zombies is the game: the settings only Classic read (mode, threat level, fuse, look, midcourse guidance) are dropped */
 if((S.setV|0)<6){delete S.zrspeech;S.setV=6}  /* v6: the radio has no voice any more: the speech setting is dropped */
@@ -360,7 +361,13 @@ const MAT={carbon:new THREE.MeshStandardMaterial({color:0x16191f,roughness:.45,m
  prop:new THREE.MeshBasicMaterial({color:0xaab4c8,transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide}),blade:new THREE.MeshStandardMaterial({color:0x22252a,roughness:.5,transparent:true,opacity:.65})};
 const _q=new QT(),_v=new V3(),_w=new V3(),_u=new V3();
 class Drone{
- constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),vp:0,vc:4.2,tb:new V3(),gu:new V3(),dead:0,mah:0,t:0,home:FOBS[1]});this.build();this.spawn()}
+ constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),vp:0,vc:4.2,tb:new V3(),gu:new V3(),dead:0,mah:0,t:0,home:FOBS[1],ty:'dart',cx:null,camO:new V3(0,.37,-.03),chase:[3.4,1.1]});this.build();this.mesh.userData.ty='dart';this.spawn()}
+ // craft type (ztypes.js): the dart is built below, any other type by its table entry (its mesh and its flight controller cx); switching swaps both, and each model is built once per Drone
+ setType(id){id=cleanId(id);if(id===this.ty)return;const T=typeOf(id),M=this.M||(this.M={dart:{mesh:this.mesh,props:this.props,nozzle:this.nozzle,strela:this.strela}});
+  scene.remove(this.mesh);this.ty=id;if(!M[id]){const m=T.buildModel();M[id]={mesh:m.group,props:m.props,nozzle:m.nozzle,strela:null}}
+  const m=M[id];this.mesh=m.mesh;this.props=m.props;this.nozzle=m.nozzle;this.strela=m.strela;scene.add(m.mesh);
+  this.cx=T.buildModel?T.make(this,CRAFT):null;this.camO.set(...T.cam.off);this.chase=T.cam.chase;
+  this.mesh.userData.ty=id;this.mesh.visible=this.dead<=0}
  // the Strela-2 body (strela.js) on the quad hardware: arms, motors, props
  build(){const g=this.mesh=new THREE.Group();this.strela=strelaBody();g.add(this.strela);
   const add=(geo,mat,x,y,z,ry=0,par=g)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.y=ry;m.castShadow=true;par.add(m);return m};
@@ -370,9 +377,10 @@ class Drone{
   scene.add(g)}
  // on the launch mat at the forward position nearest the most urgent track, standing on its fins, nose up, facing the track, motors off
  spawn(){const u=selT(),f=this.home=u?FOBS.reduce((a,b)=>Math.hypot(b.x-u.p.x,b.z-u.p.z)<Math.hypot(a.x-u.p.x,a.z-u.p.z)?b:a):FOBS[1];
+  if(this.cx){this.cx.spawn(f,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.mesh.visible=true;IP.cut(this);return}
   this.p.set(f.mat.x,f.mat.y+(.36+.04)*MSZ+.005,f.mat.z);this.v.set(0,0,0);this.w.set(0,0,0);this.wt.set(0,0,0);
   this.q.setFromAxisAngle(UP,u?Math.atan2(f.x-u.p.x,f.z-u.p.z):0);this.dead=0;this.thr=this.ms=0;this.tb.set(0,0,0);this.gu.set(0,0,0);this.vp=0;this.vc=4.2;this.gt=.12;this.mah=0;this.t=0;this.mesh.visible=true;IP.cut(this)}
- step(dt){const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT);if(THR*this.ms**TE<G*.5&&_u.set(0,1,0).applyQuaternion(this.q).y>.7)wt.set(0,0,0)}this.t+=dt;  // standing on its fins below half-hover thrust: the sticks can't tip it over
+ step(dt){if(this.cx)return this.cx.step(dt);const gd=(this.gt-=dt)>0;let wt=this.wt;if(gd){wt=_gw.copy(wt);wt.y*=.15;wt.clampLength(0,TURT);if(THR*this.ms**TE<G*.5&&_u.set(0,1,0).applyQuaternion(this.q).y>.7)wt.set(0,0,0)}this.t+=dt;  // standing on its fins below half-hover thrust: the sticks can't tip it over
   // on the ground without enough lift to fly, sticks lever the frame over its lowest edge (turtle-style, no switch needed)
   if(gd&&this.v.lengthSq()<25&&wt.lengthSq()>.04&&THR*this.ms**TE*_u.set(0,1,0).applyQuaternion(this.q).y<G*.9&&_u.y<.7&&this.pivot(wt,dt))return 0;  // only once it has fallen over: standing on its fins it stays put
   if(gd)this.w.lerp(wt,1-Math.exp(-dt/.09));
@@ -416,6 +424,8 @@ const _gw=new V3(),_ww=new V3(),_br=new V3(),_bp2=new V3(),_vp=new V3(),_rn=new 
 const cellV=d=>d.vc;  // loaded per-cell voltage (see Drone.step)
 // LiPo resting voltage per cell vs fraction used: 4.2 full, a long 3.8–3.7 plateau, falling off a cliff past ~85%
 function ocv(u){u=cl(u,0,1);return u<.1?4.2-u*2.5:u<.85?3.95-(u-.1)*.4:3.65-(u-.85)*4}
+/* what a craft type's flight controller gets from the world (ztypes.js: make(drone, X)); the tune's numbers are read live */
+const CRAFT={THREE,gh,sdf,sdN,WIND,ocv,FOBS,noise,feed,banner,get G(){return G},get HOV(){return HOV},get BCAP(){return BCAP},get SAGK(){return SAGK},get MSZ(){return MSZ},get wind(){return WX?WX.wind:0}};
 
 const _x=new V3(),_z=new V3();
 // ---------- human input ----------
@@ -432,16 +442,17 @@ function humanControl(d,dt){const g=pad();let thr=null,yaw=0,pit=0,rol=0;
  const B=Z.on&&Z.botIn?.(d,dt);if(B){thr=B.thr;yaw=B.yaw;pit=B.pit;rol=B.rol}  // Zombies Bot Spectator (zspectate.js): a bot pilot's sticks instead of yours, always through the acro rates
  stk[3]=cl(thr,0,1);d.thr=thrCurve(stk[3]);
  stk[0]=rol;stk[1]=pit;stk[2]=yaw;
+ if(d.cx){d.cx.stick(stk[3],yaw,pit,rol);return}  /* a fixed-wing type flies the sticks itself (ztypes.js) */
  // Betaflight fpv_mix_degrees: roll and yaw are mixed through the camera angle, so roll stick rolls the picture about the camera's line of sight (at 90° it spins the dart about its fuselage)
  if(S.mode==='acro'||B){const ro=rate(0,rol),yw=rate(2,yaw),a=S.fpvMix?camA()*Math.PI/180:0,c=Math.cos(a),s=Math.sin(a);d.wt.set(-rate(1,pit),ro*s-yw*c,-ro*c-yw*s)}
  else{const f=fwdH(d.q,_f);if(f.lengthSq()<1e-4)f.set(0,0,-1);f.normalize();  // Angle mode: full stick = 88° of tilt, enough for dart cruise
   const r=_r.crossVectors(f,UP),m=Math.min(1,Math.hypot(pit,rol)),u=_v.copy(UP);if(m>1e-3)u.multiplyScalar(Math.cos(m*1.535)).addScaledVector(_b.copy(f).multiplyScalar(pit).addScaledVector(r,rol).normalize(),Math.sin(m*1.535));attitude(d,u,f,16,18,1);d.wt.y-=rate(2,yaw)*.7}}
 // horizontal heading of the airframe: works hovering (camera side) and in dart cruise (nose)
-const fwdH=(q,o)=>o.set(0,1,-1).applyQuaternion(q).setY(0);
+const fwdH=(q,o)=>(player&&player.cx?o.set(0,1,0):o.set(0,1,-1)).applyQuaternion(q).setY(0);  /* a fixed-wing type's heading is its nose */
 const fireIn=fireBtnIn;
 // camera tilt switch (S.tilt for cruise / level for take-off and hover) and thermal switch: keyboard L / H toggle; a mapped radio switch axis sets the position whenever it moves, a mapped button toggles
-let camUp=false,therm=false;const camA=()=>camUp?S.tilt:0;
-const setCam=v=>{if(v!==camUp){camUp=v;if(!demo)banner(v?`CAM ${S.tilt}°`:'CAM LEVEL','',.7)}},setTherm=v=>{if(v!==therm){therm=v;if(!demo)banner(v?'THERMAL WHT':'DAY CAM','',.7)}};
+let camUp=false,therm=false;const camA=()=>player&&player.cx?typeOf(player.ty).cam.tilt:camUp?S.tilt:0;  /* a fixed-wing type's camera sits on its nose (ztypes.js cam.tilt) */
+const setCam=v=>{if(v!==camUp){camUp=v;if(!demo&&!(player&&player.cx))banner(v?`CAM ${S.tilt}°`:'CAM LEVEL','',.7)}},setTherm=v=>{if(v!==therm){therm=v;if(!demo)banner(v?'THERMAL WHT':'DAY CAM','',.7)}};
 const SWA={tiltSw:[setCam,()=>camUp],thermSw:[setTherm,()=>therm],nextSw:[()=>nextTrack(),null]};
 const switches=()=>pollSwitches(SWA);
 
@@ -510,7 +521,7 @@ const aspect=(t,p)=>{const c=_ad.subVectors(p,t.p).normalize().dot(_tv.copy(t.v)
 let player=null,demo=true,paused=false,menuOpen=true,shake=0,camMode=S.cam|0;
 let wave=0,wstate='brief',wT=0,toSpawn=0,spawnT=0,spent=0;  /* wave / wstate: Zombies' wave number and state ('over' freezes relaunching); in the menu they run the backdrop's raids */
 const deadP=new V3(),deadC=new V3();
-function launch(){if(!player)player=new Drone();player.spawn();TH.forEach(t=>{t.pd=t.dmin=1e9;t.cvm=0});FW.clear();fireWas=true;kbThr=0;kbArm=false;camUp=false;lqS=1;{const v=typeof S.tiltSw==='string'?swRead(S.tiltSw):null;if(v!=null)camUp=v}
+function launch(){if(!player)player=new Drone();player.setType(Z.craft?Z.craft.cur():'dart');player.spawn();TH.forEach(t=>{t.pd=t.dmin=1e9;t.cvm=0});FW.clear();fireWas=true;kbThr=0;kbArm=false;camUp=false;lqS=1;{const v=typeof S.tiltSw==='string'?swRead(S.tiltSw):null;if(v!=null)camUp=v}
  if(!demo)feed(`On the mat at <b>${player.home.n}</b>. Throttle up to take off`)}
 function relaunch(){if(player.dead<=0&&player.p.distanceTo(player.home.mat)>3)spent++;launch()}
 function lose(why){const d=player;if(d.dead>0)return;if(Z.on&&Z.god?.(why))return;  /* the debug mode's god mode (zdebug.js): the interceptor is not lost to a crash, a flat pack or a hit */d.dead=RELT;spent++;deadP.copy(d.p);d.mesh.visible=false;
@@ -556,10 +567,10 @@ function updateCam(dt,now){const me=player;camPrev.copy(camera.position);
  if(demo||!me){const t=now*1.5e-5,tg=nearestThreat(_ip.set(0,300,0));camPos.set(Math.sin(t)*1400,320+Math.sin(t*1.7)*60,900+Math.cos(t)*900);camera.position.copy(camPos);if(tg)camFwd.lerp(_t.copy(tg.p).sub(camPos).normalize(),1-Math.exp(-dt*.5));camera.lookAt(_t.copy(camPos).add(camFwd));setFov(55,false)}
  else if(me.dead>0){camPos.lerp(deadC,1-Math.exp(-dt*3));camera.position.copy(camPos);camera.lookAt(deadP);setFov(100)}
  else{const fpv=camMode===0;me.mesh.visible=!fpv;
-  if(fpv){camera.position.copy(me.p).add(_cp.set(0,.37,-.03).multiplyScalar(MSZ).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camA()*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);{const a=(.0003+.001*me.ms)*SHK;camera.quaternion.multiply(_q.setFromEuler(_je.set(gn()*a,gn()*a*.5,gn()*a)))}setFov(S.fov)}
+  if(fpv){camera.position.copy(me.p).add(_cp.copy(me.camO).multiplyScalar(MSZ).applyQuaternion(me.q));tiltQ.setFromAxisAngle(_x.set(1,0,0),camA()*Math.PI/180);camera.quaternion.copy(me.q).multiply(tiltQ);{const a=(.0003+.001*me.ms)*SHK;camera.quaternion.multiply(_q.setFromEuler(_je.set(gn()*a,gn()*a*.5,gn()*a)))}setFov(S.fov)}
   else{const f=fwdH(me.q,_f);if(f.lengthSq()<.05)f.copy(me.v).setY(0);if(f.lengthSq()<.01)f.copy(camFwd);f.normalize();
    const nt=selT(),foc=nt?nt.p:_ip.set(PADP.x,PADY,PADP.z);if(camMode===2&&nt)f.subVectors(foc,me.p).setY(0).normalize();if(f.lengthSq()<.5)f.copy(camFwd);camFwd.lerp(f,1-Math.exp(-dt*5)).normalize();
-   _cp.copy(me.p).addScaledVector(camFwd,-3.4*MSZ).add(_t.set(0,1.1*MSZ,0));_cp.y=Math.max(_cp.y,gh(_cp.x,_cp.z)+.6);
+   _cp.copy(me.p).addScaledVector(camFwd,-me.chase[0]*MSZ).add(_t.set(0,me.chase[1]*MSZ,0));_cp.y=Math.max(_cp.y,gh(_cp.x,_cp.z)+.6);
    camPos.lerp(_cp,1-Math.exp(-dt*10));camera.position.copy(camPos);camera.lookAt(camMode===2&&nt?foc:_t.copy(me.p).addScaledVector(camFwd,3*MSZ).setY(me.p.y+.3*MSZ));setFov(100)}}
  if(dt>0)camVel.subVectors(camera.position,camPrev).divideScalar(dt).clampLength(0,200);
  const cp=camera.position;sun.target.position.set(Math.round(cp.x/8)*8,gh(cp.x,cp.z),Math.round(cp.z/8)*8);sun.position.copy(sun.target.position).addScaledVector(SUND,700);sunDisc.position.copy(cp).addScaledVector(SUND,20000);
@@ -701,7 +712,7 @@ const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone()
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
  get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
- sdf,interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get spent(){return spent}});
+ sdf,interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get spent(){return spent},camA,get HOV(){return HOV},get MSZ(){return MSZ}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
 // Graphics quality and the FPS meter (igfx.js); the shader warm-up (engine/warm.js) runs once the menu is up, and one frame through the camera-feed
 // pass. No environment-map variant to warm: cloud decks, night and thermal swap in a black map of the same size (envOff), the same programs

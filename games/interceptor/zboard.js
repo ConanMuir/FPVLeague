@@ -15,15 +15,17 @@ export function initBoard(api,G,Z){
  fetch(new URL('zbench.json',import.meta.url)).then(r=>r.ok?r.json():null).then(j=>{B=cleanBench(j);sync()}).catch(()=>{});
  // difficulty weights: Normal median / this difficulty's median, averaged over the levels (fallback when there is no benchmark)
  function weights(){const w=[.8,1,1.3,1.6];if(!B)return w;return DN.map((n,i)=>{const r=B.levels.filter(l=>l.d.Normal&&l.d[n]).map(l=>l.d.Normal.med/Math.max(1,l.d[n].med));return r.length?r.reduce((a,b)=>a+b,0)/r.length:w[i]})}
- const runs=()=>(Array.isArray(S.zruns)?S.zruns:[]).filter(r=>r&&Number.isInteger(r.d)&&r.d>=0&&r.d<DN.length&&Number.isInteger(r.w)&&r.w>0&&r.w<1000).map(r=>({d:r.d,w:r.w,doc:typeof r.doc==='string'?r.doc.slice(0,12):'std',co:r.co?1:0,t:+r.t||0}));
+ const runs=()=>(Array.isArray(S.zruns)?S.zruns:[]).filter(r=>r&&Number.isInteger(r.d)&&r.d>=0&&r.d<DN.length&&Number.isInteger(r.w)&&r.w>0&&r.w<1000).map(r=>({d:r.d,w:r.w,doc:typeof r.doc==='string'?r.doc.slice(0,12):'std',co:r.co?1:0,t:+r.t||0,ty:typeof r.ty==='string'?r.ty.slice(0,12):'dart'}));
  // every entry, best first: {bot: level name | null, d, w, score, me: this run}
  function entries(cur){const W=weights(),E=[];
   if(B)for(const l of B.levels)DN.forEach((n,i)=>{const c=l.d[n];if(c)E.push({bot:l.n,d:i,w:Math.round(c.med),score:c.med*W[i],fly:c.fly})});
-  for(const r of runs())E.push({bot:null,d:r.d,w:r.w,doc:r.doc,co:r.co,score:r.w*W[r.d],me:!!cur&&r.t===cur.t});
+  for(const r of runs())E.push({bot:null,d:r.d,w:r.w,doc:r.doc,co:r.co,ty:r.ty,score:r.w*W[r.d],me:!!cur&&r.t===cur.t});
   return E.sort((a,b)=>b.score-a.score||(a.bot?1:0)-(b.bot?1:0))}
- const label=e=>`${e.bot?e.bot+' bot':'You'+(e.co?' (co-op)':'')} · ${DN[e.d]} · wave ${e.w}${e.fly?` · flown: wave ${Math.round(e.fly.med)}, ${Math.round(e.fly.pct*100)}% of the map, ${e.fly.systems} systems`:''}`;
+ /* a run flown in another craft type names it (ztypes.js); the bots' benchmark is the Dart's */
+ const craftN=e=>!e.bot&&e.ty&&e.ty!=='dart'?Z.craft?.types?.[e.ty]?.name:'';
+ const label=e=>`${e.bot?e.bot+' bot':'You'+(e.co?' (co-op)':'')+(craftN(e)?' in the '+craftN(e):'')} · ${DN[e.d]} · wave ${e.w}${e.fly?` · flown: wave ${Math.round(e.fly.med)}, ${Math.round(e.fly.pct*100)}% of the map, ${e.fly.systems} systems`:''}`;
  // a finished run: saved (best 20 by score kept) and returned so the end screen can highlight it
- function record(d,w,co){if(!(w>0))return null;const W=weights(),r={d,w,doc:Z.meta?.docId?.()||'std',co:co?1:0,t:Date.now()};
+ function record(d,w,co){if(!(w>0))return null;const W=weights(),r={d,w,doc:Z.meta?.docId?.()||'std',co:co?1:0,t:Date.now(),ty:Z.craft?.cur()||'dart'};
   S.zruns=[...runs(),r].sort((a,b)=>b.w*W[b.d]-a.w*W[a.d]).slice(0,MAXRUNS);save();sync();return r}
  // the headline: which bot this run beat on its own difficulty, and the next one up
  function verdict(d,w){if(!B)return'';const L=B.levels.filter(l=>l.d[DN[d]]),beat=L.filter(l=>w>l.d[DN[d]].med).pop(),next=L.find(l=>w<=l.d[DN[d]].med);

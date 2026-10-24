@@ -85,7 +85,7 @@ export function initDirector(api,G,Z,opts={}){
    S.L.copy(A.p).addScaledVector(S.h,D*.7);S.fov=62+cl(sp/8,0,10);pair(S,.4)},
   pursuit(S,dt){const A=S.A,B=S.B;_b.subVectors(B.p,A.p);const d=_b.length()||1;_b.divideScalar(d);_b.y=cl(_b.y,-.35,.35);_b.normalize();const D=cl(d*.05+7,8,22);
    _a.copy(_b).multiplyScalar(-D);_a.y+=D*.25+2;lerpTo(S.sp,_a,dt,4,S.age<.05);S.P.copy(A.p).add(S.sp);S.L.copy(A.p).lerp(B.p,.55);S.fov=56},
-  fpv(S){const me=api.player,k=((ST.mod&&ST.mod.size)||.5)/.5;S.P.set(0,.37*k,-.03*k).applyQuaternion(me.q).add(me.p);_q.setFromAxisAngle(X1,(api.camUp?ST.tilt:0)*DEG).premultiply(me.q);
+  fpv(S){const me=api.player,k=((ST.mod&&ST.mod.size)||.5)/.5;S.P.copy(me.camO).multiplyScalar(k).applyQuaternion(me.q).add(me.p);_q.setFromAxisAngle(X1,api.camA()*DEG).premultiply(me.q);
    S.L.set(0,0,-100).applyQuaternion(_q).add(S.P);S.fov=aspectFov(ST.fov||110)},
   orbit(S){const A=S.A,a=S.ang+S.w*S.age;S.P.set(A.p.x+Math.cos(a)*S.R,A.p.y+S.hg,A.p.z+Math.sin(a)*S.R);S.L.copy(A.p);S.L.y+=A.cls===2?4:2;S.fov=S.R>150?52:60},
   wide(S){const A=S.A,B=S.B;_a.copy(A.p);if(B.on&&A.p.distanceToSquared(B.p)<1500*1500)_a.lerp(B.p,.5);_b.subVectors(_a,SC).setY(0);if(_b.lengthSq()<250*250){const a=S.ang+S.w*S.age;_b.set(Math.cos(a),0,Math.sin(a))}else _b.normalize();

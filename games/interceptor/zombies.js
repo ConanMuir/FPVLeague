@@ -38,6 +38,7 @@ import {initScars} from './zscars.js';
 import {initBrief} from './zbrief.js';
 import {initEndless} from './zendless.js';
 import {initBuddy} from './zbuddy.js';
+import {initTypes} from './ztypeui.js';
 import {initDebug} from './zdebug.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
@@ -348,6 +349,7 @@ export function initZombies(api){
  initEndless(api,G,Z);  /* Endless (zendless.js): after the campaign, a sector with no objective whose waves keep climbing; wraps the campaign's hooks, so it goes last */
  initBuddy(api,G,Z);  /* Little Buddy (zbuddy.js): your Drone League garage quad flies as a free helper; it only adds to the step / visuals / overlay / radar / start / stop / lock hooks */
  initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
+ initTypes(api,G,Z);  /* craft types (ztypeui.js, ztypes.js): the Dart or the Plane; the picker on the start card and the base screen, the HUD panel, the radio line, the saved choice */
  initDebug(api,G,Z);  /* debug mode (zdebug.js): off unless ?debug=1 or Ctrl+Shift+D; a panel with cheats, readouts and the developer report; a marked run saves nothing; the outermost wrapper, so it goes last */
  $('zdiff').after($('play').parentNode);  /* the start / resume row sits right under the difficulty tabs: the cards the modules added below them (campaign, enemies, watch a bot, doctrine, leaderboard, co-op) had pushed it below the fold of a 1080p window */
  return Z}
