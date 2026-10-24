@@ -68,7 +68,7 @@ jobs:
   browser:
     name: Browser check (${{ matrix.check }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.minutes || 20 }}  # a slow entry says `minutes:` (the types section flies a bot to wave 8: 12 min on a good runner, over 20 on a slow one)
     strategy:
       fail-fast: false
       matrix:
@@ -236,6 +236,7 @@ jobs:
           # craft types (ztypes.js, zplane.js, ztypeui.js): the table, the picker and its saved choice, the Plane's flight (catapult, cruise, bank, minimum speed and no hover, landing), bursts, lock, co-op models, bots flying each type, nothing left behind
           - check: zombies-test (types)
             area: interceptor
+            minutes: 35
             run: node tools/zombies-test.mjs --sections=types
           # key rebinding (engine/keys.js, engine/input.js, zkeys.js): the four switch rows' key cells in the controller panel, the capture (key, mouse button, Esc), clashes refused, the new key acts and the old one does not, Reset, the saved bindings and a hand-edited save, the text that names the keys
           - check: zombies-test (keys)
