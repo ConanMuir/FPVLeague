@@ -2702,12 +2702,33 @@ if (want('endless')) {
   ok(!PL.en && PL.obj === 8 && PL.hud === 'WAVE 1/8 NEXT' && /Hold 8 waves/.test(PL.strip) && PL.b === 1 && PL.dk === 1 && !PL.after, 'Old Mill afterwards is the plain campaign sector: 8 waves, no climb (one boss on wave 60, a hit counts x1), and leaving it turns Endless off');
 
   // ---- the bots can play it (the bench hook), and it is off by default ----
+  // ---- the late-game sink: past wave 40 upkeep and repairs grow with the wave, so the purse of a strong run stays bounded (up to wave 40 they cost what they always did) ----
+  const SINK = await p.evaluate(() => { const {Z, G, api} = __z, E = Z.endless, o = {};
+    E.start('gate'); const R = Z.cp.run, def = Z.def;
+    for (let j = 0, n = 0; j < def.SLOTS.length && n < 14; j++) if (def.slotFree(j, 'rack')) { const d = def.add('rack', j); if (d) { d.spent = 20000; n++; } }  /* a full line: fourteen racks with $20,000 spent on each, as a deep run has it */
+    o.defs = def.D.length; const up = w => Z.upkeep(w).total;
+    o.plain = [11, 30, 40].map(w => { R.endless = true; const a = up(w); R.endless = false; const b = up(w); R.endless = true; return a === b && a > 0; });  /* up to wave 40 Endless pays exactly what any run pays */
+    G.wave = 39; R.endless = true; const r1 = Z.repairK(); R.endless = false; const r2 = Z.repairK(); R.endless = true; o.repair40 = r1 === r2; G.wave = 59; o.repair60 = Z.repairK() / r2; G.wave = 0;
+    o.k = [41, 50, 60, 75].map(w => +(up(w) / up(40)).toFixed(3)); o.curve = [41, 50, 60, 75].map(w => +E.sinkK(w).toFixed(3));
+    const income = w => 18 * w * w;  /* about what a strong run's kills pay a wave: $45K at wave 50, $100K at 75 (the Legend bot's Endless runs) */
+    const play = on => { R.endless = on; G.cash = 0; G.wave = 40; Z.openBase(); const out = {};
+      for (let w = 41; w <= 90; w++) { __z.cont(); G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.cash += income(w); __z.sim(.5);  /* the wave's raid is down: it clears, the bonus and the upkeep are paid */
+        if (G.state !== 'clear' || G.wave !== w) return {err: `wave ${w} is ${G.state} (${G.wave})`}; __z.sim(4);  /* the base screen opens */
+        api.SITES.forEach((s, i) => { s.hp = Math.round(s.max * .85); Z.base.act.repair(i, s.max - s.hp); });  /* the wave's damage, repaired at the going price */
+        if (w % 5 === 0) out[w] = Math.round(G.cash); }
+      return out; };
+    o.on = play(true); o.off = play(false); R.endless = true; return o; });
+  ok(SINK.defs === 14 && SINK.plain.every(Boolean) && SINK.repair40, `Endless sink: up to wave 40 the upkeep (waves 11 / 30 / 40) and the repair price are exactly the ordinary ones (${SINK.defs} defences)`);
+  ok(SINK.k.join() === SINK.curve.join() && Math.abs(SINK.k[1] - 2) < 1e-6 && Math.abs(SINK.k[2] - 5) < 1e-6 && SINK.k[0] > 1 && SINK.k[0] < 1.05 && Math.abs(SINK.repair60 - 5) < 1e-6, `Endless sink: past wave 40 the upkeep and the repairs grow on a gentle curve (x${SINK.k.join(' / x')} at waves 41 / 50 / 60 / 75; repairs x${SINK.repair60.toFixed(2)} at 60)`);
+  const sOn = SINK.on, sOff = SINK.off, peak = Math.max(...Object.values(sOn || {}), 0), k$ = v => '$' + Math.round(v / 1000) + 'K';
+  ok(!SINK.err && !sOff?.err && peak < 1e6 && sOn[90] < sOn[75] && sOn[90] < sOff[90] * .25 && sOff[90] > 3e6, `Endless sink: in a scripted strong run (14 racks, $20,000 each, ordinary income of 18 x wave squared, real clears and repairs) the purse peaks at ${k$(peak)} and is falling by wave 90 (${k$(sOn?.[75])} at 75, ${k$(sOn?.[90])} at 90), where the same run without the sink holds ${k$(sOff?.[75])} / ${k$(sOff?.[90])}${SINK.err ? ' ' + SINK.err : ''}`);
+
   const BH = (await import('node:fs')).readFileSync(new URL('./zombies-bench.mjs', import.meta.url), 'utf8');
   ok(/'--endless'/.test(BH) && /!ENDLESS/.test(BH) && /Z\.endless\.start\(id\)/.test(BH) && /ENDLESS \? campDone/.test(BH), 'Bench hook: tools/zombies-bench.mjs --endless [sector] plays Endless on a finished campaign, never writes zbench.json, and is off unless asked for');
 
   // ---- nothing leaks: restarts, redraws and the menu button add no objects, nodes, listeners or wrappers ----
   await defs();
-  const LK = await p.evaluate(() => { const {Z, G, api} = __z, m = () => { const i = api.renderer.info.memory; return [i.geometries, i.textures, api.renderer.info.programs.length].join(); }, o = {}, hooks = () => [Z.cpCompose, Z.en.dress, Z.dmgK, Z.step, Z.cpOver, Z.cpHTML, Z.waveTxt, Z.syncMode, Z.continue];
+  const LK = await p.evaluate(() => { const {Z, G, api} = __z, m = () => { const i = api.renderer.info.memory; return [i.geometries, i.textures, api.renderer.info.programs.length].join(); }, o = {}, hooks = () => [Z.cpCompose, Z.en.dress, Z.dmgK, Z.upkeep, Z.repairK, Z.step, Z.cpOver, Z.cpHTML, Z.waveTxt, Z.syncMode, Z.continue];
     Z.endless.start('gate'); __z.cont(); __add(3); __clear(); __z.sim(.5); __z.sim(3.5); const fns = hooks(); o.m0 = m();
     for (let i = 0; i < 4; i++) { Z.endless.start(i % 2 ? 'gate' : 'river'); __z.cont(); __add(3); __clear(); __z.sim(.5); __z.sim(3.5); } for (let i = 0; i < 20; i++) Z.syncMode();
     o.same = hooks().every((f, i) => f === fns[i]); o.m1 = m(); o.th = api.TH.length; api.startDemo(); o.boards = document.querySelectorAll('#zendboard').length; o.btns = document.querySelectorAll('#zendgo').length;
