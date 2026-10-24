@@ -2607,6 +2607,7 @@ if (want('endless')) {
   // ---- the briefing of a climbing wave ----
   const BR = await p.evaluate(() => { const {Z} = __z; __z.jump(33, 1e6); Z.openBase(); const t = document.getElementById('zbrief').innerText.replace(/\s+/g, ' '); return {t, line: Z.brief.data().extra.join(' | ')}; });
   ok(/Endless \+\d+% tracks · \+\d+% speed · \d+% of the Shaheds armored · sites take \+\d+%/.test(BR.t) && /boss every 5 waves · milestone wave 40: \+\$3,200 and a repair/.test(BR.t), `Briefing in Endless at wave 33: "${BR.line}"`);
+  ok(/at most 400 tracks in the air/.test(BR.t), 'Briefing in Endless: the note says how many tracks can be in the air at once (the ceiling)');
 
   // ---- the end: the Endless screen, the Endless table, the campaign untouched, the scars saved ----
   const GO = await p.evaluate(() => { const {Z, G, api} = __z, S = api.S; __z.jump(13, 0); Z.openBase(); G.wave = 12; Z.gameOver();
@@ -2655,6 +2656,19 @@ if (want('endless')) {
     rc.clearRect = function (...a) { o.labels = Math.max(o.labels, k); k = 0; o.paints++; return c0.apply(this, a); }; rc.fillText = function (t, ...a) { if (/^T\d+ -?\d+$/.test(t)) k++; return f0.call(this, t, ...a); };
     await new Promise(r => setTimeout(r, 900)); delete rc.clearRect; delete rc.fillText; o.n = api.TH.filter(api.live).length; G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; return o; });
   ok(RD.paints > 3 && RD.labels >= 30 && RD.labels <= 41, `Radar: with ${RD.n} tracks on the scope a repaint writes ${RD.labels} labels (the 40 nearest and the selected one; ${RD.paints} repaints looked at)`);
+  // the ceiling: no more than CAP_LIVE tracks in the air; what the plan has due past it waits in the queue (a swarm whole) and goes out as tracks die, nothing is lost; with the climb off there is no ceiling
+  const CP = await p.evaluate(() => { const {Z, G, api} = __z, E = Z.endless, o = {cap: E.CAP_LIVE}, live = () => api.TH.filter(api.live).length, keep = () => api.SITES.forEach(s => s.hp = s.max);
+    const clear = () => { for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; };
+    const start = on => { Z.cp.run.endless = on; __z.cont(); clear(); keep(); G.wq.length = 0; const g0 = G.gid; for (let i = 0; i < 100; i++) G.wq.push({k: 'swarm:6', at: 0, brg: (i % 9 - 4) * .2}); return g0; };  /* 100 swarms of 6, all due at once */
+    let g0 = start(true); __z.sim(.3); o.l1 = live(); o.q1 = G.wq.length; o.s1 = G.gid - g0; o.st1 = G.state;
+    let n = 0; for (const t of api.TH) if (api.live(t) && n++ < 100) t.st = 'dead'; __z.sim(.1); o.l2 = live(); o.q2 = G.wq.length;  /* 100 tracks die: the queue goes out into the room they left */
+    for (let i = 0; i < 60 && (G.wq.length || live()); i++) { for (const t of api.TH) if (api.live(t)) t.st = 'dead'; keep(); __z.sim(.1); } o.s3 = G.gid - g0; o.q3 = G.wq.length;
+    g0 = start(false); __z.sim(.3); o.l4 = live(); o.q4 = G.wq.length;  /* the climb off: all 600 at once */
+    Z.cp.run.endless = true; G.wq.length = 0; clear(); keep(); return o; });
+  ok(CP.cap === 400 && CP.l1 > 390 && CP.l1 <= 400 && CP.q1 >= 30 && CP.s1 === 100 - CP.q1 && CP.st1 === 'wave', `Climb, ceiling: 600 drones due at once, ${CP.l1} fly (at most ${CP.cap}), ${CP.q1} swarms wait in the queue`);
+  ok(CP.l2 > 390 && CP.l2 <= 400 && CP.q2 < CP.q1 && CP.q2 > 0, `Climb, ceiling: 100 tracks die and the queue fills the room (${CP.l2} in the air, ${CP.q1} -> ${CP.q2} swarms waiting)`);
+  ok(CP.s3 === 100 && CP.q3 === 0, `Climb, ceiling: the whole plan goes out in the end (${CP.s3} of 100 swarms), nothing lost`);
+  ok(CP.l4 === 600 && CP.q4 === 0, `Climb, ceiling: with the climb off there is no ceiling (${CP.l4} in the air)`);
   // the boss codex (zcodex.js): an Endless run's bosses come from its pool (unlocked and allowed), never from the sector's set piece; the Launch Complex's own Mothership escort does not double the boss
   const CX = await p.evaluate(() => { const {Z, G, api, KIND} = __z, S = api.S, X = Z.codex, o = {}, R0 = Z.bosses.roster;
     const bs = L => L.filter(k => { const K = KIND[k.split(':')[0]]; return K.armor === 'boss' || !!K.bossy; }), seen = (w, n) => { const m = {}; for (let i = 0; i < n; i++) for (const k of bs(__z.plan(w).list)) m[k] = (m[k] | 0) + 1; return m; };
