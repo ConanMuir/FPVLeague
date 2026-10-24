@@ -579,7 +579,7 @@ function updateCam(dt,now){const me=player;camPrev.copy(camera.position);
 
 // ---------- HUD ----------
 // radar scope: heading-up PPI around the interceptor; blips repaint as the sweep passes them (like a real ground radar picture relayed to the goggles)
-const rc=$('radar').getContext('2d');let sweep=0;const RQ=[[0,0],[0,0],[0,0],[0,0]],RGB={};let rqi=0;
+const rc=$('radar').getContext('2d');let sweep=0;const RQ=[[0,0],[0,0],[0,0],[0,0]],RGB={},RLAB=40;let rqi=0,RD=new Float64Array(512);  /* RLAB: the scope writes a label for this many tracks (the nearest) and the selected one; every track still gets its blip. RD: their squared distances */
 function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:null,o=me?me.p:_ip.set(PADP.x,0,PADP.z),RR=RRS[S.rr],K=R/RR;
  const f=me?fwdH(me.q,_f):_f.set(0,0,-1);if(f.lengthSq()<1e-4)f.copy(me.v).setY(0);const hd=Math.atan2(f.x,-f.z);  // heading, 0 = north
  const ca=Math.cos(-hd),sa=Math.sin(-hd),ox=o.x,oz=o.z,P=(x,z)=>{const dx=x-ox,dz=z-oz,q=RQ[rqi=(rqi+1)&3];q[0]=c+(dx*ca-dz*sa)*K;q[1]=c+(dx*sa+dz*ca)*K;return q};  // points come from a ring of four: callers hold at most two at once
@@ -593,11 +593,13 @@ function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:nul
  const s0=sweep;sweep=(sweep+dt*Math.PI)%(Math.PI*2);const g=rc.createConicGradient?rc.createConicGradient(sweep-Math.PI/2-.6,c,c):null;
  if(g){g.addColorStop(0,'rgba(90,255,150,0)');g.addColorStop(.095,'rgba(90,255,150,.18)');g.addColorStop(.0955,'rgba(90,255,150,0)');rc.fillStyle=g;rc.beginPath();rc.arc(c,c,R,0,7);rc.fill()}
  const sel=selT();rc.font='700 17px "JetBrains Mono",monospace';rc.textAlign='left';
+ let lab=Infinity;  /* squared distance within which a track is labelled: the RLAB-th nearest live one (everything while there are no more than that) */
+ if(TH.length>RLAB){if(RD.length<TH.length)RD=new Float64Array(TH.length*2);let n=0;for(const t of TH)if(live(t)){const dx=t.p.x-ox,dz=t.p.z-oz;RD[n++]=dx*dx+dz*dz}if(n>RLAB){const d=RD.subarray(0,n);d.sort();lab=d[RLAB-1]}}
  for(const t of TH){if(t.st==='dead'||!Z.seen(t))continue;const q=P(t.p.x,t.p.z),b=(Math.atan2(q[0]-c,c-q[1])+Math.PI*2)%(Math.PI*2),crossed=s0<=sweep?b>s0&&b<=sweep:b>s0||b<=sweep;
   if(crossed||!t.rb){const r=t.rb||(t.rb={});r.x=t.p.x;r.z=t.p.z;r.vx=t.v.x;r.vz=t.v.z;r.y=t.p.y;r.age=0}else t.rb.age+=dt;if(!live(t)&&t.rb.age>1.5)continue;
   const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':Z.rcol(t,sel),rgb=RGB[col]||(RGB[col]=`rgb(${col})`);
   rc.globalAlpha=a;rc.strokeStyle=rc.fillStyle=rgb;rc.lineWidth=2.5;rc.beginPath();rc.moveTo(bq[0],bq[1]-7);rc.lineTo(bq[0]+7,bq[1]);rc.lineTo(bq[0],bq[1]+7);rc.lineTo(bq[0]-7,bq[1]);rc.closePath();live(t)?rc.fill():rc.stroke();
-  if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();const al=Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100);if(t._rak!==al){t._rak=al;t._ras=`T${String(t.id).padStart(2,'0')} ${al}`}rc.fillText(t._ras,bq[0]+10,bq[1]-8)}}
+  if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();if(t===sel||(t.p.x-ox)**2+(t.p.z-oz)**2<=lab){const al=Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100);if(t._rak!==al){t._rak=al;t._ras=`T${String(t.id).padStart(2,'0')} ${al}`}rc.fillText(t._ras,bq[0]+10,bq[1]-8)}}}
  rc.globalAlpha=1;Z.radar(rc,P,sel,K);rc.restore();
  // own ship, ring labels, north marker
  rc.fillStyle='#3ddc84';rc.beginPath();rc.moveTo(c,c-10);rc.lineTo(c+7,c+8);rc.lineTo(c-7,c+8);rc.closePath();rc.fill();
