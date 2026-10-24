@@ -33,7 +33,7 @@ export function createPilot(api,G,Z,P,E){
  const sortie=P.explore>=2?createFlier(E,B,F,P):null;  /* real-flight sorties between waves (zbotsortiefly.js) */
  B.sortie=sortie;
  const live=t=>api.live(t)&&t.st!=='fall';
- const topV=me=>me.cx?100+(me.bmax||0):(S.mod.maxv||115)+(me.bmax||0);  /* a fixed-wing type: its level top speed */
+ const topV=me=>me.cx?me.cx.vlev():(S.mod.maxv||115)+(me.bmax||0);  /* a fixed-wing type: its level top speed */
  const ttiOf=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
  const name=t=>Z.tname?Z.tname(t):`T${String(t.id).padStart(2,'0')} ${KIND[t.k]?.n}`;
  const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';
@@ -147,7 +147,7 @@ export function createPilot(api,G,Z,P,E){
   else if(L){st.mode='line';head.set(L.p.x-me.p.x,0,L.p.z-me.p.z);if(head.lengthSq()>1)head.normalize();else head.set(0,0,-1);const H=linePt(L,ip),e=_a.subVectors(H,me.p),d=e.length(),tt=lineTT(L);
    kv=approach(e,d,F.cruise*topV(me));floor=12;
    st.intent=`sitting on the line of ${name(L)} · impact in ${Math.ceil(tt)} s${d>8?' · '+rng(d)+' to go':''}`}
-  else if(t){st.mode='chase';const rel=_a.subVectors(t.p,me.p),d=rel.length(),top=topV(me),S0=Math.max(70,Math.min(top*.97,F.cruise*top)),fastT=t.spd>.75*S0||me.boost>0;
+  else if(t){st.mode='chase';const rel=_a.subVectors(t.p,me.p),d=st.dT=rel.length(),top=topV(me),S0=Math.max(70,Math.min(top*.97,F.cruise*top)),fastT=t.spd>.75*S0||me.boost>0;
    const vr=_b.subVectors(t.v,me.v),cv=Math.max(0,-vr.dot(rel)/Math.max(d,1)),dTerm=Math.max(350,4*cv),tAgl=agl(t.p);if(d<700&&tAgl<70)sfl=cl(tAgl-5,14,75);
    if(d>dTerm||fastT){const sp=fastT?Math.max(S0,s):S0;let tau=d/sp;const a2=t.v.lengthSq()-sp*sp,b2=2*rel.dot(t.v),c2=rel.lengthSq();
     if(Math.abs(a2)>1e-6){const q=b2*b2-4*a2*c2;if(q>=0){const r1=(-b2-Math.sqrt(q))/(2*a2),r2=(-b2+Math.sqrt(q))/(2*a2),m=Math.min(r1>0?r1:1e9,r2>0?r2:1e9);if(m<1e9)tau=m}}
@@ -182,13 +182,13 @@ export function createPilot(api,G,Z,P,E){
    else if(st.mode==='roam'&&roamO)B.set(roamO.kind,roamO.why,{x:roamO.st.x,y:roamO.st.y+roamO.st.agl,z:roamO.st.z,label:roamO.label});
    else{const K={mat:'launch',hold:'idle',line:'line',home:'return',loiter:'station'}[st.mode]||(tg&&tg.k==='boss'?'boss':tg&&Z.lk?.t===tg?'lock':'intercept');B.set(K,wy,tg?{x:tg.p.x,y:tg.p.y,z:tg.p.z,label:name(tg)}:null)}}
   const A=want(me,Vd,kv,me.cx?floor+22:floor,sfl);  /* a fixed-wing type: its own bot controller flies the wanted velocity (ztypes.js bot), with more room over the ground */
-  if(me.cx)return typeOf(me.ty).bot(api,me,Vd,head,dt,{land:st.mode==='home',look});
+  if(me.cx)return typeOf(me.ty).bot(api,me,Vd,head,dt,{land:st.mode==='home',look,near:st.mode==='chase'?st.dT:1e9});
   return sticks(me,A,head,dt,look)}
 
  // manual detonation: when the closest approach is a moment away and close enough, press detonate at that moment (with this pilot's timing
  // error); when it is already as close as it will get (sitting in the track's six, or passing), press now if that is close enough
  function detonate(me,t,dt){if(Z.autoFuse?.()&&!st.plan)return;const r=_a.subVectors(t.p,me.p),vr=_b.subVectors(t.v,me.v),vv=Math.max(1e-6,vr.lengthSq()),tc=-r.dot(vr)/vv,dc=_c.copy(r).addScaledVector(vr,Math.max(0,tc)).length(),d=r.length();
-  const K=KIND[t.k]||{},want=K.armor==='boss'?Math.max(F.fire,6):K.armor===1&&F.pick==='smart'?Math.min(F.fire,K.hitR||2):F.fire;
+  const K=KIND[t.k]||{},fq=me.cx?1.8:1,want=(K.armor==='boss'?Math.max(F.fire,6):K.armor===1&&F.pick==='smart'?Math.min(F.fire,K.hitR||2):F.fire)*fq;  /* a wing flies a looser line: it presses at a wider miss */
   if(st.plan&&st.plan.id!==t.id)st.plan=null;
   if(!st.plan&&tc>dt&&tc<.35&&dc<want)st.plan={at:st.t+Math.max(0,tc+gauss()*F.det),id:t.id};
   else if(!st.plan&&d<want&&(tc<=dt||dc>d-.25||tc>1.5))st.plan={at:st.t+Math.abs(gauss()*F.det),id:t.id};

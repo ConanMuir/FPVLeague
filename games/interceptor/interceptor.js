@@ -22,7 +22,7 @@ import {makeInterp} from '../../engine/interp.js';
 import {initZombies} from './zombies.js';
 import {makeGrid} from './grid.js';
 import {strelaBody} from './strela.js';
-import {typeOf,cleanId} from './ztypes.js';
+import {typeOf,cleanId,cleanSave} from './ztypes.js';
 import {FA,CW,CH,CROPS,fieldLayout,partRects,fieldData,groundMaterial} from './ground.js';
 import {initBuildings,houseTex,houseWallGeo,houseRoofGeo,houseNight} from './buildings.js';
 import {gfx,cleanPref,NAMES as GFXN} from '../../engine/gfx.js';
@@ -38,7 +38,7 @@ const _t=new V3(),_a=new V3(),_b=new V3(),_ip=new V3(),_tv=new V3(),_td=new V3()
 const RRS=[2000,5000,10000];
 const DEF={mode:"acro",tilt:90,fov:110,cam:0,thrMode:"full",cal:[{"a":2,"c":0.0275,"s":-0.7922},{"a":5,"c":-0.0431,"s":0.7843},{"a":1,"c":0.0431,"s":-0.8392},{"a":0,"c":-0.0039,"s":0.8235}],dz:0.03,fireBtn:5,wx:'random',rr:1,fpvMix:1,grain:.5,tiltSw:-1,thermSw:-1,nextSw:-1,zwx:'wave',gfx:'auto',fps:true,haze:false,fcap:0};
 loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the dart's camera sits at 90°, a 5-inch quad's at 30°
-if(typeof S.wx!=='string')S.wx=DEF.wx;  /* an array or object here is taken for a whole weather object by setWeather and threw at the first start */S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;
+if(typeof S.wx!=='string')S.wx=DEF.wx;  /* an array or object here is taken for a whole weather object by setWeather and threw at the first start */S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;S.zty=cleanSave(S.zty);  /* the craft type (ztypes.js): {v, id}; an old save, a hand-edited value or an unknown type is the Dart */
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
 if((S.setV|0)<5){for(const k of['gmode','diff','fuse','skin','guide','guideSw'])delete S[k];S.setV=5}  /* v5: Classic is gone, Zombies is the game: the settings only Classic read (mode, threat level, fuse, look, midcourse guidance) are dropped */
 
@@ -360,10 +360,11 @@ const MAT={carbon:new THREE.MeshStandardMaterial({color:0x16191f,roughness:.45,m
 const _q=new QT(),_v=new V3(),_w=new V3(),_u=new V3();
 class Drone{
  constructor(){Object.assign(this,{p:new V3(),v:new V3(),q:new QT(),w:new V3(),wt:new V3(),thr:0,ms:0,gt:0,wn:new V3(),vp:0,vc:4.2,tb:new V3(),gu:new V3(),dead:0,mah:0,t:0,home:FOBS[1],ty:'dart',cx:null,camO:new V3(0,.37,-.03),chase:[3.4,1.1]});this.build();this.mesh.userData.ty='dart';this.spawn()}
- // craft type (ztypes.js): the dart is built below, any other type by its table entry (its mesh and its flight controller cx); switching swaps both
- setType(id){id=cleanId(id);if(id===this.ty)return;const T=typeOf(id);scene.remove(this.mesh);this.ty=id;this.cx=null;this.nozzle=null;
-  if(T.buildModel){const m=T.buildModel();this.mesh=m.group;this.props=m.props;this.nozzle=m.nozzle;this.strela=null;scene.add(m.group);this.cx=T.make(this,CRAFT);this.camO.set(...T.cam.off);this.chase=T.cam.chase}
-  else{this.build();this.camO.set(0,.37,-.03);this.chase=[3.4,1.1]}
+ // craft type (ztypes.js): the dart is built below, any other type by its table entry (its mesh and its flight controller cx); switching swaps both, and each model is built once per Drone
+ setType(id){id=cleanId(id);if(id===this.ty)return;const T=typeOf(id),M=this.M||(this.M={dart:{mesh:this.mesh,props:this.props,nozzle:this.nozzle,strela:this.strela}});
+  scene.remove(this.mesh);this.ty=id;if(!M[id]){const m=T.buildModel();M[id]={mesh:m.group,props:m.props,nozzle:m.nozzle,strela:null}}
+  const m=M[id];this.mesh=m.mesh;this.props=m.props;this.nozzle=m.nozzle;this.strela=m.strela;scene.add(m.mesh);
+  this.cx=T.buildModel?T.make(this,CRAFT):null;this.camO.set(...T.cam.off);this.chase=T.cam.chase;
   this.mesh.userData.ty=id;this.mesh.visible=this.dead<=0}
  // the Strela-2 body (strela.js) on the quad hardware: arms, motors, props
  build(){const g=this.mesh=new THREE.Group();this.strela=strelaBody();g.add(this.strela);

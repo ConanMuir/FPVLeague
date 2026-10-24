@@ -16,9 +16,11 @@ import {noise,tone} from '../../engine/audio.js';
 const V3=THREE.Vector3,QT=THREE.Quaternion,M4=THREE.Matrix4,D2R=Math.PI/180,cl=(v,a,b)=>v<a?a:v>b?b:v,sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)};
 
 /* the numbers: speeds in m/s, loads in g, rates in rad/s, accelerations in m/s^2, currents in A */
-export const F={vs:28,vc:62,vne:135,nmax:2.6,nmin:-1,rate:.22,bank:65*D2R,broll:2.6,yawr:.2,lvl:.15,a0:4.5*D2R,
- at:4.8,te:1.4,vp:200,c0:2.25e-4,ci:1500,tm:.3,i0:8,i1:118,
- cat:{v:52,len:24,inc:12*D2R},up:14*D2R,sink:5,bankL:22*D2R,fl:{r:150,agl:14,v:58},chg:3.2,rest:.19,vlow:1.12,hdn:.66};
+export const F={vs:28,vc:62,vlev:106,vne:135,nmax:2.6,nmin:-1,rate:.22,bank:65*D2R,broll:2.6,yawr:.2,lvl:.15,a0:4.5*D2R,
+ at:5.8,te:1.4,vp:200,c0:2.1e-4,ci:1500,tm:.3,i0:8,i1:118,
+ vcl:68,cat:{v:52,len:24,inc:12*D2R},up:14*D2R,sink:5,bankL:22*D2R,fl:{r:150,agl:14,v:58},chg:3.2,rest:.19,vlow:1.12,hdn:.66};
+/* the pack's draw at the cruise speed in level flight (A), for the picker's endurance line */
+export const cruiseAmps=()=>{const V=F.vc,D=F.c0*V*V+F.ci/(V*V),u=(D/(F.at*(1-V/F.vp)*.99))**(1/F.te);return F.i0+(F.i1-F.i0)*u**1.5};
 /* the throttle stick to the throttle level and back; the stick's rest point (the keyboard's hover point HOV, 0.32 by default) is half throttle = cruise */
 export const lvlOf=(s,h)=>s<=h?.5*s/h:.5+.5*(s-h)/(1-h);
 export const stickOf=(u,h)=>u<=.5?u/.5*h:h+(u-.5)/.5*(1-h);
@@ -163,7 +165,8 @@ export function makePlane(d,X){
  P.step=dt=>{d.t+=dt;d.w.set(0,0,0);let h=0;
   switch(P.mode){case'pad':h=pad(dt);break;case'cat':h=cat(dt);break;case'roll':h=roll(dt);break;case'chg':h=chg(dt);break;default:h=fly(dt)}
   const c=P.crash;P.crash=0;return c||h};
- P.vtop=()=>F.vne+(d.bmax||0);
+ P.vtop=()=>F.vne+(d.bmax||0);P.vlev=()=>F.vlev+(d.bmax||0);  /* the level top speed (the bots plan with it); vtop: the never-exceed speed the lock solves with */
+ P.tmax=()=>F.at*cl(1-Math.max(P.ias,1)/F.vp,.1,1)*vf()+(d.boost||0);  /* the thrust at full throttle now (bots size their climbs by it) */
  /* what the HUD shows (ztypes.js) */
  P.info=()=>({ias:P.ias,vmin:P.mode==='fly'?P.vmin:F.vs,mode:P.mode,stall:P.stall,flare:P.flare,pad:P.pad<F.fl.r*1.4,agl:P.agl,sit:P.sit,ch:cl(P.ch/P.chT,0,1),n:P.n,pl:P.padLand});
  return P}

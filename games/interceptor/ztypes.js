@@ -24,7 +24,7 @@
      draw {full, cruise}                                       pack draw at full throttle (A) and level full-throttle speed (m/s) for the battery gauge
    Everything with a body, a battery and a nose then works as it does on the dart: the pip, the lock, the burst, Rocket Assist, sorties, co-op
    (each pilot's type travels in the presence packet), the bots. */
-import {planeModel,makePlane,F as PF,stickOf} from './zplane.js';
+import {planeModel,makePlane,F as PF,stickOf,cruiseAmps} from './zplane.js';
 import {planeBot} from './zplanebot.js';
 
 export const VER=1;
@@ -37,7 +37,7 @@ export const TYPES={
   cam:{off:[0,.37,-.03],chase:[3.4,1.1],tilt:null}},
  plane:{id:'plane',name:'Plane',call:'Plane One',tag:'PLANE',
   blurb:'A small fixed-wing: fast and frugal, it banks to turn and can never hover. Keep above its minimum speed or the nose drops and it sinks. Catapult launch; it lands on a pad by a low pass and recharges.',
-  facts:[`Cruise ${kmh(PF.vc)} km/h, ${kmh(100)} km/h flat out`,`Minimum speed ${kmh(PF.vs)} km/h`,`Pull-up limit ${PF.nmax} g, wide turns`,`Pack lasts about ${Math.round(25600*3.6/PF.i1/60)} min flat out, ${Math.round(25600*3.6/(PF.i0+(PF.i1-PF.i0)*.354)/60)} at cruise`],
+  facts:[`Cruise ${kmh(PF.vc)} km/h, ${kmh(PF.vlev)} km/h flat out`,`Minimum speed ${kmh(PF.vs)} km/h`,`Pull-up limit ${PF.nmax} g, wide turns`,`Pack lasts about ${Math.round(25600*3.6/PF.i1/60)} min flat out, ${Math.round(25600*3.6/cruiseAmps()/60)} at cruise`],
   flight:PF,buildModel:planeModel,make:makePlane,
   hud:[{id:'ias',label:'AIRSPEED',v:i=>kmh(i.ias)+' km/h',c:i=>i.stall>0?'r':i.mode==='fly'&&i.ias<i.vmin*1.3?'a':''},{id:'min',label:'MIN SPEED',v:i=>kmh(i.vmin)+' km/h',c:()=>''}],
   tape:{max:PF.vne,min:i=>i.vmin},
@@ -51,7 +51,7 @@ export const TYPES={
    look:{kb:'<kbd>C</kbd> changes the view: FPV, chase, threat. The plane keeps its camera on the nose. Watch the airspeed bar: red is a stall.',pad:'LB changes the view: FPV, chase, threat. The plane keeps its camera on the nose. Watch the airspeed bar: red is a stall.',
     say:'Change the view if you want a look around. Watch your airspeed.'}},
   radio:'catapult armed. Throttle up when ready. Keep your speed above the minimum.',
-  draw:{full:PF.i1,cruise:100}}};
+  draw:{full:PF.i1,cruise:PF.vlev}}};
 export const ORDER=Object.keys(TYPES);
 export const typeOf=id=>Object.hasOwn(TYPES,id)?TYPES[id]:TYPES.dart;
 export const cleanId=id=>typeof id==='string'&&Object.hasOwn(TYPES,id)?id:'dart';

@@ -27,7 +27,7 @@ export function initTypes(api,G,Z){
  function render(){S.zty=cleanSave(S.zty);box.innerHTML=`<h4>Craft <small>${forced&&forced!==S.zty.id?`a bot is flying the ${esc(typeOf(forced).name)}`:'you fly it from the next launch'}</small></h4>${cards()}`;bind(box)}
 
  // ---------- the base screen: the same cards at the top of the Shop ----------
- const st0=Z.shopTop;Z.shopTop=()=>(G.on?`<h3 class="zcrh">Craft <small>the next wave launches you in it${Z.online?' · each pilot picks their own':''}</small></h3>${cards()}`:'')+(st0?.()||'');
+ const st0=Z.shopTop;Z.shopTop=()=>(G.on?`<div class="zcrh" role="heading" aria-level="3">Craft <small>the next wave launches you in it${Z.online?' · each pilot picks their own':''}</small></div>${cards()}`:'')+(st0?.()||'');
  const bb0=Z.baseBind;Z.baseBind=el=>{bb0?.(el);bind(el)};
 
  // ---------- the craft's HUD panel: its readouts, an airspeed bar with the minimum speed in red, a status line ----------
