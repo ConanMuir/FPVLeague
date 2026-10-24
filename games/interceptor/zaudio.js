@@ -1,6 +1,6 @@
 // Zombies sound (WebAudio synth, no samples): the battlefield you hear. Explosions arrive at the speed of sound and dull with distance, helpers
 // are audible when they fire (Gepard bursts, SAM / Tamir launch roar, mortar thumps, drone racks), an air-raid siren starts each wave, the
-// radio crackles with garbled voice under the callouts, close passes whoosh, and a code-built score rises with the threat picture.
+// radio squelches and crackles with static under the callouts, close passes whoosh, and a code-built score rises with the threat picture.
 // Everything goes through one compressor so a big moment stays loud without clipping. Volumes: S.zmusv (music) and S.zsfxv (everything else) from the menu sliders; B mutes the music (S.zmus). Zombies only.
 import {AC,nbuf,setSfx} from '../../engine/audio.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)};
@@ -63,15 +63,10 @@ export function initAudio(api){
  const SIR=new Set();
  function stopSiren(){const T=now();for(const s of SIR){try{s.g.gain.cancelScheduledValues(T);s.g.gain.setTargetAtTime(0,T,.05);for(const o of s.os)o.stop(T+.4)}catch(e){}}SIR.clear()}
 
- // ---------- radio: squelch, garbled band-limited voice (syllables through moving formants), roger beep ----------
+ // ---------- radio: a squelch click, a burst of band-limited static, a squelch and a roger beep (no voice) ----------
  function squelch(t0,v=.07){const s=nsrc(t0,.09),h=filt('highpass',1800,.5);s.connect(h).connect(env(t0,v,.003,.09)).connect(A.ui)}
  function radio(dur){if(!bus()||nv>MAXV-6)return;const t0=now()+.09;squelch(now());dur=cl(dur,.5,2.6);
-  const o=osc('sawtooth',t0,dur),f1=filt('bandpass',600,4),f2=filt('bandpass',1600,5),g=AC.createGain(),band=filt('bandpass',1500,.55),sh=AC.createWaveShaper(),out=AC.createGain();
-  sh.curve=A.curve;out.gain.value=.05;g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);let t=t0;
-  while(t<t0+dur-.06){const syl=rnd(.06,.15);o.frequency.setValueAtTime(rnd(100,155),t);o.frequency.linearRampToValueAtTime(rnd(95,165),t+syl);f1.frequency.setValueAtTime(rnd(350,850),t);f2.frequency.setValueAtTime(rnd(1100,2400),t);
-   g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(rnd(.6,1),t+.012);g.gain.setTargetAtTime(.0001,t+syl*.75,.02);t+=syl+(Math.random()<.2?rnd(.07,.16):.012)}
-  o.connect(f1).connect(g);o.connect(f2).connect(g);g.connect(band).connect(sh).connect(out).connect(A.ui);
-  const h=nsrc(t0,dur),hp=filt('highpass',2600,.4);h.connect(hp).connect(env(t0,.012,.05,dur)).connect(A.ui);
+  const h=nsrc(t0,dur),hp=filt('highpass',1800,.4),bp=filt('bandpass',3200,.6);h.connect(hp).connect(bp).connect(env(t0,.02,.05,dur)).connect(A.ui);
   const te=t0+dur+.02;squelch(te,.06);const b=osc('sine',te+.08,.07);b.frequency.value=1250;b.connect(env(te+.08,.035,.004,.07)).connect(A.ui)}
 
  // ---------- moments ----------

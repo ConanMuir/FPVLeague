@@ -40,7 +40,7 @@ export async function newWindow(browser, {noRender = false} = {}) {  // noRender
   await s.detach();
   const p = await t.page(); await installRenderStub(p, noRender); return p;
 }
-const benign = t => /fonts\.(googleapis|gstatic)\.com|favicon\.ico|net::ERR_FAILED/i.test(t);
+const benign = t => /fonts\.(googleapis|gstatic)\.com|favicon\.ico|net::ERR_FAILED|games\/interceptor\/version\.js/i.test(t);  /* version.js is generated (tools/version.mjs) and not in git: a checkout without it answers 404 and the debug report says "unknown" */
 // open a page with three.js routed to the local copy; errors collects page errors and console errors
 export async function open(browser, url, errors, {w = 1280, h = 720, page = null} = {}) {  // page: an already created page (e.g. its own window, see newWindow)
   const p = page || await browser.newPage();
