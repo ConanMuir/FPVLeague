@@ -21,6 +21,13 @@ Branch `perf-hotpaths` (2026-10-20). The goal is a smoother Zombies without losi
   CPU or 25 ms of interval, with the event before it, and **every shader compile over 20 ms with the material and object that caused it**.
 - `node tools/zombies-perf-shots.mjs OUTDIR [views]` and `--diff A B`: same-seed, fixed-camera screenshots (forest, sites, high, smoke, burn,
   storm, snow, overcast, night, thermal) to compare two builds picture for picture.
+- `node tools/zombies-regress.mjs [w1,w20boss,fixed60,tracks400,base,endless60,spec,coop,hush,hushq,jammer,buddy,guide,codex] [--reps=3] [--sec=3] [--json=f] [--off=Scars,Radio] [--cam=chase] [--funcs] [--draws]`
+  (2026-10-23): the same scenes on any checkout, to compare two builds number for number (copy the file into an older worktree's `tools/`).
+  The game's own frame (`engine/loop.js`) is called from the page by a timer, one every 16.7 ms, so a busy machine cannot starve the measurement of frames
+  (see "The measurement" in section 6). Per scene: CPU ms per frame of the renderer's main thread (Chrome's ThreadTime), the time of the game frame
+  (p50 / p95 / p99 / worst, frames over 8 ms) and of the gap between frame starts, draw calls, GC, allocation per frame, and the CPU and the allocation per source file.
+  `--off=Scars,Radio` switches those modules' frame and tick hooks off (the names are the `initX` calls in `zombies.js`): the difference to a `--wrap` run is the
+  module's cost. `--funcs` lists the hottest functions, `--draws` the draw calls by object.
 - `DL_HIGHGPU=1` (tools/browser.mjs) starts headless Edge with `--force_high_performance_gpu`. Without it, headless Edge on this laptop
   draws on the **Intel iGPU**.
 - `DL_NORENDER=1` skips draw calls: use it for the CPU side only.
@@ -221,3 +228,95 @@ that happened in one run) and the HUD text.
   the particle pools. It rebuilds compact buffers each frame (fine), with small allocations (`(...a)=>gput(...)` spreads).
 - The Intel iGPU stays far off 60 fps (it's vertex- and fill-bound). The forest LOD halves its triangles. The rest is impostors and a Low tier
   (routes-scout route 4, perf-quickwins).
+
+## 6. Did the week's landings cost smoothness? (2026-10-23, branch `perf-regress`)
+
+Three builds, the same scenes and seeds (`tools/zombies-regress.mjs`): **before** = `bf10c83`, the last commit before 2026-10-21; **now** = `7a0e6c6`, main with
+the week's 230 commits (scars, the Director, radio and speech, the Hush, the EW duel, the codex, Little Buddy, the roaming bot, the briefing, onboarding,
+Endless, the player's lead() extrapolation); **after** = this branch. Headless Edge on the RTX (`DL_HIGHGPU=1`), 1280×720, clear weather, the menu
+warm-up finished before each scene. Three runs of each, interleaved (before, now, after, before, ...); medians, with the best run in brackets.
+
+**The measurement.** The machine was shared with other agents' browsers (load 10–60%, at times 100%), and a starved page got 4 to 80 frames in 4 s, so
+numbers taken from displayed frames were useless. The tool now calls the game's own frame (`engine/loop.js`) from a timer, one every 16.7 ms (the sim
+ticks twice a frame, as in play), and reports: the renderer thread's CPU time per frame (Chrome's `ThreadTime`, which does not count the time a frame
+waits for a core), the wall time of the frame function (p50 / p99 / worst), the allocation per frame (sampling heap profiler, garbage included) and the draw
+calls, which do not depend on the load. Absolute CPU still moves with the load (one scene ran 2.6 to 3.9 ms between a quiet and a busy minute); only
+before / now / after taken in the same minutes compare. The wave-plan scenes bring different tracks in different builds (the boss roster changed), so
+`fixed60` (the same 60 tracks) and `tracks400` (the same 400) are the controlled ones. Of the 79 runs two had a frame start more than 25 ms after the last (a late timer:
+28 ms at most), none had a long task, and the p99 of the gap between frame starts never passed 22.3 ms. (None of the 79 table runs had one, but in later probes at very low load the harness itself met a main-thread stall of about
+0.5 s once or twice a window, in every build including the baseline: a trace shows it as `CanvasRenderingContext2D::FinalizeFrame` waiting in `SharedContextRateLimiter::Tick`, Chrome's GPU backpressure on
+2D-canvas frames (frames submitted from a timer are not paced by the compositor, so the GPU queue fills; an empty rAF loop alongside does not change it). It is not game code and not in the CPU,
+allocation or draw-call columns, and the baseline has it too, so it is not one of the week's regressions; whether a rAF-paced session on a slow GPU feels it was not measured.)
+
+| scene | tracks | CPU ms / frame (best) | frame p50 | frame p99 | worst | frames over 8 ms | KB allocated / frame | draw calls |
+|---|---|---|---|---|---|---|---|---|
+| wave 1 | 1 | 1.9 → 1.9 → 2.9 (1.7 → 1.8 → 1.9) | 1.4 → 1.4 → 2.0 | 2.1 → 2.0 → 3.8 | 2.6 → 2.5 → 4.1 | 0 → 0 → 0 | 87 → 82 → 83 | 157 |
+| wave 20, a boss | 13–32 | 3.0 → 2.7 → 3.1 (2.7 → 2.6 → 3.0) | 2.1 → 2.1 → 2.3 | 4.5 → 4.4 → 4.5 | 4.5 → 5.2 → 4.6 | 0 → 0 → 0 | 159 → 178 → 157 | 192 → 183 → 185 |
+| 60 fixed tracks, a boss | 60 | 3.3 → 3.9 → 3.3 (2.9 → 3.1 → 2.6) | 2.2 → 2.6 → 2.2 | 5.1 → 5.7 → 4.2 | 5.6 → 6.2 → 4.8 | 0 → 0 → 0 | 226 → 234 → 199 | 176 → 177 → 177 |
+| **400 fixed tracks** | 400 | **7.9 → 9.0 → 5.2** (5.7 → 7.2 → 5.0) | 6.4 → 7.6 → 3.8 | 16.8 → 17.9 → 8.4 | 17.8 → 19.5 → 9.2 | **44 → 65 → 3** | 479 → 613 → 428 | 165 |
+| base screen, wave 24 | 0 | 3.2 → 2.7 → 2.5 (2.6 → 2.3 → 2.2) | 2.6 → 2.1 → 1.8 | 4.6 → 3.9 → 4.1 | 5.0 → 4.1 → 4.2 | 0 → 0 → 0 | 108 → 109 → 107 | 241 → 246 → 244 |
+| **Endless, wave 60** | 420–440 | (new) 8.8 → 5.6 (8.3 → 4.8) | 7.5 → 4.5 | 13.8 → 7.5 | 15.7 → 7.9 | **76 → 0** | 567 → 393 | 217 → 210 |
+| Bot Spectator, Director | 8 | 3.3 → 3.5 → 4.1 (3.1 → 2.6 → 2.7) | 2.4 → 2.6 → 3.2 | 5.0 → 5.4 → 4.6 | 5.2 → 5.6 → 5.0 | 0 → 0 → 0 | 175 → 157 → 166 | 231 → 312 → 376 (camera) |
+| co-op host, 2 clients | 5–30 | 4.2 → 3.9 → 4.9 (4.2 → 3.9 → 3.2) | 3.4 → 3.1 → 3.7 | 5.7 → 4.6 → 6.3 | 6.5 → 5.2 → 6.4 | 0 → 0 → 0 | 316 → 341 → 299 | 291 → 259 → 258 |
+| Jammer King | 8–24 | 3.6 → 3.4 → 3.4 (3.0 → 2.8 → 2.8) | 2.6 → 2.4 → 2.4 | 4.5 → 4.8 → 5.1 | 4.6 → 5.5 → 5.2 | 0 → 0 → 0 | 223 → 220 → 181 | 186 → 192 → 181 |
+| the Hush | 5–8 | (new) 4.2 → 2.8 (2.9 → 2.6) | 2.9 → 2.1 | 5.0 → 4.0 | 5.3 → 4.7 | 0 → 0 | 200 → 194 | 189 → 190 |
+
+Each cell reads before → now → after (a single arrow where a build has no such scene). GC: 0.5–2.7 ms of minor GC in a 3 s window in every scene; a major GC of 2–5 ms landed
+in 10 of the 79 windows (in all three builds: the spectator, the 400-track scene, Endless), none longer than a frame.
+
+**What it says.**
+1. **Nothing the week added costs measurable frame time at normal loads.** Wave 1, wave 20 with a boss, 60 tracks, the base screen, the Jammer King, the
+   spectator and the co-op host are within ±0.3 ms of the baseline's (run-to-run noise); draw calls are the same (the spectator's differ with where the
+   Director points the camera). The costliest new thing per frame is the Jammer King's noise bar (0.16 ms, 11 KB), then the Little Buddy (below).
+2. **One real cost, and it was already there: the radar picture check.** `Z.seen(t)` (is this track on the radar) went through `Z.radarK()`, which scanned the
+   whole track list for living bosses and built the trophy list again, for every call; the lock-on search asks it for every track in range every sim tick
+   (about 1,000 calls a frame at 400 tracks) and the radar once per track. That is 4.4 ms of the 9 ms frame at 400 tracks (2.2 + 0.6 ms in the
+   baseline). Endless, whose waves climb to 600 tracks (`CAP_TRACKS`), made the case reachable: at wave 60 it was 440 tracks, 8.8 ms of CPU a frame, 76 of 180
+   frames over 8 ms (a missed frame at 120 Hz). Fixed at the source (below): **400 tracks 9.0 → 5.2 ms, Endless wave 60 8.8 → 5.6 ms, frames over 8 ms 76 → 0.**
+3. **First-use hitches** (`tools/zombies-hitch.mjs`, three runs each, medians): no event over 50 ms in the game in any build; the worst frame while the menu
+   warms 143 → 115 → 109 ms; Play 132 → 155 → 149 ms (that one is the audio context, below). The warm-up's longest idle slice went 202 → 202 → **133** ms
+   (the one left is three.js's first-use check of one shader program, which waits for the driver); before the fix it was a single 256 ms slice (the
+   scars' textures) and a 174 ms one (the sites' damage stages), now ≤ 5 ms slices and 8–24 ms ones (one of 66 ms, the first stage with its shader) (208 → 224 → 396 tasks, 613 ms in all).
+
+**What each module costs** (CPU profile self time per frame, natives such as `fillText` counted to the file that made them; sampling at 250 µs, so under
+0.02 ms is noise). Switching a module's frame and tick hooks off (`--off=Scars`, three runs each) moves the whole frame by −0.4 to +2.7 ms, but that is the machine's load changing between two runs
+(9 to 50%), not the module; what it confirms is the module's own file dropping out of the profile by the amount listed (the EW off: `zew.js` −0.13 ms and −10.8 KB/frame, and the draw calls unchanged):
+
+| module | where | CPU ms / frame | KB / frame | notes |
+|---|---|---|---|---|
+| scars (`zscars.js`) | Endless 60, 29 scars | < 0.02 | 0.4 | 3 instanced draws; the texture build was one 256 ms idle slice in the menu, now ≤ 5 ms slices |
+| Director (`zdirector.js`) | spectator | < 0.02 | 0.2 | the scorer runs 10 Hz (every frame at fast-forward), no allocation |
+| radio (`zradio.js`) | wave 20 / Endless 60 | < 0.02 | 0.3 / 1.5 | speech: `getVoices()` was asked per call, now once |
+| the Hush's voice (`zhush-snd.js`, `zboss-hush.js`, `zhush-cue.js`) | the Hush | < 0.03 | 2.8 | 13 AudioParam writes a frame; the audio thread's cost is not in these numbers |
+| EW duel (`zew.js`) | Jammer King | 0.16 → 0.08 | 11.1 → 2.7 | the noise bar and the pip's static built a colour string per speck |
+| codex (`zcodex.js`) | any wave / first open | < 0.02 / 12 pictures | 0.1 | opening the Enemies screen: 12 models drawn by the software rasteriser and PNG-coded, 3–12 ms each (the Juggernaut 12–32), one per timer slice; `open()` 0.8 ms, the opening frame 40–56 ms of layout and paint, not script |
+| Little Buddy (`zbuddy.js`) | with a garage quad | 0.02 + **39 draw calls** | 1.3 | the League model is 22 meshes (17 cast shadows): 158 → 197 calls in view, about 0.3–0.4 ms of submission |
+| roaming bot (`zbotroam.js`, `zbotmap.js`, `zbotstat.js`) | spectator | 0.05 | 2.1 | bots only |
+| briefing (`zbrief.js`) | base screen | 0 a frame; 0.04 ms per card | 0 | a whole redraw of the base screen is 10.2 ms (6.9 before the week), on a click only |
+| onboarding (`zonboard.js`) | first run | 0.01 | 0.3 | none after the guide ends |
+| lead() (`lead.js`, the player's extrapolation in `interp.js`) | all | < 0.02 | 0.5 | `interp.js` as a whole is 0.01–0.12 ms (the tracks' interpolation grows with their number) |
+
+**Fixed in this branch** (behaviour unchanged; each measured, then the whole `zombies-test.mjs` (707 checks), `zombies-coop.mjs` (121) and `npm test` pass):
+- `zbosses.js`: the boss list is found by one scan of the track list per sim tick, and the trophy list is kept until the trophies change (`Z.seen`,
+  `Z.radarK`, `Z.ident`, `Z.jink` and `Z.lockJam` were O(tracks) each, with two arrays): 400 tracks 9.0 → 5.2 ms/frame (4.4 → 0.2 ms spent in `Z.seen` and what it calls),
+  Endless wave 60 8.8 → 5.6 ms.
+- `zlock.js`: the lock-on search tests the range before asking the radar picture. `zperk.js`: `Z.radarK` made a four-number array per call.
+- `zwarn.js`: `alerts()` (twice a frame in the HUD) built and sorted an array and ran `TH.includes` per fast track; now no array while nothing is up (16 → 2.6 KB/frame at 60 tracks).
+- `zew.js`: the static's colours from 16-step tables, not a string per speck (Jammer King 11.1 → 2.7 KB/frame, 0.16 → 0.08 ms).
+- `zthreatsfx.js`: the sound sources are kept records (Endless 60: 20 → 6 KB/frame of garbage). `zenemy.js`: the per-kind counters and exhaust colours made once.
+  `zfx.js`: the music intensity uses `hyp()` (no boxed `Math.hypot` arguments per track). `interceptor.js`: the target bracket's corners.
+  `zbuddy.js`: the card text is built when its numbers change, not every frame; the props' spin without a closure.
+- Idle stalls: `zscars.js` builds its terrain textures in slices and uploads the finished textures in idle time (the warm-up no longer runs the whole build in one
+  slice: 256 → ≤ 5 ms); `buildings.js` builds the sites' damage stages one a slice in the warm-up (174 → 10–24 ms).
+
+**Proposals** (design changes, not made):
+- **Radar labels**: the scope writes `T07 12` for every live track at 30 Hz: `fillText` is 0.45 ms/frame of the 5.2 at 400 tracks (the whole radar 0.85). Labelling the 40 nearest
+  and the selected one saves about 0.4 ms at 400 tracks and nothing below 40.
+- **Little Buddy**: merging its static frame meshes by material, and a blade and its disc, takes 22 meshes to about 10 (−12 main, −9 shadow draws, about 0.15 ms each buddy; a
+  co-op game has up to three). Past about 1 km it is under a pixel: hiding the model there (its name tag stays) saves the other 39.
+- **The enemy bases** (`zsites.js`, 31 meshes at the map's edge, drawn every frame from the pad): one mesh per material, or no draw past 6 km, is up to 30 draw calls (about 0.25 ms).
+- **The audio context** (`engine/audio.js`): `audioInit` is 122 ms of the 132–155 ms the first Play click takes (`new AudioContext()` opens the device). Created suspended in the menu's idle time and
+  resumed on the click, it would leave the click. It touches the autoplay handling, so it wants a look on a real machine.
+- **Endless's track cap**: a track costs 0.0056 ms of CPU a frame after the fix (0.015 before; from 60 to 400 tracks), so the cap of 600 is about 6.3 ms on this machine (11.9 before): inside the 120 Hz budget
+  (8.3 ms), but the 240 Hz budget (4.2 ms) is gone at about 160 tracks. A lower cap, or thinning the far swarm drones' sim, is the lever if 240 Hz matters in Endless.
+- The Director's scoring rate, the scar caps (256 / 128 / 64) and the radio's speech were looked at and need no change: under 0.02 ms each in the worst scenes.

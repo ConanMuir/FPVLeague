@@ -35,11 +35,14 @@ export function initEnemies(api,G,Z){
  const gPts=new THREE.Points(gGeo,new THREE.PointsMaterial({size:9,sizeAttenuation:false,vertexColors:true,map:dot,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));gPts.frustumCulled=false;scene.add(gPts);gGeo.setDrawRange(0,0);
  const SHADE=[[1,1,1],[.45,.45,.45],[1.35,1.28,1.15]];
 
- function visuals(dt){const cnt={};for(const k in IM)cnt[k]=0;let g=0;const cam=api.camera.position;
+ /* the per-kind counters and the exhaust colours, made once: visuals ran for every frame and built an object, then an array for every hot track in it */
+ const CNT={};for(const k in IM)CNT[k]=0;
+ const HOTC={jet:[1,.55,.25],cruise:[1,.7,.35]},HOTD=[1,.85,.6];
+ function visuals(dt){const cnt=CNT;for(const k in IM)cnt[k]=0;let g=0;const cam=api.camera.position;
   for(const t of TH){if(!t.inst||t.st==='dead')continue;const V=VIS[t.k];if(!V)continue;const i=cnt[t.k]++;const ims=IM[t.k];if(i>=ims[0].count&&i>=ims[0].instanceMatrix.count)continue;
    t.mesh.updateMatrix();_m.copy(t.mesh.matrix);if(V.s!==1)_m.scale(_s.setScalar(V.s));for(const im of ims){if(i<im.instanceMatrix.count){im.setMatrixAt(i,_m);if(im.userData.col){const c=SHADE[t.shade|0];im.setColorAt(i,_c.setRGB(c[0],c[1],c[2]))}}}
    const hot=KIND[t.k].armor==='hard'||t.k==='cruise'||t.k==='jet';
-   if(hot&&g<GN){gPos[g*3]=t.p.x;gPos[g*3+1]=t.p.y;gPos[g*3+2]=t.p.z;const w=t.k==='jet'?[1,.55,.25]:t.k==='cruise'?[1,.7,.35]:[1,.85,.6];gCol[g*3]=w[0];gCol[g*3+1]=w[1];gCol[g*3+2]=w[2];g++;
+   if(hot&&g<GN){gPos[g*3]=t.p.x;gPos[g*3+1]=t.p.y;gPos[g*3+2]=t.p.z;const w=HOTC[t.k]||HOTD;gCol[g*3]=w[0];gCol[g*3+1]=w[1];gCol[g*3+2]=w[2];g++;
     if(KIND[t.k].armor==='hard'&&(t.trl=(t.trl||0)-dt)<=0&&t.p.y<25000&&t.p.distanceTo(cam)<20000){t.trl=.06;api.SMK.emit(t.p,0xd8d4cc,1,2,6,null,1,.55)}}}
   for(const k in IM)for(const im of IM[k]){im.count=Math.min(cnt[k],im.instanceMatrix.count);im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true}
   gGeo.setDrawRange(0,g);gGeo.attributes.position.needsUpdate=gGeo.attributes.color.needsUpdate=true}

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import {tex,detail,snowy} from '../../engine/render.js';
 import {freeze,compileFor} from '../../engine/hot.js';
 import {hash2,vnoise} from '../../engine/util.js';
-import {warmers,ownRandom} from '../../engine/idle.js';
+import {warmers,ownRandom,later} from '../../engine/idle.js';
 import {gfx} from '../../engine/gfx.js';
 const V3=THREE.Vector3,PI=Math.PI,_m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new V3(),_s=new V3(),_v=new V3(),_n=new THREE.Matrix3();
 const D=[0,.12,.32,.58,1];  // damage amount per stage: thresholds for the seeded per-part rolls
@@ -294,9 +294,11 @@ export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const re
  // all damage stages for every site, their shaders compiled as the frame draws them (engine/hot.js compileFor: into the composer's render
  // target; a plain compile() made the canvas variant, which nothing drew). Zombies' warm-up runs it in idle time (zwarm.js: the menu, or the
  // first base screen); else the first frame Zombies runs
- function stages(s){for(let d=1;d<5;d++)if(!s.st[d]){s.st[d]=stage(s,d);s.st[d].G.visible=d===s.stg;compileFor(renderer,s.st[d].G,camera,scene)}}
+ function stageOne(s,d){if(!s.st[d]){s.st[d]=stage(s,d);s.st[d].G.visible=d===s.stg;compileFor(renderer,s.st[d].G,camera,scene)}}
+ function stages(s){for(let d=1;d<5;d++)stageOne(s,d)}
  function prepare(){if(ready)return;ready=true;ownRandom(()=>{for(const s of reg)stages(s)})}  /* its own random stream: built in idle time or at first use, the game's sequence is the same */
- warmers.push(prepare);
+ /* the warm-up builds them a stage a slice (all of them at once was 170 ms in one idle slice); the first frame that needs one before they are done builds the rest at once (prepare) */
+ warmers.push(()=>{for(const s of reg)for(let d=1;d<5;d++)later(()=>{if(!ready)ownRandom(()=>stageOne(s,d))},{heavy:true});later(()=>{ready=true},{heavy:true})});
  function setStage(s,d){if(d===s.stg)return;s.st[s.stg].G.visible=false;s.st[d].G.visible=true;s.stg=d;if(!s.noSol){s.sol.length=0;s.sol.push(...s.st[d].sol)}}
  function step(dt,on,plume){const B=gfx.k.bld;t+=dt;if(on&&!ready)prepare();  /* B: Graphics quality thins the site smoke plumes (engine/gfx.js); the pooled fire and smoke particles thin through PFX.scale instead, so only bldFar's third applies to them (B/Bs); Bs: a third past bldFar */
   for(const s of reg){const Bs=Math.hypot(s.x-camera.position.x,s.z-camera.position.z)>gfx.k.bldFar?B/3:B,d=on&&s.max?stageOf(Math.max(0,s.hp)/s.max):0;if(d!==s.stg&&s.st[d])setStage(s,d);if(!s.stg||!s.mesh.visible||dt<=0)continue;

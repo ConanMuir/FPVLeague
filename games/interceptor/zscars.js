@@ -17,7 +17,7 @@
 //  - quality (engine/gfx.js scar, scFar): fewer shown and a nearer fade at Medium and Low; the records (and the save) keep all of them
 // Authority: scars are made only by the solo player or the co-op host. Hooks: zombies.js calls initScars(api,G,Z) once, near the end (only the codex comes after it); it wraps Z.flash (every
 // explosion), start, stop and visuals. znet.js carries Z.sc.netOut / netIn in the snapshot; zcampaign.js keeps S.zcamp.sc.
-import {later,warmers} from '../../engine/idle.js';
+import {later,warmers,upload} from '../../engine/idle.js';
 import {gfx} from '../../engine/gfx.js';
 import {detailTex} from '../../engine/render.js';
 import {seeded} from '../../engine/util.js';
@@ -198,27 +198,34 @@ export function initScars(api,G,Z){
  let P=[],MAPS=null,hTex=null,nTex=null,jobs=null,built=false,inited=false,TWd=9000,N=361,rev=0,sent=-1,sentT=0;
 
  // ---------- built on first need (Zombies chosen, or a sector starting): the terrain's heights and smooth normals as textures, the atlases, the pools ----------
+ /* the two textures are made at once, empty (the pools hold them); the first job of the build fills them, 32 thousand heights or 32 rows of normals a slice, and they go to the GPU when it is done.
+    The whole of this used to run in one go (about 20 ms), and the warm-up's scar step ran every job in one go (250 ms in one idle slice, a stall of the menu) */
  function terrainTex(){const g=terrain.geometry,pa=g.attributes.position,gp=g.parameters;N=gp.widthSegments+1;TWd=gp.width;const n=N*N,Hh=new Float32Array(n),Nn=new Uint8Array(n*4),seg=TWd/(N-1);
-  for(let k=0;k<n;k++)Hh[k]=pa.getY(k);
-  for(let j=0;j<N;j++)for(let i=0;i<N;i++){const i1=Math.min(N-1,i+1),i0=Math.max(0,i-1),j1=Math.min(N-1,j+1),j0=Math.max(0,j-1),dx=(Hh[j*N+i1]-Hh[j*N+i0])/((i1-i0)*seg),dz=(Hh[j1*N+i]-Hh[j0*N+i])/((j1-j0)*seg),l=Math.hypot(dx,1,dz),o=(j*N+i)*4;
-    Nn[o]=(-dx/l*.5+.5)*255;Nn[o+1]=(1/l*.5+.5)*255;Nn[o+2]=(-dz/l*.5+.5)*255;Nn[o+3]=255}
-  hTex=new THREE.DataTexture(Hh,N,N,THREE.RedFormat,THREE.FloatType);hTex.minFilter=hTex.magFilter=THREE.NearestFilter;hTex.generateMipmaps=false;hTex.needsUpdate=true;
-  nTex=new THREE.DataTexture(Nn,N,N,THREE.RGBAFormat);nTex.minFilter=nTex.magFilter=THREE.LinearFilter;nTex.generateMipmaps=false;nTex.needsUpdate=true}
+  hTex=new THREE.DataTexture(Hh,N,N,THREE.RedFormat,THREE.FloatType);hTex.minFilter=hTex.magFilter=THREE.NearestFilter;hTex.generateMipmaps=false;
+  nTex=new THREE.DataTexture(Nn,N,N,THREE.RGBAFormat);nTex.minFilter=nTex.magFilter=THREE.LinearFilter;nTex.generateMipmaps=false;
+  return(function*(){
+   for(let k=0;k<n;k++){Hh[k]=pa.getY(k);if((k&32767)===32767)yield}
+   for(let j=0;j<N;j++){for(let i=0;i<N;i++){const i1=Math.min(N-1,i+1),i0=Math.max(0,i-1),j1=Math.min(N-1,j+1),j0=Math.max(0,j-1),dx=(Hh[j*N+i1]-Hh[j*N+i0])/((i1-i0)*seg),dz=(Hh[j1*N+i]-Hh[j0*N+i])/((j1-j0)*seg),l=Math.hypot(dx,1,dz),o=(j*N+i)*4;
+     Nn[o]=(-dx/l*.5+.5)*255;Nn[o+1]=(1/l*.5+.5)*255;Nn[o+2]=(-dz/l*.5+.5)*255;Nn[o+3]=255}
+    if((j&31)===31)yield}
+   hTex.needsUpdate=true;nTex.needsUpdate=true})()}
  const mkTex=srgb=>{const t=new THREE.DataTexture(new Uint8Array(WA*WA*4),WA,WA,THREE.RGBAFormat);t.colorSpace=srgb?THREE.SRGBColorSpace:THREE.NoColorSpace;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;t.anisotropy=4;return t};
- function init(){if(inited)return;inited=true;terrainTex();
+ function init(){if(inited)return;inited=true;const tj=terrainTex();
   NT=new Float32Array(65536);{const r=seeded(917);for(let i=0;i<NT.length;i++)NT[i]=r()}
-  MAPS=[[mkTex(true),mkTex(false)],[mkTex(false),null],[mkTex(true),mkTex(false)]];jobs=[];
+  MAPS=[[mkTex(true),mkTex(false)],[mkTex(false),null],[mkTex(true),mkTex(false)]];jobs=[tj];
   for(let v=0;v<4;v++)jobs.push(craterCell(MAPS[0][0].image.data,MAPS[0][1].image.data,v),burnCell(MAPS[1][0].image.data,v),rubbleCell(MAPS[2][0].image.data,MAPS[2][1].image.data,v));
   P=[0,1,2].map(k=>new Pool(k,THREE,U,MAPS[k],hTex,nTex));
   for(const p of P){p.uGrid.value.set(-TWd/2,(N-1)/TWd,N,p.res);scene.add(p.mesh)}sc.pools=P}
  /* one slice of the texture build (a few ms); true when finished */
- function pump(){if(built)return true;if(!jobs.length){built=true;NT=null;for(const m of MAPS)for(const t of m)if(t)t.needsUpdate=true;sc.ready=true;for(const p of P)p.dirty=true;rank();vis();return true}
+ function pump(){if(built)return true;if(!jobs.length){built=true;NT=null;for(const m of MAPS)for(const t of m)if(t)t.needsUpdate=true;
+  for(const t of[hTex,nTex,...MAPS.flat()])if(t)later(()=>{upload(renderer,t)},{heavy:true});  /* one texture a slice, in idle time, not in the frame that first draws a crater */
+  sc.ready=true;for(const p of P)p.dirty=true;rank();vis();return true}
   const t0=performance.now();if(jobs[0].next().done)jobs.shift();sc.worst=Math.max(sc.worst,performance.now()-t0);return false}  /* worst: the longest slice of the build, ms */
  const slice=()=>{if(!pump())later(slice,{heavy:true})};
  let started=false;const start=()=>{if(started)return;started=true;init();later(slice,{heavy:true})};
  const ensure=()=>{init();while(!pump());};
  setTimeout(start,500);  /* from the menu, once the page has settled (the warm-up, zwarm.js, starts the same way) */
- warmers.push(()=>{ensure();return P.map(p=>p.mesh)});
+ warmers.push(()=>{init();return P.map(p=>p.mesh)});  /* the pools' programs are compiled with the rest; the textures are built in their own slices (start above), not here */
 
  // ---------- placement rules ----------
  const sol=()=>[PADP,...SITES,...FOBS];

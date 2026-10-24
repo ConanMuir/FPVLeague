@@ -170,7 +170,9 @@ export function initBosses(api,G,Z){
  const i0=Z.impact;Z.impact=t=>{if(t._bdmg!=null){const s=t.tgt,K=KIND.shahed,dm=K.dmg;K.dmg=t._bdmg;try{i0(t)}finally{K.dmg=dm}return}const s=t.tgt,h0=s?.hp;i0(t);if(s&&h0>0&&s.hp>0)for(const R of rew())R.impact?.(ctx,s,h0-s.hp)};
 
  // ---------- the reward: run-long, listed on the base screen. Effects are the reward's own hooks (rew() = what you hold) ----------
- const rew=()=>Object.keys(G.brw||{}).map(k=>REWARDS[k]).filter(Boolean);
+ /* one list until the trophies change (a key was added, or G.brw is a new object): every Z.seen / Z.radarK / Z.ident call, one per track and frame, used to build it again */
+ const NORW={};let rwO=null,rwN=-1,rwL=[];
+ const rew=()=>{const o=G.brw||NORW;let n=0;for(const k in o)n++;if(o===rwO&&n===rwN)return rwL;rwO=o;rwN=n;return rwL=Object.keys(o).map(k=>REWARDS[k]).filter(Boolean)};
  function grant(id,silent){const R=REWARDS[id];if(!R)return false;G.brw=G.brw||{};if(G.brw[id])return false;G.brw[id]=1;R.grant?.(ctx);
   if(!silent){feed(`<span class="cg">Boss trophy: <b>${R.n}</b></span> · ${R.txt}`);Z.an?.radio('OVERLORD',`Trophy recovered: ${R.n}. ${R.short||''}`,2)}return true}
  function won(e){if(e.over)return;e.over=true;e.won=true;const D=e.D;bump(e.id,'won');const w=Math.max(1,G.wave),cash=Math.round((D.bounty||2500)*(1+w/25));Z.earn?.(cash,e.main.p,' BOSS');
@@ -234,7 +236,11 @@ export function initBosses(api,G,Z){
   if(nx){const q=kinds.find(k=>BOSSES[k]);const D=q?BOSSES[q]:null;if(D)setTimeout(()=>{if(G.on&&G.state==='wave'){Z.an?.say(`${D.tag||D.n.toUpperCase()} INBOUND`,D.warn||'boss contact','#ff4d4d',3);Z.au?.siren?.(true)}},60)}}
 
  // ---------- radar, lock, helpers: what an alive boss does to them, and what your trophies do ----------
- const alive=()=>TH.filter(t=>mine(t)&&live(t));
+ /* the boss tracks alive: one scan of the track list per sim tick (and again when the list changed), then only the few bosses are looked at. Z.seen asks once per track, so each ask used to be a scan of its own:
+    with 400 tracks that was 160 thousand checks and a fresh array per radar frame */
+ let bkT=-1,bkN=-1,bkE=null,bkL=[];const NOB=[];
+ const bossTr=()=>{const n=TH.length,e=n?TH[n-1]:null,k=api.tick;if(k===bkT&&n===bkN&&e===bkE)return bkL;bkT=k;bkN=n;bkE=e;const L=[];for(let i=0;i<n;i++)if(mine(TH[i]))L.push(TH[i]);return bkL=L};
+ const alive=()=>{const L=bossTr();if(!L.length)return NOB;let r=null;for(let i=0;i<L.length;i++)if(live(L[i]))(r||(r=[])).push(L[i]);return r||NOB};
  const lj0=Z.lockJam;Z.lockJam=t=>{let k=lj0?.(t)??1;for(const u of alive()){const D=BOSSES[u.k];if(D.lockK)k*=D.lockK(ctx,u,t)}for(const R of rew())if(R.lockK)k*=R.lockK(ctx,t);if(mine(t)&&BOSSES[t.k].lockSelf)k*=BOSSES[t.k].lockSelf(ctx,t);return k};
  const rk0=Z.radarK;Z.radarK=()=>{let k=rk0?.()??1;for(const u of alive()){const D=BOSSES[u.k];if(D.radarK)k*=D.radarK(ctx,u)}for(const R of rew())if(R.radarK)k*=R.radarK(ctx);return k};
  const jk0=Z.jink;Z.jink=t=>{let k=jk0?.(t)??1;for(const u of alive()){const D=BOSSES[u.k];if(D.jinkK)k*=D.jinkK(ctx,u,t)}return k};

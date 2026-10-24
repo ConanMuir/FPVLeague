@@ -27,6 +27,10 @@ export const EW={
  on:.58,burnT:5,retune:1.5,rangeR:3000,  /* the SNR that burns through, the window (s), the pause before the next, the range the signal starts to build from */
  snap:.1};  /* how fast the jamming leaves the pip when it burns through (s) */
 const hs=(a,b)=>{const x=Math.sin(a*127.1+b*311.7)*43758.5453;return x-Math.floor(x)};  /* a hash of two numbers, 0..1 */
+/* the static's fill styles, 16 steps of alpha each, made once: the noise bar and the pip's static used to build a colour string for every speck, up to a hundred a frame (the steps are 1/40 of the opacity, below what the eye tells apart) */
+const ramp=(c,a0,da)=>Array.from({length:16},(_,i)=>`rgba(${c},${(a0+da*i/16).toFixed(3)})`);
+const NZV=ramp('199,125,255',.45,.4),NZW=ramp('235,235,245',.15,.4),PZV=ramp('199,125,255',.35,.4),PZW=ramp('235,235,245',.2,.3),GHS=ramp('95,227,255',.28,.2);
+const q16=v=>v*16|0;
 export function initEW(api,G,Z){
  const {THREE}=api,V3=THREE.Vector3,_f=new V3(),_r=new V3(),_u=new V3(),_g=new V3();
  const E={on:false,clock:0,nb:0,wk:0,bk:0,neff:0,amp:0,snr:0,burn:0,cd:0,burns:0,age:0,hold:0,killed:0,pods:0,pm:0,lx:1,seed:0x9e3779b9};
@@ -69,12 +73,12 @@ export function initEW(api,G,Z){
    oc.save();oc.lineWidth=1.6;oc.setLineDash([3,4]);
    for(let i=0;i<n;i++){const ep=Math.floor(E.clock/1.1+i*.37),th=hs(ep,i)*6.283,m=(EW.ghostR*.5+hs(i,ep)*EW.ghostR+E.amp*.5)*(.6+.4*nf);
     if(((E.clock*1.7+i*.31)%1)>.55)continue;_g.copy(dp).addScaledVector(_r,Math.cos(th)*m).addScaledVector(_u,Math.sin(th)*m);const q=scr(_g,W,H);if(!q||q[0]<0||q[0]>W||q[1]<0||q[1]>H)continue;
-    oc.strokeStyle=`rgba(95,227,255,${.28+.2*hs(fr,i)})`;oc.beginPath();oc.arc(q[0],q[1],11,0,7);oc.moveTo(q[0]-17,q[1]);oc.lineTo(q[0]-6,q[1]);oc.moveTo(q[0]+6,q[1]);oc.lineTo(q[0]+17,q[1]);oc.moveTo(q[0],q[1]-17);oc.lineTo(q[0],q[1]-6);oc.moveTo(q[0],q[1]+6);oc.lineTo(q[0],q[1]+17);oc.stroke()}
+    oc.strokeStyle=GHS[q16(hs(fr,i))];oc.beginPath();oc.arc(q[0],q[1],11,0,7);oc.moveTo(q[0]-17,q[1]);oc.lineTo(q[0]-6,q[1]);oc.moveTo(q[0]+6,q[1]);oc.lineTo(q[0]+17,q[1]);oc.moveTo(q[0],q[1]-17);oc.lineTo(q[0],q[1]-6);oc.moveTo(q[0],q[1]+6);oc.lineTo(q[0],q[1]+17);oc.stroke()}
    oc.restore()}
   if(!xy)return;
   /* the jamming's ring: how far the pip may be off the truth, grows with the noise (violet dashes; gone in a burn-through) */
   if(eu>1&&ok){const q=scr(_g.copy(dp).addScaledVector(_r,eu),W,H);if(q){oc.save();oc.strokeStyle='rgba(199,125,255,.75)';oc.lineWidth=1.6;oc.setLineDash([2,5]);oc.beginPath();oc.arc(xy[0],xy[1],Math.min(Math.max(Math.hypot(q[0]-xy[0],q[1]-xy[1]),16),H*.6),0,7);oc.stroke();oc.restore()}}
-  if(nf>.06){const k=Math.min(46,Math.round(10+nf*44)),R=20+10*nf;oc.save();for(let i=0;i<k;i++){const a=hs(fr,i)*6.283,r=Math.sqrt(hs(i,fr+1))*R;oc.fillStyle=i&1?`rgba(199,125,255,${.35+.4*hs(fr+2,i)})`:`rgba(235,235,245,${.2+.3*hs(i,fr+3)})`;
+  if(nf>.06){const k=Math.min(46,Math.round(10+nf*44)),R=20+10*nf;oc.save();for(let i=0;i<k;i++){const a=hs(fr,i)*6.283,r=Math.sqrt(hs(i,fr+1))*R;oc.fillStyle=i&1?PZV[q16(hs(fr+2,i))]:PZW[q16(hs(i,fr+3))];
     oc.fillRect(xy[0]+Math.cos(a)*r*1.3-3,xy[1]+Math.sin(a)*r,2+hs(fr+4,i)*6,1.4)}oc.restore()}
   if(E.bk>.05){oc.save();oc.strokeStyle=`rgba(109,255,158,${.85*E.bk})`;oc.lineWidth=2.4;oc.beginPath();oc.arc(xy[0],xy[1],15,0,7);oc.stroke();
    if(E.burn>0&&E.age<.4){const s=E.age/.4;oc.globalAlpha=1-s;oc.lineWidth=2;oc.beginPath();oc.arc(xy[0],xy[1],15+44*s,0,7);oc.stroke()}oc.restore()}}
@@ -89,7 +93,7 @@ export function initEW(api,G,Z){
   oc.textAlign='left';oc.fillStyle='#e4ebf2';oc.fillText('NOISE ▸ SIGNAL',x,y-5);oc.textAlign='right';oc.fillStyle=col;oc.fillText(lab,x+w,y-5);oc.shadowBlur=0;
   oc.fillStyle='rgba(8,6,16,.78)';oc.fillRect(x-1,y-1,w+2,h+2);
   oc.fillStyle=bt?'#3ddc84':'#2fbf71';oc.fillRect(x,y,Math.max(0,w*sn),h);
-  if(sn<1){const x0=x+w*sn,n=Math.min(90,Math.ceil((x+w-x0)/2.5));for(let i=0;i<n;i++){oc.fillStyle=i&1?`rgba(199,125,255,${.45+.4*hs(fr,i)})`:`rgba(235,235,245,${.15+.4*hs(i,fr+1)})`;const hh=2+hs(fr+2,i)*(h-2);oc.fillRect(x0+i*2.5,y+(h-hh)*hs(i,fr+3),2,hh)}}
+  if(sn<1){const x0=x+w*sn,n=Math.min(90,Math.ceil((x+w-x0)/2.5));for(let i=0;i<n;i++){oc.fillStyle=i&1?NZV[q16(hs(fr,i))]:NZW[q16(hs(i,fr+1))];const hh=2+hs(fr+2,i)*(h-2);oc.fillRect(x0+i*2.5,y+(h-hh)*hs(i,fr+3),2,hh)}}
   oc.fillStyle='#fff';oc.fillRect(x+w*EW.on-1,y-3,2,h+6);oc.strokeStyle='rgba(255,255,255,.35)';oc.lineWidth=1;oc.strokeRect(x-.5,y-.5,w+1,h+1);
   if(bt){oc.fillStyle='rgba(255,255,255,.55)';oc.fillRect(x,y+h+3,w*E.burn/EW.burnT,2)}
   oc.restore()}
