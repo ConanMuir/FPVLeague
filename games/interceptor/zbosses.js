@@ -129,6 +129,13 @@ export function initBosses(api,G,Z){
  const habit=()=>{const H=HB(),n=Math.max(1,H.n),tot=Object.values(H.asp).reduce((a,b)=>a+b,0),fav=Object.entries(H.asp).sort((a,b)=>b[1]-a[1])[0];
   return{n:H.n,alt:H.alt/n,spd:H.spd/n,turn:H.L>=H.R?1:-1,turnK:Math.max(H.L,H.R)/Math.max(1,H.L+H.R),fav:fav?fav[0]:'LEVEL SIX',favK:fav&&tot?fav[1]/tot:0,approaches:tot,side:H.side.LEFT>=H.side.RIGHT?'LEFT':'RIGHT'}};
 
+ /* a co-op client's habits ride in its presence (znet.js), because the Mirror copies the pilot it hunts and the host only sees its own: [samples, average height, average speed, turn side, how steadily, favourite approach, its share, approaches, side] */
+ Z.habOut=()=>{const h=habit();return[h.n,Math.round(h.alt),+h.spd.toFixed(1),h.turn,+h.turnK.toFixed(2),h.fav,+h.favK.toFixed(2),h.approaches,h.side]};
+ Z.habIn=a=>{if(!Array.isArray(a)||a.length<9||!a.slice(0,5).every(Number.isFinite)||!Number.isFinite(+a[7]))return null;
+  return{n:cl(a[0]|0,0,1e6),alt:cl(+a[1],0,3000),spd:cl(+a[2],0,300),turn:+a[3]<0?-1:1,turnK:cl(+a[4],0,1),fav:/^(HIGH|LEVEL|LOW) (SIX|BEAM|HEAD)$/.test(a[5])?a[5]:'LEVEL SIX',favK:cl(+a[6]||0,0,1),approaches:cl(a[7]|0,0,1e6),side:a[8]==='RIGHT'?'RIGHT':'LEFT'}};
+ /* a co-op client reads a one-shot (a banner) off the host's synced state: true once when v rises from what it was, never on the first sync (a pilot who joins mid-fight is not told what already happened) */
+ const rise=(t,k,v)=>{const m=t.bs.rs||(t.bs.rs={}),was=m[k];m[k]=v;return was!==undefined&&v>was};
+
  // ---------- encounters: one per boss fight (a pair of twins, a hive and its broods, a ghost and its legion share one) ----------
  const encs=()=>G.benc||(G.benc=[]);
  function newEnc(t){const D=BOSSES[t.k],e={id:t.k,D,list:[t],main:t,t0:G.wt||0,won:false,over:false,ph:0,st:{}};encs().push(e);t.bs.enc=e;return e}
@@ -320,11 +327,12 @@ export function initBosses(api,G,Z){
   if(!t.bs.enc&&!D.minor){t.bs.init=1;newEnc(t)}D.netIn?.(ctx,t,a.slice(3))};
 
  // ---------- what the boss modules get ----------
- const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,HAZE:BHZ,haze,gfx,BOSSES,REWARDS,decal,D2,cl,rnd,drnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
+ const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,HAZE:BHZ,haze,gfx,BOSSES,REWARDS,decal,D2,cl,rnd,drnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,rise,
   get wt(){return G.wt||0},
   // lose your interceptor to enemy fire (the Ace's missile, the Mirror's burst); the Deathless trophy may save it (zboss-ace.js)
   /* P: another pilot's interceptor (a co-op client's, znet.js): that pilot's own screen loses it */
-  shoot(why,P){if(P&&P!==api.player)return!!Z.netHit?.(P,why);const d=me();if(!d)return false;if(rew().some(R=>R.save?.(ctx,why)))return false;api.lose('shot');feed(`<span class="cr">Interceptor lost: ${why}</span>`);return true},
+  /* done(lost): the outcome, said when it is known: at once for this pilot's own interceptor, when that pilot's screen answers for a co-op client's (the Deathless trophy may have saved it there) */
+  shoot(why,P,done){if(P&&P!==api.player)return!!Z.netHit?.(P,why,done);const d=me();if(!d){done?.(false);return false}if(rew().some(R=>R.save?.(ctx,why))){done?.(false);return false}api.lose('shot');feed(`<span class="cr">Interceptor lost: ${why}</span>`);done?.(true);return true},
   // a tidy group: geometries made for one track are freed with it (interceptor.js dropMesh)
   group(){const g=new THREE.Group();g.userData.own=1;return g},
   mesh(g,geo,mat,x=0,y=0,z=0,shadow=true){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=shadow;g.add(m);return m},

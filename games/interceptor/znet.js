@@ -54,7 +54,9 @@ export function initNet(api,G,Z){
  Z.netMe=()=>net?net.me||'host':null;Z.netRole=()=>net?(net.host?'host':'client'):null;Z.isReady=()=>!!net&&net.rd===G.wave+1;
  Z.netEv=e=>{if(net?.host)ev(e)};Z.netName=k=>nameOf(k);
  /* a boss hit on another pilot's interceptor: the host tells that pilot's screen, which loses it there (zbosses.js ctx.shoot); the key names a pilot (this one, or a mirrored drone) */
- Z.netHit=(d,why)=>{if(!net?.host)return false;for(const[k,r]of net.pil)if(r.d===d&&r.seen&&!r.dead){ev(['H',k,String(why).replace(/[<>&"'`]/g,'').slice(0,60)]);return true}return false};
+ /* done(lost): called when that pilot's screen answers whether it lost the interceptor (the Deathless trophy may have saved it, a dead drone cannot be lost), so the host's tallies count what happened (znet.js event H, request V) */
+ Z.netHit=(d,why,done)=>{if(!net?.host)return false;for(const[k,r]of net.pil)if(r.d===d&&r.seen&&!r.dead){let id=0;if(done){const m=net.hv||(net.hv=new Map());id=net.hvn=(net.hvn|0)+1;m.set(id,done);if(m.size>64)m.delete(m.keys().next().value)}
+  ev(['H',k,String(why).replace(/[<>&"'`]/g,'').slice(0,60),id]);return true}return false};
  Z.pilotKey=d=>{if(!net||!d)return null;if(d===api.player)return net.me||'host';for(const[k,r]of net.pil)if(r.d===d)return k;return null};
  Z.netPlan=()=>net&&!net.host?net.nx:null;  /* a client's copy of the host's plan for the wave (zbosses.js: the boss warning) */
 
@@ -107,7 +109,7 @@ export function initNet(api,G,Z){
  const pack=d=>[+d.p.x.toFixed(2),+d.p.y.toFixed(2),+d.p.z.toFixed(2),+d.q.x.toFixed(3),+d.q.y.toFixed(3),+d.q.z.toFixed(3),+d.q.w.toFixed(3),+d.v.x.toFixed(1),+d.v.y.toFixed(1),+d.v.z.toFixed(1)];
  function send(now,force){const n=net;if(!n||!force&&now-n.sendT<(n.host?n.snapIv:50))return;n.sendT=now;const me=api.player,P={z:1,n:myName(),rd:n.rd|0,es:n.evSeen,sr:Z.sc?.cRev??-1,lt:n.late?1:0,sk:G.streak|0,kt:Z.meta.load().kit};
   if(me&&G.on&&!api.demo){P.s=pack(me);P.ty=me.ty;P.d=me.dead>0?1:0;P.rk=(me.boost||0)>1?1:0;const s=api.selT();P.sl=s&&me.dead<=0&&me.v.lengthSq()>64&&api.live(s)&&s.p.distanceTo(me.p)<1500?s.id:0;const sw=Z.swOut?.();if(sw)P.sw=sw;const bd=Z.bdOut?.();if(bd)P.bd=bd}  /* P.bd: my Little Buddy's garage loadout (zbuddy.js) */
-  if(n.host){if(G.on)P.g=snap(now)}else P.ev=n.out.slice(-32);
+  if(n.host){if(G.on)P.g=snap(now)}else{P.ev=n.out.slice(-32);if(now-(n.hbT||0)>2000){n.hbT=now;const h=Z.habOut?.();if(h)P.hb=h}}  /* P.hb: my flying habits, every two seconds (the host's Mirror may copy them) */
   n.r.presence(P).catch(()=>{});
   if(n.host&&room&&!room.p2p&&now-lobT>2000){lobT=now;room.presence({zg:n.code,host:myName(),pl:rows().length}).catch(()=>{})}}
  function recv(now){const n=net,seen=new Set();
@@ -133,12 +135,16 @@ export function initNet(api,G,Z){
  const tk0=Z.meta.teamKit;Z.meta.teamKit=()=>{if(!net||!G.on)return tk0();const s=new Set(Z.meta.kit());for(const a of Object.values(net.host?net.ktv:net.kt))for(const x of a)s.add(x);return[...s]};
  // another pilot's perk level (Salvage crews pays on the host)
  Z.pilotPerk=(k,perk)=>!net?0:k===net.me?G.perks[perk]|0:net.perks[k]?.[perk]|0;
+ /* another pilot's flying habits as they last sent them (null before the first): the Mirror copies the pilot it hunts (zboss-mirror.js, zbosses.js Z.habOut / habIn) */
+ Z.pilotHabit=k=>net?.pil.get(k)?.hb||null;
+ /* a near miss on another pilot's interceptor shakes that pilot's picture (the Hush's pass, zboss-hush.js): the host tells the screen it is on */
+ Z.netShake=(d,k)=>{if(!net?.host)return false;for(const[key,r]of net.pil)if(r.d===d&&r.seen&&!r.dead){ev(['Q',key,+cl(+k||0,0,1.5).toFixed(2)]);return true}return false};
  const nameOf=k=>k===net?.me?myName():net?.pil.get(k)?.n||net?.names[k]||net?.pl.find(p=>p[0]===k)?.[1]||'Pilot';
  // other pilots' interceptors: a Strela-2 body each (interceptor.js Drone), drawn where their presence says, with a name tag
  function pilotIn(k,pr,now){const n=net;if(!G.on)return;let r=n.pil.get(k);if(!r){r={d:api.newDrone(),n:'',np:new V3(),nq:new THREE.Quaternion(),nv:new V3(),at:0,dead:0,seen:0,sl:0,rk:0};r.d.mesh.visible=false;n.pil.set(k,r)}
   r.n=clean(pr.n);r.sl=pr.sl|0;r.rk=pr.rk?1:0;if(typeof pr.ty==='string'&&pr.ty!==r.d.ty)r.d.setType(pr.ty);  /* their craft type (ztypes.js): an unknown id reads as the Dart */
   if(okArr(pr.s,10)){r.np.fromArray(pr.s,0);r.nq.fromArray(pr.s,3).normalize();r.nv.fromArray(pr.s,7);r.at=now;if(!r.seen){r.seen=1;r.d.p.copy(r.np);r.d.q.copy(r.nq)}}
-  const dead=pr.d?1:0;if(dead&&!r.dead&&r.seen&&G.on){n.mute=1;api.boom(r.d.p,.7);n.mute=0}r.dead=r.d.dead=dead;if(pr.sw)Z.swIn?.(k,pr.sw,r);if(pr.bd)Z.bdIn?.(k,pr.bd,r)}  /* their swarm: formation and commands only (zswarm.js); their Little Buddy: the garage loadout (zbuddy.js) */
+  const dead=pr.d?1:0;if(dead&&!r.dead&&r.seen&&G.on){n.mute=1;api.boom(r.d.p,.7);n.mute=0}r.dead=r.d.dead=dead;if(pr.sw)Z.swIn?.(k,pr.sw,r);if(pr.bd)Z.bdIn?.(k,pr.bd,r);if(n.host&&Array.isArray(pr.hb))r.hb=Z.habIn?.(pr.hb)||null}  /* their swarm: formation and commands only (zswarm.js); their Little Buddy: the garage loadout (zbuddy.js) */
  // a track another pilot is running down shows their name (and helpers on the host leave it alone, zdef pickTarget)
  function claims(){for(const t of TH)t.pc=null;for(const[k,r]of net.pil){if(!r.sl||r.dead||!r.seen)continue;const t=TH.find(u=>u.id===r.sl);if(t&&api.live(t)&&t.p.distanceTo(r.d.p)<1600)t.pc=nameOf(k)}}
 
@@ -162,6 +168,7 @@ export function initNet(api,G,Z){
   if(T==='h'){const t=TH.find(u=>u.id===e[1]);if(t&&api.live(t)){who(t,k);G.burst={n:0};api.killThreat(t,true);G.burst=null}net.dr[k]={s:seq,o:t?[[e[1],'k',0]]:[],nr:0,dh:1};return}
   if(T==='S')return Z.so?.netReq?.(k,e,nm);  // sorties (zsortie.js): bomb impacts, salvage, strike orders
   if(T==='u'){const r=net.pil.get(k);Z.pk.use(String(e[1]),{lv:e[2]|0,sel:e[3]|0,by:k,n:nm,p:r&&r.seen&&!r.dead?r.d.p:null});return}
+  if(T==='V'){const m=net.hv,f=m?.get(e[1]|0);if(f){m.delete(e[1]|0);try{f(!!e[2])}catch(err){console.warn('boss verdict',err)}}return}  /* a boss hit on my interceptor: lost, or saved (Deathless)? */
   if(T==='W'){if(!Z.warn?.act(String(e[1]),e[2]|0,nm))tell(k,'That warning action is not available right now.');return}  /* harden / evacuate / decoy, mid-wave (zwarn.js) */
   if(G.state!=='base'){tell(k,'The shop is open between waves.');return}
   const B=Z.base.act;
@@ -272,7 +279,8 @@ export function initNet(api,G,Z){
   if(T==='m'){if(e[2]===net.me)feed(`<span class="co">${String(e[3]).replace(/[<>&]/g,'').slice(0,200)}</span>`);return}
   if(T==='g'){const d=Z.def.D.find(x=>x.id===e[2]),t=byId(e[3]);if(d&&t&&d.mesh)Z.def.burst(d,t);return}
   if(T==='S'){Z.so?.netEv?.(e.slice(2));return}  // sorties (zsortie.js): AA bursts, hits on this pilot, salvage carried, calls
-  if(T==='H'){if(e[2]===net.me)Z.shootMe?.(String(e[3]??'a boss').slice(0,60));return}  /* a boss hit on this pilot's interceptor (Z.netHit) */
+  if(T==='H'){if(e[2]===net.me){const lost=Z.shootMe?.(String(e[3]??'a boss').slice(0,60));if(e[4])req(['V',e[4]|0,lost?1:0])}return}  /* a boss hit on this pilot's interceptor (Z.netHit): the verdict goes back to the host (request V) */
+  if(T==='Q'){if(e[2]===net.me)api.shake=cl(+e[3]||0,0,1.5);return}  /* a near miss: this pilot's picture shakes (Z.netShake) */
   if(T==='B'){Z.bossWon?.(e.slice(2));return}
   if(T==='D'){Z.dbg?.netEv?.(e.slice(2));return}  /* the host used a debug cheat: this run is a debug run here too (zdebug.js) */
   if(T==='I'){Z.bossStrike?.(e.slice(2));return}  /* the host won a boss fight: the banner and the sting (zbosses.js) */

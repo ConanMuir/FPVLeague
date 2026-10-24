@@ -33,6 +33,11 @@ function tether(C){if(TL)return TL;const T=C.THREE,geo=new T.BufferGeometry();ge
  TL=new T.Line(geo,new T.LineBasicMaterial({color:new T.Color(0x9fe8ff).multiplyScalar(3),transparent:true,opacity:.9,toneMapped:false,blending:T.AdditiveBlending,depthWrite:false}));TL.frustumCulled=false;TL.visible=false;C.api.scene.add(TL);return TL}
 const mate=(C,t)=>t.bs.mate&&!t.bs.mate.bs.dead&&t.bs.mate.st!=='dead'?t.bs.mate:null;
 const linked=(C,t)=>{const m=mate(C,t);return!!m&&C.api.live(t)&&t.p.distanceTo(m.p)<LINK&&!(t.bs.snap>0)&&!t.bs.rage};
+/* the three banners: the host says them as they happen, a co-op client when the synced state shows them (netIn) */
+const PINCER=C=>C.Z.an?.say('PINCER','the twins split · the link breaks','#7fb2ff',1);
+const SNAPPED=C=>C.Z.an?.say('LINK SNAPPED','8 s · hit them now','#7fb2ff',2);
+const ENRAGED=(C,t)=>{const n=t.bs.role?'POLLUX':'CASTOR';C.Z.an?.say(`${n} ENRAGED`,'it burns for revenge','#ff3b3b',3);C.Z.an?.radio(n,'"BROTHER!"',2)};
+const MODES=['form','split','regroup'],modeOf=(C,t)=>{const m=mate(C,t);return Math.max(0,MODES.indexOf((t.bs.role===0||!m?t.bs:m.bs).mode))};  /* the pair's mode lives on CASTOR, or on whoever flies alone */
 registerBoss({id:'twins',n:'The Twins',tag:'TWINS',col:'#7fb2ff',spd:100,alt:[350,500],hitR:2.4,det:9000,cash:900,bounty:5500,far:6000,
  resist:{rack:.4,gepard:.5,sam:.8,mpads:.8,idome:.4,hflak:.3},hp:3,
  note:'two fast jets flying as a linked pair: the link soaks proximity hits until it snaps or they split for a pincer. Kill one and the other enrages.',warn:'CASTOR and POLLUX',
@@ -49,7 +54,7 @@ registerBoss({id:'twins',n:'The Twins',tag:'TWINS',col:'#7fb2ff',spd:100,alt:[35
     C.steer(t,e.normalize().multiplyScalar(Math.min(1,d/60)).add(m.v.clone().normalize()).normalize(),C.cl(m.spd+d*.5,60,125),1.6,dt,60);return true}}
   const L=B.role===0?B:m?.bs||B;if(B.role===0||!m){if(!B.site||B.site.hp<=0){B.site=C.pick(C.sites());B.mode='form'}}const s=(B.role===0?B:L).site||B.site;if(!s)return true;
   const dh=Math.hypot(s.x-t.p.x,s.z-t.p.z),lead=B.role===0||!m;
-  if(lead){if(B.mode==='form'&&dh<2600){B.mode='split';C.Z.an?.say('PINCER','the twins split · the link breaks','#7fb2ff',1)}
+  if(lead){if(B.mode==='form'&&dh<2600){B.mode='split';PINCER(C)}
    if(B.mode==='regroup'){B.rg-=dt;const out=new V3(t.p.x-s.x,0,t.p.z-s.z).normalize();C.steer(t,out.setY(.15).normalize(),100,.9,dt,60);if(B.rg<=0){B.mode='form';B.site=null;if(++B.runs>=4){C.vanish(t,'escaped');if(m)C.vanish(m,'escaped')}}return true}}
   const mode=lead?B.mode:L.mode;
   if(mode==='form'){C.steer(t,C.levelTo(t,new V3(s.x,0,s.z),450),100,.9,dt,60);return true}
@@ -59,9 +64,9 @@ registerBoss({id:'twins',n:'The Twins',tag:'TWINS',col:'#7fb2ff',spd:100,alt:[35
   if(dh<60&&t.p.y-s.y<40&&!B.bombed){B.bombed=1;C.strike(t,s,40);api.boom(new V3(s.x,s.y+5,s.z),2.5);t.p.y+=200;if(lead){B.mode='regroup';B.rg=12}}
   if(dh>500)B.bombed=0;return true},
  hit(C,t,h){const B=t.bs;if(linked(C,t)){if(h.q==='kill')return 1;B.strain=(B.strain|0)+1;const m=mate(C,t);if(m)m.bs.strain=B.strain;
-   if(B.strain>=2){B.snap=8;B.strain=0;if(m){m.bs.snap=8;m.bs.strain=0}h.txt='LINK SNAPPED';C.Z.an?.say('LINK SNAPPED','8 s · hit them now','#7fb2ff',2)}else h.txt='LINK STRAINED 1/2';return 0}
+   if(B.strain>=2){B.snap=8;B.strain=0;if(m){m.bs.snap=8;m.bs.strain=0}h.txt='LINK SNAPPED';SNAPPED(C)}else h.txt='LINK STRAINED 1/2';return 0}
   return h.q==='kill'?2:1},
- death(C,t){const m=mate(C,t);if(m){m.bs.rage=1;m.bs.site=null;C.Z.an?.say(`${m.bs.role?'POLLUX':'CASTOR'} ENRAGED`,'it burns for revenge','#ff3b3b',3);C.Z.an?.radio(m.bs.role?'POLLUX':'CASTOR','"BROTHER!"',2)}},
+ death(C,t){const m=mate(C,t);if(m){m.bs.rage=1;m.bs.site=null;ENRAGED(C,m)}},
  phaseName(C,e){const L=e.list.filter(t=>!t.bs.dead);if(L.length<2)return'ENRAGED';return L.some(t=>linked(C,t))?'LINKED':'SPLIT'},
  status(C,e){const L=e.list.filter(t=>!t.bs.dead);if(L.length<2)return'<b>ENRAGED</b>: it rams you when close and dives on sites';const t=L[0];
   return linked(C,t)?`link <b>HOLDING</b> · strain ${t.bs.strain|0}/2 · proximity bursts glance off · freeze one to split them`:`link <b>BROKEN</b>${t.bs.snap>0?` ${Math.ceil(t.bs.snap)} s`:''} · every hit counts`},
@@ -71,8 +76,9 @@ registerBoss({id:'twins',n:'The Twins',tag:'TWINS',col:'#7fb2ff',spd:100,alt:[35
   for(let i=0;i<32;i++){const f=i/31,j=Math.sin(f*Math.PI)*(1.5+Math.sin(T*20+f*9));a.setXYZ(i,t.p.x+(m.p.x-t.p.x)*f+Math.sin(T*31+i)*j*.3,t.p.y+(m.p.y-t.p.y)*f-Math.sin(f*Math.PI)*3+Math.cos(T*27+i)*j*.3,t.p.z+(m.p.z-t.p.z)*f)}a.needsUpdate=true},
  clear(){if(TL)TL.visible=false},fxLeft:()=>({tether:TL?.visible?1:0}),
  g:{stop(){if(TL)TL.visible=false},vis(C){if(TL&&!C.api.TH.some(t=>t.k==='twins'&&t.st!=='dead'))TL.visible=false}},
- netOut:(C,t)=>[t.bs.role|0,t.bs.rage|0,Math.ceil(t.bs.snap||0),t.bs.strain|0,t.bs.mate?.id|0],
+ netOut:(C,t)=>[t.bs.role|0,t.bs.rage|0,Math.ceil(t.bs.snap||0),t.bs.strain|0,t.bs.mate?.id|0,modeOf(C,t)],
  netIn(C,t,a){const B=t.bs;if(B.role!==(a[0]|0)&&a[0])swap(C,t);B.role=a[0]|0;B.rage=a[1]|0;B.snap=a[2]|0;B.strain=a[3]|0;
+  if(C.rise(t,'rage',B.rage))ENRAGED(C,t);if(B.role===0){if(C.rise(t,'snap',B.snap))SNAPPED(C);if(C.rise(t,'split',a[5]===1?1:0))PINCER(C)}  /* the pair's banners on a co-op client: said once, by CASTOR's copy */
   const m=C.api.TH.find(u=>u.id===a[4]);if(m){B.mate=m;const old=t.bs.enc;if(old&&m.bs.enc&&m.bs.enc!==old&&!old.over&&!m.bs.enc.over){C.join(m.bs.enc,t);old.over=true}}},
  aim:(C,t,s)=>({p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s?-.8:-6)}),
  winTxt:'Both twins are down. Nice flying.',escTxt:'the twins broke off and left',
