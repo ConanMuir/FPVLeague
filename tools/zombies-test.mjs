@@ -77,7 +77,12 @@ if (want('zombies')) {
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-menu-nightmare.png'});
   await p.click('#zdiff button[data-d="1"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '1', {timeout: 5000}).catch(() => {});
   ok(dm.on === 'Nightmare' && dm.zd === 3 && /Nightmare/.test(dm.desc), `Zombies menu: picking Nightmare highlights it, saves it and describes it ("${dm.desc.split('Nightmare: ')[1]?.slice(0, 50)}")`);
+  /* the audio context is opened ahead in idle time on the menu (engine/audio.js audioPrime): suspended, and not the game's yet (api.AC stays null, so a menu with no run on it makes no sound); Play adopts it and starts it */
+  const au = await p.evaluate(async () => { const A = await import('/engine/audio.js'); for (let i = 0; i < 300 && A.audioPrimed() !== 'suspended'; i++) await new Promise(r => setTimeout(r, 100)); return {primed: A.audioPrimed(), live: !!A.AC, on: A.audioOn()}; });
+  ok(au.primed === 'suspended' && !au.live && !au.on, `Zombies audio: the context is built ahead on the menu and waits suspended (${au.primed}), the game's own AC and the engine voices are not live yet (${au.live}/${au.on})`);
   await play(p);
+  const au2 = await p.evaluate(async () => { const A = await import('/engine/audio.js'); for (let i = 0; i < 50 && A.AC?.state !== 'running'; i++) await new Promise(r => setTimeout(r, 100)); return {live: !!A.AC, state: A.AC?.state, primed: A.audioPrimed(), on: A.audioOn(), sfx: __z.api.AC === A.AC}; });
+  ok(au2.live && au2.state === 'running' && au2.primed === null && au2.on && au2.sfx, `Zombies audio: Play adopts the primed context and starts it (${au2.state}), the motor voices are on, one context`);
   { const out = [];  /* the event feed (top left) never runs under the centred top bar, at a laptop, a 1080p and a short window */
     for (const [w, h] of [[1280, 720], [1920, 1080], [900, 420], [1280, 720]]) {
       await p.setViewport({width: w, height: h});

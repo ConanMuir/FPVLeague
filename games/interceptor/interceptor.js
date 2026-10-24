@@ -9,7 +9,8 @@ import {$,V3,QT,cl,UP,seeded,sm,vnoise,fbm} from '../../engine/util.js';
 import {S,save,loadSettings} from '../../engine/settings.js';
 import {initRender,renderer,scene,camera,composer,bloom,tex,glow,dot,setFov,detail,crownGeo} from '../../engine/render.js';
 import {banner,feed,setFeedTime} from '../../engine/hud.js';
-import {AC,audioInit,audioOn,motorAudio,noise,tone} from '../../engine/audio.js';
+import {AC,audioInit,audioPrime,audioOn,motorAudio,noise,tone} from '../../engine/audio.js';
+import {later} from '../../engine/idle.js';
 import {attitude,gn,ou,weathervane} from '../../engine/flight.js';
 import {propWash,turn as turnQ,spool,thrust,inflow,bodyDrag,capSpeed,ONE} from '../../src/flight/core.js';  // the shared flight core's air-model blocks (the dart composes its own step from them)
 import {rate,thrCurve,stk,initRates} from '../../engine/rates.js';
@@ -338,7 +339,9 @@ const boomL=new THREE.PointLight(0xffa040,0,600,1.2);scene.add(boomL);
 // ---------- audio (engine motor synth; bigger interceptor props turn slower than a 5", wind noise follows airspeed) ----------
 let bzo,bzg,bzf;const _ad=new V3();
 // nearest threat: the Shahed's two-stroke "moped" buzz, or a jet's turbine whine
-const audioStart=()=>audioInit({motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:(AC,out)=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(out||AC.destination);bzo.start()}});  /* out: the engine's effects gain (the Zombies effects slider) */
+const AUD={motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:(AC,out)=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(out||AC.destination);bzo.start()}};  /* out: the engine's effects gain (the Zombies effects slider) */
+const audioStart=()=>audioInit(AUD);
+later(()=>{if(!window.__noAudioPrime)audioPrime(AUD)},{heavy:true});  /* the audio context is opened and its voices built in idle time on the menu, suspended; Play adopts it and resumes it (engine/audio.js). __noAudioPrime: tools/audio-levels.mjs hands out its own context at Play */
 function audioTick(dt){const me=player,on=!demo&&!paused&&me&&me.dead<=0,t=AC.currentTime;
  const nt=nearestThreat(camera.position);let g=0,fz=95;if(nt&&!paused){const r=_a.subVectors(nt.p,camera.position),d=r.length();g=Math.pow(cl(1-d/(nt.jet?1400:800),0,1),2)*(nt.jet?.07:.1);fz=(nt.jet?nt.spd>70?1400:900:95)*(1-nt.v.dot(r)/d/343)}  // Doppler
  bzg.gain.setTargetAtTime(demo?g*.4:g,t,.1);bzo.frequency.setTargetAtTime(fz,t,.1);bzf.frequency.setTargetAtTime(nt?.jet?4000:900,t,.2);
@@ -713,7 +716,7 @@ function step(dt){const me=player;TK++;IP.snap();GRID.open();try{
 const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,rivN,rivY,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,pdmg,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
- get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
+ get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},audioPrime:()=>audioPrime(AUD),set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
  sdf,interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get spent(){return spent},camA,get HOV(){return HOV},get MSZ(){return MSZ}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
 // Graphics quality and the FPS meter (igfx.js); the shader warm-up (engine/warm.js) runs once the menu is up, and one frame through the camera-feed
