@@ -1,5 +1,5 @@
-// Interceptor: Zombies mode. Endless, growing waves from the map edges against the defended sites; money per intercept, a base screen between
-// waves, helpers and perks. interceptor.js stays Riley's Classic game: it calls the hooks below only while Z.on is true.
+// Interceptor: Zombies. Endless, growing waves from the map edges against the defended sites; money per intercept, a base screen between
+// waves, helpers and perks. It is the game: interceptor.js (the flight, the tracks, the radar, the engine) calls the hooks below while Z.on is true.
 // api = live access to interceptor.js internals (see the initZombies call there).
 import {KIND,ITEMS,ORDER,SITE_HP,BUNKER_WAVE,budget,isBoss,weight,kindFrom,speedK,HELPER_SHARE,ZDIFF,EVADE_SOME,earlyK,clearBonus,perfectBonus,streakMult,CLUTCH_R,CLUTCH_K,MULTI_BONUS,REPAIR_PER_HP,UPKEEP_FROM,UPKEEP_K,FWD_UPKEEP,REFIT,expCost,FAST,SECTORS,sectorOf} from './zdata.js';
 import {initMeta} from './zmeta.js';
@@ -29,6 +29,15 @@ import {initReentry} from './zreentry.js';
 import {initStratRadar} from './zstratradar.js';
 import {initBosses} from './zbosses.js';
 import './zboss-roster.js';
+import {initEW} from './zew.js';
+import {initSell} from './zsell.js';
+import {initCodex} from './zcodex.js';
+import {initOnboard} from './zonboard.js';
+import {initRadio} from './zradio.js';
+import {initScars} from './zscars.js';
+import {initBrief} from './zbrief.js';
+import {initEndless} from './zendless.js';
+import {initBuddy} from './zbuddy.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 
@@ -39,21 +48,18 @@ export function initZombies(api){
  const Z={get on(){return G.on},G};
  const SITE_C={x:0,z:1950};  // centre of the defended area
 
- // ---------- mode choice and Zombies difficulty on the start menu; best wave is kept per difficulty ----------
+ // ---------- Zombies difficulty on the start menu; best wave is kept per difficulty ----------
  if(!Number.isInteger(S.zdiff))S.zdiff=1;  // a hand-edited or foreign save: Normal (a string here broke the start menu)
  // G.dfo: the host's difficulty while in a co-op game, or the campaign's in a campaign sector; Z.dfMod (zcampaign.js) puts the sector's modifiers on top
  const DFI=Z.dfi=()=>cl(G.dfo??S.zdiff??1,0,ZDIFF.length-1),DF=()=>{const d=ZDIFF[DFI()];return Z.dfMod?Z.dfMod(d):d};
  const bestOf=d=>((S.zbests||{})[d.n]||(d.n==='Normal'&&S.zbest)||{}).wave|0;  // S.zbest = best from before difficulties existed (Normal)
- {const box=$('gmode'),desc=$('gmdesc'),dbox=document.createElement('div');dbox.className='gmode zdiff';dbox.id='zdiff';dbox.setAttribute('role','group');dbox.setAttribute('aria-label','Zombies difficulty');
-  dbox.innerHTML=ZDIFF.map((d,i)=>`<button data-d="${i}">${d.n}</button>`).join('');box.after(dbox);
-  const sync=()=>{for(const b of box.querySelectorAll('button'))b.classList.toggle('on',b.dataset.m===S.gmode);const D=DF();G.best=bestOf(D);
-   for(const b of dbox.querySelectorAll('button'))b.classList.toggle('on',+b.dataset.d===DFI());dbox.hidden=S.gmode!=='z';
-   desc.innerHTML=S.gmode==='z'?`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a boss every 10.<br><b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`:'<b>Classic</b>: Riley\'s Interceptor. One Shahed-136, then one jet Geran-3, each wave.';
-   $('play').textContent=S.gmode==='z'?'Quick defence':'Defend'};
-  for(const b of box.querySelectorAll('button'))b.onclick=()=>{S.gmode=b.dataset.m;save();sync()};
+ {const desc=$('gmdesc'),dbox=document.createElement('div');dbox.className='gmode zdiff';dbox.id='zdiff';dbox.setAttribute('role','group');dbox.setAttribute('aria-label','Zombies difficulty');
+  dbox.innerHTML=ZDIFF.map((d,i)=>`<button data-d="${i}">${d.n}</button>`).join('');desc.before(dbox);
+  const sync=()=>{const D=DF();G.best=bestOf(D);
+   for(const b of dbox.querySelectorAll('button'))b.classList.toggle('on',+b.dataset.d===DFI());
+   desc.innerHTML=`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a Mothership every 10, and the other bosses you have beaten in the campaign join the boss waves (Enemies).<br><b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`};
   for(const b of dbox.querySelectorAll('button'))b.onclick=()=>{S.zdiff=+b.dataset.d;save();sync()};
-  const qm=new URLSearchParams(location.search).get('mode');if(qm==='zombies'||qm==='z')S.gmode='z';else if(qm==='classic')S.gmode='classic';  /* Drone League's menu links here with ?mode= */
-  if(S.gmode!=='z')S.gmode='classic';save();sync();Z.syncMode=sync}
+  sync();Z.syncMode=sync}
  // doctrine & unlocks between runs (zmeta.js): the start-menu panel, the loadout, goals. DOC = the doctrine in play, dk = one of its numbers (default 1)
  initMeta(api,G,Z);const DOC=()=>Z.meta.doc(),dk=(k,d=1)=>Z.meta.k(k,d);
  initBoard(api,G,Z);  // leaderboard: the bot benchmark and your runs (zboard.js)
@@ -89,6 +95,9 @@ export function initZombies(api){
  Z.stop=()=>{if(!G.on&&G.state==='off')return;G.on=false;G.state='off';rk.stop();Z.shadowsBack();bunker(false);for(const s of SITES){s.max=s.hp=3}api.AW=3000;api.applyTune();def.clear();en.hide();en.farRing().visible=false;
   api.RRS.length=3;S.rr=Math.min(S.rr|0,2);$('hud').classList.remove('z');hudEl.hidden=true;base.close();$('zover').hidden=true;G.wq.length=0;wx.stop()};
  Z.hold=()=>G.on&&!api.demo&&(G.state==='base'||G.state==='over');
+ /* the modules that watch the state change inside a sim step (the boss director, the codex's set piece, the buddy) register a check here; the base and game-over screens pause a co-op
+    client's sim, so znet.js calls Z.stateSync() when the mirrored state changes, and a client that never got a step in the clear window still sees the wave end */
+ Z.stateHooks=[];Z.stateSync=()=>{for(const f of Z.stateHooks)try{f()}catch(e){console.warn('state sync',e)}};
 
  // ---------- wave director ----------
  // a wave = a threat-point budget spent on unlocked kinds, split into raids from different edges; each raid spawns over a few seconds.
@@ -137,7 +146,7 @@ export function initZombies(api){
  Z.waves=dt=>{if(api.demo||Z.mirror)return;if(G.state==='wave'){G.wt+=dt;  /* Z.mirror: a co-op client, the host runs the director */
    while(G.wq.length&&G.wq[0].at<=G.wt){const q=G.wq.shift();spawn(q)}
    if(!G.wq.length&&!TH.some(api.live)){G.state='clear';G.clearT=3;const got=earn((clearBonus(G.wave)+(G.perfect?perfectBonus(G.wave):0))*dk('clearK')*(Z.incomeK?.()??1),null,null);  /* incomeK: evacuated sites earn nothing (zwarn.js) */
-    banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);feed(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`);payUpkeep()}}
+    banner(`WAVE ${G.wave} CLEAR`,'cg',2.6);(Z.team||feed)(`Wave ${G.wave} clear: <span class="cg">+${money(got)}</span>${G.perfect?' (perfect defence bonus included)':''}`);payUpkeep()}}
   else if(G.state==='clear'&&(G.clearT-=dt)<=0){if(!Z.cpWin?.())openBase()}};  /* Z.cpWin: a campaign sector's objective is met (zcampaign.js) */
  // upkeep: from UPKEEP_FROM each defence costs UPKEEP_K of what was spent on it per wave (forward positions FWD_UPKEEP times; doctrines scale it).
  // w = the wave being paid for (default: the next one, for the base screen). per = each defence's share.
@@ -145,9 +154,9 @@ export function initZombies(api){
   for(const d of def.D){const c=Math.round((d.spent||ITEMS[d.type].price)*UPKEEP_K*k*(def.SLOTS[d.slot]?.fwd?fk:1));if(c>0){per.set(d,c);total+=c}}return{total,per}};
  // paid from the purse when a wave is cleared; what it can't cover leaves the dearest defences short of ammo (half load) next wave
  function payUpkeep(){for(const d of def.D)d.short=0;const U=Z.upkeep(G.wave);G.lastUp=0;if(!U.total)return;const paid=Math.min(Math.floor(G.cash),U.total);G.cash-=paid;G.lastUp=paid;Z.tally('upkeep',paid);let owe=U.total-paid;
-  if(owe<=0){feed(`Upkeep: <span class="co">−${money(paid)}</span>`);return}const sh=[];
+  if(owe<=0){(Z.team||feed)(`Upkeep: <span class="co">−${money(paid)}</span>`);return}const sh=[];
   for(const d of[...U.per.keys()].sort((a,b)=>U.per.get(b)-U.per.get(a))){if(owe<=0)break;d.short=1;owe-=U.per.get(d);sh.push(ITEMS[d.type].n)}
-  feed(`<span class="cr">Upkeep short by ${money(U.total-paid)}</span>: ${sh.join(', ')} go${sh.length>1?'':'es'} into the next wave with half a load`)}
+  (Z.team||feed)(`<span class="cr">Upkeep short by ${money(U.total-paid)}</span>: ${sh.join(', ')} go${sh.length>1?'':'es'} into the next wave with half a load`)}
 
  // spawn points sit on a ring around the defended area at the given bearing; fast kinds come from much farther out (the map extends past the AO)
  function spawn(q){const[k,n]=q.k.split(':'),K=KIND[k],R=K.far||5200,x=SITE_C.x+Math.sin(q.brg)*R,z=SITE_C.z-Math.cos(q.brg)*R;
@@ -212,7 +221,7 @@ export function initZombies(api){
   banner(txt,kills?'cg':dmg?'co':'cr',1.4);G.det={txt,t:performance.now()};
   if(kills)tone(520,1040,.22,.14,'triangle');else if(dmg)tone(440,520,.2,.1,'triangle');else tone(260,190,.16,.045,'triangle');
   api.lose('det');feed(out.join('<br>')||'Detonated: nothing in range')};
- // manual timing is the default in Zombies; the Proximity fuse perk brings back Classic's automatic fuse (contact always fires)
+ // manual timing is the default in Zombies; the Proximity fuse perk adds an automatic fuse (contact always fires)
  Z.autoFuse=()=>Z.perkLevel?.('fuse')>0;
  Z.evadeMode=()=>G.state==='trial'?'none':DF().evade;Z.diff=DF;
  // does this track evade on this difficulty, and how much of a helper drone's or gun's kill chance it keeps (tac.jink)
@@ -221,7 +230,7 @@ export function initZombies(api){
  // one-hit rules: a direct hit always kills; proximity uses pkill; armor 1 turns a proximity kill into damage; 'hard' needs a direct hit
  function outcome(t,r,cv){const K=KIND[t.k]||KIND.shahed;if(r<K.hitR)return'kill';if(K.armor==='hard')return'miss';
   const p=api.pkill(r,cv);if(Math.random()<p)return K.armor===1||K.armor==='boss'?'damage':'kill';
-  const re=r+cv*api.FDLY;if(!t.dmg&&Math.random()<Math.exp(-(((re-1.2)/(5*api.LETH/4))**2)))return'damage';return'miss'}
+  if(!t.dmg&&Math.random()<api.pdmg(r,cv))return'damage';return'miss'}
  Z.outcome=outcome;
  // helper hits: p = the helper's kill chance for this target. Marked targets take double damage from helpers: two rolls (1-(1-p)^2),
  // near-miss damage becomes a kill, and armor is ignored. Unmarked armor turns non-direct hits into damage.
@@ -320,11 +329,20 @@ export function initZombies(api){
  initCampaign(api,G,Z);  // the campaign map and its sectors (zcampaign.js): wraps the hooks above, before the effects and co-op wrap them
  initLock(api,G,Z);initSwarm(api,G,Z);initBatt(api,G,Z);  // lock-on, personal swarm, battery gauge (zlock.js, zswarm.js, zbatt.js): they wrap the hooks above
  initBosses(api,G,Z);  // the boss roster (zbosses.js + zboss-*.js): wraps the hooks above, before the effects and co-op layers
+ initEW(api,G,Z);  /* electronic warfare (zew.js): the Jammer King's noise-against-signal duel on the pip, radar and lock-on; the boss module feeds it */
  initFX(api,G,Z);  // game feel (zfx.js): wraps the Z hooks above
  initThreatSfx(api,G,Z);initReentry(api,G,Z);initStratRadar(api,G,Z);  // threat flyby sound, the re-entry event, the long-range radar layers (zthreatsfx.js, zreentry.js, zstratradar.js)
  initNet(api,G,Z);  // co-op (znet.js): wraps them again
  initArsenal(api,G,Z);  // pilot weapons and the extra defences (zarsenal.js): after co-op, so a client's weapon goes to the host its own way
  initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
  initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
+ initRadio(api,G,Z);  /* radio chatter (zradio.js): callouts from the game's state, a HUD log, squelch and speech; takes over the old radio subtitle */
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
+ initSell(api,G,Z);  // selling anything you own with an Undo until the wave starts (zsell.js); the base screen reads Z.sell, so it only wraps the base open / close and start / stop
+ initOnboard(api,G,Z);  /* first-wave guide (zonboard.js): a one-time walkthrough on a pilot's very first run; never for bots, co-op or automated browsers */
+ initScars(api,G,Z);  // the living map (zscars.js): craters, burns and rubble that stay; saved with the campaign, carried to co-op clients
+ initBrief(api,G,Z);  /* the threat briefing on the base screen (zbrief.js): what the next wave brings, from the wave plan, and the radio line at its start */
+ initEndless(api,G,Z);  /* Endless (zendless.js): after the campaign, a sector with no objective whose waves keep climbing; wraps the campaign's hooks, so it goes last */
+ initBuddy(api,G,Z);  /* Little Buddy (zbuddy.js): your Drone League garage quad flies as a free helper; it only adds to the step / visuals / overlay / radar / start / stop / lock hooks */
+ initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
  return Z}

@@ -1,7 +1,8 @@
 // Zombies bots' sorties (zsortie.js), registered as a hook of the bot brain (zbotbrain.js hooks: a shop step on the base screen), so the
 // benchmark's bots fly the break's sortie by level without the brain knowing about sorties. The benchmark pilot flies it the way it plays
 // waves: kinematically through the harness (E.so.fly / hold / drop, at sim speed), so the guns and patrols still get their chance at it.
-// The Bot Spectator's real pilot (zbotfly.js, E.spec.on) doesn't fly sorties: the hook steps aside and the bot just shops and starts the wave.
+// The Bot Spectator's real pilot (zbotfly.js, E.spec.on) flies them for real (zbotsortiefly.js): the hook asks it for a plan and a launch, and (in the
+// headless benchmark, --real) steps the sim until it is back. Strike orders are the same for both pilots.
 // Per level (by name):
 //   go      chance of flying the break's sortie
 //   pick    'near' (the closest known target), 'value' (what it takes out of the next waves for the defences around it) or 'smart' (value,
@@ -50,11 +51,16 @@ function fly(SP,E){const {G,api,Z}=E,so=E.so,W=so.W,R=so.bot||(so.bot={n:0,late:
  if(so.S.on&&!late)so.finish();
  while(so.S.on)E.sim(.5);
  R.banked+=Math.max(0,G.cash-c0);if(G.state!=='base'){R.late++;return'late'}return'home'}
+/* the real pilot's sortie: launched here; in the headless benchmark the sim is stepped until the sortie is over (the visual spectator flies it frame by frame and pauses the shop: Z.bot.wait) */
+function real(fl,pl,E){if(!fl.launch(pl))return false;if(E.spec.sp.bench)for(let n=0;fl.on()&&n<1500;n++)E.sim(.25);return true}
 hooks.push({name:'sortie',*shop(P,E){const SP=SORTIE[P.n],so=E.so,G=E.G;
- if(!SP||!so||E.spec?.on||!G.on||G.state!=='base'||G.wave<so.SO.from||so.S.used===G.wave)return;
- if(SP.strike){const c=Math.round((so.SO.strike.base+so.SO.strike.perW*G.wave)/50)*50,fastIn=s=>(E.Z.fastPlan?E.Z.fastPlan()[s]?.total:0)|0;
+ if(!SP||!so||!G.on||G.state!=='base'||G.wave<so.SO.from||so.S.used===G.wave)return;
+ const spec=E.spec?.on;
+ if(spec&&!(P.explore>=2&&E.bot?.sortie))return;
+ if(SP.strike||spec&&P.explore>=3){const c=Math.round((so.SO.strike.base+so.SO.strike.perW*G.wave)/50)*50,fastIn=s=>(E.Z.fastPlan?E.Z.fastPlan()[s]?.total:0)|0;
   for(const t of so.known())if(t.t==='launch'&&!t.dead&&t.struck!==G.wave&&fastIn(t.sec)>=2&&G.cash>c*5)
    yield{why:`Ordering a strike on the ${['West','North','East'][t.sec]} launch site: its fast missiles are planned next wave`,what:'strike',run:()=>{const h=so.strike(t.id);if(h!=null)(so.bot||(so.bot={n:0,late:0,lost:0,kills:0,banked:0,strikes:0})).strikes++;return h}}}
+ if(spec){const pl=E.bot.sortie.plan();if(!pl)return;yield{why:pl.why,what:'sortie',run:()=>real(E.bot.sortie,pl,E)};if(G.state==='base'&&!so.S.on)yield*shopSteps(P,E);return}
  if(Math.random()>SP.go)return;
  yield{why:'Flying a sortie past the line: find what feeds the next waves, bomb it, bring the salvage home',what:'sortie',run:()=>fly(SP,E)};
  if(G.state==='base')yield*shopSteps(P,E)}});  /* back in time: shop again with the salvage (this hook steps aside now: one sortie a break) */

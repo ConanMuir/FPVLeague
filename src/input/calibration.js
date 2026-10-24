@@ -16,6 +16,7 @@ const STEPS=()=>[{k:0,q:'THROTTLE: push it fully UP and hold'},{k:1,q:'YAW: full
 const name=(id,x)=>id>=100?(x&&BTN[id-100]?BTN[id-100]:'Button '+(id-100)):'Axis '+id;
 const bname=(b,x)=>b==null||b===-1?'none':typeof b==='string'?`Axis ${parseInt(b.slice(1))} ${b.endsWith('-')?'(−)':'(+)'}`:name(100+b,x);
 export function initCalib(){$('calbtn').onclick=()=>calib?closeBind(false):openBind();$('bx').onclick=()=>closeBind(false);
+ addEventListener('keydown',e=>{if(e.code==='Escape'&&calib){closeBind(false);e.stopImmediatePropagation()}},true);  /* Esc cancels (and does not also resume the paused match behind the dialog) */
  $('bskip').onclick=()=>skip();$('bredo').onclick=()=>{if(calib){calib.sub=null;calib.D=newDet()}};$('bsave').onclick=()=>commit()}
 const newDet=()=>detector({used:[...calib.used],base:calib.i||calib.sub!=null?600:900});
 export function openBind(){const g=pad(),x=padX;calib={i:0,steps:STEPS(),x,cal:CAL().map(c=>({...c})),fire:x?S.xfire:S.fireBtn,flip:x?S.xflip:S.flipBtn,boost:x?S.xboost:S.boostBtn,used:new Set(),sub:null,done:false,lay:''};

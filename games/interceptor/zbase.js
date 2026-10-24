@@ -15,7 +15,7 @@ export function initBase(Z,api,G){
  // Z.xTab (sorties, zsortie.js): one extra tab {id, n, html(), wire(el), map(g, W, H), click(x, y, W, H), legend()} that draws its own map
  const tabList=()=>[['shop','Shop'],['armory','Armory'],['sites','Base'],...(Z.chainHTML?[['chain','Kill chain']]:[]),...(Z.xTab?[[Z.xTab.id,Z.xTab.n]]:[])],xt=()=>!!Z.xTab&&tab===Z.xTab.id&&!G.placing;
  const repairK=()=>Z.repairK?.()??1,repairCost=s=>Math.ceil((s.max-s.hp)*REPAIR_PER_HP*repairK());
- const upCost=c=>Math.round(c*dk('upK')/10)*10,refund=d=>Math.floor((d.spent||ITEMS[d.type].price)*dk('sellK',.5));
+ const upCost=c=>Math.round(c*dk('upK')/10)*10,refund=d=>Z.sell.dval(d);  /* what a sale pays: zsell.js */
  const mx=x=>(x-MAPX[0])/(MAPX[1]-MAPX[0])*MW,mz=z=>(z-MAPZ[0])/(MAPZ[1]-MAPZ[0])*MH;
  const def=Z.def;
 
@@ -39,7 +39,7 @@ export function initBase(Z,api,G){
  const byId=id=>def.D.find(x=>x.id===id);
  const tally=Z.tally=(k,c)=>{if(c>0)(G.spend||(G.spend={}))[k]=(G.spend[k]|0)+c;return c};  // what went into each late-game sink this run (game-over stats, tools/zombies-balance.mjs)
  const act={place(k,j,by){const it=ITEMS[k];if(!it||it.type!=='helper'||!offered(k)||locked(k)||G.cash<it.price||!def.SLOTS[j]||!def.slotFree(j,k))return null;G.cash-=it.price;const d=def.add(k,j);d.spent=it.price;if(by)d.by=by;return d},
-  sell(id){const d=byId(id);if(!d)return null;const r=refund(d);G.cash+=r;def.remove(d);return r},
+  sell(id){const d=byId(id);return d?Z.sell.sellDef(d):null},  /* pays, frees the position and keeps an Undo until the wave starts (zsell.js) */
   upgrade(id,what){const d=byId(id);if(!d)return 0;const c0=G.cash;
    if(def.isRack(d)){if(what==='tier'){const N=RACK_TIERS[d.tier+1],c=N&&upCost(N.cost);if(N&&!(d.type==='lrack'&&d.tier>=LRACK.maxTier)&&G.cash>=c){G.cash-=c;d.tier++}}
     else if(d.type==='rack'){const ci=RACK_CAP.indexOf(d.cap),c=RACK_CAP_COST[ci+1]&&upCost(RACK_CAP_COST[ci+1]);if(c&&G.cash>=c){G.cash-=c;d.cap=RACK_CAP[ci+1];d.ready=def.capOf(d)}}}
@@ -50,7 +50,7 @@ export function initBase(Z,api,G){
   // move a defence to another open position (it redeploys there when the wave starts)
   move(id,j){const d=byId(id),c=d?moveCost(d):0;if(!d||G.cash<c||!def.slotFree(j,d.type))return-1;def.move(d,j);G.cash-=c;return tally('move',c)},
   // open one more position; each costs more (zdata expCost); a doctrine can rule some out
-  expand(j){const c=expCost(G.exp|0,dk('expK'));if(!def.canOpen(j,doc())||G.cash<c)return 0;G.cash-=c;G.open[j]=true;G.exp=(G.exp|0)+1;return tally('expand',c)},
+  expand(j){const c=expCost(G.exp|0,dk('expK'));if(!def.canOpen(j,doc())||G.cash<c)return 0;G.cash-=c;G.open[j]=true;G.exp=(G.exp|0)+1;(G.xp||(G.xp={}))[j]={c,w:G.wave};return tally('expand',c)},  /* G.xp: what each opened position cost, so it can be sold back (zsell.js) */
   // rebuild a destroyed site at 40% of its hit points
   rebuild(i){const s=SITES[i],c=rebuildCost(G.rebuilds|0);if(!s||s.hp>0||G.cash<c)return 0;G.cash-=c;s.hp=Math.round(s.max*REBUILD_HP);G.rebuilds=(G.rebuilds|0)+1;return tally('rebuild',c)},
   supply(k){if(!SUPPLY[k]||locked(k)||G.sup?.[k])return 0;const c=supPrice(k);if(G.cash<c)return 0;G.cash-=c;(G.sup||(G.sup={}))[k]=1;return tally('supply',c)},
@@ -83,13 +83,28 @@ export function initBase(Z,api,G){
     ${H.lv.length>1?`<button class="sm" data-up="${d.id}:lvl" ${n&&G.cash>=upCost(n.cost)?'':'disabled'}>${n?`Level ${d.lvl+2} ${money(upCost(n.cost))}`:'Max level'}</button>`:''}`}
   const RF=REFIT[d.type]||[],cur=RF.find(r=>r.id===d.refit);
   if(RF.length)ups+=`<span class="zst zn">${cur?`Refit: <b>${cur.n}</b>. ${cur.txt}`:'Refit (one per defence, each a trade):'}</span>${RF.map(r=>`<button class="sm zfit ${d.refit===r.id?'on':''}" data-fit="${d.id}:${r.id}" title="${r.txt}" ${d.refit!==r.id&&G.cash>=upCost(r.cost)?'':'disabled'}>${d.refit===r.id?'✓ '+r.n:`${r.n} ${money(upCost(r.cost))}`}</button>`).join('')}`;
-  const mc=moveCost(d),armed=sellArm===d.id;ups+=Z.defExtra?.(d)||'';  // Z.defExtra: a defence's own controls (the carrier's parking, zarsenal.js)
+  const mc=moveCost(d);ups+=Z.defExtra?.(d)||'';  // Z.defExtra: a defence's own controls (the carrier's parking, zarsenal.js)
   ups+=`<button class="sm" data-mv="${d.id}" ${G.cash>=mc&&def.SLOTS.some((_,j)=>def.slotFree(j,d.type))?'':'disabled'}>Move${mc?' '+money(mc):' (free)'}</button>`;
-  return`<div class="zarm"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}${d.by?' · '+d.by:''}${up?` · upkeep ${money(up)}`:''}${d.short?' · <span class="co">short of ammo</span>':''}</small></div><div class="zups">${ups}<button class="sm zsell ${armed?'arm':''}" data-sell="${d.id}">${armed?`Confirm: sell for ${money(refund(d))}`:`Sell ${money(refund(d))}`}</button></div></div>`}
- // selling frees the slot and refunds half of everything spent on it (a quarter under Quartermaster); it takes a second press to confirm
- let sellArm=0;
- function sell(id){const d=byId(id);if(!d)return;if(sellArm!==id){sellArm=id;render();focus(`[data-sell="${id}"]`);return}
-  sellArm=0;if(Z.req)Z.req(['s',id]);else act.sell(id);render();focus('[data-up]')}
+  return`<div class="zarm"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}${d.by?' · '+d.by:''}${up?` · upkeep ${money(up)}`:''}${d.short?' · <span class="co">short of ammo</span>':''}</small></div><div class="zups">${ups}<span class="zst zrf">${Z.sell.dwhy(d)}</span><button class="sm zsell" data-sell="${d.id}" title="${Z.sell.dwhy(d)}">Sell +${money(refund(d))}</button></div></div>`}
+ // selling frees the position and pays at once: everything spent on it this base screen back, and the doctrine's share (half) of the rest. The card stays
+ // with an Undo until the wave starts (zsell.js), so there is no confirm press
+ function sell(id){const d=byId(id);if(!d)return;const nm=ITEMS[d.type].n.toLowerCase(),at=def.SLOTS[d.slot].n,r=refund(d);
+  if(Z.req)Z.req(['s',id]);else{act.sell(id);Z.sell.say(`<span class="co">Sold the ${nm} at ${at}</span> · +${money(r)} (Undo on its card until the wave starts)`)}render();focus('[data-undo]')}
+ /* take a sale back / close a position you paid to open (zsell.js) */
+ function undo(id){const r=(G.sold||[]).find(q=>q.id===id);if(!r)return;
+  if(Z.req)Z.req(['U',id]);else{const u=Z.sell.undo(id);if(u)Z.sell.say(`<span class="cg">Undone: ${u.msg}</span> · −${money(u.c)}`)}render();focus(r.k==='x'?'[data-xs]':r.k==='d'?'[data-sell]':'[data-kc]')}
+ function closeX(j){const nm=def.SLOTS[j].n,r=Z.sell.xval(j);
+  if(Z.req)Z.req(['q',j]);else if(Z.sell.closeX(j)!=null)Z.sell.say(`<span class="co">Closed ${nm}</span> · +${money(r)} (Undo until the wave starts)`);render();focus('[data-undo]')}
+ /* the card of a sale taken this base screen: what was sold, what it paid, Undo */
+ function ghost(r){const w=Z.sell.can(r);return`<div class="zarm zsold"><span class="zg">${Z.sell.glyph(r)}</span><div><b>${r.name}</b><small>Sold${r.k==='d'?' · '+def.SLOTS[r.a].n:''}</small></div>
+  <div class="zups"><span class="zst">Sold for ${money(r.r)}. Undo takes it back as it was for ${money(r.r)}, until the wave starts.${w?` <span class="co">${w}</span>`:''}</span><button class="sm" data-undo="${r.id}" ${w?'disabled':''}>Undo −${money(r.r)}</button></div></div>`}
+ /* Armory: the defences, each sold one's card back at the place it had in the list */
+ function armoryRows(){const rows=def.D.map(defRow);for(const r of Z.sell.list('d').reverse())rows.splice(Math.min(r.at,rows.length),0,ghost(r));return rows.join('')}
+ /* Base tab: the positions you paid to open (close one for money while nothing stands on it) and the closed ones */
+ function openedHTML(){const L=Z.sell.owned(),gh=Z.sell.list('x');if(!L.length&&!gh.length)return'';
+  return`<h3 style="margin-top:12px">Positions you opened</h3>${L.map(j=>{const w=Z.sell.xcan(j);
+   return`<div class="zarm"><span class="zg">⊞</span><div><b>${def.SLOTS[j].n}</b><small>${def.D.some(d=>d.slot===j)?'in use':'empty'}</small></div><div class="zups"><span class="zst zrf">${Z.sell.xwhy(j)}${w?` <span class="co">${w}</span>`:''}</span>
+    <button class="sm zsell" data-xs="${j}" ${w?'disabled':''} title="Close it again; it goes dormant and can be reopened">Close +${money(Z.sell.xval(j))}</button></div></div>`}).join('')}${gh.map(ghost).join('')}`}
  function upgrade(id,what){if(!byId(id))return;if(Z.req)Z.req(['g',id,what]);else act.upgrade(id,what);render();focus(`[data-up="${id}:${what}"]`)}
  function refit(id,rid){if(!byId(id))return;if(Z.req)Z.req(['f',id,rid]);else act.refit(id,rid);render();focus(`[data-fit="${id}:${rid}"]`)}
  function startMove(id){const d=byId(id);if(!d||G.cash<moveCost(d))return;G.placing={mv:id,k:d.type};focusSlot=def.SLOTS.findIndex((_,j)=>def.slotFree(j));render();focus('[data-slot]')}
@@ -106,6 +121,7 @@ export function initBase(Z,api,G){
   const can=def.SLOTS.map((_,j)=>j).filter(j=>def.canOpen(j,doc())),nOpen=def.SLOTS.filter((s,j)=>!s.park&&def.slotOpen(j)).length,ec=expCost(G.exp|0,dk('expK'));
   h+=`<h3 style="margin-top:12px">Positions · ${nOpen} open</h3>${can.length?`<p class="zhint">Open another position for <b>${money(ec)}</b> (each one costs more). Forward pads and outposts engage first but cost double upkeep.</p>
    <div class="zexp">${can.map(j=>`<button class="sm" data-ex="${j}" ${G.cash>=ec?'':'disabled'}>${def.SLOTS[j].n}${def.SLOTS[j].fwd?' ▲':''}</button>`).join('')}</div>`:`<p class="zhint">Every position your doctrine allows is open.</p>`}`;
+  h+=openedHTML();
   const U=Z.upkeep?.()||{total:0},nw=G.wave+1;
   h+=`<h3 style="margin-top:12px">Upkeep</h3><p class="zhint">${dk('upkeepK')===0?'Quartermaster: no upkeep.':nw<UPKEEP_FROM?`From wave ${UPKEEP_FROM} each defence costs 2% of what you spent on it per wave (forward positions 4%), paid when a wave is cleared. Unpaid upkeep leaves the dearest defences short of ammo (half load) for a wave.`:`<b>${money(U.total)}</b> due when wave ${nw} is cleared: 2% of what each defence cost (forward positions 4%). Sell what you don't need; whatever the purse can't cover leaves the dearest defences short of ammo for a wave.`}</p>`;
   return h}
@@ -116,7 +132,7 @@ export function initBase(Z,api,G){
   if(P)body=`<h3>${P.mv?`Move the ${ITEMS[P.k].n.toLowerCase()} to`:`Choose a position for the ${ITEMS[P.k].n.toLowerCase()}`}</h3><p class="zhint">Pick a slot here or click a free circle on the map. It deploys when the wave starts.</p>
    <div class="zslots">${def.SLOTS.map((s,j)=>def.slotFree(j,P.k)?`<button class="sm" data-slot="${j}">${s.n}</button>`:'').join('')}</div><div class="mp"><button class="sm" id="zcancel">Cancel</button></div>`;
   else if(tab==='shop')body=shopHTML();
-  else if(tab==='armory'){const perks=Z.perkRows?.(money)||'';body=`${def.D.length?def.D.map(defRow).join(''):'<p class="zhint">No defences yet. Buy helpers from the shop cards.</p>'}${perks?`<h3 style="margin-top:14px">Perks</h3>${perks}`:''}`}
+  else if(tab==='armory'){const perks=Z.perkRows?.(money)||'';body=`${def.D.length||Z.sell.list('d').length?armoryRows():'<p class="zhint">No defences yet. Buy helpers from the shop cards.</p>'}${perks?`<h3 style="margin-top:14px">Perks</h3>${perks}`:''}`}
   else if(tab==='chain'&&Z.chainHTML)body=Z.chainHTML();  /* the kill chain against the fast missiles (zchain.js) */
   else if(xt())body=Z.xTab.html();
   else body=baseHTML();
@@ -124,7 +140,7 @@ export function initBase(Z,api,G){
   el.innerHTML=`<div class="zpanel zb"><header><div><h2>${G.wave?`Wave ${G.wave} cleared`:'Briefing'}</h2><div class="zbig">${money(G.cash)}</div></div>
    <div class="zint"><span>Defense integrity ${Math.round(f*100)}% · ${Math.ceil(integ.hp)}/${integ.max}</span><b><i style="width:${(f*100).toFixed(1)}%" class="${f<.3?'lo':f<.6?'mid':''}"></i></b></div>
    <button class="go" id="zgo">${Z.goTxt?.()||`Start wave ${G.wave+1} ▸`}</button>
-   <div class="zdoc">Doctrine <b>${D.n}</b>${U&&U.total?` · upkeep <b>${money(U.total)}</b> after this wave`:''}${sh?` · <span class="co">${sh} short of ammo (upkeep unpaid)</span>`:''}${G.lastUp?` · last upkeep ${money(G.lastUp)}`:''}</div></header>${Z.coopHTML?.()||''}${Z.cpHTML?.()||''}
+   <div class="zdoc">Doctrine <b>${D.n}</b>${U&&U.total?` · upkeep <b>${money(U.total)}</b> after this wave`:''}${sh?` · <span class="co">${sh} short of ammo (upkeep unpaid)</span>`:''}${G.lastUp?` · last upkeep ${money(G.lastUp)}`:''}</div></header>${Z.coopHTML?.()||''}${Z.cpHTML?.()||''}${Z.briefHTML?.()||''}
    <div class="zcols"><div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
     <div class="zleg">${xt()?Z.xTab.legend():`<span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lx">+</i>position to open (Base tab)</span><span><i class="lt"></i>next wave's approach</span>`}</div></div>
    <div class="zside"><nav class="ztabs">${tabList().map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
@@ -139,6 +155,8 @@ export function initBase(Z,api,G){
   for(const b of el.querySelectorAll('[data-mv]'))b.onclick=()=>startMove(+b.dataset.mv);
   for(const b of el.querySelectorAll('[data-perk]'))b.onclick=()=>upPerk(b.dataset.perk);
   for(const b of el.querySelectorAll('[data-sell]'))b.onclick=()=>sell(+b.dataset.sell);
+  for(const b of el.querySelectorAll('[data-undo]'))b.onclick=()=>undo(+b.dataset.undo);
+  for(const b of el.querySelectorAll('[data-xs]'))b.onclick=()=>closeX(+b.dataset.xs);
   for(const b of el.querySelectorAll('[data-rb]'))b.onclick=()=>rebuild(+b.dataset.rb);
   for(const b of el.querySelectorAll('[data-kc]'))b.onclick=()=>{const k=b.dataset.kc,i=k.indexOf(':');Z.chain.req(k.slice(0,i),k.slice(i+1));render();focus(`[data-kc="${k}"]`)};
   if(xt())Z.xTab.wire(el);
@@ -188,7 +206,7 @@ export function initBase(Z,api,G){
  function open(){document.body.classList.add('zb-open');G.state="base";G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
  function close(){el.hidden=true;G.placing=null;document.body.classList.remove('zb-open')}
  // redraw for a change made elsewhere (co-op: the purse, the defences, who is ready), keeping focus and the tab's scroll
- function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','so','tab','ars'].find(x=>a.dataset[x]!=null):null,
+ function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','so','tab','ars','undo','xs'].find(x=>a.dataset[x]!=null):null,
    q=k?`[data-${k}="${a.dataset[k]}"]`:mine&&a.id?'#'+a.id:null,sc=el.querySelector('.ztab')?.scrollTop||0;
   render();const t=el.querySelector('.ztab');if(t)t.scrollTop=sc;if(q)el.querySelector(q)?.focus()}
  // spatial focus move between the visible buttons
@@ -201,9 +219,9 @@ export function initBase(Z,api,G){
   if(c==='ArrowUp')move(0,-1);else if(c==='ArrowDown')move(0,1);else if(c==='ArrowLeft')move(-1,0);else if(c==='ArrowRight')move(1,0);
   else if(c==='Space'&&el.contains(document.activeElement))document.activeElement.click();
   else if(/^Digit[1-9]$/.test(c)&&TABS()[+c.slice(5)-1])setTab(TABS()[+c.slice(5)-1]);
-  else if(c==='KeyC'&&!G.placing)Z.continue();else if(c==='Escape')return cancelPlace();
+  else if(c==='KeyC'&&!G.placing)Z.continue();else if(c==='Escape')return false;  /* Esc is the menu's (it ran first); the Esc that closes the menu must not also drop a pending placement: Cancel and pad B do that */
   else return true;e.preventDefault?.();return true}
  function pad(e){if(el.hidden&&over.hidden)return false;const host=el.hidden?over:el;
   if(e(12))move(0,-1);if(e(13))move(0,1);if(e(14))move(-1,0);if(e(15))move(1,0);if(e(0)&&host.contains(document.activeElement))document.activeElement.click();
   if(!el.hidden){if(e(1))cancelPlace();if(e(4)||e(5)){const T=TABS(),i=T.indexOf(tab);setTab(T[(i+(e(5)?1:T.length-1))%T.length])}if(e(3)&&!G.placing)Z.continue()}return true}
- return{open,close,render,refresh,act,key,pad,el,buy,place,upgrade,refit,startMove,expand,rebuild,setTab,sell,offered,supPrice}}
+ return{open,close,render,refresh,act,key,pad,el,buy,place,upgrade,refit,startMove,expand,rebuild,setTab,sell,offered,supPrice,undo,closeX}}

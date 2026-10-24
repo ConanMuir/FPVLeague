@@ -26,12 +26,14 @@ const _x=new V3(),_y=new V3();
 function dest(p,out){out=out||BUS.fx;if(!p||!AC.createStereoPanner)return out;const d=_x.subVectors(p,camera.position),L=d.length();if(L<2)return out;
  const pn=AC.createStereoPanner();pn.pan.value=cl(d.dot(_y.set(1,0,0).applyQuaternion(camera.quaternion))/L,-1,1)*.8;pn.connect(out);return pn}
 // one-shot noise: filter type/freq (optionally swept to f1), attack a, exponential decay; random offset into the shared buffer
+// (the gain starts at 0 before its first event: a GainNode is 1 until then, and with t0 inside a render quantum the source's first frames leaked
+// through at full gain, a random click up to -3 dBFS; tools/audio-levels.mjs)
 function nz(t0,dur,f,vol,q=1,out,type='bandpass',f1=0,a=.003){if(vol<.004)return;const s=AC.createBufferSource(),fl=AC.createBiquadFilter(),g=AC.createGain();s.buffer=nbuf;fl.type=type;fl.Q.value=q;
- fl.frequency.setValueAtTime(f,t0);if(f1)fl.frequency.exponentialRampToValueAtTime(f1,t0+dur);g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+a);g.gain.exponentialRampToValueAtTime(.001,t0+dur);
+ fl.frequency.setValueAtTime(f,t0);if(f1)fl.frequency.exponentialRampToValueAtTime(f1,t0+dur);g.gain.value=0;g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+a);g.gain.exponentialRampToValueAtTime(.001,t0+dur);
  s.connect(fl).connect(g).connect(out||BUS.fx);s.start(t0,Math.random()*1.5);s.stop(t0+dur+.02)}
 // one-shot oscillator with a pitch glide f0 -> f1
 function os(t0,f0,f1,dur,vol,type='sine',out,a=.002){if(vol<.004)return;const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f0,t0);o.frequency.exponentialRampToValueAtTime(Math.max(f1,1),t0+dur);
- g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+a);g.gain.exponentialRampToValueAtTime(.001,t0+dur);o.connect(g).connect(out||BUS.fx);o.start(t0);o.stop(t0+dur+.02)}
+ g.gain.value=0;g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+a);g.gain.exponentialRampToValueAtTime(.001,t0+dur);o.connect(g).connect(out||BUS.fx);o.start(t0);o.stop(t0+dur+.02)}
 const rnd=(a,b)=>a+Math.random()*(b-a),now=()=>performance.now()/1000;  // rate limits run on wall time (works with or without a context)
 // a looped noise source through a filter chain into a gain (persistent; only params change)
 function loopNz(filters,out){const s=AC.createBufferSource(),g=AC.createGain();s.buffer=nbuf;s.loop=true;let n=s;for(const F of filters){const fl=AC.createBiquadFilter();[fl.type,fl.frequency.value,fl.Q.value]=F;n.connect(fl);n=F.node=fl}
@@ -59,23 +61,24 @@ export function sfxInit(){if(L||!AC)return;const pan=()=>AC.createStereoPanner?A
 onFx('bounce',e=>ballBounce(e.speed));onEv('count',e=>countdown(e.n));onFx('goal',e=>goalSfx(e.team,e.p));
 onFx('popEarn',e=>{if(e.d===GS.player)tone(1500,2200,.08,.05)});onFx('popFire',e=>{if(e.d===GS.player)popWhoosh(e.dur)});
 // landing / wall impact of a quad: a low sine thump (pitch drops like a body hitting a floor) + low-passed noise; a hard one adds
-// the frame's ring (three inharmonic partials, a carbon plate) and a short high crack; spinning into it adds clatter
+// the frame's ring (three inharmonic partials, a carbon plate) and a short high crack; spinning into it adds clatter.
+// Levels: the hardest landing peaks about 5 dB under the hardest ball hit and 3 dB under the goal boom (tools/audio-levels.mjs); it was 2 dB over both
 export function groundHit(d,speed,p){if(!d||!(speed>2))return;const w=now();if(d._sgt&&w-d._sgt<.07&&speed<(d._sgs||0)*1.5)return;cnt('thud');d._sgt=w;d._sgs=speed;if(!AC)return;
  const t0=AC.currentTime;const k=cl((speed-2)/26,0,1),v=near(d.p)*(d===GS.player?1:.8);if(v*k<.01||!slot(.4))return;const o=dest(d===GS.player?null:d.p);
- os(t0,90+speed*1.5,36,.16+.12*k,.55*k**.8*v,'sine',o);nz(t0,.1+.08*k,300+speed*8,.45*k*v,.8,o,'lowpass');
- if(k>.3){for(const f of[517,1393,2287])os(t0,f*rnd(.94,1.06),f*.97,.08+.18*k,.05*k*v,'sine',o);nz(t0,.035,2600,.25*k*v,1.2,o)}
+ os(t0,90+speed*1.5,36,.16+.12*k,.22*k**.8*v,'sine',o);nz(t0,.1+.08*k,300+speed*8,.2*k*v,.8,o,'lowpass');
+ if(k>.3){for(const f of[517,1393,2287])os(t0,f*rnd(.94,1.06),f*.97,.08+.18*k,.04*k*v,'sine',o);nz(t0,.035,2600,.15*k*v,1.2,o)}
  if(d.w&&d.w.length()>8)clatter(d,v*k)}
 // tumble clatter: tiny clicks of props and arms on the floor (narrow high noise burst + a short triangle "tok")
 function clatter(d,v){cnt('clatter');if(!AC||v<.01||!slot(.05))return;const t0=AC.currentTime,o=dest(d===GS.player?null:d.p);
- nz(t0,.025,rnd(1800,4800),.22*v,4,o);os(t0,rnd(650,1300),rnd(380,600),.03,.09*v,'triangle',o)}
+ nz(t0,.025,rnd(1800,4800),.1*v,4,o);os(t0,rnd(650,1300),rnd(380,600),.03,.045*v,'triangle',o)}  /* the clicks under a tumbling landing kept it over the mid cap (their random band rings up to 2 dB more); 7 dB down */
 
 // ball touch by a quad: a hollow "thwump" (sine dropping 150+ -> 60 Hz: the big inflated shell), a bandpassed slap that gets brighter
 // with speed, a sub boom on the big ones, and, when the touch left the ball spinning fast, a whistling friction "zip" (narrow noise sweep)
 let ballT=0,ballS=0;
 export function ballHit(d,speed,verdict=''){crowdHit(d,speed,verdict);if(!(speed>1.5))return;const w=now();if(w-ballT<.05&&speed<ballS*1.4)return;cnt('ballHit');ballT=w;ballS=speed;const spin=ball.w.length()*BR;
  if(!AC)return;const t0=AC.currentTime;const k=cl(speed/40,0,1),v=near(ball.p);if(v<.02||!slot(.5))return;const o=dest(ball.p);
- os(t0,150+speed*2.2,60,.14+.14*k,(.18+.42*k)*v,'sine',o);nz(t0,.05+.06*k,1100+speed*35,(.12+.45*k)*v,.8,o);
- if(k>.6)os(t0,72,38,.38,.4*(k-.5)*v,'sine',o);
+ os(t0,150+speed*2.2,60,.14+.14*k,(.16+.34*k)*v,'sine',o);nz(t0,.05+.06*k,1100+speed*35,(.1+.38*k)*v,.8,o);  /* the hardest hit peaks near -7 dBFS, 20 of them in a second under -4 */
+ if(k>.6)os(t0,72,38,.38,.32*(k-.5)*v,'sine',o);
  const s=cl((spin-6)/30,0,1);if(s>.05){cnt('ballSpin');nz(t0+.01,.12+.12*s,1400+spin*20,.16*s*v,7,o,'bandpass',3400+spin*45,.02)}}
 // ball off the floor / walls (physics ball.hit = impact speed): rubbery "bonk" (two sines, low body + shell), a thump of noise;
 // off a wall or the ceiling the arena panel rings a little (narrow 2.4 kHz band); near a goal mouth it's a near miss for the crowd
@@ -91,8 +94,8 @@ const mine=team=>!GS.player||GS.player.team===team;
 function crowdOn(){return!!L&&!GS.demo&&!GS.OBSON&&GS.state!=='lab'}
 // a reaction: kind 'cheer' (roar swell), 'ooh' (rising then falling vowel), 'aww' (falling groan); lvl 0..1, hold s
 function react(kind,lvl,hold=.8){cnt('crowd_'+kind);if(!AC||!crowdOn())return;const t=AC.currentTime,{f1,f2,vG,roar}=L;lvl=cl(lvl,0,1.2);
- if(kind==='cheer'){roar.gain.cancelScheduledValues(t);roar.gain.setTargetAtTime(.3*lvl,t,.12);roar.gain.setTargetAtTime(.03,t+hold,.9);
-  vG.gain.cancelScheduledValues(t);vG.gain.setTargetAtTime(.22*lvl,t,.1);vG.gain.setTargetAtTime(0,t+hold,.7);f1.frequency.setTargetAtTime(700,t,.1);f2.frequency.setTargetAtTime(1250,t,.1);
+ if(kind==='cheer'){roar.gain.cancelScheduledValues(t);roar.gain.setTargetAtTime(.22*lvl,t,.12);roar.gain.setTargetAtTime(.03,t+hold,.9);  /* a save's roar sits 3 dB under the whole goal, not level with it */
+  vG.gain.cancelScheduledValues(t);vG.gain.setTargetAtTime(.16*lvl,t,.1);vG.gain.setTargetAtTime(0,t+hold,.7);f1.frequency.setTargetAtTime(700,t,.1);f2.frequency.setTargetAtTime(1250,t,.1);
   L.ex=Math.max(L.ex,lvl);if(lvl>.6)for(let i=0;i<2+lvl*3;i++){const w=t+rnd(.1,hold),f=rnd(1900,3100);if(slot(.5))os(w,f,f*rnd(.85,1.15),rnd(.25,.6),.018*lvl,'sine',BUS.crowd,.05)}}  // stadium whistles
  else{const up=kind==='ooh',[a1,b1,a2,b2]=up?[300,480,700,1000]:[620,330,1050,680];vG.gain.cancelScheduledValues(t);f1.frequency.cancelScheduledValues(t);f2.frequency.cancelScheduledValues(t);
   f1.frequency.setValueAtTime(a1,t);f2.frequency.setValueAtTime(a2,t);f1.frequency.linearRampToValueAtTime(b1,t+.35);f2.frequency.linearRampToValueAtTime(b2,t+.35);
@@ -110,10 +113,10 @@ function nearMiss(hit){if(GS.state!=='play'||hit<8)return;const p=ball.p;if(Math
 // boom: low-passed noise burst and a sub sine dropping 90 -> 30 Hz. Horn: the stadium air horn, three detuned sawtooths on an
 // A-major chord (110 / 138.6 / 164.8 Hz) through a resonant low-pass, scooping up 6% into pitch, held ~1.8 s. Stinger: a quick
 // triangle arpeggio in the scoring team's key (blue C major, orange D major) over the horn's tail.
-// Levels: the whole goal lands about 4.5 dB (momentary loudness) above a hard ball hit, not 9; tools/sound-level.mjs measures it.
+// Levels: the whole goal lands about 4.5 dB (momentary loudness) above a hard ball hit, not 9; tools/audio-levels.mjs measures it.
 export function goalSfx(t,p){cnt('goal');if(!AC)return;const t0=AC.currentTime,v=.4+.6*near(p||ball.p),o=dest(p||ball.p);
  nz(t0,1.4,700,.55*v,.5,o,'lowpass',120,.01);os(t0,90,30,1.1,.3*v,'sine',o);nz(t0,.5,2200,.15*v,.7,o,'bandpass',800);
- if(GS.demo)return;cnt('horn');const h0=t0+.18,hl=AC.createBiquadFilter(),hg=AC.createGain();hl.type='lowpass';hl.frequency.value=950;hl.Q.value=3;hg.gain.setValueAtTime(0,h0);
+ if(GS.demo)return;cnt('horn');const h0=t0+.18,hl=AC.createBiquadFilter(),hg=AC.createGain();hl.type='lowpass';hl.frequency.value=950;hl.Q.value=3;hg.gain.value=0;hg.gain.setValueAtTime(0,h0);
  hg.gain.linearRampToValueAtTime(.08,h0+.06);hg.gain.setValueAtTime(.08,h0+1.7);hg.gain.exponentialRampToValueAtTime(.001,h0+2.2);hl.connect(hg).connect(BUS.fx);
  for(const[f,dt]of[[110,-3],[110,4],[138.6,-2],[164.8,3]]){const x=AC.createOscillator();x.type='sawtooth';x.detune.value=dt*2;x.frequency.setValueAtTime(f*.94,h0);x.frequency.exponentialRampToValueAtTime(f,h0+.12);x.connect(hl);x.start(h0);x.stop(h0+2.25)}
  const base=t?587.3:523.3;[1,1.26,1.498,2].forEach((r,i)=>os(h0+.15+i*.09,base*r,base*r,.32+(i===3?.4:0),.05,'triangle'));
@@ -125,7 +128,7 @@ export function countdown(n){cnt(n>0?'count':'go');if(!AC)return;const t0=AC.cur
 // pop: the quad's locked flip, an air whoosh (noise band sweeping 500 -> 2600 -> 800 Hz over the turn) and a soft low "thup" at the start
 export function popWhoosh(dur=.4){cnt('pop');if(!AC||!slot(dur))return;const t0=AC.currentTime,s=AC.createBufferSource(),fl=AC.createBiquadFilter(),g=AC.createGain();
  s.buffer=nbuf;fl.type='bandpass';fl.Q.value=1.6;fl.frequency.setValueAtTime(500,t0);fl.frequency.exponentialRampToValueAtTime(2600,t0+dur*.45);fl.frequency.exponentialRampToValueAtTime(800,t0+dur);
- g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.32,t0+dur*.35);g.gain.exponentialRampToValueAtTime(.001,t0+dur+.05);s.connect(fl).connect(g).connect(BUS.fx);s.start(t0,Math.random()*1.5);s.stop(t0+dur+.08);
+ g.gain.value=0;g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.32,t0+dur*.35);g.gain.exponentialRampToValueAtTime(.001,t0+dur+.05);s.connect(fl).connect(g).connect(BUS.fx);s.start(t0,Math.random()*1.5);s.stop(t0+dur+.08);
  os(t0,180,90,.09,.12)}
 // Dogfight bullet into rock / ground: a sharp crack (high noise burst), a chip (short falling triangle), now and then a ricochet whine;
 // in the caves (bullet or camera underground) two darker echoes follow at ~90 and ~200 ms

@@ -364,8 +364,8 @@ chk(n.league?.player === 'stretch/plank/punch/ram', 'League: the player should f
 chk(n.league?.botLoadouts >= 2, 'League: bots should spawn with varied loadouts');
 chk(n.garage?.cos === 77 && n.garage.cosSaved === 'candy/n23/smoke/gold/green/plasma', 'garage: cycles all 77 cosmetics and saves the look');
 chk(n.garage?.locked === 27 && /Locked\. Reach level 20/.test(n.garage.lockMsg || ''), 'garage: a fresh profile shows 27 locked cosmetics; a locked one is not worn and says what unlocks it');
-chk(n.profile?.open && n.profile.closed && /Level\s*1/.test(n.profile.head) && n.profile.tabs === 4 && n.profile.cards === 4 && n.profile.ach === 36 && n.profile.unl === 27 && n.profile.unlLocked === 27 && n.profile.prof?.lv === 1,
-  'profile: opens from the main menu with level, stats, 36 achievements and 27 unlocks, Esc closes it');
+chk(n.profile?.open && n.profile.closed && /Level\s*1/.test(n.profile.head) && n.profile.tabs === 4 && n.profile.cards === 4 && n.profile.ach === 38 && n.profile.unl === 27 && n.profile.unlLocked === 27 && n.profile.prof?.lv === 1,
+  'profile: opens from the main menu with level, stats, 38 achievements and 27 unlocks, Esc closes it');
 chk(n.league?.cos?.you === 'candy/n23/smoke/gold/green/plasma' && n.league.cos.trail === 'plasma' && n.league.cos.botLooks >= 1, 'League: the player should wear the garage look (bots: random looks)');
 chk(n.dogfight && n.dogfight.sim >= 3 && !n.dogfight.nan && n.dogfight.botPathMin > 5 && n.dogfight.title === 'DOGFIGHT', 'Dogfight: should start and bots should fly');
 chk(n.mod?.open && n.mod.sliders === 34 && /^20\.0 /.test(n.mod.changed) && /^34\.5 /.test(n.mod.reset) && n.mod.export === '{}', 'mod panel: 34 sliders, change, reset, export');

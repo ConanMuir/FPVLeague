@@ -79,7 +79,7 @@ export function initSites(api,G,Z,fog){
  // ---------- the world ----------
  // W.list: targets {id, t: 'convoy'|'launch'|'factory', x, z, y, sec, tier, parts, dead, known, ...}; a part {uid, t, main, aa, x, y, z, r, h, hp, max, alive, mesh}
  const W={seed:1,routes:[],list:[],nid:1,bombs:[],later:[],tr:[],auth:true,ver:0,on:false};
- const kill0=()=>{for(const t of W.list)drop(t);W.list.length=0;for(const r of W.routes)root.remove(r.mesh);W.routes.length=0;for(const b of W.bombs)root.remove(b.mesh);W.bombs.length=0;W.later.length=0};
+ const kill0=()=>{for(const t of W.list)drop(t);W.list.length=0;for(const r of W.routes){root.remove(r.mesh);r.mesh.geometry.dispose()}W.routes.length=0;  /* each game start builds three new roads (W.reset): the old ones' vertex buffers are freed with them */for(const b of W.bombs)root.remove(b.mesh);W.bombs.length=0;W.later.length=0};
  function drop(t){for(const p of t.parts){if(p.mesh)root.remove(p.mesh);if(p.tur)root.remove(p.tur)}for(const m of t.extra||[])root.remove(m);for(const q of t.pats||[])if(q.mesh)root.remove(q.mesh)}
  const part=(t,o)=>{const p={uid:t.id*16+t.parts.length,t:'',main:false,aa:false,x:0,y:0,z:0,r:3,h:3,hp:1,max:1,alive:true,yaw:0,lock:0,cd:rnd(0,1),los:false,losT:0,tk:null,seen:false,...o};t.parts.push(p);return p};
  // ---------- roads: one per sector, from beyond the map edge through a deep spot to a staging point near the front; 25 m samples ----------
@@ -210,7 +210,9 @@ export function initSites(api,G,Z,fog){
 
  // ---------- the world over a run: new each game; each break new convoys, rebuilt sites, reinforced guns, fresh patrols ----------
  W.reset=seed=>{kill0();W.seed=seed;W.nid=1;W.ver++;const R=seeded(seed);for(let s=0;s<3;s++)W.routes.push(mkRoute(R,s))};
- W.populate=w=>{for(let s=0;s<3;s++)if(!W.list.some(t=>t.t==='launch'&&t.sec===s&&(!t.dead||t.rebuild>w)))build('launch',s,w);
+ /* a launch site per sector; a campaign sector's "Enemy launch sites" (zcampaign.js raid, Z.cp.n('launchSites')) gives a second one to the North, then the West, then the East */
+ W.populate=w=>{const x=Z.cp?.n?.('launchSites')|0;
+  for(let s=0;s<3;s++){const need=1+([1,0,2].indexOf(s)<x?1:0);let have=W.list.filter(t=>t.t==='launch'&&t.sec===s&&(!t.dead||t.rebuild>w)).length;while(have<need&&build('launch',s,w))have++}
   const nf=1+(w>=12?1:0)+(w>=24?1:0);let have=W.list.filter(t=>t.t==='factory'&&(!t.dead||t.rebuild>w)).length;
   for(const s of[0,1,2].sort(()=>Math.random()-.5)){if(have>=nf)break;if(W.list.some(t=>t.t==='factory'&&t.sec===s&&(!t.dead||t.rebuild>w)))continue;if(build('factory',s,w))have++}};
  // a new break: wrecks of old convoys and long-dead sites go, dead guns at live sites are replaced, patrols refuel, convoys roll (cargo from zsortie.js)

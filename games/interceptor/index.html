@@ -10,21 +10,16 @@
 <link rel="stylesheet" href="zfx.css">
 <link rel="stylesheet" href="zcampaign.css">
 <link rel="stylesheet" href="zreentry.css">
+<link rel="stylesheet" href="zcodex.css">
 <style>
 /* Layout: full-bleed WebGL countryside; Betaflight-style OSD, target brackets and a heading-up radar scope on top; glass menu over a live demo wave */
 #ov{position:absolute;inset:0;width:100%;height:100%}
-#score{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;align-items:stretch;font-weight:700;font-size:22px;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.5)}
-#score>span{padding:4px 14px;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
-#sw{background:var(--panel);font-family:var(--mono)}#sv{background:#1f8f55}#sl{background:#c8372d}
-#sites{position:absolute;top:calc(52px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;gap:16px;font-size:12px;white-space:nowrap}
-#sites span{color:#7fd0ff}#sites .dead{color:#8a8f99;text-decoration:line-through}
 #osd b{color:var(--amber);font-weight:700}#osd .r{color:var(--red)}#osd .g{color:var(--green)}
 #radw{position:absolute;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:4px;justify-items:end}
 #radar{width:250px;height:250px}
 #trk{font-size:12px;text-align:right;line-height:1.35}
 #flash{position:absolute;inset:0;background:#fff;opacity:0}
 #arrow{position:absolute;left:0;top:0;width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-bottom:24px solid var(--red);filter:drop-shadow(0 0 6px #ff8080)}
-#gd{position:absolute;top:calc(74px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);font-size:13px;white-space:nowrap;color:#5fe3ff}#gd b{color:#fff}
 #warn{position:absolute;left:0;right:0;top:22%;text-align:center;font-size:20px;color:var(--red)}
 #center{position:absolute;left:0;right:0;top:30%;text-align:center;font-size:clamp(40px,8vw,100px);font-weight:700;font-style:italic;letter-spacing:.02em;text-shadow:0 0 30px currentColor,0 4px 0 rgba(0,0,0,.5)}
 #feed{position:absolute;left:18px;top:calc(14px + env(safe-area-inset-top,0px));display:grid;gap:4px;font-size:14px;max-width:46vw}
@@ -35,13 +30,10 @@ button.go{background:linear-gradient(90deg,#3a6b3a,#6b7d2a 50%,var(--red));borde
 
 <div id="hud" hidden>
   <canvas id="ov"></canvas>
-  <div id="score"><span id="sw">WAVE 1</span><span id="sv">0 DOWN</span><span id="sl">0 HITS</span></div>
-  <div id="sites" class="osd"></div>
   <div id="feed"></div>
   <div id="xh"></div>
   <div id="arrow" hidden></div>
   <div id="flash"></div>
-  <div id="gd" class="osd"></div>
   <div id="warn" class="osd"></div>
   <div id="center"></div>
   <div id="osd" class="osd"></div>
@@ -53,25 +45,23 @@ button.go{background:linear-gradient(90deg,#3a6b3a,#6b7d2a 50%,var(--red));borde
     <div>
       <h1><span class="b">DRONE LEAGUE</span><br><span class="o">INTERCEPTOR</span></h1>
       <p class="sub">Fly a Ukrainian-style tail-sitter dart interceptor (about 360 km/h level at 85° of pitch, hover around 32% throttle) against Shahed-136 and jet Geran-3 attack drones before they reach the substation, the fuel depot and the apartment blocks. You sit on the launch mat at a forward position on the river line, take off vertically, flip the camera to 90° and run them down. Same acro flight model, rates and radio setup as Drone League, at real scale, with weather and wind.</p>
-      <div class="gmode" id="gmode" role="group" aria-label="Game mode"><button data-m="classic">Classic</button><button data-m="z">Zombies</button></div>
       <p class="gmdesc" id="gmdesc"></p>
-      <div class="btns"><button class="go" id="play">Defend</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Quit to menu</button><button id="modbtn">Mod panel</button><button id="dlback" onclick="location.href='../drone-league/'">Back to Drone League</button></div>
+      <div class="btns"><button class="go" id="play">Quick defence</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Quit to menu</button><button id="modbtn">Mod panel</button><button id="dlback" onclick="location.href='../drone-league/'">Back to Drone League</button></div>
       <div class="keys">
         <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
         <kbd>A / D</kbd><span>Yaw</span>
         <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
-        <kbd>F / click</kbd><span>Detonate. The proximity fuse also fires by itself at closest approach, but only inside its window, and the window shrinks as closing speed goes up: run them down from behind</span>
+        <kbd>F / click</kbd><span>Detonate: you time the burst. The Proximity fuse perk also fires it by itself at closest approach, but only inside its window, and the window shrinks as closing speed goes up: run them down from behind</span>
         <kbd>L</kbd><span>Camera tilt switch: 90° for cruise / level for take-off and hover</span>
         <kbd>H</kbd><span>Thermal camera switch (white-hot)</span>
-        <kbd>G</kbd><span>Midcourse guidance on/off: fly the cyan PIP diamond to end up behind the selected track; inside 1.5 km it hands over to terminal (your eyes)</span>
-        <kbd>N</kbd><span>Next track (otherwise guidance takes the most urgent one)</span>
+        <kbd>N</kbd><span>Next track (otherwise the most urgent one is selected)</span>
         <kbd>V</kbd><span>Radar range 2 / 5 / 10 km</span>
         <kbd>C</kbd><span>Camera: FPV → chase → threat cam</span>
         <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
         <kbd>R</kbd><span>Fresh interceptor on the mat at the forward position nearest the most urgent track · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
         <kbd>Gamepad</kbd><span>Mode 2 sticks, RB detonate, LB camera, Y relaunch, Start menu</span>
       </div>
-      <p class="note">Shaheds come in from the north at 100–900 m, about 185 km/h, and dive on their target from about a kilometre out. Jet Geran-3s run at 300–370 km/h but throttle back to piston speed in the middle of the route, which is your window. The radar scope shows every track; the amber one is the most urgent. Trees and houses are solid. With FPV angle mix on, roll stick still rolls the picture when the camera is at 90°.</p>
+      <p class="note">Shaheds come in at 100–900 m, about 185 km/h, and dive on their target from about a kilometre out. Jet Geran-3s run at 300–370 km/h but throttle back to piston speed in the middle of the route, which is your window. The radar scope shows every track; the amber one is the most urgent. Trees and houses are solid. With FPV angle mix on, roll stick still rolls the picture when the camera is at 90°.</p>
     </div>
     <div>
       <h2>Mission &amp; flight</h2>
@@ -81,5 +71,5 @@ button.go{background:linear-gradient(90deg,#3a6b3a,#6b7d2a 50%,var(--red));borde
   </div>
 </div>
 
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/","three/examples/jsm/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module" src="interceptor.js"></script>

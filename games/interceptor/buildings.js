@@ -1,13 +1,13 @@
 // Interceptor buildings, all code-built: the defended sites (substation, fuel depot, apartment blocks, and Zombies' command bunker) and the village houses.
 // Each site is built once per damage stage (0 intact, 1 about 75%, 2 about 50%, 3 about 25%, 4 destroyed) from the same seeded layout, so damage only
 // grows from one stage to the next: scorch, broken and burning windows, holes and fallen floors, burnt-out plant, rubble. A stage is one merged mesh
-// per material (plus its collision boxes and fire / smoke points), so changing stage is a visibility swap. Stage 0 is built at load (Classic shows only
+// per material (plus its collision boxes and fire / smoke points), so changing stage is a visibility swap. Stage 0 is built at load (the menu shows only
 // that); stages 1-4 are built, and their shaders compiled, in Zombies' idle-time warm-up (zwarm.js), or else the first frame Zombies runs. step() follows each site's HP while Zombies is on.
 import * as THREE from 'three';
 import {tex,detail,snowy} from '../../engine/render.js';
 import {freeze,compileFor} from '../../engine/hot.js';
 import {hash2,vnoise} from '../../engine/util.js';
-import {warmers,ownRandom} from '../../engine/idle.js';
+import {warmers,ownRandom,later} from '../../engine/idle.js';
 import {gfx} from '../../engine/gfx.js';
 const V3=THREE.Vector3,PI=Math.PI,_m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new V3(),_s=new V3(),_v=new V3(),_n=new THREE.Matrix3();
 const D=[0,.12,.32,.58,1];  // damage amount per stage: thresholds for the seeded per-part rolls
@@ -87,7 +87,7 @@ const railTex=()=>tex(64,64,g=>{g.fillStyle='#c9cdd0';g.fillRect(0,0,64,6);g.fil
 const cladTex=()=>tex(64,64,g=>{for(let x=0;x<64;x++){const v=200+30*Math.sin(x/64*PI*8);g.fillStyle=`rgb(${v-8},${v},${v+6})`;g.fillRect(x,0,1,64)}},true);
 
 // ---------- night lights (Zombies night weather, zwx.js): lit windows in the blocks and the village houses ----------
-// NIGHT.w = brightness (0 by day and in Classic: the shader then adds nothing); NIGHT.apt / NIGHT.vil = share of windows still lit, which
+// NIGHT.w = brightness (0 by day and in the menu: the shader then adds nothing); NIGHT.apt / NIGHT.vil = share of windows still lit, which
 // the blocks' damage and the substation's power take down. Each window has its own rank in the mask, so they go out one by one.
 export const NIGHT={w:{value:0},apt:{value:0},vil:{value:0}};
 function winLights(m,lit,thr,inst){m.customProgramCacheKey=()=>'nwin'+(inst?1:0);m.onBeforeCompile=sh=>{sh.uniforms.litMap={value:lit};sh.uniforms.nW=NIGHT.w;sh.uniforms.nT=thr;
@@ -292,11 +292,13 @@ export function initBuildings({scene,renderer,camera,psys,MS}){mats(MS);const re
  function build(s,type){s.type=type;s.sd=reg.length+1.7;s.stg=0;s.root=new THREE.Group();scene.add(s.root);s.mesh=s.mesh||s.root;AIMS[type]?.(s);
   s.st=[stage(s,0)];s.sol.length=0;s.sol.push(...s.st[0].sol);reg.push(s);if(ready)ownRandom(()=>stages(s));return s.root}
  // all damage stages for every site, their shaders compiled as the frame draws them (engine/hot.js compileFor: into the composer's render
- // target; a plain compile() made the canvas variant, which nothing drew). Zombies' warm-up runs it in idle time (zwarm.js: the menu with
- // Zombies picked, or the first base screen); else the first frame Zombies runs
- function stages(s){for(let d=1;d<5;d++)if(!s.st[d]){s.st[d]=stage(s,d);s.st[d].G.visible=d===s.stg;compileFor(renderer,s.st[d].G,camera,scene)}}
+ // target; a plain compile() made the canvas variant, which nothing drew). Zombies' warm-up runs it in idle time (zwarm.js: the menu, or the
+ // first base screen); else the first frame Zombies runs
+ function stageOne(s,d){if(!s.st[d]){s.st[d]=stage(s,d);s.st[d].G.visible=d===s.stg;compileFor(renderer,s.st[d].G,camera,scene)}}
+ function stages(s){for(let d=1;d<5;d++)stageOne(s,d)}
  function prepare(){if(ready)return;ready=true;ownRandom(()=>{for(const s of reg)stages(s)})}  /* its own random stream: built in idle time or at first use, the game's sequence is the same */
- warmers.push(prepare);
+ /* the warm-up builds them a stage a slice (all of them at once was 170 ms in one idle slice); the first frame that needs one before they are done builds the rest at once (prepare) */
+ warmers.push(()=>{for(const s of reg)for(let d=1;d<5;d++)later(()=>{if(!ready)ownRandom(()=>stageOne(s,d))},{heavy:true});later(()=>{ready=true},{heavy:true})});
  function setStage(s,d){if(d===s.stg)return;s.st[s.stg].G.visible=false;s.st[d].G.visible=true;s.stg=d;if(!s.noSol){s.sol.length=0;s.sol.push(...s.st[d].sol)}}
  function step(dt,on,plume){const B=gfx.k.bld;t+=dt;if(on&&!ready)prepare();  /* B: Graphics quality thins the site smoke plumes (engine/gfx.js); the pooled fire and smoke particles thin through PFX.scale instead, so only bldFar's third applies to them (B/Bs); Bs: a third past bldFar */
   for(const s of reg){const Bs=Math.hypot(s.x-camera.position.x,s.z-camera.position.z)>gfx.k.bldFar?B/3:B,d=on&&s.max?stageOf(Math.max(0,s.hp)/s.max):0;if(d!==s.stg&&s.st[d])setStage(s,d);if(!s.stg||!s.mesh.visible||dt<=0)continue;

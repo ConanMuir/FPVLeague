@@ -17,7 +17,7 @@ const MC=new Map();
 function darken(C,m){let d=MC.get(m);if(d)return d;const T=C.THREE;if(m.map){d=new T.MeshStandardMaterial({map:invSkin(C),roughness:.35,metalness:.6})}
  else if(m.isMeshBasicMaterial&&!m.transparent){d=new T.MeshBasicMaterial({color:new T.Color(0xff1010).multiplyScalar(4),toneMapped:false})}
  else{d=m.clone();if(d.color)d.color.multiplyScalar(.12);if(d.emissive)d.emissive.set(0x1a0000)}MC.set(m,d);return d}
-function model(C){const T=C.THREE,g=new T.Group(),dr=C.api.newDrone(),inner=dr.mesh;C.api.scene.remove(inner);inner.traverse(o=>{if(o.isMesh)o.material=darken(C,o.material)});inner.visible=true;dr.look();
+function model(C){const T=C.THREE,g=new T.Group(),dr=C.api.newDrone(),inner=dr.mesh;C.api.scene.remove(inner);inner.traverse(o=>{if(o.isMesh)o.material=darken(C,o.material)});inner.visible=true;
  inner.rotation.x=Math.PI/2;inner.scale.setScalar(2.6);g.add(inner);const eye=new T.Sprite(new T.SpriteMaterial({map:dot,color:new T.Color(0xff1010).multiplyScalar(3),transparent:true,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false}));
  eye.scale.set(1.6,1.6,1);eye.position.set(0,0,1.05);g.add(eye);const au=new T.Sprite(new T.SpriteMaterial({map:dot,color:new T.Color(0x300000),transparent:true,opacity:.6,depthWrite:false}));au.scale.set(9,9,1);g.add(au);
  Object.assign(g.userData,{dr,eye,au});return g}
@@ -45,7 +45,7 @@ registerBoss({id:'mirror',n:'The Mirror',tag:'MIRROR',col:'#ff2a2a',spd:90,alt:[
   const off=new V3().addScaledVector(f,az==='SIX'?-220:az==='HEAD'?220:0).addScaledVector(lat,az==='BEAM'?220*(h.side==='LEFT'?1:-1):0);off.y=el==='HIGH'?120:el==='LOW'?-80:0;
   const goal=r>500?P.p.clone().add(off):P.p.clone().addScaledVector(P.v,Math.min(1.5,r/150));const fast=B.L.rocket&&r>900?1.7:1;
   C.steer(t,C.dirTo(t,goal),K*fast,1.4,dt,15);
-  if(B.cd<=0&&r<7+B.L.warhead+(B.L.fuse?2:0)){api.boom(t.p,1.3);if(P===api.player)C.shoot('your own reflection');reform(C,t)}
+  if(B.cd<=0&&r<7+B.L.warhead+(B.L.fuse?2:0)){api.boom(t.p,1.3);C.shoot('your own reflection',P);reform(C,t)}
   return true},
  hit(C,t,h){const H=t.bs.h;if(h.at&&H){const A=C.aspect(h.at,t);if(A.key===H.fav){if(h.q==='kill')return 1;if(Math.random()<.75){h.txt='IT KNEW · break your habit';return 0}}}return h.q==='kill'?2:1},
  phase(C,t,i){if(i===1&&t.bs.L.swarm){const n=C.api.TH.filter(u=>u.k==='spectre'&&u.bs.lead===t&&u.st!=='dead').length;legionRaise(C,t,Math.max(0,t.bs.L.swarm-n),{swarm:1},{sv:'mirror'})}},

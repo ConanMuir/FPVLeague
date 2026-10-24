@@ -20,7 +20,7 @@ await p.evaluate(() => { window.__look = (x, z, dist, h, ang = 2.4, fpv = false)
 // ---------- wave 1: siren + radio, then a player kill from behind (kill cam) ----------
 await p.evaluate(() => { __z.cont(); __z.sim(2); });
 await sleep(2200);
-const r1 = await p.evaluate(() => ({radio: document.getElementById('zradio').textContent, on: document.getElementById('zradio').className, pad: !!__z.Z.au.M.pad}));
+const r1 = await p.evaluate(() => ({radio: document.getElementById('zchat').textContent + document.getElementById('zradio').textContent, on: document.getElementById('zradio').className, pad: !!__z.Z.au.M.pad}));
 ok(/wave 1|Wave 1|inbound/i.test(r1.radio), `radio on wave start: "${r1.radio}"`);
 await shot('wave-start');
 // put the interceptor 60 m behind the Shahed, matched to it, looking at it, then let the fuse take it in real time
@@ -85,8 +85,8 @@ const js = await p.evaluate(() => { const {api} = __z; let t0 = performance.now(
 console.log('late wave perf', JSON.stringify({...perf, ...js}));
 await p.evaluate(() => { clearInterval(window.__hold); clearInterval(window.__keep); });
 
-// ---------- Classic is untouched: no time scale, no FX state ----------
+// ---------- the menu: no time scale, no FX state ----------
 const cl = await p.evaluate(() => { __z.api.startDemo(); return {tsc: __z.Z.tsc, on: __z.Z.on, fires: __z.Z.fxState().fires}; });
-ok(cl.tsc === 1 && !cl.on && cl.fires === 0, 'menu / Classic: time scale 1, FX cleared');
+ok(cl.tsc === 1 && !cl.on && cl.fires === 0, 'menu: time scale 1, FX cleared');
 ok(!errs.length, 'no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
 await b.close(); server.close(); process.exit(fails ? 1 : 0);

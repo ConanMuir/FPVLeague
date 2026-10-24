@@ -1,6 +1,6 @@
 // CI: does this push / PR touch an area's files? Run-only-what-changed for the browser jobs.
 //   node tools/ci-scope.mjs <area> <base sha or ref>   ->  prints "run=true|false" (also to $GITHUB_OUTPUT) and why
-// Areas: league (Drone League: the Vite build in src/, built to games/drone-league; smoke and the *-check tools), interceptor (Riley's engine/ + games/interceptor: zombies-test).
+// Areas: league (Drone League: the Vite build in src/, built to games/drone-league; smoke and the *-check tools), interceptor (Zombies: engine/ + games/interceptor, zombies-test and its siblings).
 // Shared files (package-lock, the workflow, tools/browser.mjs) count for both. Always runs when the base is unknown (new branch,
 // force push, workflow_dispatch) or on main, so main is always fully checked.
 import fs from 'node:fs';
@@ -9,8 +9,8 @@ import {execFileSync} from 'node:child_process';
 const [area, base] = process.argv.slice(2), E = process.env;
 const SHARED = [/^package(-lock)?\.json$/, /^\.github\//, /^tools\/browser\.mjs$/];
 const AREAS = {
-  league: [/^src\//, /^app\.html$/, /^index\.html$/, /^vite\.config\.js$/, /^Drone League\//, /^games\/(drone|jared)-league\//, /^tools\/(smoke|postbuild|check-build|physics-check|pop-check|sound-check|sound-level|spin-check|training-check)\.mjs$/],
-  interceptor: [/^engine\//, /^games\/interceptor\//, /^interceptor\//, /^tools\/(zlib|zombies-[\w-]+|flight-golden)\.mjs$/, /^src\/flight\/core\.js$/, /^src\/input\/sticks\.js$/, /^src\/ui\/fpsmeter\.js$/, /^src\/render\/dynres\.js$/]};  // the games import the shared flight core, stick maths, FPS meter and dynamic resolution from src/
+  league: [/^src\//, /^app\.html$/, /^index\.html$/, /^vite\.config\.js$/, /^Drone League\//, /^games\/(drone|jared)-league\//, /^tools\/(smoke|postbuild|check-build|physics-check|pop-check|sound-check|spin-check|training-check|glitch-check|bot-ladder|bot-ladder-lib|bot-ladder-check|tournament-check|qa-sweep)\.mjs$/, /^tools\/audio-levels\.mjs$/],
+  interceptor: [/^engine\//, /^games\/interceptor\//, /^tools\/(zlib|zombies-[\w-]+|flight-golden|glitch-check|intercept-check|arsenal-stats|zbot|qa-sweep)\.mjs$/, /^src\/flight\/core\.js$/, /^src\/parts\//, /^src\/config\/settings\.js$/, /^src\/input\/sticks\.js$/, /^src\/ui\/fpsmeter\.js$/, /^src\/render\/dynres\.js$/, /^tools\/audio-levels\.mjs$/]};  // the games import the shared flight core, stick maths, FPS meter and dynamic resolution from src/; audio-levels measures both games
 if (!AREAS[area]) { console.error('area must be one of ' + Object.keys(AREAS).join(', ')); process.exit(2); }
 const out = (run, why) => { console.log(`run=${run}  (${area}: ${why})`); if (E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, `run=${run}\n`); process.exit(0); };
 

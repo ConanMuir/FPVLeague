@@ -7,7 +7,7 @@
 // rest are skipped, so 100+ tracks cost the same as 8. The perf governor (tree shadows off) lowers VMAX.
 // Also the late-game event sounds for zreentry.js: the re-entry alarm, the rising rumble, the Golden Dome uplink and the intercept crack.
 // Everything goes into zaudio's effects bus: the Zombies effects slider, the slow-mo muffle and the compressor apply. Zombies only.
-// PATCH holds the synth on its own (context, noise buffer, destination, start time, level), so tools/zombies-audio-levels.mjs renders the
+// PATCH holds the synth on its own (context, noise buffer, destination, start time, level), so tools/audio-levels.mjs renders the
 // same sounds in an OfflineAudioContext and measures them against the explosions and the music. Levels are game values chosen by ear and meter.
 import {AC,nbuf} from '../../engine/audio.js';
 import {KIND} from './zdata.js';
@@ -17,7 +17,7 @@ export const VMAX=8,OMAX=8,BCAP=3.5;  // continuous voices, one-shots at a time,
 
 // ---------- patches ----------
 const bq=(c,type,f,q=.7)=>{const b=c.createBiquadFilter();b.type=type;b.frequency.value=f;b.Q.value=q;return b};
-const env=(c,t0,pk,a,dur)=>{const g=c.createGain();g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(Math.max(pk,.0002),t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);return g};
+const env=(c,t0,pk,a,dur)=>{const g=c.createGain();g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(Math.max(pk,.0002),t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);return g};  /* starts at the floor: a gain is 1 until its first event (zaudio.js env) */
 const noiseSrc=(c,nb,t0,dur)=>{const s=c.createBufferSource();s.buffer=nb;s.loop=true;s.start(t0,Math.random()*1.4);s.stop(t0+dur+.05);return s};
 const NW=new WeakMap();
 // the N-wave: pressure jumps up, falls straight through zero, jumps back. Its two jumps are the "ba-boom"
@@ -44,8 +44,8 @@ export const PATCH={
    const s=c.createOscillator();s.frequency.setValueAtTime(95,t0);s.frequency.exponentialRampToValueAtTime(26,t0+1.3);s.connect(env(c,t0,lv*.9,.004,1.4)).connect(dst);s.start(t0);s.stop(t0+1.45)}
   return t0+(big?2.3:.7)},
  // the rising rumble of a re-entry, as one sound (tools only; in the game it is a live voice that follows the warhead): dur seconds of swell
- rumble(c,nb,dst,t0,lv,dur=6){const n=noiseSrc(c,nb,t0,dur),f=bq(c,'lowpass',50,.9);f.frequency.setValueAtTime(50,t0);f.frequency.exponentialRampToValueAtTime(380,t0+dur);const g=c.createGain();g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(lv,t0+dur);g.gain.linearRampToValueAtTime(.0001,t0+dur+.05);n.connect(f).connect(g).connect(dst);
-  const s=c.createOscillator();s.frequency.setValueAtTime(30,t0);s.frequency.linearRampToValueAtTime(44,t0+dur);const sg=c.createGain();sg.gain.setValueAtTime(.0001,t0);sg.gain.exponentialRampToValueAtTime(lv*.6,t0+dur);sg.gain.linearRampToValueAtTime(.0001,t0+dur+.05);s.connect(sg).connect(dst);s.start(t0);s.stop(t0+dur+.1);return t0+dur},
+ rumble(c,nb,dst,t0,lv,dur=6){const n=noiseSrc(c,nb,t0,dur),f=bq(c,'lowpass',50,.9);f.frequency.setValueAtTime(50,t0);f.frequency.exponentialRampToValueAtTime(380,t0+dur);const g=c.createGain();g.gain.value=.0001;g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(lv,t0+dur);g.gain.linearRampToValueAtTime(.0001,t0+dur+.05);n.connect(f).connect(g).connect(dst);
+  const s=c.createOscillator();s.frequency.setValueAtTime(30,t0);s.frequency.linearRampToValueAtTime(44,t0+dur);const sg=c.createGain();sg.gain.value=.0001;sg.gain.setValueAtTime(.0001,t0);sg.gain.exponentialRampToValueAtTime(lv*.6,t0+dur);sg.gain.linearRampToValueAtTime(.0001,t0+dur+.05);s.connect(sg).connect(dst);s.start(t0);s.stop(t0+dur+.1);return t0+dur},
  // Golden Dome uplink: the ground station's rising lock chirp and two confirm beeps
  uplink(c,nb,dst,t0,lv){const o=c.createOscillator();o.type='triangle';o.frequency.setValueAtTime(700,t0);o.frequency.exponentialRampToValueAtTime(2600,t0+.32);o.connect(env(c,t0,lv,.01,.36)).connect(dst);o.start(t0);o.stop(t0+.4);
   for(let i=0;i<2;i++){const b=c.createOscillator(),t=t0+.4+i*.12;b.frequency.value=1760;b.connect(env(c,t,lv*.7,.004,.08)).connect(dst);b.start(t);b.stop(t+.1)}return t0+.7}};
@@ -94,13 +94,16 @@ export function initThreatSfx(api,G,Z){
  // closest distance from the listener to the segment a..b (a fast source moves tens of metres a frame)
  const seg=(ax,ay,az,b,c)=>{const dx=b.x-ax,dy=b.y-ay,dz=b.z-az,L2=dx*dx+dy*dy+dz*dz,s=L2>1e-9?cl(((c.x-ax)*dx+(c.y-ay)*dy+(c.z-az)*dz)/L2,0,1):0;return Math.hypot(ax+dx*s-c.x,ay+dy*s-c.y,az+dz*s-c.z)};
  // ---------- sources: live tracks (a swarm is one voice, its nearest drone, louder with its size) and Golden Dome kill vehicles ----------
- const SRC=[],grp=new Map();
- function gather(){SRC.length=0;grp.clear();const c=L.p;
+ /* the source records are kept and filled again each frame (one object per track and frame was 20 KB of garbage a frame with 400 tracks) */
+ const SRC=[],grp=new Map(),REC=[];let rn=0;
+ const rec=(o,d,k)=>{const r=REC[rn]||(REC[rn]={o:null,d:0,n:1,k:''});rn++;r.o=o;r.d=d;r.n=1;r.k=k;return r};
+ function gather(){SRC.length=0;grp.clear();rn=0;const c=L.p;
   for(const t of TH){if(!api.live(t)||!KIND[t.k])continue;const d=t.p.distanceTo(c);
-   if(t.k==='swarm'&&t.grp){const g=grp.get(t.grp);if(g){g.n++;passTrack(t,'swarm',d);if(d<g.d){g.o=t;g.d=d}continue}grp.set(t.grp,{o:t,d,n:1,k:'swarm'})}
-   else SRC.push({o:t,d,n:1,k:t.k});passTrack(t,t.k,d)}
+   if(t.k==='swarm'&&t.grp){const g=grp.get(t.grp);if(g){g.n++;passTrack(t,'swarm',d);if(d<g.d){g.o=t;g.d=d}continue}grp.set(t.grp,rec(t,d,'swarm'))}
+   else SRC.push(rec(t,d,t.k));passTrack(t,t.k,d)}
   for(const g of grp.values())SRC.push(g);
-  for(const h of Z.def?.shots||[])if(h.kind==='space'){const d=h.p.distanceTo(c);SRC.push({o:h,d,n:1,k:'kv'});passTrack(h,'kv',d)}
+  for(const h of Z.def?.shots||[])if(h.kind==='space'){const d=h.p.distanceTo(c);SRC.push(rec(h,d,'kv'));passTrack(h,'kv',d)}
+  for(let i=rn;i<REC.length&&REC[i].o;i++)REC[i].o=null;  /* what is left of the last frame's records lets go of its tracks */
   ST.src=SRC.length}
  // pass tracker: the moment a source stops closing in, it has just passed its closest point
  const BQ=[];  // booms on their way to the listener: {at (audio time), ...}
@@ -145,7 +148,7 @@ export function initThreatSfx(api,G,Z){
  function rumbleTick(){const A=bus();if(!A)return;const t=now();
   if(RB.want>.01&&!RB.n){const n=AC.createBufferSource();n.buffer=nbuf;n.loop=true;const f=bq(AC,'lowpass',60,.9),g=AC.createGain(),s=AC.createOscillator(),sg=AC.createGain();g.gain.value=0;sg.gain.value=0;s.frequency.value=32;
    n.connect(f).connect(g).connect(A.sfx);s.connect(sg).connect(A.sfx);n.start(t,Math.random());s.start(t);RB.n={n,f,g,s,sg}}
-  if(!RB.n)return;const w=on()?RB.want:0;RB.lvl+=(w-RB.lvl)*.2;RB.n.g.gain.setTargetAtTime(.32*w,t,w>RB.lvl?.6:.25);RB.n.sg.gain.setTargetAtTime(.2*w,t,.6);RB.n.f.frequency.setTargetAtTime(55+330*w*w,t,.5);RB.n.s.frequency.setTargetAtTime(30+16*w,t,.8);
+  if(!RB.n)return;const w=on()?RB.want:0;RB.lvl+=(w-RB.lvl)*.2;RB.n.g.gain.setTargetAtTime(.2*w,t,w>RB.lvl?.6:.25);RB.n.sg.gain.setTargetAtTime(.12*w,t,.6);  /* at full it held -18 dBFS RMS for seconds, louder than the impact it leads to: 4 dB down */RB.n.f.frequency.setTargetAtTime(55+330*w*w,t,.5);RB.n.s.frequency.setTargetAtTime(30+16*w,t,.8);
   if(w<.01){if((RB.off+=1)>240){try{RB.n.n.stop();RB.n.s.stop();RB.n.g.disconnect();RB.n.sg.disconnect()}catch(e){}RB.n=null;RB.off=0}}else RB.off=0}
 
  // ---------- per frame (Zombies visuals) ----------

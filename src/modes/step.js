@@ -42,7 +42,7 @@ export function step(dt){const O=overlay();if(O&&O.pre&&O.pre(dt)){physStep(dt,f
  if(M.tick)M.tick(dt,A);
  if(simBall&&ball.hit>3){E_BOUNCE.speed=ball.hit;emitEv('bounce',E_BOUNCE)}  // the ball off the map (audio/sfx.js thuds and the crowd's near miss)
  if(!frozen)for(let i=0;i<GS.drones.length;i++){const a=GS.drones[i];if(a.dead>0)continue;
-  let tb;if(live&&!a.remote&&!GS.OBSON&&(tb=ballTouch(a,_v))){const n=_v,pen=tb.pen,ib=1/BM,id=1/a.fl.mass;ball.p.addScaledVector(n,pen*ib/(ib+id));a.p.addScaledVector(n,-pen*id/(ib+id));
+  let tb;if(live&&!a.remote&&!GS.OBSON&&(tb=ballTouch(a,_v))){const n=_v,pen=tb.pen,ib=1/BM,id=1/a.fl.mass,wb=ball.c&&n.dot(ball.n)>.3?0:ib/(ib+id);ball.p.addScaledVector(n,pen*wb);a.p.addScaledVector(n,-pen*(1-wb));  /* the overlap is split by mass, unless the ball is against the map and the quad is pressing it in (n toward ball.n, which points into the map): the map holds the ball, the quad takes the whole separation (it pressed the ball up to 0.6 m into the floor or a wall for a tick) */
    // pop: the ball on the top of the quad, centred so it covers all four motors (flight/drone.js popZone), earns (or refreshes) a pop; the earn ring (render/popfx.js) shows when a new one is earned
    if((!a.bot||a.pops)&&!(a.popT>0)&&n.dot(_pu.set(0,1,0).applyQuaternion(a.q))>.75&&a.popZone(ball.p)){if(!(a.popC>0)){_pc.copy(ball.p).addScaledVector(n,-BR);E_POP.d=a;E_POP.n=n;E_POP.r=BR*.75;emitEv('popEarn',E_POP)}a.popC=POP_T}
    // during a pop the spinning frame's own speed at the contact point counts, so where the ball meets the turning quad decides the pop

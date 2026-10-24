@@ -7,6 +7,7 @@ name: CI
 
 on:
   push:
+    branches: [main]  # a PR branch runs through its pull_request event only (a push used to start a second, identical run)
   pull_request:
   workflow_dispatch:
 
@@ -83,18 +84,15 @@ jobs:
           - check: sound-check
             area: league
             run: node tools/sound-check.mjs
-          - check: sound-level
-            area: league
-            run: node tools/sound-level.mjs
           - check: spin-check
             area: league
             run: node tools/spin-check.mjs
           - check: training-check
             area: league
             run: node tools/training-check.mjs
-          - check: zombies-test (classic, saves, meta)
+          - check: zombies-test (saves, meta)
             area: interceptor
-            run: node tools/zombies-test.mjs --sections=classic,saves,meta
+            run: node tools/zombies-test.mjs --sections=saves,meta
           # the campaign plays several sectors end to end and pushed the shared job past its 20 min timeout
           - check: zombies-test (campaign)
             area: interceptor
@@ -122,10 +120,108 @@ jobs:
           - check: zombies-test (arsenal)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=arsenal
+          # the PIP / lock-on intercept point against where you actually meet the track, and where it is drawn in each view
+          - check: intercept-check
+            area: interceptor
+            run: node tools/intercept-check.mjs
+          # visual glitch guards (tools/glitch-check.mjs): the river below its banks, weather motes at the lens, dynamic-resolution target
+          # sizes, the Dogfight cave-mouth trim over its seam
+          - check: glitch-check (Interceptor)
+            area: interceptor
+            run: node tools/glitch-check.mjs river motes dynres --only=interceptor
+          - check: glitch-check (League)
+            area: league
+            build: true
+            run: node tools/glitch-check.mjs motes dynres mouths --only=league
           # the Interceptor dart's golden flight trajectories (both Leagues' are node tests in npm test)
           - check: flight-golden
             area: interceptor
             run: node tools/flight-golden.mjs
+          # the Jammer King's electronic-warfare duel: the pip under jamming and after a burn-through, distance and emitters, the HUD, the bot, all cleared with the wave
+          - check: zombies-test (ew)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=ew
+          # the bot self-play ladder: one tiny generation (one archetype, one child, 1 sim minute) twice, and its file through the loader
+          - check: bot-ladder-check
+            area: league
+            run: node tools/bot-ladder-check.mjs
+          # selling with an Undo until the wave starts (the refund rule, opened positions, a dome's stock, the kill chain, a co-op client's request to the host) and the campaign map's three-modifier cap
+          - check: zombies-test (sell)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=sell
+          # Tournament mode: every format's bracket in node, then in the game a bot match simulated, one played, one watched, the save resumed
+          - check: tournament-check
+            area: league
+            run: node tools/tournament-check.mjs
+          # the enemies codex: each campaign sector's boss set piece at its wave, beaten / seen in the save, silhouettes vs full entries, the Allowed switch and the Quick defence boss pool (a heavy raid with none unlocked), the save round-trip, bots and the bench with the whole roster
+          - check: zombies-test (codex)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=codex
+          # radio chatter (zradio.js): callouts, merging and rate limits, the HUD log, the sound cap, speech with and without speechSynthesis
+          - check: zombies-test (radio)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=radio
+          # the one-time first-wave guide (zonboard.js): the prompts in order on the actions, Skip, the flag across reloads, a second run, bots / co-op / benches, nothing left at wave end
+          - check: zombies-test (onboard)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=onboard
+          # the living map: scars from bursts, crashes and destroyed houses; caps, save, campaign, co-op, pixel checks against the terrain, frame cost
+          - check: zombies-test (scars)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=scars
+          # the threat briefing: the base screen's card against the wave that then spawns (types, numbers, directions, timing), the intel levels, the boss warning, the toggle, the radio line
+          - check: zombies-test (briefing)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=briefing
+          # Endless: opens only after the capstone, climbs past the caps, milestones, scars across waves and a reload, the Endless table, leaks
+          - check: zombies-test (endless)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=endless
+          # Little Buddy (zbuddy.js): the Drone League garage quad as a free helper (also covered: zombies-coop for the co-op sync)
+          - check: zombies-test (buddy)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=buddy
+          # the Bot Spectator explores: roams the map, flies the sorties, uses its systems, never sticks, holds the benchmark's wave (one visual run, four headless)
+          - check: zombies-test (explore)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=explore
+          # the spectator's Director camera: its moments, shots, framing, cuts, clean-up and cost (a scripted wave flown by a bot)
+          - check: zombies-test (director)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=director
+          # audio levels: each game's sounds rendered offline and measured against their peak caps (over a cap only warns here, like the timing checks)
+          - check: audio-levels (league)
+            area: league
+            run: node tools/audio-levels.mjs --game=league --quick
+          - check: audio-levels (zombies)
+            area: interceptor
+            run: node tools/audio-levels.mjs --game=zombies --quick
+          # the arsenal's kill ledger: one short bot run (Pro, Normal, 12 waves); the tool must run and book every kill to an item (the full table is docs/ARSENAL-STATS.md)
+          - check: arsenal-stats (quick)
+            area: interceptor
+            run: node tools/arsenal-stats.mjs --quick
+          # the QA sweep (tools/qa-sweep.mjs): every mode played with scripted inputs, then NaN scans, layout / keyboard, leak, save and hardware-oddity probes (fast pass)
+          - check: qa-sweep (League, fast 1/2)
+            area: league
+            build: true
+            run: node tools/qa-sweep.mjs --fast --area=league --part=1
+          - check: qa-sweep (League, fast 2/2)
+            area: league
+            build: true
+            run: node tools/qa-sweep.mjs --fast --area=league --part=2
+          # each pass runs in parts (tools/qa-sweep.mjs --part=N): on a slow runner the Zombies pass as one job ran past the 20 minute limit
+          - check: qa-sweep (Zombies, fast 1/4)
+            area: interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor --part=1
+          - check: qa-sweep (Zombies, fast 2/4)
+            area: interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor --part=2
+          - check: qa-sweep (Zombies, fast 3/4)
+            area: interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor --part=3
+          - check: qa-sweep (Zombies, fast 4/4)
+            area: interceptor
+            run: node tools/qa-sweep.mjs --fast --area=interceptor --part=4
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

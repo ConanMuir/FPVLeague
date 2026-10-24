@@ -17,14 +17,15 @@ export function initPerks(api,G,Z){
   warhead:['Warhead kill radius +1 m (the fuse window grows with it).','+2 m.','+3 m.'],
   battery:['Twice the pack: double the flight time and range (the top bar shows what is left), and 25% less voltage sag.'],
   aid:['Foreign Aid: site repairs cost 30% less.'],
-  fuse:['Your warhead fires by itself at the closest approach inside 6 m, like Classic. Without it you time the burst yourself (F, click or the detonate button).'],
+  fuse:['Your warhead fires by itself at the closest approach inside 7.5 m (1.5x the warhead radius). Without it you time the burst yourself (F, click or the detonate button).'],
   rocket:['Every interceptor gets a 15 s rocket burst when it lifts off the mat: about 3× normal top speed, same stick rates. HUD bar shows the burn left.'],
   lure:['Z / D-pad down: up to 6 drones within 1.5 km of your interceptor turn toward a beacon dropped under it for 8 s; any that reach it hit an empty field. Missiles and the Mothership ignore it. 1 charge per wave.'],
   salvage:['Your kills within 1.2 km of a site pay +40%; kills farther than 3 km from every site pay −30%.']};
  const ACT=['freeze','mark','air','lure'];
  Z.perkLevel=lv;Z.perkMaxed=k=>lv(k)>=PERK[k].cost.length;Z.perkCost=(k,L)=>PERK[k].cost[L]==null?null:Math.round(PERK[k].cost[L]*(Z.meta?.doc().perkK?.[k]??1));Z.perkPrice=k=>Z.perkCost(k,lv(k))??0;  /* the doctrine can discount a perk (Air Mobile) */Z.perkBlurb=k=>BLURB[k][Math.min(lv(k),BLURB[k].length-1)];
  Z.buyPerk=k=>{G.perks[k]=lv(k)+1;if(ACT.includes(k))G.ch[k]=(G.ch[k]|0)+1;apply()};
- Z.radarK=()=>[1,1.3,1.6,2][lv('radar')];Z.repairK=()=>(lv('aid')?.7:1)*Z.meta.k('repairK');Z.ident=()=>lv('optics')>=2;Z.eta=()=>lv('optics')>=3;
+ const RADK=[1,1.3,1.6,2];  /* made once: Z.seen asks for it per track, a new list each time */
+ Z.radarK=()=>RADK[lv('radar')];Z.repairK=()=>(lv('aid')?.7:1)*Z.meta.k('repairK');Z.ident=()=>lv('optics')>=2;Z.eta=()=>lv('optics')>=3;
  // passive effects on Riley's interceptor (restored by applyTune when Zombies stops)
  function apply(){const T=S.mod;api.LETH=T.leth+lv('warhead');api.RELT=T.relt*[1,.6,.36][lv('relaunch')];api.BCAP=T.bcap*(Z.batK?Z.batK():1+.25*lv('battery'));api.SAGK=1-.25*Math.min(1,lv('battery'))}  /* the Zombies pack and Better battery (2x): zbatt.js */
  function reset(){G.perks={};G.ch={};apply()}

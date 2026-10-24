@@ -3,18 +3,18 @@
 // minute; the front line flickers and rumbles on the horizon; helpers are heard when they fire; the radio calls each raid; the score rises
 // with the threat picture; each wave ends with stars. Sound in zaudio.js, DOM in zannounce.js (styles in zfx.css).
 // Hooks: zombies.js calls initFX(api,G,Z) once, last. It wraps Z.flash / kill / impact / detonate / continue / step / visuals / hud / key /
-// start / stop (each still calls the original first), and adds Z.tsc (time scale) that interceptor.js's loop reads. Classic never gets here.
+// start / stop (each still calls the original first), and adds Z.tsc (time scale) that interceptor.js's loop reads.
 import {dot,tex} from '../../engine/render.js';
 import {KIND,CLUTCH_R} from './zdata.js';
 import {initAudio} from './zaudio.js';
 import {initAnnounce} from './zannounce.js';
 import {gfx} from '../../engine/gfx.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},pick=a=>a[Math.random()*a.length|0];
-import {money} from '../../engine/hot.js';
+import {money,hyp} from '../../engine/hot.js';
 export function initFX(api,G,Z){
  const {THREE,scene,TH,gh,S}=api,V3=THREE.Vector3,UP=new V3(0,1,0);
  const _a=new V3(),_b=new V3(),_m=new THREE.Matrix4();
- const root=new THREE.Group();root.visible=false;scene.add(root);  // everything drawn here, hidden outside Zombies so Classic draws nothing extra
+ const root=new THREE.Group();root.visible=false;scene.add(root);  // everything drawn here, hidden outside Zombies (the menu backdrop draws nothing extra)
  const au=Z.au=initAudio(api),an=Z.an=initAnnounce(api,G,au);Z.cashRoll=true;  // the cash counter is an.hudTick's (zombies.js leaves it alone)
  const SITE_C={x:0,z:1950};
  const live=api.live,cam=()=>api.camera.position;
@@ -212,7 +212,7 @@ export function initFX(api,G,Z){
    if(t._nd!==undefined&&d>t._nd&&t._nd<32&&!t._wh){t._wh=1;const rv=_a.subVectors(t.v,me.v).length();if(rv>25){_b.subVectors(t.p,c).normalize();const side=_b.dot(_a.set(1,0,0).applyQuaternion(api.camera.quaternion));au.whoosh(cl(.35*(1-t._nd/32)+.08,0,.4),side)}}t._nd=d;NW.add(t)}}
 
  // ---------- intensity for the score: how many, how close to impact, a boss, a failing defence ----------
- function intensity(){let n=0,tmin=1e9,boss=false;for(const t of TH){if(!live(t))continue;n++;const K=KIND[t.k];if(t.k==='boss')boss=true;if(K&&K.dmg&&!(t.k==='decoy'&&t.ident)){const tt=Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);if(tt<tmin)tmin=tt}}
+ function intensity(){let n=0,tmin=1e9,boss=false;for(const t of TH){if(!live(t))continue;n++;const K=KIND[t.k];if(t.k==='boss')boss=true;if(K&&K.dmg&&!(t.k==='decoy'&&t.ident)){const tt=hyp(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);if(tt<tmin)tmin=tt}}
   return cl(.22+.22*cl(n/14,0,1)+.5*cl((48-tmin)/38,0,1)+(boss?.25:0)+(integ()<.3?.12:0),0,1)}
 
  // wrecks that fall to the ground keep burning where they land (FPV quads just pop)
@@ -253,16 +253,17 @@ export function initFX(api,G,Z){
  const ky=Z.key;Z.key=e=>{if(CN.on){endCine();return true}if(e.code==='KeyB'){S.zmus=S.zmus===0?1:0;api.save();sndSync();api.banner(S.zmus?'MUSIC ON':'MUSIC MUTED','',.8);return true}return ky(e)};
  const pd=Z.pad;Z.pad=e=>{if(CN.on){for(let i=0;i<16;i++)if(e(i)){endCine();return true}}return pd(e)};
  Z.flyPop=an.fly;  // money pops fly into the cash counter (zombies.js overlay)
- // ---------- sound settings in the menu (shown with Zombies picked): music and effects volume (zaudio.js reads S.zmusv / S.zsfxv) ----------
+ // ---------- sound settings in the menu: music and effects volume (zaudio.js reads S.zmusv / S.zsfxv) ----------
  const sndRows=[];
+ for(const k of['zmusv','zsfxv'])if(S[k]!==undefined)S[k]=typeof S[k]==='number'&&isFinite(S[k])?cl(S[k],0,1):undefined;  /* a hand-edited or foreign save: a string here threw in zaudio's gains (setTargetAtTime) and the sliders showed NaN% */
  {let after=document.getElementById('o_zwx');const set=document.getElementById('set');
   for(const[k,lab]of[['zmusv','Zombies music volume'],['zsfxv','Zombies effects volume']]){const l=document.createElement('label'),i=document.createElement('input'),o=document.createElement('output');
    l.textContent=lab;i.id=l.htmlFor='f_'+k;o.id='o_'+k;i.type='range';i.min=0;i.max=1;i.step=.05;
    const show=()=>{const v=S[k]??1;i.value=v;o.textContent=Math.round(v*100)+'%'+(k==='zmusv'&&S.zmus===0?' · muted (B)':'')};
    i.addEventListener('input',()=>{S[k]=+i.value;if(k==='zmusv')S.zmus=1;api.save();show()});
    if(after){after.after(l,i,o);after=o}else set?.append(l,i,o);sndRows.push({els:[l,i,o],show})}}
- function sndSync(){for(const q of sndRows){q.show();for(const e of q.els)e.style.display=S.gmode==='z'?'':'none'}}
- sndSync();document.getElementById('gmode')?.addEventListener('click',()=>setTimeout(sndSync));
+ function sndSync(){for(const q of sndRows)q.show()}
+ sndSync();
  function wipe(){endCine();MZ.length=0;NW.clear();KB.length=0;FI.length=0;smokeClear();FLM.upd(1e3);TRL.upd(1e3);TR.length=0;for(const d of DB)d.on=false;for(const s of SW){s.L.length=0;s.m.count=0}gn=0;gGeo.setDrawRange(0,0);tGeo.setDrawRange(0,0);KC.on=false;TS.s=1;TS.t0=-9;RQ.clear();FR.salvo=FR.aaS=null}
  const z0=Z.start;Z.start=()=>{wipe();z0();an.reset();newWave();W.st=G.state;root.visible=true};
  const z1=Z.stop;Z.stop=()=>{const was=G.on;z1();if(!was)return;wipe();an.reset();au.stopMusic();root.visible=false};

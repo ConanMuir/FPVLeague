@@ -2,8 +2,8 @@
 Rocket league but with drones
 
 ## Branch status
-Branch: `riley-test-2`   Owner: Riley   Last updated: 2026-10-22 by Claude
-Based on: origin/main 7880d35 (Jared's PRs up to #86), which already contains this branch's long line, sling cam, Interceptor Zombies and earlier merges
+Branch: `riley-test-2`   Owner: Riley   Last updated: 2026-10-24 by Claude
+Based on: origin/main 5843196 (Jared's PRs up to #126), which already contains this branch's long line, sling cam, Interceptor Zombies and earlier merges
 Doing: Riley's test build tracking Jared's main.
 Touches: merge only; `Drone League/standalone/index.html` kept as this branch's version (main has a different one).
 Open items / help wanted: long line with Jared's newer smoothing and pop changes is unverified by a pilot. Jared's one-league change retired Riley's `games/league` (see docs/SHARED-ENGINE.md section 0).
@@ -11,7 +11,7 @@ Overlaps: main.
 
 ## How to play
 
-The launcher (`index.html`) lists the two games: **Drone League** (League, Dogfight, Freeplay and Training, in `games/drone-league/`) and the **Interceptor** (Classic or Zombies). Drone League's menu also links to the Interceptor. Pick whichever way is easiest:
+The launcher (`index.html`) lists the two games: **Drone League** (League, Dogfight, Freeplay and Training, in `games/drone-league/`) and **Zombies**, the Interceptor's endless wave-survival game (in `games/interceptor/`). Drone League's menu also links to it. Pick whichever way is easiest:
 
 1. **Windows:** double-click `Play Drone League.bat`. It starts a small local web server and opens Drone League in its own Edge window. Close the black server window when you're done.
 2. **Online:** turn on GitHub Pages for this repo (Settings > Pages > deploy from the main branch), then open the site link. Nothing to install.
@@ -49,7 +49,7 @@ engine/                 Riley's engine, used by the Interceptor
   menu.js modpanel.js   settings grid, mod panel (Rates + Physics tabs, presets, export/import)
   net.js loop.js        online rooms (claude.ai room or PeerJS), 120 Hz fixed-step main loop
   engine.css            shared look (OSD, menu, mod panel, controller panel)
-games/interceptor/      Interceptor (Classic, Zombies): the tail-sitter dart's step is built from the shared flight core
+games/interceptor/      Interceptor (Zombies): the tail-sitter's step is built from the shared flight core
                         (interceptor.js); everything else is the engine
 Drone League/           the original single-file Drone League (claude.ai artifact version), kept as is
 ```
@@ -78,10 +78,11 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request,
 | Job | What runs |
 |---|---|
 | **fast** | `npm ci`, `npm run build` (then `tools/check-build.mjs` warns if the committed `games/drone-league/index.html` is stale), `npm test` (node:test), `node tools/parts-balance.mjs`, `node tools/lint-comments.mjs --strict` |
-| **browser** | nine entries side by side, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, and `zombies-test` in three shards (`--sections=...`) |
+| **browser** | nine entries side by side, on the runner's Chrome with software WebGL: `tools/smoke.mjs` in two halves after a build (`--parts=main`, `--parts=lab,train`), `physics-check`, `pop-check`, `sound-check`, `training-check`, `bot-ladder-check`, `tournament-check`, and `zombies-test` in three shards (`--sections=...`); last, `audio-levels --quick` per game (every sound rendered offline and measured against its peak cap, and again with its slider halved; over a cap warns here, fails locally) |
 
 - **No-render mode.** SwiftShader draws the games at about 1 fps on a runner, so in CI (`DL_NORENDER=1`) every page gets a WebGL stub that skips draw calls, clears and blits. Shaders still compile and link, buffers and textures still upload, and three.js still walks the scene, so GL errors still show; only the pixels are skipped, and the sim runs at full speed. Where a check wants real pixels it calls `drawFrames(page)`: smoke draws the menu demo, the garage view, League, Dogfight, every graphics quality, the Lab, a training pack and the artifact form; zombies-test draws each menu and each start of play.
-- **Only what changed.** Each browser entry first runs `tools/ci-scope.mjs`: the League checks are skipped when nothing under `src/`, `app.html`, `index.html`, `games/drone-league/`, `Drone League/` or their tools changed, and the zombies-test shards when nothing under `engine/`, `games/interceptor/`, `interceptor/` or their tools changed. Shared files (package-lock, the workflow, `tools/browser.mjs`) run both, and main always runs everything.
+- **Only what changed.** Each browser entry first runs `tools/ci-scope.mjs`: the League checks are skipped when nothing under `src/`, `app.html`, `index.html`, `games/drone-league/`, `Drone League/` or their tools changed, and the zombies-test shards when nothing under `engine/`, `games/interceptor/` or their tools changed. Shared files (package-lock, the workflow, `tools/browser.mjs`) run both, and main always runs everything.
+- **QA sweep.** `node tools/qa-sweep.mjs` plays every mode of both games headless with scripted inputs (menus, Garage, Lab, training packs, goals and replays, the Zombies base screen, waves, campaign, sorties, the bot spectator, co-op join / leave) and checks what no feature test does: console errors and warnings, a deep NaN / Infinity scan of the live game state and of the page text, a world that stops moving, layout (hidden-but-shown, off-screen, covered, overlapping or clipped controls and text at 1280x720, 1920x1080, 3440x1440, 900x420 and a portrait phone, Tab and Esc behaviour), leaks over repeated start / quit cycles (scene, geometries, textures, listeners, DOM, heap), broken and old saves, gamepads that report nonsense, odd displays, and a seeded random player. CI runs the fast pass as its last six entries (`--fast --area=league --part=1` and `2`, and `--fast --area=interceptor --part=1` to `4`, each short enough for a slow runner; `CI` / software-GL runs also use fewer cycles and junk values); with no flags it runs longer. `--list` shows the sections, `--sections=a,b` picks some, `--shots DIR` saves screenshots; `window.__dl.dbg()` gives the League's live objects to it.
 - The runner's preinstalled Chrome is used (a stable Chrome is downloaded only if it has none); npm's cache is restored by setup-node.
 
 Run the same things locally (all headless; nothing pops up): `npm test`, `node tools/parts-balance.mjs`, `npm run smoke`, `node tools/physics-check.mjs` and so on.
@@ -99,6 +100,31 @@ node tools/lint-comments.mjs --all           # every line (it is tuned to report
 node tools/lint-comments.mjs --strict        # exit 1 on findings (CI runs it this way: a finding fails the fast job)
 ```
 Fix a finding by moving the comment to the end of the line or using `/* */`. If a comment really means to quote code, put `lint-ok` in it.
+
+### League bots
+Eight skill levels (`DIFF` in `src/config/constants.js`, one profile object per tier; every knob a tier reads lives on its entry, a missing key falls back to the code's value). Rookie to All-Star fly the simple intercept controller; Legend, Champion and Grand Champion the shot planner (`src/bots/league.js`: placed shots at the open corner, goal-side shadowing, racing home, clearing) with a player's full thrust; Dribbler and Freestyler add the carry and pop mechanics (`dribble.js`, `freestyle.js`) whenever the ball is safely theirs. Same flight model, thrust and rate limits as a player for everyone. `node tools/bot-match.mjs league A B minutes size` plays two levels headless (`BT='{"D":{...},"DB":{...}}'` overrides keys per side).
+
+From Legend up, five behaviours (bots pass 5), each its own module and key, so a tier opts in:
+- **Opponent model and fakes** (`model.js`, `model`): each foe's commitment (speed toward where the ball will be) and closing time (his first touch plus his hesitation). The planner challenges a hesitating foe early and starts a run at the ball to draw a committed one, pulling out to the shadow spot once he commits.
+- **Possession shielding** (`shield.js`, `shield`, the carry): the body sits toward the nearest foe under the ball, the carry goes round a foe ahead, and the evasive pop (or a pass down a teammate's lane) fires at the modelled closing time, before contact.
+- **Team play** (`team.js`, `team`): rotation (a quad that just struck the ball drops back, the second man takes over, the last man keeps), the second man waits in a lane ahead of the ball, and the planner passes into a teammate's open lane when the lane is worth more than a covered shot.
+- **Look-ahead** (`lookahead.js`, `look`): every 0.15 s the attacker flies shot, pass, carry and defend a couple of seconds ahead with the real flight model (`flight/core.js quadAir`) and the real ball model, and picks the best expected goal value. Budget: `LOOK.perTick` look-aheads per tick for everyone (a count, so matches stay deterministic); the rest wait, and the planner plays as before. Measured 0.1-0.3 ms per look-ahead, ~0.01-0.02 ms per tick in a match (`bot-match` prints it).
+- **Ceiling and wall plays** (`aerial.js`, `aerial`): with the goal covered and the drop zone clear, the ball goes into the side wall or onto the ceiling and the next touch is the aerial on the way down; the Freestyler's ceiling play and wall feed are chosen the same way instead of by chance.
+
+Results (10-minute matches, half each side, `tools/bot-match.mjs`; main = every new key off): Dribbler v Grand Champion 16-7 -> 19-12 (1v1), 2-2 -> 8-4 (3v3); Legend v a scripted human (Champion-like planner, 200 ms reaction, vmax 80) 13-11 -> 18-7; Grand Champion v Champion 15-9 -> 36-11; Champion v Legend 27-8 -> 32-14. A 10-minute match between these levels swings by about 8 goals an hour under the same code, so the full tables, the ablations and the look-ahead's measured cost are in `Drone League/claude-project/drone-league-notes.md` (*Bots pass 5*).
+
+### Bot self-play ladder
+The top League bots face each other headless and get better from it (`tools/bot-ladder.mjs`, shared pieces in `tools/bot-ladder-lib.mjs`). Matches run through the real modules in a headless browser (Vite dev server on a free port, draw calls stubbed) at full sim speed, bot vs bot, half the match each way.
+```
+node tools/bot-ladder.mjs --minutes 30        # evolve for a wall-clock budget; resumes from src/bots/evolved.json
+node tools/bot-ladder.mjs --gens 2 --cands 2  # a fixed number of generations; --seed, --roster, --yardstick, --match-min, --parallel, --out, --fresh
+node tools/bot-ladder-check.mjs               # CI: one tiny generation twice (same results), the file valid, the loader's levels well formed
+```
+- **Ladder.** The roster (Legend, Dribbler, Freestyler by default) and the yardstick (Grand Champion) play a round robin (1v1 and 2v2) before the first generation and after the last; every match updates Elo ratings (K 24) and a W-D-L record, printed as a table at the end.
+- **Evolution.** Each generation, each archetype's champion gets 3 children: 1-3 of its tunables stepped by a gaussian of 8% of their range, inside the bounds in `BOUNDS` (the ranges the controllers were written for; the flight model and limits are the game's, so nothing can be stronger than a player's quad). A child plays its parent 1v1 and 2v2 (a confirmation 1v1 when ahead) and the yardstick 1v1; it becomes the champion when it is +2 goals over the parent with more wins than losses, does at least as well against the yardstick as the parent did that generation, and passes the gate. `src/bots/evolved.json` keeps the generation, ratings, champions and every promoted profile with its parent; `src/bots/evolved-log.json` the last 400 match logs. The game bundles `evolved.json` (`src/bots/evolved.js`: the latest generation per archetype goes on the end of DIFF, so the menu offers "Gen 4 Dribbler" above Freestyler; without the file nothing changes).
+- **Tournament mode** (`src/modes/tournament.js`, `src/ui/tournament.js`, the rules in `src/tournament/`): the menu's Tournament screen sets up a bracket of 4, 8 or 16 entrants, each a bot level (every DIFF level, the evolved ones included) or you, in single or double elimination, round robin or Swiss, 1v1 to 3v3 with bot team-mates, seeded, as listed or a random draw (drag the slots or use the arrows). Your matches are normal matches in mode `tourn` (XP and history under it); a bot v bot match is watched from a spectator camera or simulated flat out behind the menu, one at a time or all of them. The tournament is saved as it goes (localStorage `droneleague.tournament`, versioned like the settings) and resumes after a reload; winning one is a trophy (profile feat `tourn`, XP by bracket size, the Trophy Cabinet and Dynasty achievements). `node tools/tournament-check.mjs` runs every format in node, then a simulated, a played and a watched match and the resume in the game headless; `test/tournament.test.mjs` covers the rules in `npm test`.
+- **Gate.** A child that wins without playing football is not promoted: under 3 touches a minute, under 20% possession, under 0.4 shots on target a minute, no goal from its own touch, more goals gifted by the opponent's own goals than scored, or the ball sitting outside the arena's free space (over 30 ticks in a row or 1.5 m deep: a physics exploit; hard contacts only spike a few ticks).
+- **Deterministic.** Every match's `Math.random` is reseeded at every tick from (seed, generation, archetype, child, match, tick), drones are rebuilt and the ball's spin and contact cleared per match, and the page's idle-time warm-ups (the Highlands colliders change the physics world) are done before the first match, so the same seed gives the same matches on any page.
 
 ## SOP for Claude agents working in this repo
 This section applies to **every Claude agent** (Claude Code, claude.ai projects, any session) that reads or changes this repository, whichever person it works for. At least two people (Riley and Jared) each run their own Claudes here, often at the same time, and none of those Claudes can see each other's conversations. The branches and their READMEs are the only shared memory, so follow these steps every time.

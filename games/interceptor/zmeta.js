@@ -81,9 +81,9 @@ export function initMeta(api,G,Z){
    <p class="note">Unlocks add options, not power: a doctrine trades one strength for one weakness, and kit takes one of your two picks. In co-op the host's doctrine is the team's; each pilot brings their own kit.</p></div>`;
   for(const b of box.querySelectorAll('[data-doc]'))b.onclick=()=>{const l=load();S.zload={...l,doc:b.dataset.doc};save();render()};
   for(const b of box.querySelectorAll('[data-kit]'))b.onclick=()=>{const l=load(),k=b.dataset.kit;let kit=l.kit.includes(k)?l.kit.filter(x=>x!==k):[...l.kit,k];if(kit.length>KIT_MAX)kit=kit.slice(-KIT_MAX);S.zload={...l,kit};save();render()}}
- const sync=()=>{box.hidden=S.gmode!=='z';if(!box.hidden)render()};
+ const sync=()=>render();
  S.zmeta=meta();S.zload=load();save();sync();
- const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();sync()};$('gmode').addEventListener('click',()=>setTimeout(sync,0));
+ const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();sync()};
 
  // ---------- goals: per-run record, checked as the run goes ----------
  // G.run: rep repairs bought, perf perfect waves in a row, wk kills this wave {p,h}, clutch this wave, i0 integrity at the wave's start

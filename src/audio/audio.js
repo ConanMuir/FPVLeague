@@ -8,7 +8,7 @@ import {sfxInit,sfxTick} from './sfx.js';
 export let AC=null,BUS=null,LIM=null,mg,mf,nbuf,mw,pf,pg,wf,wg,ov=null,awp=null;export const mo=[],aw=new V3(),_au=new V3(),_ar=new V3(),_ad=new V3();
 // master limiter (LIM, after the master volume): sounds that stack up (a goal with a hard hit, a landing and full motors) are held
 // under 0 dBFS instead of clipping. Fast attack, high ratio, threshold -3 dB: normal play stays below it and passes untouched.
-// The browsers' compressor adds its own make-up gain (about +1.45 dB at these settings, measured by tools/sound-level.mjs); the gain after it takes that back.
+// The browsers' compressor adds its own make-up gain (about +1.45 dB at these settings, measured by tools/audio-levels.mjs); the gain after it takes that back.
 function limiter(){const c=AC.createDynamicsCompressor();c.threshold.value=-3;c.knee.value=2;c.ratio.value=20;c.attack.value=.002;c.release.value=.15;const g=AC.createGain();g.gain.value=.846;c.connect(g);return{c,g}}
 // 4 motors, each a tri-blade prop buzz (blade-pass sawtooth + harmonic) over the shaft tone; a slight per-motor offset gives the real beating
 export function audioInit(){if(AC)return;try{AC=new(window.AudioContext||window.webkitAudioContext)();const mst=AC.createGain();try{const l=limiter();LIM=l.c;mst.connect(l.c);l.g.connect(AC.destination)}catch(e){LIM=null;mst.connect(AC.destination)}BUS={mst};for(const k of['mot','wind','oth','fx','crowd']){BUS[k]=AC.createGain();BUS[k].connect(mst)}  // Audio tab volumes: master, then own motors, wind, other quads, effects, crowd
@@ -36,9 +36,9 @@ export function audioTick(dt){sfxTick(dt);const me=GS.player,on=!GS.demo&&!GS.pa
  const mix=[[-1,1,-1],[-1,-1,1],[1,1,1],[1,-1,-1]];  // Betaflight quad-X: RR, FR, RL, FL (roll, pitch, yaw)
  mo.forEach((m,i)=>{const[a,b,c]=mix[i],k=cl((a*aw.z+b*aw.x)*.0035+c*aw.y*.002,-.35,.35),f=r*m.off*(1+k);for(const[o,h]of m.v)o.frequency.setTargetAtTime(f*h,t,.012)});
  const wash=va<-6?cl((-va-6)/18,0,1)*ms:0,flut=1+wash*(Math.random()-.5)*1.4;  // falling into your own wash: the props chop through dirty air
- mg.gain.setTargetAtTime((.04+.075*ms**.9+(me.boostOn?.03:0))*flut,t,.02);mf.frequency.setTargetAtTime(900+r*3*2.6,t,.03);
+ mg.gain.setTargetAtTime((.03+.053*ms**.9+(me.boostOn?.02:0))*flut,t,.02);mf.frequency.setTargetAtTime(900+r*3*2.6,t,.03);  /* full throttle + boost peaks near -14 dBFS: a bed, 3 dB under a ball hit (tools/audio-levels.mjs) */
  mw.frequency.setTargetAtTime(r*7,t,.02);mw.g.gain.setTargetAtTime(.006+.018*ms,t,.05);
- pf.frequency.setTargetAtTime(r*4.2,t,.03);pg.gain.setTargetAtTime((.015+.09*ms**1.5)*(1+wash*1.5),t,.03);
+ pf.frequency.setTargetAtTime(r*4.2,t,.03);pg.gain.setTargetAtTime((.012+.07*ms**1.5)*(1+wash*1.5),t,.03);
  const ws=cl(sp/WS/40,0,1.3);wf.frequency.setTargetAtTime(200+ws*1400,t,.1);wg.gain.setTargetAtTime(.17*ws*ws,t,.1);
  let o=null,od=1e9;for(const d of GS.drones)if(d!==me&&d.dead<=0){const q=d.p.distanceTo(camera.position);if(q<od){od=q;o=d}}
  const R0=160;if(!o||od>R0){ov.og.gain.setTargetAtTime(0,t,.1);return}

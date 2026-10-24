@@ -26,6 +26,7 @@
 <div id="menu">
   <div id="home">
     <div class="modes" id="modes" role="group" aria-label="Game mode"></div>
+    <p class="note" id="icnote" hidden>The Interceptor needs the local server: open the game with Play Drone League.bat.</p>
 
       <h1><span class="b">DRONE</span><br><span class="o" id="h1o">LEAGUE</span></h1>
 
@@ -37,6 +38,7 @@
       <button id="garbtn">Garage</button>
       <button id="profbtn" data-scr="profile">Profile<small id="proflv">Level 1</small></button>
       <button id="trainbtn" data-scr="training">Training<small>Skill packs · Calibration Lab</small></button>
+      <button id="tournbtn" data-scr="tournament">Tournament<small>Brackets · round robin · bots and you</small></button>
       <button id="setbtn" data-scr="settings">Settings</button>
       <button id="modbtn">Mod panel</button>
       <button class="quit" id="leave" hidden>Leave game</button>
@@ -51,14 +53,6 @@
       <div id="games"></div>
 
       <p class="note" id="mpnote">Connecting…</p>
-  </section>
-  <section class="scr wide" id="scr-intercept" hidden aria-label="Interceptor">
-    <div class="shead"><button class="sm back">Back</button><h2>Interceptor</h2></div>
-    <div class="thub">
-      <button class="ttile" id="icClassic"><span class="tbody"><b>Classic</b><small>Fly a warhead-carrying interceptor drone and take down waves of Shahed attack drones before they reach the substation.</small><em>Riley's original game</em></span></button>
-      <button class="ttile lab" id="icZombies"><span class="tbody"><b>Zombies</b><small>Endless, growing waves from every edge. Earn money per intercept and spend it between waves on helper drones, guns, missiles, domes and perks. A boss every 10 waves.</small><em>Survive as long as you can</em></span></button>
-    </div>
-    <p class="note" id="icnote" hidden>The Interceptor needs the local server: open the game with Play Drone League.bat.</p>
   </section>
   <section class="scr wide" id="scr-training" hidden aria-label="Training">
     <div class="shead"><button class="sm back">Back</button><h2>Training</h2></div>
@@ -80,6 +74,10 @@
     <div class="pfhead" id="pfhead"></div>
     <div class="ptabs" id="pftabs" role="tablist" aria-label="Profile sections"></div>
     <div id="pfbody"></div>
+  </section>
+  <section class="scr wide" id="scr-tournament" hidden aria-label="Tournament">
+    <div class="shead"><button class="sm back">Back</button><h2>Tournament</h2><span class="note" id="tnsum" style="margin:0 0 0 auto"></span></div>
+    <div id="tnbody"></div>
   </section>
   <section class="scr set-scr" id="scr-settings" hidden aria-label="Settings">
     <div class="shead"><button class="sm back">Back</button><h2>Settings</h2></div>

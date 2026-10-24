@@ -105,9 +105,6 @@ if (want('settings')) {
   await p.keyboard.press('KeyB'); await sleep(100); const m1 = await p.evaluate(() => JSON.parse(localStorage.getItem('dl-interceptor')).zmus);
   await p.keyboard.press('KeyB'); await sleep(100); const m2 = await p.evaluate(() => JSON.parse(localStorage.getItem('dl-interceptor')).zmus);
   ok(m1 === 0 && m2 === 1, `B mutes and unmutes the music (${m1} then ${m2})`);
-  // Classic: the Zombies-only rows are hidden
-  const cl = await p.evaluate(() => { const g = document.querySelector('#gmode [data-m="classic"]'); g.click(); return new Promise(r => setTimeout(() => { const v = getComputedStyle(document.getElementById('f_zmusv')).display; document.querySelector('#gmode [data-m="z"]').click(); r(v); }, 50)); });
-  ok(cl === 'none', 'the volume rows are hidden with Classic picked');
 }
 
 if (want('night')) {
@@ -173,8 +170,8 @@ if (want('integ')) {
   await p.evaluate(() => { clearInterval(window.__keep); clearInterval(window.__hold); });
 }
 
-// Classic afterwards: no time scale, no cinematic, no night lights
+// the menu afterwards: no time scale, no cinematic, no night lights
 const cl = await p.evaluate(async () => { __z.api.startDemo(); const m = await import('/games/interceptor/buildings.js'); return {tsc: __z.Z.tsc, cine: __z.Z.cine, night: m.NIGHT.w.value}; });
-ok(cl.tsc === 1 && !cl.cine && cl.night === 0, 'menu / Classic: time scale 1, no cinematic cam, no night lights');
+ok(cl.tsc === 1 && !cl.cine && cl.night === 0, 'menu: time scale 1, no cinematic cam, no night lights');
 ok(!errs.length, 'no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
 await b.close(); server.close(); process.exit(fails ? 1 : 0);
