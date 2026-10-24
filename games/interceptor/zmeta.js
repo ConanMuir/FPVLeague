@@ -66,10 +66,10 @@ export function initMeta(api,G,Z){
  M.k=(key,d=1)=>{const v=M.doc()[key];return v==null?d:v};
 
  // ---------- start menu: the Doctrine & unlocks panel (Zombies only) ----------
- const box=document.createElement('details');box.className='zmeta';box.id='zmeta';$('zdiff').after(box);
+ const box=Z.home.card('zmeta',{order:50,tone:'amber',tag:'details',cls:'zmeta'});  /* a fold-out card in the start page grid (zhome.js) */
  const dots=bits=>ZDIFF.map((d,i)=>`<i class="${bits>>i&1?'on':''}" title="${d.n}">${d.n[0]}</i>`).join('');
  function render(){const m=meta(),L=load(),D=DOCS[L.doc],nDone=GOAL_IDS.filter(g=>m.g[g]).length;
-  box.innerHTML=`<summary>Doctrine &amp; unlocks <span>${D.n}${L.kit.length?' · '+L.kit.map(k=>KIT[k].n).join(', '):''} · goals ${nDone}/${GOAL_IDS.length}</span></summary>
+  box.innerHTML=`<summary class="zhc-b">${Z.home.face({i:'shield',t:'Doctrine & unlocks',d:'Pick how your base plays; goals unlock more.',s:`${D.n}${L.kit.length?' · '+L.kit.map(k=>KIT[k].n).join(', '):''} · goals ${nDone}/${GOAL_IDS.length}`})}</summary>
    <div class="zmb"><h4>Doctrine <small>one per run: it shapes the base, each with a strength and a weakness</small></h4>
    <div class="zdocs">${DOC_IDS.map(id=>`<button class="sm ${L.doc===id?'on':''}" data-doc="${id}" ${open(id)?'':'disabled'} title="${open(id)?DOCS[id].plus:'Locked: '+GOALS[unlockOf(id)].txt}">${open(id)?'':'🔒 '}${DOCS[id].n}</button>`).join('')}</div>
    <p class="zpm"><span class="cg">+ ${D.plus}</span><br><span class="co">− ${D.minus}</span></p>

@@ -27,8 +27,6 @@ export function initSpectate(api,G,Z){
 
  // ---------- style ----------
  const css=document.createElement('style');css.textContent=`
-.zspc{margin:0 0 12px;border:1px solid rgba(95,227,255,.45);border-radius:8px;background:linear-gradient(90deg,rgba(95,227,255,.08),rgba(61,220,132,.05))}.zspc[hidden]{display:none}
-.zspc summary{cursor:pointer;padding:10px 12px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#5fe3ff}.zspc summary span{letter-spacing:.02em;text-transform:none;color:var(--dim);margin-left:6px;font-size:12.5px}
 .zspc .zmb{padding:0 12px 12px;display:grid;gap:8px}.zspc h4{margin:4px 0 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}.zspc .zdocs{display:flex;flex-wrap:wrap;gap:6px}
 .zspc select{font:13px var(--mono);background:rgba(0,0,0,.35);color:var(--ink);border:1px solid var(--edge);border-radius:5px;padding:5px}.zspc .zsp-go{justify-self:start}
 #zspbar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:92vw;top:calc(76px + env(safe-area-inset-top,0px));z-index:7;display:grid;justify-items:center;gap:1px;pointer-events:none;font:700 13px var(--mono);text-shadow:0 0 4px #000;text-align:center;padding:4px 12px;border-radius:6px;background:rgba(4,10,18,.55)}
@@ -53,9 +51,9 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
 
  // ---------- start menu: the Watch a bot card ----------
  const cfg=()=>{const c=S.zspec&&typeof S.zspec==='object'?S.zspec:{};return{lv:brain.level(c.lv)?brain.level(c.lv).n:'Champion',d:cl(c.d|0,0,ZDIFF.length-1),sec:SECTORS.some(s=>s.id===c.sec)?c.sec:'',doc:DOCS[c.doc]?c.doc:'std',auto:!!c.auto,kit:Array.isArray(c.kit)?c.kit.filter(k=>KIT[k]).slice(0,KIT_MAX):[]}};
- const card=document.createElement('details');card.className='zspc';card.id='zspc';($('zcpm')||$('zdiff')).after(card);
+ const card=Z.home.card('zspc',{order:40,tone:'cyan',tag:'details',cls:'zspc'});  /* a fold-out card in the start page grid (zhome.js) */
  function renderCard(){const c=cfg(),L=brain.level(c.lv);
-  card.innerHTML=`<summary>Watch a bot <span>${esc(c.lv)} · ${ZDIFF[c.d].n}${c.sec?' · '+esc(SECTORS.find(s=>s.id===c.sec).n):''} · ${c.auto?"Bot's choice":DOCS[c.doc].n}${!c.auto&&c.kit.length?' · '+c.kit.map(k=>KIT[k].n).join(', '):''}</span></summary>
+  card.innerHTML=`<summary class="zhc-b">${Z.home.face({i:'eye',t:'Watch a bot',d:'A bot flies the real game and tells you why.',s:`${c.lv} · ${ZDIFF[c.d].n}${c.sec?' · '+SECTORS.find(s=>s.id===c.sec).n:''} · ${c.auto?"Bot's choice":DOCS[c.doc].n}${!c.auto&&c.kit.length?' · '+c.kit.map(k=>KIT[k].n).join(', '):''}`})}</summary>
    <div class="zmb"><p class="note" style="margin:0">A bot pilot plays the real game while you watch: it flies the interceptor, shops between waves and tells you why. Speed, cameras, a live tuning panel and a report at the end. Its runs never touch your saves.</p>
    <h4>Bot level</h4><div class="zdocs">${brain.LEVELS.map(l=>`<button class="sm ${l.n===c.lv?'on':''}" data-zsl="${esc(l.n)}">${esc(l.n)}</button>`).join('')}</div>
    <h4>Difficulty</h4><div class="zdocs">${ZDIFF.map((d,i)=>`<button class="sm ${i===c.d?'on':''}" data-zsd="${i}">${d.n}</button>`).join('')}</div>

@@ -249,9 +249,9 @@ export function initCampaign(api,G,Z){
   Z.syncMode?.();setTimeout(()=>($('zcpmap')||$('zmenu'))?.focus(),50);return true};
 
  // ---------- start menu: the campaign card next to the difficulty ----------
- const card=document.createElement('div');card.className='zcpm';card.id='zcpm';$('zdiff').after(card);
+ const card=Z.home.card('zcpm',{order:10,tone:'amber',cls:'zcpm'});  /* a launcher card in the start page grid (zhome.js) */
  function syncCard(){const c=C(),f=front(c),D=ZDIFF[c.d];
-  card.innerHTML=`<div><b>Campaign</b><span>${c.done?'Complete: every sector open for replays':`${c.held.length} of ${SECTORS.length} sectors held · ${D.n}${f.length?` · next: ${esc(SEC[c.sel]?.n||SEC[f[0]].n)}`:''}`}</span></div><button class="go" id="zcpopen">Campaign map ▸</button>`;
+  card.innerHTML=`<button type="button" class="zhc-b" id="zcpopen" title="Open the campaign map">${Z.home.face({i:'flag',t:'Campaign',d:'Take the front back, sector by sector.',s:c.done?'Complete: every sector open for replays':`${c.held.length} of ${SECTORS.length} sectors held · ${D.n}${f.length?` · next: ${SEC[c.sel]?.n||SEC[f[0]].n}`:''}`})}</button>`;
   $('zcpopen').onclick=()=>openMap()}
  syncCard();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();syncCard()};
  // Quick defence (the play button) never plays an armed sector

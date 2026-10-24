@@ -1,6 +1,8 @@
 /* Craft types (ztypeui.js): the picker cards on the start card and the base screen, and the craft's HUD panel */
-.zcraft{margin:0 0 10px}.zcraft h4,#zbase .zcrh{margin:6px 0 6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
-.zcraft h4 small,#zbase .zcrh small{font-weight:500;color:var(--dim);font-size:12px;margin-left:6px;text-transform:none;letter-spacing:0}
+/* the start page card (zhome.css): the same two buttons, as a compact switch at the top right of the card; the facts show on the base screen */
+#zcraft .zcrs{position:absolute;top:10px;right:10px;display:flex;grid-template-columns:none;gap:4px;width:auto}
+#zcraft .zcr{padding:6px 12px;border-radius:6px;text-align:center}#zcraft .zcr b{font-size:13px}#zcraft .zcr span,#zcraft .zcr ul{display:none}
+#zcraft .zhc-t{margin-right:140px}
 .zcrs{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;width:100%}
 .zcr{display:grid;gap:4px;text-align:left;align-content:start;padding:9px 11px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--edge);color:var(--ink,#e8edf5);text-transform:none;letter-spacing:0}
 .zcr b{font-size:15px;letter-spacing:.04em;text-transform:uppercase}.zcr span{font-size:12px;line-height:1.35;color:var(--dim);font-weight:500}

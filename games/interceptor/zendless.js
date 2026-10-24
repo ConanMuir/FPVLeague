@@ -103,9 +103,10 @@ export function initEndless(api,G,Z){
   const x={d:Z.dfi?.()??1,w,sec:r.id,ms:en.ms.length?Math.max(...en.ms):0,t:Date.now()};e.runs=[...e.runs,x];S.zend=cleanEnd(e);S.zend.sec=r.id;save();syncBoard();return x}
  const rows=(cur,max)=>rd().runs.slice(0,max).map((r,i)=>`<li class="you${cur&&r.t===cur.t?' cur':''}"><b>${i+1}</b><span>${esc(label(r))}${r.ms?` · milestone ${r.ms}`:''}</span></li>`).join('');
  E.rows=rows;
- const box=document.createElement('details');box.className='zmeta zlbm';box.id='zendboard';($('zboard')||$('zdiff')).after(box);
- function syncBoard(){const R=rd().runs,open=box.open;box.hidden=!R.length&&!unlocked();
-  box.innerHTML=`<summary>Endless <span>${R.length?`best: ${esc(label(R[0]))}`:unlocked()?'no run yet':'locked'}</span></summary><div class="zmb zlb">${R.length?`<ol>${rows(null,MAXRUNS)}</ol>`:`<p class="zhint">${unlocked()?'Start an Endless run from the campaign map or the Endless button.':'Hold the Launch Complex to unlock Endless.'}</p>`}</div>`;box.open=open}
+ /* the Endless table is a block of the Leaderboard card (zboard.js draws Z.board.extra under its table); #zendboard is hidden until there is a run or Endless is open */
+ const boardHTML=()=>{const R=rd().runs,hid=!R.length&&!unlocked();
+  return`<div id="zendboard" class="zlbx"${hid?' hidden':''}><h4>Endless <small>${R.length?`best: ${esc(label(R[0]))}`:unlocked()?'no run yet':'locked'}</small></h4>${R.length?`<ol>${rows(null,MAXRUNS)}</ol>`:`<p class="zhint">${unlocked()?'Start an Endless run from the campaign map or the Endless card.':'Hold the Launch Complex to unlock Endless.'}</p>`}</div>`};
+ const syncBoard=()=>{if(Z.board){Z.board.extra=boardHTML;Z.board.sync()}};
 
  /* ---------- the buttons: the sector briefing (zcampaign.js hook) and the campaign card on the start menu ---------- */
  E.btn=(c,id,t)=>{const held=t==='held',ok=c.done===1&&held,why=c.done!==1?'Hold the Launch Complex to unlock Endless':held?'':'Hold this sector first';
@@ -114,10 +115,11 @@ export function initEndless(api,G,Z){
  E.hostCoop=id=>{const c=Z.cp.C(),sid=typeof id==='string'&&Object.hasOwn(SEC,id)?id:E.sector();if(!unlocked()||!c.held.includes(sid)||Z.online||Z.isClient?.()||!$('zhost'))return false;
   const e=rd();e.sec=sid;save();Z.cp.arm(sid,true);Z.cp.closeMap();$('zover').hidden=true;$('zhost').click();return true};
  const ov=$('zcamp');ov?.addEventListener('click',e=>{const id=Z.cp.C().sel;if(e.target.closest?.('#zcpend'))E.start(id);else if(e.target.closest?.('#zcpendhost'))E.hostCoop(id)});
- const card=$('zcpm');
- function syncCard(){if(!card)return;card.querySelector('#zendgo')?.remove();if(!unlocked())return;const id=E.sector();
-  card.insertAdjacentHTML('beforeend',`<button class="sm zendb" id="zendgo" title="${esc('Endless: no objective on '+(SEC[id]?.n||'')+', the waves keep climbing')}">Endless ∞ · ${esc(SEC[id]?.n||'')}</button>`)}
- card?.addEventListener('click',e=>{if(e.target.closest?.('#zendgo'))E.start(E.sector())});
+ const card=Z.home.card('zendc',{order:20,tone:'red'});  /* a launcher card in the start page grid (zhome.js); locked until the Launch Complex is held */
+ function syncCard(){const on=unlocked(),R=rd().runs,id=on?E.sector():'',f={i:'loop',t:'Endless',d:'No objective: the waves keep climbing.'};
+  card.innerHTML=on?`<button type="button" class="zhc-b" id="zendgo" title="${esc('Endless: no objective on '+(SEC[id]?.n||'')+', the waves keep climbing')}">${Z.home.face({...f,s:`${R.length?`best: wave ${R[0].w} · `:''}${SEC[id]?.n||''}`})}</button>`
+   :`<div class="zhc-b lock" aria-disabled="true">${Z.home.face({...f,s:'Locked: hold the Launch Complex'})}</div>`}
+ card.addEventListener('click',e=>{if(e.target.closest?.('#zendgo'))E.start(E.sector())});
  const sm0=Z.syncMode;Z.syncMode=()=>{sm0?.();syncCard();syncBoard()};
  syncCard();syncBoard();
 

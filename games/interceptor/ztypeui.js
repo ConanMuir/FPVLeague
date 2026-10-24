@@ -21,13 +21,12 @@ export function initTypes(api,G,Z){
  const cards=()=>`<div class="zcrs">${ORDER.map(id=>card(id,id===S.zty.id)).join('')}</div>`;
 
  // ---------- the start card: a card per type, under the difficulty ----------
- const box=document.createElement('div');box.id='zcraft';box.className='zcraft';box.setAttribute('role','group');box.setAttribute('aria-label','Craft');
- ($('zdiff')||$('gmdesc')).after(box);
+ const box=Z.home.card('zcraft',{order:70,tone:'amber',cls:'zcraft zhc-craft'});box.setAttribute('role','group');box.setAttribute('aria-label','Craft');  /* a form card in the start page grid (zhome.js): the picker stays in reach */
  const bind=el=>{for(const b of el.querySelectorAll('[data-zty]'))b.onclick=()=>{C.set(b.dataset.zty);if(el!==box)Z.base?.refresh?.()}};
- function render(){S.zty=cleanSave(S.zty);box.innerHTML=`<h4>Craft <small>${forced&&forced!==S.zty.id?`a bot is flying the ${esc(typeOf(forced).name)}`:'you fly it from the next launch'}</small></h4>${cards()}`;bind(box)}
+ function render(){S.zty=cleanSave(S.zty);box.innerHTML=`<div class="zhc-b"><span class="zhc-g">${Z.home.icon('plane')}</span><span class="zhc-t">Craft</span><span class="zhc-d">Pick what you fly.</span><span class="zhc-s"><small>${forced&&forced!==S.zty.id?`a bot is flying the ${esc(typeOf(forced).name)}`:`${esc(typeOf(S.zty.id).name)} · you fly it from the next launch`}</small></span></div>${cards()}`;bind(box)}
 
  // ---------- the base screen: the same cards at the top of the Shop ----------
- const st0=Z.shopTop;Z.shopTop=()=>(G.on?`<div class="zcrh" role="heading" aria-level="3">Craft <small>the next wave launches you in it${Z.online?' · each pilot picks their own':''}</small></div>${cards()}`:'')+(st0?.()||'');
+ Z.shop.add({id:'craft',label:'Craft',order:50,sub:()=>`the next wave launches you in it${Z.online?' · each pilot picks their own':''}`,count:()=>String(ORDER.length),html:()=>G.on?cards():''});
  const bb0=Z.baseBind;Z.baseBind=el=>{bb0?.(el);bind(el)};
 
  // ---------- the craft's HUD panel: its readouts, an airspeed bar with the minimum speed in red, a status line ----------
