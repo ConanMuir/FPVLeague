@@ -100,12 +100,12 @@ export function initBase(Z,api,G){
  const facts=L=>`<dl class="zfacts">${L.filter(Boolean).map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>`;
  function catDetail(c){const k=c.k,it=ITEMS[k],S=state(c),lvl=it.type==='perk'?Z.perkLevel(k):0,helper=it.type==='helper',own=helper?def.D.filter(d=>d.type===k).length:0,n=it.type==='supply'?supN(k):0;
   const full=S.L?`Arrives with wave ${Z.itemFrom(k)}.`:it.type==='perk'?(S.M?'Fully upgraded.':Z.perkBlurb(k)):it.type==='supply'?SUPPLY[k].txt:it.blurb;
-  return`<h4><span class="zg">${it.glyph}</span>${it.n}<em>${helper?(own?`×${own} owned`:'not owned'):it.type==='perk'?`level ${lvl} of ${PERK[k].cost.length}`:S.M?'loaded':'for the next wave'}</em></h4><p class="zdp">${full}</p>${helper&&!S.L?`<div class="zvs">${vsChips(k)}<small class="zlg">green strong · amber partial · struck through: no effect</small></div>`:''}
+  return`<h4><span class="zg">${it.glyph}</span>${it.n}<em>${helper?(own?`×${own} owned`:'not owned'):it.type==='perk'?`level ${lvl} of ${PERK[k].cost.length}`:S.M?'loaded':'for the next wave'}</em></h4><p class="zdp">${full}</p>${helper&&!S.L&&vsChips(k)?`<div class="zvs">${vsChips(k)}<small class="zlg">green strong · amber partial · struck through: no effect</small></div>`:''}
    ${facts([['Price',S.L?`from wave ${Z.itemFrom(k)}`:S.M?'bought':`${money(S.p)}${S.need?` <span class="co">· need ${money(S.need)} more</span>`:''}`],
     helper?['Needs',`a free position (${nFree(k)} free)`]:it.type==='supply'?['Covers',`${n} ${UNIT[SUPPLY[k].of]}${n>1?'s':''}, this wave only`]:PERK[k]?.key?['Key',`${PERK[k].key} · ${PERK[k].pad}`]:null,
     helper?['Upkeep',upkeepNote(k)]:null,helper?['Sells for',`${Z.sell.pct()}% back (all of it on this screen)`]:null])}`}
  function defDetail(d){const it=ITEMS[d.type],s=def.SLOTS[d.slot],up=upkeepOf(d),RF=REFIT[d.type]||[],cur=RF.find(r=>r.id===d.refit);
-  return`<h4><span class="zg">${it.glyph}</span>${it.n}<em>${s.n}</em></h4><p class="zdp">${it.blurb}</p><div class="zvs">${vsChips(d.type)}<small class="zlg">green strong · amber partial · struck through: no effect</small></div>
+  return`<h4><span class="zg">${it.glyph}</span>${it.n}<em>${s.n}</em></h4><p class="zdp">${it.blurb}</p>${vsChips(d.type)?`<div class="zvs">${vsChips(d.type)}<small class="zlg">green strong · amber partial · struck through: no effect</small></div>`:''}
    ${facts([['Upkeep',up?`${money(up)} a wave`:dk('upkeepK')===0?'none (Quartermaster)':G.wave+1<UPKEEP_FROM?`none until wave ${UPKEEP_FROM}`:'none'],['Sells for',`<b>+${money(refund(d))}</b> · ${Z.sell.dwhy(d)}`],['Kills',d.kills|0],cur?['Refit',cur.n]:null,d.short?['Ammo','<span class="co">short: upkeep was unpaid</span>']:null])}`}
  function detailHTML(key){const[t,id]=String(key||'').split(':');
   if(t==='c'){const c=G.cards[+id];if(c)return catDetail(c)}

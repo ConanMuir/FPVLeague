@@ -237,6 +237,10 @@ jobs:
           - check: zombies-test (types)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=types
+          # the start page and the base screen (zhome.js, zbase.js): one big Start button above the fold, every card in the grid, a header and footer that stay on screen, shop sections and rows, the detail pane, Undo, a gamepad on the menu; at 1280x720, 1920x1080 and 900x420
+          - check: zombies-test (layout)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=layout
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

@@ -6,7 +6,9 @@
 // Three kinds of card: a launcher (a button face that starts or opens something: campaign, enemies, endless), a fold-out (tag 'details': the face is the
 // summary, the body opens across the whole row: watch a bot, doctrine, leaderboard) and a form (co-op, craft: controls that must stay in reach).
 // Orders in use: campaign 10, endless 20, enemies 30, watch a bot 40, doctrine 50, leaderboard 60, craft 70, co-op 80.
-// Styles: zombies.css ("start page"). Harness: Z.home.cards() lists the cards in order.
+// Gamepad: the engine only reads the pad in a run, so the start page brings its own (Z.menuPad, called from interceptor.js while the menu is open): the D-pad
+// moves between the buttons (to the nearest one that way), A presses, B folds an open card back or returns to the run; Start (the engine) opens and closes the menu.
+// Styles: zhome.css. Harness: Z.home.cards() lists the cards in order.
 const esc=s=>String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
 /* line icons on a 24 x 24 grid, drawn with the card's accent colour */
 const ICON={
@@ -29,6 +31,18 @@ export function initHome(api,G,Z){
    const at=[...mount.children].find(c=>+c.dataset.order>+e.dataset.order);mount.insertBefore(e,at||null);return e},
   cards:()=>[...mount.children].map(c=>c.id)};
  /* a fold-out scrolls into view when it opens, and the others close: one at a time keeps the page short */
+ const focusables=()=>[...$('menu').querySelectorAll('button:not([disabled]),summary,select,input')].filter(b=>{const r=b.getBoundingClientRect();return r.width>1&&r.height>1});
+ function move(dx,dy){const bs=focusables(),a=document.activeElement,ra=bs.includes(a)?a.getBoundingClientRect():null;
+  if(!ra){($('resume').hidden?$('play'):$('resume')).focus();return}
+  const cx=ra.x+ra.width/2,cy=ra.y+ra.height/2;let best=null,bd=1e9;
+  for(const b of bs){if(b===a)continue;const r=b.getBoundingClientRect(),x=r.x+r.width/2-cx,y=r.y+r.height/2-cy,al=x*dx+y*dy;if(al<=4)continue;const d=al+Math.abs(x*dy+y*dx)*2;if(d<bd){bd=d;best=b}}
+  if(best){best.focus();best.scrollIntoView?.({block:'nearest'})}}
+ /* e(i): button i went down this frame. Not ours while the campaign map, the enemies screen or the mod panel is up. */
+ Z.menuPad=e=>{if(!$('zcamp').hidden||!$('zcdx').hidden||$('mod')&&!$('mod').hidden)return false;
+  if(e(12))move(0,-1);if(e(13))move(0,1);if(e(14))move(-1,0);if(e(15))move(1,0);
+  if(e(0)){const a=document.activeElement;if(a&&$('menu').contains(a)&&a.matches('button,summary'))a.click()}
+  if(e(1)){const d=mount.querySelector('details[open]');if(d)d.open=false;else if(!$('resume').hidden)$('resume').click()}
+  return true};
  mount.addEventListener('toggle',e=>{const d=e.target;if(!d.open||!d.classList.contains('zhd'))return;
   for(const o of mount.querySelectorAll('details.zhd[open]'))if(o!==d)o.open=false;d.scrollIntoView?.({block:'nearest'})},true);
  return H}

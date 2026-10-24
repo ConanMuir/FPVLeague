@@ -3599,6 +3599,16 @@ if (want('layout')) {
     const o = await p.evaluate(`(() => { ${rect} const o = {w1: 0, wBoth: R(document.getElementById('zmeta')).w, aOpen: document.getElementById('zspc').open, grid: R(document.getElementById('zcards')).w}; document.getElementById('zmeta').open = false; return o; })()`); o.w1 = w1;
     ok(o.w1 >= o.grid - 2 && o.wBoth >= o.grid - 2 && !o.aOpen, `Start page: a fold-out card opens across the whole row (${Math.round(o.w1)} of ${Math.round(o.grid)}px) and opening another closes it`);
   }
+  { /* the gamepad on the start page (Z.menuPad: the engine reads the pad only in a run): the D-pad walks the buttons in the order you see, A presses, B folds a card back */
+    const g = await p.evaluate(() => { const Z = __z.Z, press = i => Z.menuPad(n => n === i), at = () => document.activeElement.closest('.zhc')?.id || document.activeElement.id, o = {};
+      document.activeElement?.blur?.(); press(13); o.first = at(); document.getElementById('zcpopen').focus(); press(13); o.down = at(); press(15); o.right = at(); press(14); o.left = at();
+      document.getElementById('zspc').querySelector('summary').focus(); press(0); return o; });
+    await p.waitForFunction(() => document.getElementById('zspc').open, {timeout: 5000}).catch(() => {});
+    const o1 = await p.evaluate(() => { const open = document.getElementById('zspc').open; __z.Z.menuPad(n => n === 1); return open; });
+    await p.waitForFunction(() => !document.getElementById('zspc').open, {timeout: 5000}).catch(() => {});
+    const o2 = await p.evaluate(() => !document.getElementById('zspc').open);
+    ok(g.first === 'play' && g.down === 'zspc' && g.right === 'zmeta' && g.left === 'zspc' && o1 && o2, `Start page on a gamepad: the D-pad goes Start -> the cards in order (${g.first}, down ${g.down}, right ${g.right}, left ${g.left}), A opens a fold-out (${o1}), B folds it back (${o2})`);
+  }
   /* ---- the base screen ---- */
   await play(p);
   await p.evaluate(() => { const {G, Z} = __z; G.cash = 1500; Z.base.refresh(); });
