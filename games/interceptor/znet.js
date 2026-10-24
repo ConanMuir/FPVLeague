@@ -274,6 +274,7 @@ export function initNet(api,G,Z){
   if(T==='S'){Z.so?.netEv?.(e.slice(2));return}  // sorties (zsortie.js): AA bursts, hits on this pilot, salvage carried, calls
   if(T==='H'){if(e[2]===net.me)Z.shootMe?.(String(e[3]??'a boss').slice(0,60));return}  /* a boss hit on this pilot's interceptor (Z.netHit) */
   if(T==='B'){Z.bossWon?.(e.slice(2));return}
+  if(T==='D'){Z.dbg?.netEv?.(e.slice(2));return}  /* the host used a debug cheat: this run is a debug run here too (zdebug.js) */
   if(T==='I'){Z.bossStrike?.(e.slice(2));return}  /* the host won a boss fight: the banner and the sting (zbosses.js) */
   const t=byId(e[2]);if(!t||t.st==='dead')return;
   if(T==='k'){if(t.paid)return;const by=String(e[4]||'');t.by=by===net.me?'p':by?'o':'h';t.byN=by;if(e[3])t.st='dead';else{t.st='fall';t.spin=(Math.random()<.5?-1:1)*(1+Math.random()*3)}

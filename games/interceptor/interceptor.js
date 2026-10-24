@@ -1,6 +1,7 @@
 // Drone League Interceptor: a tail-sitter dart interceptor against Shahed-136 / Geran-3 waves over steppe farmland.
 // The dart keeps its own flight model (thrust along the fuselage, fin side force, wind, battery) below; rates, input and calibration,
 // settings, audio synth, mod panel, menu and the main loop come from the engine (../../engine).
+import './zdbglog.js';  /* the debug mode's recorders (console ring buffer, event log, frame sampler): first, so nothing before the panel is missed */
 import * as THREE from 'three';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {Sky} from 'three/addons/objects/Sky.js';
@@ -41,6 +42,7 @@ loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the
 if(typeof S.wx!=='string')S.wx=DEF.wx;  /* an array or object here is taken for a whole weather object by setWeather and threw at the first start */S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;S.zty=cleanSave(S.zty);  /* the craft type (ztypes.js): {v, id}; an old save, a hand-edited value or an unknown type is the Dart */
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
 if((S.setV|0)<5){for(const k of['gmode','diff','fuse','skin','guide','guideSw'])delete S[k];S.setV=5}  /* v5: Classic is gone, Zombies is the game: the settings only Classic read (mode, threat level, fuse, look, midcourse guidance) are dropped */
+if((S.setV|0)<6){delete S.zrspeech;S.setV=6}  /* v6: the radio has no voice any more: the speech setting is dropped */
 
 // ---------- renderer ----------
 const ov=$('ov'),oc=ov.getContext('2d');let sens;
@@ -522,7 +524,7 @@ const deadP=new V3(),deadC=new V3();
 function launch(){if(!player)player=new Drone();player.setType(Z.craft?Z.craft.cur():'dart');player.spawn();TH.forEach(t=>{t.pd=t.dmin=1e9;t.cvm=0});FW.clear();fireWas=true;kbThr=0;kbArm=false;camUp=false;lqS=1;{const v=typeof S.tiltSw==='string'?swRead(S.tiltSw):null;if(v!=null)camUp=v}
  if(!demo)feed(`On the mat at <b>${player.home.n}</b>. Throttle up to take off`)}
 function relaunch(){if(player.dead<=0&&player.p.distanceTo(player.home.mat)>3)spent++;launch()}
-function lose(why){const d=player;if(d.dead>0)return;d.dead=RELT;spent++;deadP.copy(d.p);d.mesh.visible=false;
+function lose(why){const d=player;if(d.dead>0)return;if(Z.on&&Z.god?.(why))return;  /* the debug mode's god mode (zdebug.js): the interceptor is not lost to a crash, a flat pack or a hit */d.dead=RELT;spent++;deadP.copy(d.p);d.mesh.visible=false;
  _f.copy(d.v).setY(0);if(_f.lengthSq()<.01)_f.set(0,0,-1);deadC.copy(d.p).addScaledVector(_f.normalize(),-25).setY(Math.max(d.p.y,gh(d.p.x,d.p.z))+8);
  boom(d.p,why==='det'?.7:.4);if(camMode===0){const f=$('flash');f.style.transition='none';f.style.opacity=why==='det'?.9:.5;requestAnimationFrame(()=>{f.style.transition='opacity .6s';f.style.opacity=0})}
  if(why==='crash')feed('Interceptor lost: crashed');if(why==='bat')feed('Interceptor lost: battery flat')}

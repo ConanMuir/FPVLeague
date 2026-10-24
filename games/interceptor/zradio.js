@@ -1,8 +1,8 @@
 /* Zombies radio chatter: the battle you can hear. Short callouts that follow what the game is doing (new tracks and where they are going, the
    kill chain layer by layer, kills, hits on the sites, sorties, bosses, the helpers and the swarm, your battery, your co-op partners), with
    callsigns: OVERLORD (the base), EARLY WARNING, DART ONE (you), a name for each defence (HORNET, ANVIL, GEPARD...). They are shown as a log on the
-   HUD (the last three lines, fading), with a squelch click and a short burst of static through the master bus, and spoken by the browser's
-   speechSynthesis when it has one (clipped and quick, like a radio). Nothing is a real-world procedure: all the phrasing is game flavour.
+   HUD (the last three lines, fading), with a squelch click and a short burst of static through the master bus. There is no voice: the calls are text and static only.
+   Nothing is a real-world procedure: all the phrasing is game flavour.
    
    Events are read from the game's state (a scan four times a second, plus the kill hook), never from the host's messages, so a co-op client
    makes its own calls from what its snapshots show. A call goes through note() (merged for a moment: three new tracks from the east are one
@@ -10,7 +10,7 @@
    dropped, one call on the air at a time, and only an urgent call (priority 3: a site lost, a missed point defence) cuts the one on the air.
    The legacy subtitle (zannounce.js an.radio) is taken over while this is on: its generic lines are covered by the events here and dropped, its
    scripted ones (a boss's taunts) come through the same channel. Off in the settings, the old subtitle comes back.
-   Settings (the same dl-interceptor save as the rest): S.zradio, S.zrspeech, S.zradiov, rows under the other sound sliders.
+   Settings (the same dl-interceptor save as the rest): S.zradio, S.zradiov, rows under the other sound sliders.
    Harness: Z.radio (tools/zombies-test.mjs, "radio"). */
 import {AC,nbuf} from '../../engine/audio.js';
 import {KIND,FAST} from './zdata.js';
@@ -30,8 +30,6 @@ const noun=(k,n)=>NM[k]?NM[k][n>1?1:0]:n>1?'tracks':'track';
 const HNAME={rack:'HORNET',lrack:'HORNET',flak:'ANVIL',hflak:'ANVIL',gepard:'GEPARD',sam:'LANCE',mpads:'SPEAR',idome:'IRON DOME',gdome:'GOLDEN DOME',ew:'SPARKY',laser:'BEAM',mwave:'SIZZLE',barrage:'WEB',smoke:'VEIL',carrier:'HIVE'};
 const BASE='OVERLORD',EW='EARLY WARNING',ME='DART ONE';
 const FRIENDLY=new Set([BASE,EW,ME,'DEFENCE',...Object.values(HNAME)]);
-/* [pitch, rate] of the speech for each kind of voice: the base is low and calm, the early warning brisk, the defences high and quick, a boss slow and low */
-const VOICE={base:[.8,1.2],ew:[.95,1.3],me:[1.1,1.25],help:[1.25,1.3],peer:[1,1.25],foe:[.5,.9]};
 const vcOf=w=>w===BASE?'base':w===EW?'ew':w===ME?'me':FRIENDLY.has(w)?'help':'foe';
 /* the old subtitle's generic lines (zfx.js, zwarn.js): the events below cover them, so with the chatter on they are dropped; everything else (a boss's lines, re-entry, the radar link) passes through */
 const GENERIC=[/^(Mothership is down|Splash the Mothership|The carrier is down)/,/^(That was close\. Nice save|Good kill, right over the target|Saved it with seconds)/,/^(Splash \w+\.|Target down\.|Kill confirmed\.)$/,
@@ -44,12 +42,11 @@ const LIM=[3,4,6,99],TTL=[6,9,14,20],MAXQ=4,GAP=.45,WIN=20;
 export function initRadio(api,G,Z){
  const {TH,SITES,S}=api,$=id=>document.getElementById(id);
  {const l=document.createElement('link');l.rel='stylesheet';l.href=new URL('./zradio.css',import.meta.url).href;document.head.append(l)}
- S.zradio=S.zradio!==false;S.zrspeech=S.zrspeech!==false;S.zradiov=typeof S.zradiov==='number'&&isFinite(S.zradiov)?cl(S.zradiov,0,1):.6;  /* a hand-edited or foreign save */
- const R={env:{synth:()=>globalThis.speechSynthesis,utter:()=>globalThis.SpeechSynthesisUtterance},calls:[],q:[],cur:null,err:null,cap:GAIN_CAP,
-  st:{made:0,played:0,cut:0,by:{},drop:{quiet:0,cool:0,dup:0,rate:0,full:0,stale:0}},speech:{n:0,cancel:0,live:0,na:0,last:''},au:{n:0,peak:0}};
+ S.zradio=S.zradio!==false;S.zradiov=typeof S.zradiov==='number'&&isFinite(S.zradiov)?cl(S.zradiov,0,1):.6;  /* a hand-edited or foreign save */
+ const R={calls:[],q:[],cur:null,err:null,cap:GAIN_CAP,
+  st:{made:0,played:0,cut:0,by:{},drop:{quiet:0,cool:0,dup:0,rate:0,full:0,stale:0}},au:{n:0,peak:0}};
  const Q=R.q,pend={},last={},win=[],txtAt=new Map(),LN=[],SWG=new Set();
  let T=0,gapT=0,st0='off',sc=0,wq=true,batF=0,critW=false;
- const safe=f=>{try{return f()}catch(e){return null}};
  const hard=()=>!G.on||api.demo||api.menuOpen||G.state==='trial'||G.state==='off'||Z.stepCap>12;  /* Z.stepCap: the Bot Spectator fast-forwarding, when the sim outruns any voice */
  const quiet=()=>hard()||G.state==='over'||G.state==='base'&&!Z.so?.S.on;  /* the base screen is quiet; a sortie flown from it is not */
  const on=()=>S.zradio!==false;
@@ -69,19 +66,9 @@ export function initRadio(api,G,Z){
   g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(pk,t0+att);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);s.connect(fl).connect(g).connect(bus);s.start(t0,Math.random()*1.4,dur+.02);R.au.peak=Math.max(R.au.peak,pk*bus.gain.value)}
  function sound(){const v=vol();if(v<=0||!busOn())return;try{bus.gain.value=v*GAIN_CAP;const t0=AC.currentTime+.01;noise(t0,.04,'highpass',1800,.5,.9,.003);noise(t0+.05,.2,'bandpass',2300,.7,.35,.02);R.au.n++}catch(e){}}
 
- /* ---------- speech: speechSynthesis when the browser has it, clipped and quick; cut off with the call ---------- */
- /* the voice is looked for once it has been found (the list is read from the system, and may come late: an empty list is asked again) and again when the system says the list changed */
- let VC=null;
- const voiceFor=sy=>{if(VC)return VC;const vs=safe(()=>sy.getVoices())||[];return VC=vs.find(v=>/^en[-_]/i.test(v.lang)&&v.localService)||vs.find(v=>/^en/i.test(v.lang))||null};
- safe(()=>R.env.synth()?.addEventListener?.('voiceschanged',()=>{VC=null}));
- function speak(c){const sy=safe(R.env.synth),U=safe(R.env.utter);if(!S.zrspeech||vol()<=0)return false;if(!sy||!U){R.speech.na++;return false}
-  try{if(sy.pending)sy.cancel();const u=new U(c.txt.replace(/["“”]/g,'').replace(/—/g,','));const V=VOICE[c.vc]||VOICE.base;u.pitch=V[0];u.rate=V[1];u.volume=cl(.8*vol(),0,.8);u.lang='en-US';
-   const v=voiceFor(sy);if(v)u.voice=v;u.onend=u.onerror=()=>{if(R.speech.live>0)R.speech.live--};R.speech.live++;sy.speak(u);R.speech.n++;R.speech.last=c.txt;return true}catch(e){return false}}
- function stopSpeech(){const sy=safe(R.env.synth);if(!sy)return;try{if(R.speech.live>0||sy.speaking||sy.pending){sy.cancel();R.speech.cancel++}}catch(e){}R.speech.live=0}
-
  /* ---------- the channel: one call on the air at a time ---------- */
- function play(c){c.end=T+cl(.6+c.txt.length/18,1.1,5.5);R.cur=c;win.push(T);R.st.played++;R.calls.push({t:+T.toFixed(2),at:+c.t0.toFixed(2),pri:c.pri,who:c.who,txt:c.txt,topic:c.topic});if(R.calls.length>80)R.calls.shift();show(c);sound();speak(c)}
- function cut(){const c=R.cur;if(!c)return;c.cut=1;R.st.cut++;stopSpeech();R.cur=null;gapT=T+.1;for(const l of LN)if(l.c===c)l.d.classList.add('cut')}
+ function play(c){c.end=T+cl(.6+c.txt.length/18,1.1,5.5);R.cur=c;win.push(T);R.st.played++;R.calls.push({t:+T.toFixed(2),at:+c.t0.toFixed(2),pri:c.pri,who:c.who,txt:c.txt,topic:c.topic});if(R.calls.length>80)R.calls.shift();show(c);sound()}
+ function cut(){const c=R.cur;if(!c)return;c.cut=1;R.st.cut++;R.cur=null;gapT=T+.1;for(const l of LN)if(l.c===c)l.d.classList.add('cut')}
  function pump(){if(R.cur&&T>=R.cur.end){R.cur=null;gapT=T+GAP}if(R.cur)return;
   for(let i=Q.length-1;i>=0;i--)if(T-Q[i].t0>Q[i].ttl){Q.splice(i,1);R.st.drop.stale++}
   if(!Q.length)return;let b=0;for(let i=1;i<Q.length;i++)if(Q[i].pri>Q[b].pri)b=i;if(T<gapT&&Q[b].pri<3)return;play(Q.splice(b,1)[0])}
@@ -100,7 +87,7 @@ export function initRadio(api,G,Z){
    let out=null;try{out=GEN[k](p.L,p)}catch(e){R.err=R.err||e}for(const c of out||[])enqueue(k,c,true)}}
  /* a call that does not merge (wave edges, battery, a scripted line) */
  const say=(topic,pri,who,txt,o)=>enqueue(topic,{pri,who,txt,...o});
- function hush(){Q.length=0;for(const k in pend)delete pend[k];R.cur=null;gapT=0;win.length=0;txtAt.clear();for(const k in last)delete last[k];stopSpeech();for(const l of LN)l.d.remove();LN.length=0;SWG.clear()}
+ function hush(){Q.length=0;for(const k in pend)delete pend[k];R.cur=null;gapT=0;win.length=0;txtAt.clear();for(const k in last)delete last[k];for(const l of LN)l.d.remove();LN.length=0;SWG.clear()}
 
  /* ---------- the calls: several phrasings each, built from a merged group of events ---------- */
  const C=(pri,who,txt,o)=>({pri,who,txt,...o});
@@ -264,8 +251,8 @@ export function initRadio(api,G,Z){
  {let after=$('o_zsfxv')||$('o_zwx');const set=$('set');
   const row=(lab,inp,out,show)=>{const l=document.createElement('label');l.textContent=lab;l.htmlFor=inp.id;if(after)after.after(l,inp,out);else set?.append(l,inp,out);after=out;rows.push({els:[l,inp,out],show})};
   const sel=(key,lab,hook)=>{const i=document.createElement('select'),o=document.createElement('output');i.id='f_'+key;o.id='o_'+key;i.add(new Option('On','1'));i.add(new Option('Off','0'));
-   i.addEventListener('input',()=>{S[key]=i.value==='1';api.save();hook?.();rows.forEach(r=>r.show())});row(lab,i,o,()=>{i.value=S[key]===false?'0':'1';o.textContent=key==='zrspeech'&&!safe(R.env.synth)?'not available in this browser':''})};
-  sel('zradio','Zombies radio chatter',()=>{if(!on())hush()});sel('zrspeech','Radio speech (voice)',()=>{if(!S.zrspeech)stopSpeech()});
+   i.addEventListener('input',()=>{S[key]=i.value==='1';api.save();hook?.();rows.forEach(r=>r.show())});row(lab,i,o,()=>{i.value=S[key]===false?'0':'1';o.textContent=''})};
+  sel('zradio','Zombies radio chatter',()=>{if(!on())hush()});
   {const i=document.createElement('input'),o=document.createElement('output');i.id='f_zradiov';o.id='o_zradiov';i.type='range';i.min=0;i.max=1;i.step=.05;
    i.addEventListener('input',()=>{S.zradiov=+i.value;api.save();rows.forEach(r=>r.show())});row('Radio volume',i,o,()=>{i.value=S.zradiov;o.textContent=Math.round(S.zradiov*100)+'%'})}}
  const sync=()=>{for(const r of rows)r.show()};  /* S.gmode went with Classic: the rows used to hide unless it was 'z', so they never showed */

@@ -1,5 +1,5 @@
-// Zombies announcer and comms (DOM, styled in zfx.css): the big kill call ("DOUBLE KILL", "CLUTCH SAVE"), radio subtitles typed out under a
-// garbled voice, the end-of-wave card with stars and medals, the rolling cash counter and a red vignette when a site takes a hit.
+// Zombies announcer and comms (DOM, styled in zfx.css): the big kill call ("DOUBLE KILL", "CLUTCH SAVE"), radio subtitles typed out under squelch and
+// static, the end-of-wave card with stars and medals, the rolling cash counter and a red vignette when a site takes a hit.
 const cl=(v,a,b)=>v<a?a:v>b?b:v;
 
 import {txt,cls,money} from '../../engine/hot.js';

@@ -39,6 +39,7 @@ import {initBrief} from './zbrief.js';
 import {initEndless} from './zendless.js';
 import {initBuddy} from './zbuddy.js';
 import {initTypes} from './ztypeui.js';
+import {initDebug} from './zdebug.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 
@@ -241,7 +242,7 @@ export function initZombies(api){
  Z.helperKill=t=>{if(!api.live(t))return;t.by='h';if(KIND[t.k]?.armor==='boss'&&Z.bossHit)return Z.bossHit(t);api.killThreat(t,Math.random()<.4)};
 
  // ---------- game over ----------
- function gameOver(){G.state='over';api.wstate='over';G.cause=G.lastHit?.k||null;if(Z.cpOver?.())return;const D=DF(),nb=G.wave>bestOf(D),cur=Z.board.record(DFI(),G.wave,Z.online);  /* a campaign sector draws its own end screen (zcampaign.js) */
+ function gameOver(){G.state='over';api.wstate='over';G.cause=G.lastHit?.k||null;if(Z.cpOver?.())return;const D=DF(),nb=G.wave>bestOf(D)&&!Z.dbg?.marked,cur=Z.board.record(DFI(),G.wave,Z.online);  /* a campaign sector draws its own end screen (zcampaign.js) */
   if(nb){S.zbests={...(S.zbests||{}),[D.n]:{wave:G.wave,kills:G.kills.p+G.kills.h,earned:G.earned}};save();G.best=G.wave}
   banner('');
   $('zover').innerHTML=`<div class="zpanel zgo"><h2>Defense collapsed</h2><div class="zbig">WAVE ${G.wave}</div>
@@ -337,7 +338,7 @@ export function initZombies(api){
  initArsenal(api,G,Z);  // pilot weapons and the extra defences (zarsenal.js): after co-op, so a client's weapon goes to the host its own way
  initSortie(api,G,Z);  // sorties + fog of war (zsortie.js): goes after co-op so its bomb release wraps detonate over a client's burst
  initWarm(api,G,Z);  // idle-time warm-up: bosses, effects and damage stages compiled and uploaded before their first use (zwarm.js)
- initRadio(api,G,Z);  /* radio chatter (zradio.js): callouts from the game's state, a HUD log, squelch and speech; takes over the old radio subtitle */
+ initRadio(api,G,Z);  /* radio chatter (zradio.js): callouts from the game's state, a HUD log, squelch and static; takes over the old radio subtitle */
  initSpectate(api,G,Z);  // Bot Spectator (zspectate.js): watch a bot pilot fly the real game; it wraps the hooks above, outermost
  initSell(api,G,Z);  // selling anything you own with an Undo until the wave starts (zsell.js); the base screen reads Z.sell, so it only wraps the base open / close and start / stop
  initOnboard(api,G,Z);  /* first-wave guide (zonboard.js): a one-time walkthrough on a pilot's very first run; never for bots, co-op or automated browsers */
@@ -347,4 +348,5 @@ export function initZombies(api){
  initBuddy(api,G,Z);  /* Little Buddy (zbuddy.js): your Drone League garage quad flies as a free helper; it only adds to the step / visuals / overlay / radar / start / stop / lock hooks */
  initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
  initTypes(api,G,Z);  /* craft types (ztypeui.js, ztypes.js): the Dart or the Plane; the picker on the start card and the base screen, the HUD panel, the radio line, the saved choice */
+ initDebug(api,G,Z);  /* debug mode (zdebug.js): off unless ?debug=1 or Ctrl+Shift+D; a panel with cheats, readouts and the developer report; a marked run saves nothing; the outermost wrapper, so it goes last */
  return Z}

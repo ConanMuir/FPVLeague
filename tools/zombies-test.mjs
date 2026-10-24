@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director   run only those sections (CI shards them across jobs); default all
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director,debug   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
@@ -52,7 +52,7 @@ if (want('saves')) {
   await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'classic', diff: 2, fuse: 'manual', skin: 'strela', guide: 0, guideSw: 3, setV: 4, wx: 'clear'})));
   await p.goto(origin + '/games/interceptor/?mode=classic', {waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
   const mg = await p.evaluate(() => { const S = __z.api.S; return {gone: ['gmode', 'diff', 'fuse', 'skin', 'guide', 'guideSw'].filter(k => k in S), setV: S.setV, picker: !!document.getElementById('gmode'), play: document.getElementById('play').textContent, zdiff: !!document.getElementById('zdiff')}; });
-  ok(!mg.gone.length && mg.setV === 5 && !mg.picker && mg.play === 'Quick defence' && mg.zdiff, `Saves: an old Classic save and ?mode=classic open Zombies, no mode picker (${JSON.stringify(mg)})`);
+  ok(!mg.gone.length && mg.setV === 6 && !mg.picker && mg.play === 'Quick defence' && mg.zdiff, `Saves: an old Classic save and ?mode=classic open Zombies, no mode picker (${JSON.stringify(mg)})`);
   await p.evaluate(() => localStorage.removeItem('dl-interceptor')); await p.close();
 }
 
@@ -1780,22 +1780,24 @@ if (want('codex')) {
   await p.close();
 }
 
-// ---------- radio chatter (zradio.js): callouts from the game's state, merged and rate-limited; the HUD log, a modest squelch, speech through
-// speechSynthesis (and without it); the old subtitle taken over and given back; muted in menus; nothing left behind when a wave ends ----------
+// ---------- radio chatter (zradio.js): callouts from the game's state, merged and rate-limited; the HUD log, a modest squelch and static (no
+// voice); the old subtitle taken over and given back; muted in menus; nothing left behind when a wave ends ----------
 if (want('radio')) {
   const {p, errs} = await page();
   await play(p);
   const r0 = await p.evaluate(() => { const {S} = __z.api, {Z} = __z, R = Z.radio;
-    window.__syn = {spoken: [], cancels: 0, speaking: false, pending: false, speak(u) { this.spoken.push({text: u.text, pitch: u.pitch, rate: u.rate, volume: u.volume}); }, cancel() { this.cancels++; }, getVoices() { return []; }};
-    window.__Utt = function (t) { this.text = t; };
-    R.env.synth = () => window.__syn; R.env.utter = () => window.__Utt;  /* a speechSynthesis stand-in: what was said, and when it was cut off */
+    window.__spoke = 0; try { Object.defineProperty(window, 'speechSynthesis', {configurable: true, get: () => ({speak() { window.__spoke++; }, cancel() {}, getVoices() { return []; }})}); } catch (e) { /* no trap here */ }  /* the radio has no voice: a trap counts any attempt to speak */
     window.__rf = () => { R.flush(); for (let i = 0; i < 5; i++) R.step(2); };  /* make the merged calls due and let the channel run */
     window.__at = (brg, k = 'shahed', site = 1, rr = 5000) => __z.make(k, Math.sin(brg) * rr, 1950 - Math.cos(brg) * rr, __z.api.SITES[site]);
     window.__clr = () => { for (const u of __z.api.TH) __z.api.scene.remove(u.mesh); __z.api.TH.length = 0; const k = __at(.3, 'shahed', 0, 5000); k._rz = 1; };  /* the sky is emptied but for one far track nobody calls: the page's own loop would end the wave between two checks */
-    return {has: !!R, rows: ['f_zradio', 'f_zrspeech', 'f_zradiov'].map(id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; }), css: !!document.querySelector('link[href*="zradio.css"]'), chat: !!document.getElementById('zchat'),
-      def: [S.zradio, S.zrspeech, S.zradiov], cap: R.cap, ac: !!__z.api.AC}; });
-  ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean), 'Radio: the module is up with its HUD log, stylesheet and three settings rows (chatter, speech, volume), none of them hidden');
-  ok(r0.def[0] === true && r0.def[1] === true && r0.def[2] === .6 && r0.cap <= .1, `Radio: defaults are chatter on, speech on, volume ${r0.def[2]}; the sound cap is ${r0.cap}`);
+    return {has: !!R, rows: ['f_zradio', 'f_zradiov'].map(id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; }), css: !!document.querySelector('link[href*="zradio.css"]'), chat: !!document.getElementById('zchat'),
+      def: [S.zradio, S.zradiov], voiceRow: !!document.getElementById('f_zrspeech'), voiceKey: 'zrspeech' in S, cap: R.cap, ac: !!__z.api.AC}; });
+  ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean) && !r0.voiceRow && !r0.voiceKey, 'Radio: the module is up with its HUD log, stylesheet and two settings rows (chatter, volume), none of them hidden, and no speech row or setting');
+  ok(r0.def[0] === true && r0.def[1] === .6 && r0.cap <= .1, `Radio: defaults are chatter on, volume ${r0.def[1]}; the sound cap is ${r0.cap}`);
+  /* the old subtitle's radio sound (zaudio.js Z.au.radio, heard with the chatter off) has no synthesized voice either: a squelch, static and one roger beep, no sawtooth syllables (asked while the page is quiet: the voice budget skips it when busy) */
+  const ro = await p.evaluate(() => { const {Z, api} = __z, AC = api.AC; if (!AC || !Z.au.ready) return null; const made = [], c0 = AC.createOscillator.bind(AC); AC.createOscillator = () => { const o = c0(); made.push(o); return o; };
+    try { Z.au.radio(1.5); } finally { delete AC.createOscillator; } return made.map(o => o.type); });
+  ok(ro === null || ro.length === 1 && ro[0] === 'sine', `Radio sound: the old subtitle's call is a squelch, static and one roger beep, no voice (oscillators: ${ro && ro.join() || 'none'})`);
 
   // new tracks: three Shaheds from the east are one call, with the direction and the site they threaten
   const m1 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio;
@@ -1847,17 +1849,17 @@ if (want('radio')) {
     `Radio kill chain: boost miss, midcourse engagement, midcourse miss and a missed point defence (urgent) are called ("${ch.miss.map(m => (m[m.length - 1] || '').replace(/^\d\|/, '')).join('" / "')}")`);
 
   // the channel: an important call waits, an urgent one cuts in; a stale ambient call is dropped; repeats and chatter inside a cooldown are not said
-  const q1 = await p.evaluate(() => { const {Z} = __z, R = Z.radio, out = {}; R.hush(); R.calls.length = 0; const c0 = R.st.cut, cancels0 = __syn.cancels;
+  const q1 = await p.evaluate(() => { const {Z} = __z, R = Z.radio, out = {}; R.hush(); R.calls.length = 0; const c0 = R.st.cut;
     R.say('x', 1, 'OVERLORD', 'This is a long routine call that keeps the channel busy for a good while yes.'); const c1 = R.cur;
     R.say('y', 2, 'OVERLORD', 'Important but not urgent.'); out.imp = {cur: R.cur === c1, queued: R.q.map(c => c.txt), cut: R.st.cut - c0};
-    R.say('z', 3, 'OVERLORD', 'Urgent call.'); out.urg = {cur: R.cur?.txt, firstCut: c1.cut === 1, cut: R.st.cut - c0, cancels: __syn.cancels - cancels0};
+    R.say('z', 3, 'OVERLORD', 'Urgent call.'); out.urg = {cur: R.cur?.txt, firstCut: c1.cut === 1, cut: R.st.cut - c0};
     R.hush(); const s0 = R.st.drop.stale, d0 = R.st.drop.dup, k0 = R.st.drop.cool;
     R.say('a', 1, 'OVERLORD', 'First long call that holds the channel for quite a long while, over.'); R.say('c', 1, 'OVERLORD', 'Second long call that also holds the channel for a good while, over.'); R.say('b', 0, 'OVERLORD', 'Ambient chatter that goes stale.');
     R.step(7); R.step(1); out.stale = {dropped: R.st.drop.stale - s0, said: R.calls.some(c => /Ambient/.test(c.txt))};
     R.hush(); R.say('d', 1, 'OVERLORD', 'Same words.'); const again = R.say('d2', 1, 'OVERLORD', 'Same words.'); out.dup = {again, n: R.st.drop.dup - d0};
     R.say('kill', 0, 'DART ONE', 'Splash one.'); const k2 = R.say('kill', 0, 'DART ONE', 'Splash two.'); out.cool = {again: k2, n: R.st.drop.cool - k0}; R.hush(); return out; });
   ok(q1.imp.cur && q1.imp.queued.length === 1 && q1.imp.cut === 0, 'Radio channel: an important (priority 2) call waits for the one on the air');
-  ok(q1.urg.cur === 'Urgent call.' && q1.urg.firstCut && q1.urg.cut === 1 && q1.urg.cancels >= 1, 'Radio channel: only an urgent (priority 3) call cuts in, and the speech of the cut call is cancelled');
+  ok(q1.urg.cur === 'Urgent call.' && q1.urg.firstCut && q1.urg.cut === 1, 'Radio channel: only an urgent (priority 3) call cuts in on the one on the air');
   ok(q1.stale.dropped >= 1 && !q1.stale.said, 'Radio channel: an ambient call that waited too long is dropped, not said late');
   ok(q1.dup.again === false && q1.dup.n === 1 && q1.cool.again === false && q1.cool.n === 1, 'Radio channel: the same words twice, and a second call of a topic inside its cooldown, are not said');
 
@@ -1909,63 +1911,53 @@ if (want('radio')) {
   ok(lg.generic === 0 && lg.line && lg.line[0] === 'KOSCHEI' && lg.line[1] === 'foe' && lg.line[3] === 'line' && lg.reentry === 2, `Radio takeover: eight generic subtitle lines dropped, a boss's line and the re-entry call come through (${lg.line && lg.line.join(' / ')})`);
 
   // presentation: the log, the squelch and static, and the loudness cap
-  const au = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, S = api.S, out = {}; R.hush(); const n0 = R.au.n, sp0 = __syn.spoken.length;
+  const au = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, S = api.S, out = {}; R.hush(); const n0 = R.au.n;
     S.zradiov = 1; S.zsfxv = 1; for (const t of ['Level check one.', 'Level check two.', 'Level check three.', 'Level check four.']) { R.say('lv' + t, 2, 'OVERLORD', t); R.step(6); R.step(1); }
-    out.full = {peak: R.au.peak, bus: R.busGain(), n: R.au.n - n0, spoken: __syn.spoken.slice(sp0)}; out.lines = R.lines(); out.dom = document.querySelectorAll('#zchat .zc').length;
+    out.full = {peak: R.au.peak, bus: R.busGain(), n: R.au.n - n0}; out.lines = R.lines(); out.dom = document.querySelectorAll('#zchat .zc').length;
     S.zradiov = 9; S.zsfxv = 7; R.hush(); R.say('lvb', 2, 'OVERLORD', 'Level check five.'); out.bad = {peak: R.au.peak, bus: R.busGain()};
-    S.zradiov = 0; R.hush(); const n1 = R.au.n, sp1 = __syn.spoken.length; R.say('lvc', 2, 'OVERLORD', 'Level check six.'); out.mute = {sound: R.au.n - n1, spoken: __syn.spoken.length - sp1, logged: R.calls.at(-1)?.txt};
+    S.zradiov = 0; R.hush(); const n1 = R.au.n; R.say('lvc', 2, 'OVERLORD', 'Level check six.'); out.mute = {sound: R.au.n - n1, logged: R.calls.at(-1)?.txt};
     S.zradiov = .6; S.zsfxv = 1; R.hush(); out.ac = !!api.AC; return out; });
   ok(au.ac ? au.full.n === 4 && au.full.peak > 0 && au.full.peak <= r0.cap + 1e-9 && au.full.bus <= r0.cap + 1e-9 && au.bad.peak <= r0.cap + 1e-9 && au.bad.bus <= r0.cap + 1e-9 : true,
     `Radio sound: a squelch click and a static burst per call (${au.full.n} for 4 calls); loudest ${au.full.peak.toFixed(3)} at full volume, ${au.bad.bus.toFixed(3)} even with a bad volume setting, cap ${r0.cap}`);
   ok(au.lines.length === 3 && au.dom === 3 && /Level check four/.test(au.lines[2]), `Radio log: the HUD shows the last three calls (${au.lines.map(l => l.replace(/^OVERLORD/, '')).join(' | ')})`);
-  ok(au.mute.sound === 0 && au.mute.spoken === 0 && au.mute.logged === 'Level check six.', 'Radio volume 0: the call is still logged on the HUD but there is no sound and no speech');
+  ok(au.mute.sound === 0 && au.mute.logged === 'Level check six.', 'Radio volume 0: the call is still logged on the HUD but there is no sound');
 
-  // speech: clipped and quick; cut with the call; off in the settings; absent in the browser
-  const sp = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, S = api.S, out = {}; R.hush(); R.calls.length = 0; __syn.spoken.length = 0;
-    R.say('s1', 2, 'OVERLORD', 'Speech check one.'); R.say('s2', 3, 'EARLY WARNING', 'Speech check two.'); R.hush(); R.say('s3', 2, 'KOSCHEI', '"Speech check three."');
-    out.said = __syn.spoken.map(s => s.text); out.v = __syn.spoken.map(s => [s.pitch, s.rate, s.volume]);
-    R.hush(); S.zrspeech = false; const n0 = __syn.spoken.length; R.say('s4', 2, 'OVERLORD', 'Speech check four.'); out.off = {spoken: __syn.spoken.length - n0, logged: R.calls.at(-1)?.txt}; S.zrspeech = true;
-    R.hush(); const na0 = R.speech.na; R.env.synth = () => undefined; R.say('s5', 2, 'OVERLORD', 'Speech check five.'); out.none = {na: R.speech.na - na0, logged: R.calls.at(-1)?.txt, lines: R.lines().length};
-    R.hush(); R.env.synth = () => { throw new Error('no speech here'); }; R.say('s6', 2, 'OVERLORD', 'Speech check six.'); out.throws = R.calls.at(-1)?.txt;
-    R.env.synth = () => window.__syn; R.hush(); R.env.utter = () => { throw new Error('no utterance'); }; R.say('s7', 2, 'OVERLORD', 'Speech check seven.'); out.badUtter = R.calls.at(-1)?.txt;
-    R.env.utter = () => window.__Utt; R.hush(); return out; });
-  ok(sp.said.length === 3 && sp.said[0] === 'Speech check one.' && sp.said[2] === 'Speech check three.' && sp.v.every(([pi, ra, vo]) => pi > .3 && pi < 1.5 && ra >= .85 && ra <= 1.4 && vo > 0 && vo <= .8), `Radio speech: spoken through speechSynthesis, clipped and quick (pitch / rate / volume ${sp.v.map(v => v.join('/')).join(', ')}); a boss voices lower and slower`);
-  ok(sp.v[2][0] < sp.v[0][0] && sp.v[2][1] < sp.v[0][1], 'Radio speech: the base, the defences and a boss voice differ in pitch and rate');
-  ok(sp.off.spoken === 0 && sp.off.logged === 'Speech check four.', 'Radio speech: off in the settings, the call still shows on the HUD');
-  ok(sp.none.na === 1 && sp.none.logged === 'Speech check five.' && sp.none.lines >= 1 && sp.throws === 'Speech check six.' && sp.badUtter === 'Speech check seven.', 'Radio speech: no speechSynthesis in the browser (or one that throws) is handled: the calls still run, log and sound');
+  // no voice: nothing in all of that asked the browser to speak
+  const nv = await p.evaluate(() => ({spoke: window.__spoke, n: __z.Z.radio.calls.length}));
+  ok(nv.spoke === 0 && nv.n > 0, `Radio: ${nv.n} calls were made and none was spoken (the radio is text, squelch and static only; speak() called ${nv.spoke} times)`);
 
   // muted in menus
-  const mu = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, out = {}; __clr(); __at(.3, 'shahed', 0, 5000); R.hush(); R.calls.length = 0; const sp0 = __syn.spoken.length, q0 = R.st.drop.quiet;
+  const mu = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, out = {}; __clr(); __at(.3, 'shahed', 0, 5000); R.hush(); R.calls.length = 0; const q0 = R.st.drop.quiet;
     R.say('m1', 1, 'OVERLORD', 'Menu check before.'); out.before = R.cur?.txt; api.showMenu(true); __z.sim(.3);
     out.cleared = !R.cur && !R.q.length && R.lines().length === 0; const ok1 = R.say('m2', 1, 'OVERLORD', 'Menu check during.'); out.during = {ok: ok1, drop: R.st.drop.quiet - q0, cur: R.cur?.txt};
     api.showMenu(false); R.hush(); const ok2 = R.say('m3', 1, 'OVERLORD', 'Menu check after.'); out.after = {ok: ok2, cur: R.cur?.txt}; R.hush(); return out; });
-  ok(mu.before === 'Menu check before.' && mu.cleared && mu.during.ok === false && mu.during.drop === 1 && !mu.during.cur && mu.after.ok === true, 'Radio menus: opening the menu hushes the channel (speech cancelled, log cleared) and nothing is said while it is open');
+  ok(mu.before === 'Menu check before.' && mu.cleared && mu.during.ok === false && mu.during.drop === 1 && !mu.during.cur && mu.after.ok === true, 'Radio menus: opening the menu hushes the channel (log cleared) and nothing is said while it is open');
 
   // the settings rows, saved with the rest; Off gives the old subtitle back
-  await p.select('#f_zradio', '0'); await p.select('#f_zrspeech', '0'); await p.$eval('#f_zradiov', e => { e.value = '.3'; e.dispatchEvent(new Event('input')); });
-  const sv = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, out = {}, s = JSON.parse(localStorage.getItem('dl-interceptor')); out.saved = [s.zradio, s.zrspeech, s.zradiov]; out.live = [api.S.zradio, api.S.zrspeech, api.S.zradiov];
+  await p.select('#f_zradio', '0'); await p.$eval('#f_zradiov', e => { e.value = '.3'; e.dispatchEvent(new Event('input')); });
+  const sv = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, out = {}, s = JSON.parse(localStorage.getItem('dl-interceptor')); out.saved = [s.zradio, s.zradiov]; out.live = [api.S.zradio, api.S.zradiov];
     R.hush(); const n0 = R.st.made; Z.an.radio('OVERLORD', 'Sky is clear. Rearm and stand by.', 1); Z.an.radioTick(); out.legacy = {cls: document.getElementById('zradio').className, made: R.st.made - n0}; Z.an.radioClear?.();
     out.sayOff = R.say('off1', 2, 'OVERLORD', 'Radio is off.'); return out; });
-  ok(sv.saved[0] === false && sv.saved[1] === false && sv.saved[2] === .3 && sv.live[0] === false, `Radio settings: chatter, speech and volume are saved with the other settings (${sv.saved.join(', ')})`);
+  ok(sv.saved[0] === false && sv.saved[1] === .3 && sv.live[0] === false, `Radio settings: chatter and volume are saved with the other settings (${sv.saved.join(', ')})`);
   ok(/on/.test(sv.legacy.cls) && sv.legacy.made === 0 && sv.sayOff === false, 'Radio settings: with the chatter off the old radio subtitle comes back and nothing is queued');
-  await p.select('#f_zradio', '1'); await p.select('#f_zrspeech', '1'); await p.$eval('#f_zradiov', e => { e.value = '.6'; e.dispatchEvent(new Event('input')); });
+  await p.select('#f_zradio', '1'); await p.$eval('#f_zradiov', e => { e.value = '.6'; e.dispatchEvent(new Event('input')); });
 
-  // the end of this scripted wave (the sky is emptied): the clear is called, and when the base screen opens nothing is left on the air, in the queue, on the HUD or in a speech queue
-  const w0 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}; for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0; R.hush(); R.calls.length = 0; const by0 = R.st.by.wave | 0, c0 = __syn.cancels; G.wq.length = 0;
+  // the end of this scripted wave (the sky is emptied): the clear is called, and when the base screen opens nothing is left on the air, in the queue or on the HUD
+  const w0 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}; for (const u of api.TH) api.scene.remove(u.mesh); api.TH.length = 0; R.hush(); R.calls.length = 0; const by0 = R.st.by.wave | 0; G.wq.length = 0;
     let n = 0; while (G.state !== 'base' && n++ < 40) __z.sim(.5);
-    out.state = G.state; out.by = (R.st.by.wave | 0) - by0; out.calls = R.calls.map(c => c.topic + '|' + c.txt); out.cancelled = __syn.cancels - c0;
-    out.left = {q: R.q.length, cur: !!R.cur, pend: R.pend().length, lines: R.lines().length, dom: document.querySelectorAll('#zchat .zc').length, sw: R.sw(), live: R.speech.live}; return out; });
+    out.state = G.state; out.by = (R.st.by.wave | 0) - by0; out.calls = R.calls.map(c => c.topic + '|' + c.txt);
+    out.left = {q: R.q.length, cur: !!R.cur, pend: R.pend().length, lines: R.lines().length, dom: document.querySelectorAll('#zchat .zc').length, sw: R.sw()}; return out; });
   ok(w0.state === 'base' && w0.by === 1 && /^wave\|.*(Sky is clear|held|defeated|All tracks down)/.test(w0.calls[0] || ''), `Radio wave end: the clear is called ("${(w0.calls[0] || '').split('|')[1]}")`);
-  ok(w0.left.q === 0 && !w0.left.cur && w0.left.pend === 0 && w0.left.lines === 0 && w0.left.dom === 0 && w0.left.sw === 0 && w0.left.live === 0 && w0.cancelled >= 1, `Radio wave end: the base screen opens quiet, nothing left (queue ${w0.left.q}, on air ${w0.left.cur}, merging ${w0.left.pend}, HUD lines ${w0.left.lines}/${w0.left.dom}, speech queued ${w0.left.live}; the clear's speech cut: ${w0.cancelled})`);
+  ok(w0.left.q === 0 && !w0.left.cur && w0.left.pend === 0 && w0.left.lines === 0 && w0.left.dom === 0 && w0.left.sw === 0, `Radio wave end: the base screen opens quiet, nothing left (queue ${w0.left.q}, on air ${w0.left.cur}, merging ${w0.left.pend}, HUD lines ${w0.left.lines}/${w0.left.dom})`);
 
   // a whole wave played by the director and a bot: the start and the end are called, kills and tracks in between, and again nothing is left when the base screen opens
-  const w1 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}; R.hush(); R.calls.length = 0; const by0 = {...R.st.by}, cancels0 = __syn.cancels;
+  const w1 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}; R.hush(); R.calls.length = 0; const by0 = {...R.st.by};
     __z.cont(); for (let i = 0; i < 700 && G.state !== 'base'; i++) { __z.sim(.5); if (api.player.dead <= 0 && Math.random() < .5) __z.botKill(.8); }
     out.state = G.state; out.by = Object.fromEntries(Object.keys(R.st.by).map(k => [k, R.st.by[k] - (by0[k] | 0)])); out.calls = R.calls.map(c => c.topic + '|' + c.txt);
-    __z.sim(.2); out.left = {state: G.state, q: R.q.length, cur: !!R.cur, pend: R.pend().length, lines: R.lines().length, dom: document.querySelectorAll('#zchat .zc').length, sw: R.sw(), live: R.speech.live, cancelled: __syn.cancels - cancels0};
+    __z.sim(.2); out.left = {state: G.state, q: R.q.length, cur: !!R.cur, pend: R.pend().length, lines: R.lines().length, dom: document.querySelectorAll('#zchat .zc').length, sw: R.sw()};
     out.err = R.err && String(R.err.stack || R.err); out.th = api.TH.filter(api.live).map(t => t.k).join(); out.wave = G.wave; return out; });
   ok(w1.state === 'base' && w1.by.wave >= 2 && w1.calls.some(c => /^wave\|(Wave|Stand to)/.test(c)) && w1.calls.length >= 3, `Radio wave: a wave played end to end made ${w1.calls.length} calls, the start and the end among them (${w1.by.wave} wave calls)`);
-  ok(w1.left.state === 'base' && w1.left.q === 0 && !w1.left.cur && w1.left.pend === 0 && w1.left.lines === 0 && w1.left.dom === 0 && w1.left.sw === 0 && w1.left.live === 0, `Radio wave end: the base screen is quiet, nothing left (queue ${w1.left.q}, on air ${w1.left.cur}, merging ${w1.left.pend}, HUD lines ${w1.left.lines}/${w1.left.dom}, speech queued ${w1.left.live})`);
+  ok(w1.left.state === 'base' && w1.left.q === 0 && !w1.left.cur && w1.left.pend === 0 && w1.left.lines === 0 && w1.left.dom === 0 && w1.left.sw === 0, `Radio wave end: the base screen is quiet, nothing left (queue ${w1.left.q}, on air ${w1.left.cur}, merging ${w1.left.pend}, HUD lines ${w1.left.lines}/${w1.left.dom})`);
 
   // sorties: the launch, an AA lock, hits on the hull, salvage banked, a site found and destroyed; a lost sortie is called
   const so = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, so = __z.so, W = so.W, out = {}; R.hush(); R.calls.length = 0; so.S.used = -1; so.W.calm = true;
@@ -1986,14 +1978,14 @@ if (want('radio')) {
   ok(!errs.length, 'Radio: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
 
-  // odd saved values (hand-edited or foreign) fall back to the defaults, and the game still plays
+  // odd saved values (hand-edited or foreign) fall back to the defaults, a saved speech setting is dropped (settings v6), and the game still plays
   const bad = [];
   for (const save of [{gmode: 'z', zradio: 'x', zrspeech: 5, zradiov: 'loud'}, {gmode: 'z', zradio: null, zrspeech: [], zradiov: 9}, {gmode: 'z', zradiov: -3}, {gmode: 'z', zradiov: null}, {gmode: 'z', zradio: false, zrspeech: false}]) {
     const e2 = [], p2 = await open(browser, origin + '/games/interceptor/', e2);
     await p2.evaluate(s => localStorage.setItem('dl-interceptor', JSON.stringify(s)), save); await p2.reload({waitUntil: 'load'});
     const up = await p2.waitForFunction(() => window.__z, {timeout: 60000}).then(() => true, () => false);
     let r = null;
-    if (up) { await sleep(200); await p2.click('#play'); await sleep(300); r = await p2.evaluate(() => { const {G, Z, api} = __z; if (G.on) __z.cont(); __z.sim(5); const S = api.S; return {z: S.zradio, s: S.zrspeech, v: S.zradiov, ok: typeof S.zradiov === 'number' && S.zradiov >= 0 && S.zradiov <= 1 && typeof S.zradio === 'boolean' && typeof S.zrspeech === 'boolean', err: Z.radio.err && String(Z.radio.err)}; }); }
+    if (up) { await sleep(200); await p2.click('#play'); await sleep(300); r = await p2.evaluate(() => { const {G, Z, api} = __z; if (G.on) __z.cont(); __z.sim(5); const S = api.S; return {z: S.zradio, s: 'zrspeech' in S, v: S.zradiov, ok: typeof S.zradiov === 'number' && S.zradiov >= 0 && S.zradiov <= 1 && typeof S.zradio === 'boolean' && !('zrspeech' in S), err: Z.radio.err && String(Z.radio.err)}; }); }
     if (!up || e2.length || !r?.ok || r.err) bad.push(JSON.stringify(save) + ' -> ' + JSON.stringify(r) + (up ? '' : ' (page never came up)') + (e2.length ? ' ' + e2[0] : ''));
     await p2.evaluate(() => localStorage.removeItem('dl-interceptor')); await p2.close();
   }
@@ -2011,6 +2003,7 @@ if (want('onboard')) {
   const inject = async p => {  /* the page's helpers (they go with a reload) */
     await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3);
     await p.evaluate(() => {
+      window.__spoke = 0; try { Object.defineProperty(window, 'speechSynthesis', {configurable: true, get: () => ({speak() { window.__spoke++; }, cancel() {}, getVoices() { return []; }})}); } catch (e) { /* no trap here */ }  /* the guide has no voice: a trap counts any attempt to speak */
       window.__u = (fn, max = 20) => { for (let i = 0; i < max * 4 && !fn(); i++) __z.sim(.25); return !!fn(); };  /* sim until fn() or max seconds */
       window.__key = (code, down = true) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', {code}));
       window.__hold = (n, fn) => { for (let i = 0; i < n; i++) { const t = __z.api.TH.find(__z.api.live); if (t) __z.Z.lk.force(t); __z.sim(.1); if (fn()) return true; } return !!fn(); };  /* keep the lock on the first track while the sim runs */
@@ -2035,9 +2028,9 @@ if (want('onboard')) {
   ok(m0.api && m0.css && m0.skip2 === true && !m0.g.card && !m0.g.on, 'Onboard: the module is up with its stylesheet; nothing shows on the menu');
   await play(p);
   await p.evaluate(() => __u(() => __z.Z.onboard.step === 'brief', 3));
-  const b0 = await p.evaluate(() => ({g: __g(), skip: !!document.getElementById('zobskip'), skip2: document.getElementById('zobskip2').hidden, calls: __z.Z.radio.calls.filter(c => c.topic === 'guide').map(c => c.who), base: !document.getElementById('zbase').hidden}));
+  const b0 = await p.evaluate(() => ({g: __g(), skip: !!document.getElementById('zobskip'), skip2: document.getElementById('zobskip2').hidden, spoke: window.__spoke, calls: __z.Z.radio.calls.filter(c => c.topic === 'guide').map(c => c.who), base: !document.getElementById('zbase').hidden}));
   ok(b0.g.on && b0.g.why === '' && b0.g.flag === 1 && b0.g.step === 'brief' && b0.g.shown && /Briefing/.test(b0.g.text) && b0.skip && b0.base, `Onboard: the first run starts the guide at the Briefing and saves the flag at once (flag ${b0.g.flag}, step ${b0.g.step})`);
-  ok(b0.calls[0] === 'OVERLORD', `Onboard: OVERLORD says it on the radio too (${b0.calls.join()})`);
+  ok(b0.calls[0] === 'OVERLORD' && b0.spoke === 0, `Onboard: OVERLORD's line goes on the radio log as text and static; nothing is spoken (${b0.calls.join()}; speak() called ${b0.spoke} times)`);
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-guide-brief.png'});
   const w0 = await p.evaluate(() => { __z.cont(); const {G, Z} = __z; return {at: G.wq.map(q => q.at), n: G.wq.length, gentle: Z.onboard.gentle}; });
   ok(w0.gentle && w0.n <= 3 && w0.at[0] === 3 && w0.at[1] > 25, `Onboard: wave 1 starts gentler: at most 3 tracks, the first at ${w0.at[0]} s, the rest spread (${w0.at.join('/')} s)`);
@@ -3049,6 +3042,243 @@ if (want('director')) {
   ok(!off.act && !off.lt && !off.kb && off.fov && off.mode === 1 && off.on && off.stopped && off.booms === 0 && off.cam, `Director: switching to another camera or stopping turns it off (hooks idle, field of view and camera mode back, no elements left) (${JSON.stringify(off)})`);
   ok(!errs.length, 'Director: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
   await p.close();
+}
+
+// ---------- debug mode (zdebug.js, zdbgcheat.js, zdbgreport.js, zdbglog.js): off by default; the panel, every cheat, a marked run saves nothing, the report and the console ring buffer; no speech anywhere ----------
+if (want('debug')) {
+  const GURL = origin + '/games/interceptor/', DKEY = 'dl-interceptor';
+  /* the build stamp is generated, not in git (tools/version.mjs): make it for the "with the file" half, move it away for the "without" half below */
+  const {write: stampWrite} = await import('./version.mjs'), {fileURLToPath: toPath} = await import('node:url'), VFILE = toPath(new URL('../games/interceptor/version.js', import.meta.url));
+  stampWrite();
+  /* a page on a fresh save (extra: more saved keys) with the given query; the clipboard and the downloads are stand-ins that keep what they were given */
+  const dpage = async (qs, errs, extra = {}) => {
+    const p = await open(browser, GURL + qs, errs);
+    await p.evaluate((x, k) => { sessionStorage.setItem('zbossRoster', '0'); localStorage.setItem(k, JSON.stringify({wx: 'clear', ...x})); }, extra, DKEY);
+    await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 5); await drawFrames(p);
+    await p.evaluate(() => {
+      window.__dl = []; window.__clip = null; const c0 = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () { if (this.download) { const rec = {name: this.download}; window.__dl.push(rec); fetch(this.href).then(r => r.blob()).then(b => { rec.type = b.type; rec.size = b.size; if (/text/.test(b.type)) b.text().then(t => { rec.text = t; }); }); return; } return c0.call(this); };
+      Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async t => { window.__clip = t; }}});
+    });
+    return p;
+  };
+  const ev = (p, fn, ...a) => p.evaluate(fn, ...a);
+  const pressF8 = async p => { await p.keyboard.press('F8'); await frames(p, 2); };
+
+  // ---- off by default: no panel, no stylesheet, the console untouched, the cheats refuse; the chord turns it on and the save remembers (an automated browser still needs ?debug=1) ----
+  const e0 = [], p0 = await dpage('', e0);
+  const off = await ev(p0, () => ({panel: !!document.getElementById('zdbg'), btn: !!document.getElementById('zdbgbtn'), css: !!document.querySelector('link[href*="zdebug.css"]'), on: __z.Z.dbg.on,
+    nat: /native code/.test(Function.prototype.toString.call(console.error)), refuse: __z.Z.dbg.c.money(5), flag: JSON.parse(localStorage.getItem('dl-interceptor')).zdbg, fps: __z.Z.dbg.fps.frames}));
+  ok(!off.panel && !off.btn && !off.css && !off.on && off.nat && off.refuse === false && off.flag === undefined && off.fps === 0, `Debug: without the flag there is no panel, button or stylesheet, the console is untouched and no frame is sampled (${JSON.stringify(off)})`);
+  await p0.keyboard.down('Control'); await p0.keyboard.down('Shift'); await p0.keyboard.press('KeyD'); await p0.keyboard.up('Shift'); await p0.keyboard.up('Control'); await frames(p0, 3);
+  const ch = await ev(p0, () => { const el = document.getElementById('zdbg'); return {on: __z.Z.dbg.on, panel: !!el && !el.hidden, btn: !!el && !document.getElementById('zdbgbtn').hidden, css: !!document.querySelector('link[href*="zdebug.css"]'), flag: JSON.parse(localStorage.getItem('dl-interceptor')).zdbg}; });
+  ok(ch.on && ch.css && ch.flag === 1 && ch.panel === false && ch.btn === true, `Debug: Ctrl+Shift+D turns it on, loads the panel (a DBG button over the start menu, so the menu stays usable) and remembers it in the save (${JSON.stringify(ch)})`);
+  await p0.reload({waitUntil: 'load'}); await p0.waitForFunction(() => window.__z, {timeout: 60000});
+  const auto = await ev(p0, () => ({on: __z.Z.dbg.on, panel: !!document.getElementById('zdbg'), flag: JSON.parse(localStorage.getItem('dl-interceptor')).zdbg}));
+  ok(!auto.on && !auto.panel && auto.flag === 1, 'Debug: an automated browser ignores the saved flag (the benches and bots never see the panel) unless ?debug=1 is in the URL');
+  await p0.keyboard.down('Control'); await p0.keyboard.down('Shift'); await p0.keyboard.press('KeyD'); await p0.keyboard.up('Shift'); await p0.keyboard.up('Control'); await frames(p0, 2);
+  const ch2 = await ev(p0, () => ({on: __z.Z.dbg.on, flag: JSON.parse(localStorage.getItem('dl-interceptor')).zdbg, panel: !!document.getElementById('zdbg')}));
+  ok(ch2.on && ch2.panel === true && ch2.flag === 1, 'Debug: the chord toggles (on again here)');
+  await p0.keyboard.down('Control'); await p0.keyboard.down('Shift'); await p0.keyboard.press('KeyD'); await p0.keyboard.up('Shift'); await p0.keyboard.up('Control'); await frames(p0, 2);
+  const ch3 = await ev(p0, () => ({on: __z.Z.dbg.on, flag: JSON.parse(localStorage.getItem('dl-interceptor')).zdbg, panel: !document.getElementById('zdbg').hidden, btn: document.getElementById('zdbgbtn').hidden}));
+  ok(!ch3.on && ch3.flag === undefined && !ch3.panel && ch3.btn, 'Debug: and off again: the panel and the button hide and the flag is forgotten');
+  ok(!e0.length, 'Debug off: no errors' + (e0.length ? '\n  ' + e0.join('\n  ') : ''));
+  await p0.close();
+
+  // ---- ?debug=1: the panel stays a DBG button over the start menu; F8 and the button open it; the readouts ----
+  const e1 = [], p1 = await dpage('?debug=1', e1);
+  const on1 = await ev(p1, () => { const el = document.getElementById('zdbg'); return {exists: !!el, hidden: el.hidden, btn: !document.getElementById('zdbgbtn').hidden, css: !!document.querySelector('link[href*="zdebug.css"]'),
+    saved: JSON.parse(localStorage.getItem('dl-interceptor')).zdbg, sections: [...el.querySelectorAll('summary')].map(s => s.firstChild.textContent.trim()).join('/'), buttons: el.querySelectorAll('button[data-a]').length,
+    toast: document.getElementById('zdtoast').textContent}; });
+  ok(on1.exists && on1.hidden && on1.btn && on1.css && on1.saved === undefined && on1.sections === 'Live/Cheats/Report' && on1.buttons >= 25 && /DEBUG ON/.test(on1.toast), `Debug: ?debug=1 loads the panel (${on1.sections}, ${on1.buttons} buttons) behind a DBG button so the start menu stays usable, says how to use it, and an automated browser saves nothing`);
+  await pressF8(p1);
+  const f8 = await ev(p1, () => ({panel: !document.getElementById('zdbg').hidden, btn: document.getElementById('zdbgbtn').hidden}));
+  await pressF8(p1);
+  const f8b = await ev(p1, () => ({panel: document.getElementById('zdbg').hidden, btn: !document.getElementById('zdbgbtn').hidden}));
+  await p1.click('#zdbgbtn'); await frames(p1, 2);
+  const f8c = await ev(p1, () => ({panel: !document.getElementById('zdbg').hidden, btn: document.getElementById('zdbgbtn').hidden}));
+  ok(f8.panel && f8.btn && f8b.panel && f8b.btn && f8c.panel && f8c.btn, 'Debug: F8 shows and hides the panel, the DBG button brings it back');
+  await sleep(1500); await frames(p1, 20);
+  const lv = await ev(p1, () => { const d = __z.Z.dbg, r = document.getElementById('zdr').textContent, f = d.fps; return {r, frames: f.frames, hist: f.hist.length, calls: f.calls, p99: f.p99(), now: f.now()}; });
+  ok(/FPS \d+/.test(lv.r) && /p99 [\d.]+ ms/.test(lv.r) && /tick \d+/.test(lv.r) && /frames \d+/.test(lv.r) && /tracks \d+ live/.test(lv.r) && /heap/.test(lv.r) && /draw \d+ calls/.test(lv.r) && /wave \d+/.test(lv.r) && /boss:/.test(lv.r) && /co-op: solo/.test(lv.r),
+    'Debug readouts: FPS, frame p99, ticks and frames, tracks, draw calls, memory, the wave, the boss and the co-op role\n' + lv.r);
+  ok(lv.frames > 10 && lv.hist >= 1 && lv.p99 > 0 && lv.now.fps > 0 && (CI || lv.calls > 0), `Debug readouts: the frame sampler runs (${lv.frames} frames, ${lv.hist} s of history, p99 ${lv.p99.toFixed(1)} ms, ${lv.calls} draw calls)`);
+  await pressF8(p1);
+
+
+  // ---- the cheats, in a run ----
+  await play(p1);
+  const mo = await ev(p1, () => { const {G, Z} = __z, c0 = G.cash, D = Z.dbg; const r = D.c.money(10000);
+    return {gain: G.cash - c0, r: r === G.cash, marked: D.marked, names: D.cheats.map(c => c.name), badge: document.getElementById('zdm').textContent, hasMark: Z.dbg.events(60000).some(e => e.type === 'debug')}; });
+  ok(mo.gain === 10000 && mo.r && mo.marked && mo.names.join() === 'money' && mo.badge === 'DEBUG RUN' && mo.hasMark, `Debug cheat money: +$${mo.gain}, the run is marked (${mo.badge}) and the use is recorded`);
+  const pk = await ev(p1, () => { const {G, Z} = __z, c = Z.dbg.c, o = {};
+    o.rocket = c.perk('rocket'); o.lvlRocket = Z.perkLevel('rocket'); o.swarm = c.perk('swarm', 2); o.lvlSwarm = Z.perkLevel('swarm'); o.owned = Z.rk.st.armed;
+    c.allPerks(); o.maxed = Object.keys(__z.ITEMS).filter(k => __z.ITEMS[k].type === 'perk').every(k => Z.perkMaxed(k)); o.optics = Z.perkLevel('optics');
+    o.helper = c.helper('gepard') > 0 && Z.def.D.some(d => d.type === 'gepard'); o.supply = (c.supply('harden'), !!G.sup.harden);
+    o.weapon = c.weapon('net'); o.wOwn = Z.ars.P(Z.ars.me()).own.has('net') && Z.ars.cur() === 'net'; o.allW = c.allWeapons(); o.bad = [c.perk('nope'), c.helper('rocket'), c.supply('rack'), c.weapon('nope')];
+    return o; });
+  ok(pk.rocket === 1 && pk.lvlRocket === 1 && pk.swarm === 2 && pk.lvlSwarm === 2 && pk.maxed && pk.optics === 3, `Debug cheat perks: Rocket Assist (level ${pk.lvlRocket}), the swarm (level ${pk.lvlSwarm}), all of them at their top`);
+  ok(pk.helper && pk.supply && pk.weapon === 'net' && pk.wOwn && pk.allW >= 7 && pk.bad.every(x => x === false), 'Debug cheat grants: a helper in a free position, a supply, a pilot weapon (loaded), every weapon; unknown ids are refused');
+  const un = await ev(p1, async () => { const {G, Z} = __z, c = Z.dbg.c, W = (await import('/games/interceptor/zarsdata.js')).WPN, o = {};
+    o.before = Z.itemFrom('gdome'); c.unlock(true); o.on = Z.itemFrom('gdome'); o.wp = W.dart.from; Z.base.refresh(); const i = G.cards.findIndex(k => k.k === 'gdome'), b = document.querySelector(`[data-buy="${i}"]`); o.btn = b && !b.disabled && /Buy/.test(b.textContent);
+    c.unlock(false); o.off = Z.itemFrom('gdome'); o.wpOff = W.dart.from; return o; });
+  ok(un.before > 1 && un.on === 1 && un.wp === 1 && un.btn && un.off === un.before && un.wpOff > 1, `Debug cheat unlock shop: Golden Dome from wave ${un.before} is open at once and buyable, the pilot weapons too; off puts them back`);
+  const wv = await ev(p1, () => { const {G, Z, api} = __z, c = Z.dbg.c, o = {}; c.wave(12); o.a = [G.wave, G.state, !!G.next, G.next && G.next.q.length > 0]; __z.cont(); o.b = [G.wave, G.state, api.liveSites().length];
+    c.wave(25); o.c = [G.wave, G.state, api.SITES.length]; c.wave(4); o.d = [G.wave, G.state, api.SITES.length, api.TH.filter(api.live).length]; return o; });
+  ok(wv.a[0] === 11 && wv.a[1] === 'base' && wv.a[2] && wv.a[3] && wv.b[0] === 12 && wv.b[1] === 'wave' && wv.c[0] === 24 && wv.c[1] === 'base' && wv.d[0] === 3 && wv.d[1] === 'base' && wv.d[2] === 3 && wv.d[3] === 0,
+    `Debug cheat wave: jumps to wave 12 (base screen with its plan, then wave 12 starts), 25 from inside a wave, and back to 4 without the bunker (${JSON.stringify(wv)})`);
+  const sp = await ev(p1, () => { const {G, Z, api} = __z, c = Z.dbg.c, o = {}, live = () => api.TH.filter(api.live);
+    __z.cont(); G.wq.length = 0; c.clearTracks(); const n0 = live().length; o.made = c.spawn('cruise', 3, 90); const cr = live().filter(t => t.k === 'cruise'); o.cruise = cr.length; o.east = cr.every(t => t.p.x > 5000);
+    o.far = c.spawn('ballistic', 1, -45, 30000); o.sw = c.spawn('swarm', 8, 0, 4000); o.swn = live().filter(t => t.k === 'swarm').length; o.grp = new Set(live().filter(t => t.k === 'swarm').map(t => t.grp)).size;
+    o.boss = c.spawn('boss', 1, 0); o.mship = live().some(t => t.k === 'boss'); c.clearTracks(); o.cleared = live().length;
+    const hidden = Object.keys(__z.KIND).filter(k => __z.KIND[k].bossy && !__z.KIND[k].minor); o.bosses = {}; for (const k of hidden) { o.bosses[k] = c.spawn(k, 1, 0); c.clearTracks(); } o.n = hidden.length; return o; });
+  ok(sp.made === 3 && sp.cruise === 3 && sp.east && sp.far === 1 && sp.sw === 8 && sp.swn === 8 && sp.grp === 1 && sp.boss === 1 && sp.mship && sp.cleared === 0, `Debug cheat spawn: 3 cruise missiles from the east (bearing 90), a ballistic at 30 km, an 8-drone swarm in one group, the Mothership; clear tracks empties the sky (${JSON.stringify({made: sp.made, east: sp.east, swn: sp.swn, grp: sp.grp})})`);
+  ok(sp.n >= 10 && Object.values(sp.bosses).every(v => v === 1), `Debug cheat spawn: every boss in the registry (${sp.n}, the hidden ones too) can be spawned: ${Object.entries(sp.bosses).filter(([, v]) => v !== 1).map(([k]) => k).join() || 'all did'}`);
+  await ev(p1, () => { const {G} = __z; window.__keep = () => { if (G.state === 'base') __z.cont(); if (G.state === 'wave') { G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); } };  /* the wave stays open: nothing spawns, nothing ends it */ });
+  const gd = await ev(p1, () => { const {G, Z, api} = __z, c = Z.dbg.c, o = {}, me = api.player; __keep(); c.clearTracks(); api.launch(); __z.sim(.2); o.a = c.god(true);
+    api.lose('shot'); o.shot = me.dead <= 0; api.lose('crash'); o.crash = me.dead <= 0; me.mah = api.BCAP * 3; __z.sim(.1); o.bat = [me.dead <= 0, me.mah < 1];
+    c.burn(); o.burn = Z.rk.st.t; Z.rk.st.t = 2; __z.sim(1); o.hold = Z.rk.st.t > 10; o.lg = Z.dbg.events(60000).some(e => e.type === 'god');
+    api.lose('det'); o.det = me.dead > 0; c.god(false); api.launch(); __z.sim(.2); o.off = c.god(false); api.lose('shot'); o.dies = me.dead > 0; api.launch(); __z.sim(.2); return o; });
+  ok(gd.a === true && gd.shot && gd.crash && gd.bat[0] && gd.bat[1] && gd.burn > 14 && gd.hold && gd.lg && gd.det && gd.dies, `Debug cheat god mode: a hit, a crash and a flat pack do not lose the interceptor, the battery stays full and the burn does not run out (burn ${gd.burn}); the burst still spends it; off, a hit kills`);
+  const ts = await ev(p1, () => { const {G, Z, api} = __z, c = Z.dbg.c, o = {}; __keep(); o.base = Z.tsc; c.timeScale(4); o.x4 = Z.tsc; o.cap = Z.stepCap; c.timeScale(.25); o.slow = Z.tsc; c.timeScale(99); o.max = Z.tsc;
+    c.pause(true); o.paused = Z.tsc; const t0 = api.tick; o.step = [c.step(12), api.tick - t0]; o.stepIn = c.step(1) === 1; c.pause(false); c.timeScale(1); o.back = [Z.tsc, Z.stepCap]; return o; });
+  ok(ts.x4 === 4 * ts.base && ts.cap === 48 && ts.slow === .25 * ts.base && ts.max === 8 * ts.base && ts.paused === 0 && ts.step[0] === 12 && ts.step[1] === 12 && ts.stepIn && ts.back[0] === ts.base && ts.back[1] === 0,
+    `Debug cheat time: 4x runs the loop at ${ts.x4}x with ${ts.cap} steps a frame, 0.25x and the 8x limit hold, pause stops it, step advances exactly ${ts.step[1]} ticks, back to 1x (${JSON.stringify(ts)})`);
+  const wx = await ev(p1, () => { const {Z, api} = __z, S = api.S, c = Z.dbg.c, o = {}; for (const id of ['fog', 'night', 'storm', 'clear']) { c.weather(id); o[id] = api.WX.id; }
+    o.bad = c.weather('nope'); o.d = [c.difficulty(2), S.zdiff, Z.diff().n]; c.difficulty(1); o.d2 = S.zdiff; return o; });
+  ok(wx.fog === 'fog' && wx.night === 'night' && wx.storm === 'storm' && wx.clear === 'clear' && wx.bad === false && wx.d[0] === 'Hard' && wx.d[1] === 2 && wx.d[2] === 'Hard' && wx.d2 === 1, 'Debug cheat weather and difficulty: set the weather (fog, night, storm, clear), set Hard and back to Normal');
+  const cx = await ev(p1, () => { const {Z} = __z, c = Z.dbg.c, o = {}; o.before = Z.codex.all(); o.poolBefore = Z.codex.pool(60).length; c.codex(true); o.on = Z.codex.all(); o.poolOn = Z.codex.pool(60).length; c.codex(false); o.off = Z.codex.all(); return o; });
+  ok(!cx.before && cx.on && !cx.off && cx.poolOn > cx.poolBefore, `Debug cheat codex: the whole roster opens for the session (boss pool ${cx.poolBefore} -> ${cx.poolOn}) and closes again`);
+  const pd = await ev(p1, () => { const {Z, api} = __z, c = Z.dbg.c, me = api.player, o = {}; me.p.set(900, 400, -2500); o.far = me.p.distanceTo(me.home.mat) > 1000; o.r = c.toPad(); o.near = api.player.p.distanceTo(api.player.home.mat) < 8;
+    for (const s of api.SITES) s.hp = 1; o.rep = c.repair(); o.hp = api.SITES.every(s => s.hp === s.max); return o; });
+  ok(pd.far && pd.r === true && pd.near && pd.rep && pd.hp, 'Debug cheat to pad and repair: the interceptor goes back to the mat, the sites are whole again');
+  const ui1 = await ev(p1, () => { const el = document.getElementById('zdbg'); el.querySelector('#zd-money').value = 500; const g0 = __z.G.cash; el.querySelector('[data-a="money"]').click(); const a = __z.G.cash - g0;
+    el.querySelector('#zd-wave').value = 8; el.querySelector('[data-a="wave"]').click(); const w = __z.G.wave; el.querySelector('[data-a="god"]').click(); const g = __z.Z.dbg.D.god, gb = el.querySelector('#zd-god').classList.contains('on'); el.querySelector('[data-a="god"]').click();
+    const it = el.querySelector('#zd-item'); it.value = 'perk:rocket'; el.querySelector('#zd-lvl').value = ''; el.querySelector('[data-a="grant"]').click(); return {a, w, g, gb, off: !__z.Z.dbg.D.god, rk: __z.Z.perkLevel('rocket')}; });
+  ok(ui1.a === 500 && ui1.w === 7 && ui1.g && ui1.gb && ui1.off && ui1.rk === 1, `Debug panel: its buttons do what they say (money +${ui1.a}, wave jump to ${ui1.w + 1}, god lights up, grant Rocket Assist)`);
+  const rs = await ev(p1, () => { const {Z} = __z, c = Z.dbg.c; const names = Z.dbg.cheats.map(x => x.name); const r = c.resetSave(true); return {names, r, saved: localStorage.getItem('dl-interceptor'), reset: Z.dbg.D.reset}; });
+  await ev(p1, () => __z.api.save());
+  const rs2 = await ev(p1, () => localStorage.getItem('dl-interceptor'));
+  ok(rs.r === true && rs.saved === '{"zdbg":1}' && rs2 === '{"zdbg":1}' && ['money', 'perk', 'allPerks', 'helper', 'supply', 'weapon', 'allWeapons', 'unlock', 'wave', 'spawn', 'clearTracks', 'god', 'burn', 'timeScale', 'pause', 'step', 'weather', 'difficulty', 'codex', 'toPad', 'repair'].every(n => rs.names.includes(n)),
+    `Debug cheat reset save: the save is wiped (debug stays on) and later saves cannot bring the old one back (${rs2}); ${rs.names.length} cheat uses recorded: ${[...new Set(rs.names)].join(' ')}`);
+  ok(!e1.length, 'Debug cheats: no errors' + (e1.length ? '\n  ' + e1.join('\n  ') : ''));
+  await p1.close();
+
+  // ---- a marked run saves nothing: no leaderboard entry, best wave, codex, goal or campaign write; a new run starts clean; a cheat on the menu marks the run that follows ----
+  const e2 = [], seed = {zbests: {Normal: {wave: 3, kills: 5, earned: 100}}, zruns: [{d: 1, w: 3, doc: 'std', co: 0, t: 1}]};
+  const p2 = await dpage('?debug=1', e2, seed); await play(p2);
+  const w0 = await ev(p2, () => { const {G, Z, api} = __z, S = api.S, o = {}, L = () => JSON.parse(localStorage.getItem('dl-interceptor')), J = k => JSON.stringify(S[k]), base = {zcodex: J('zcodex'), zmeta: J('zmeta'), zcamp: J('zcamp'), zboss: J('zboss'), zend: J('zend')};
+    o.clean = Z.dbg.marked; Z.dbg.c.money(1); o.marked = Z.dbg.marked; o.rec = Z.board.record(1, 15, false); o.runs = S.zruns.length;
+    S.zbests = {Normal: {wave: 99, kills: 1, earned: 1}}; S.zcodex = {v: 1, b: {twins: {seen: 1, beaten: 1, allowed: true}}}; S.zmeta = {v: 1, g: {w10: 1}}; S.zcamp = {v: 1, x: 1}; S.zend = {v: 1, best: 9}; api.save(); const s1 = L();
+    o.disk = [s1.zbests.Normal.wave, JSON.stringify(s1.zcodex) === base.zcodex, JSON.stringify(s1.zmeta) === base.zmeta, JSON.stringify(s1.zcamp) === base.zcamp, s1.zruns.length, JSON.stringify(s1.zend) === base.zend];
+    Z.dbg.poll(); o.mem = [S.zbests.Normal.wave, J('zcodex') === base.zcodex, J('zmeta') === base.zmeta, J('zcamp') === base.zcamp, J('zend') === base.zend]; o.rev = Z.dbg.reverted;
+    Z.bosses.ctx.bump('twins', 'met'); Z.bosses.ctx.recAdd('ace', 'kills', 3); o.boss = [JSON.stringify(L().zboss) === base.zboss]; Z.dbg.poll(); o.boss.push(J('zboss') === base.zboss);
+    G.wave = 7; Z.gameOver(); o.over = {best: S.zbests.Normal.wave, runs: S.zruns.length, disk: L().zbests.Normal.wave, txt: document.getElementById('zover').textContent, hint: /Debug run/.test(document.getElementById('zover').textContent)};
+    return o; });
+  ok(!w0.clean && w0.marked && w0.rec === null && w0.runs === 1, 'Debug run: Board.record refuses a marked run (no leaderboard entry)');
+  ok(w0.disk.every(Boolean) && w0.disk[0] === 3 && w0.disk[4] === 1 && w0.mem.every(Boolean) && w0.mem[0] === 3 && w0.rev >= 5,
+    `Debug run: a save while marked keeps the old bests, codex, goals, campaign and Endless records on disk, and the live settings get them back (${JSON.stringify(w0.disk)} / ${JSON.stringify(w0.mem)}, ${w0.rev} reverted)`);
+  ok(w0.boss[0] && w0.boss[1], "Debug run: the boss record (met / lost / the Ace's tally) is not written either");
+  ok(w0.over.best === 3 && w0.over.runs === 1 && w0.over.disk === 3 && w0.over.hint && !/NEW BEST/.test(w0.over.txt), `Debug run: game over on wave 7 writes no best wave and no run, and the screen says so (best stays ${w0.over.best})`);
+  const w1 = await ev(p2, () => { const {G, Z, api} = __z, S = api.S, o = {}; document.getElementById('zagain').click(); o.marked = Z.dbg.marked; o.cheats = Z.dbg.D.god;
+    G.wave = 6; Z.gameOver(); o.best = S.zbests.Normal.wave; o.runs = S.zruns.length; o.disk = JSON.parse(localStorage.getItem('dl-interceptor')).zbests.Normal.wave; return o; });
+  ok(w1.marked === false && w1.best === 6 && w1.runs === 2 && w1.disk === 6, `Debug run: the next run starts clean and its game over is recorded as usual (best ${w1.best}, ${w1.runs} runs saved)`);
+  const w2 = await ev(p2, () => { const {G, Z, api} = __z, S = api.S, o = {}; Z.stop(); o.c = Z.dbg.c.difficulty(1); o.marked = Z.dbg.marked; api.startMatch(); o.run = [Z.dbg.marked, G.on]; o.rec = Z.board.record(1, 5, false);
+    api.startMatch(); o.next = Z.dbg.marked; o.rec2 = !!Z.board.record(1, 5, false); return o; });
+  ok(w2.marked && w2.run[0] && w2.run[1] && w2.rec === null && w2.next === false && w2.rec2, 'Debug run: a cheat used on the menu marks the run that follows it, and only that one');
+  ok(!e2.length, 'Debug marked runs: no errors' + (e2.length ? '\n  ' + e2.join('\n  ') : ''));
+  await p2.close();
+
+  // ---- the Bot Spectator (readouts only) and co-op (the host cheats, a client does not; the host's cheats mark the clients' runs) ----
+  const e3 = [], p3 = await dpage('?debug=1', e3); await play(p3);
+  const sc = await ev(p3, () => { const {Z} = __z, c = Z.dbg.c, o = {}; __z.spec.sp.on = true; o.refused = c.money(5); Z.dbg.ui.sync(); const el = document.getElementById('zdbg'); o.ro = el.classList.contains('ro') && getComputedStyle(el.querySelector('.cheats')).display === 'none';
+    o.badge = document.getElementById('zdm').textContent; o.live = Z.dbg.readout().length > 50; o.marked = Z.dbg.marked; __z.spec.sp.on = false; o.after = c.money(5) !== false; return o; });
+  ok(sc.refused === false && sc.ro && /spectator/.test(sc.badge) && sc.live && !sc.marked && sc.after, `Debug spectator: the Bot Spectator gets the readouts and the report only; its cheats are refused and the section is hidden (${sc.badge})`);
+  await ev(p3, () => { const {Z} = __z; Z.dbg.D.marked = false; Z.dbg.D.snap = Z.dbg.D.snapJ = null; });
+  const co = await ev(p3, () => { const {Z, G} = __z, c = Z.dbg.c, o = {}, d0 = Object.getOwnPropertyDescriptor(Z, 'mirror'); window.__ne = []; Z.netEv = e => { window.__ne.push(e); };
+    c.god(true); o.host = window.__ne.map(e => e.join(':')); c.god(false);
+    Object.defineProperty(Z, 'mirror', {get: () => true, configurable: true}); Z.dbg.D.marked = false; const g0 = G.cash; o.client = c.money(1000); o.cash = G.cash - g0; Z.dbg.ui.sync(); o.ro = document.getElementById('zdbg').classList.contains('ro'); o.badge = document.getElementById('zdm').textContent;
+    o.live = Z.dbg.readout().length > 50; o.before = Z.dbg.marked; Z.dbg.netEv(['god']); o.after = Z.dbg.marked; o.name = Z.dbg.cheats.at(-1).name; Object.defineProperty(Z, 'mirror', d0); return o; });
+  ok(co.host[0] === 'D:god' && co.client === false && co.cash === 0 && co.ro && /client/.test(co.badge) && co.live && co.before === false && co.after && co.name === 'host: god', `Debug co-op: the host's cheat is announced to the clients (${co.host[0]}), a client cannot cheat but still reads and reports, and the host's mark makes its run a debug run (${co.name})`);
+  ok(!e3.length, 'Debug spectator and co-op: no errors' + (e3.length ? '\n  ' + e3.join('\n  ') : ''));
+  await p3.close();
+
+  // ---- the report: every field, parses; the console ring buffer catches an error; the mark key; copy and download ----
+  const e4 = [], p4 = await dpage('?debug=1&report', e4);
+  const rm = await ev(p4, () => ({msg: document.getElementById('zd-msg').textContent, open: !document.getElementById('zdbg').hidden}));
+  ok(rm.open && /report mode/.test(rm.msg), `Debug report: ?debug=1&report opens the panel in report mode, even over the menu ("${rm.msg}")`);
+  await pressF8(p4); await play(p4);
+  await ev(p4, () => { const {G, Z} = __z; Z.dbg.c.money(500); __z.cont(); G.wq.length = 0; Z.dbg.c.spawn('shahed', 2, 0); __z.sim(3); __z.botKill(.8); __z.sim(1); console.log('debug test line'); console.error('debug test error', new Error('boom here')); console.warn('debug test warn', {a: 1});
+    const s = document.createElement('script'); s.textContent = "setTimeout(function () { throw new Error('late boom'); }, 0); Promise.reject(new Error('rejected boom'));"; document.head.append(s);  /* a page script: an evaluate()'s own errors are reported without a message or stack */ });
+  await sleep(1300); await frames(p4, 10);
+  await ev(p4, () => { document.getElementById('zd-note').value = 'odd stutter after the spawn'; });
+  await p4.keyboard.press('F9'); await frames(p4, 2);
+  const rp = await ev(p4, async () => { const D = __z.Z.dbg, r = await D.report(), i = r.text.indexOf('=== JSON ==='); let data = null, err = ''; try { data = JSON.parse(r.text.slice(i + 12)); } catch (e) { err = String(e); }
+    return {head: r.text.slice(0, i), data, err, marks: D.marks.length, note: document.getElementById('zd-note').value, toast: document.getElementById('zdtoast').textContent, marksUi: document.getElementById('zd-marks').textContent}; });
+  const R = rp.data || {};
+  ok(!rp.err && R.schema === 1 && ['version', 'env', 'run', 'settings', 'save', 'console', 'events', 'marks', 'fps', 'state', 'cheats'].every(k => k in R), `Debug report: a text summary and the JSON, which parses, with every field (${Object.keys(R).join(', ')})`);
+  ok(/^[0-9a-f]{7}$/.test(R.version?.hash) && R.version?.stamp === 'version.js' && typeof R.version?.pkg === 'string' && R.version.pkg.length > 0, `Debug report: the build (version.js: ${R.version?.hash}, ${R.version?.date}, ${R.version?.branch})`);
+  ok(/Mozilla/.test(R.env?.userAgent) && typeof R.env?.gpu?.renderer === 'string' && R.env.gpu.renderer.length > 0 && R.env.screen?.w > 0 && R.env.viewport?.w > 0 && R.env.automated === true, `Debug report: the browser and GPU (${R.env?.userAgent?.slice(0, 40)}..., ${R.env?.gpu?.renderer?.slice(0, 50)})`);
+  ok(R.settings?.setV === 6 && R.settings?.zdbg === undefined && typeof R.save?.['dl-interceptor'] === 'object' && R.save['dl-interceptor'] !== null && !('zrspeech' in R.settings) && typeof R.save?.droneleague !== 'undefined', 'Debug report: the settings in force and the stored save');
+  const L = R.console?.lines || [], eb = L.find(l => /debug test error/.test(l.msg)), wb = L.find(l => /debug test warn/.test(l.msg)), ub = L.find(l => /late boom/.test(l.msg)), rj = L.find(l => /rejected boom/.test(l.msg));
+  ok(L.length > 0 && L.length <= 200 && L.some(l => /debug test line/.test(l.msg) && l.lvl === 'log') && eb && eb.lvl === 'error' && /boom here/.test(eb.msg) && /Error/.test(eb.stack || '') && wb && wb.lvl === 'warn' && /\{"a":1\}/.test(wb.msg), `Debug console: the ring buffer caught the log, the warning and the error with its stack (${L.length} lines)`);
+  ok(ub && ub.lvl === 'error' && /Error: late boom|late boom/.test(ub.msg) && /boom/.test(ub.stack || '') && rj && rj.lvl === 'error' && R.console.errors >= 3, `Debug console: an uncaught error and a rejected promise are caught too, with stacks (${R.console?.errors} errors)`);
+  const T = new Set((R.events || []).map(e => e.type));
+  ok(['wave', 'cheat', 'debug', 'kill', 'radio', 'mark'].every(t => T.has(t)) && (R.events || []).every(e => e.t > 0 && /^\d\d:\d\d:\d\d$/.test(e.at)), `Debug events: the last minute has the wave edges, the cheat, the kill, the radio call and the mark (${[...T].join(' ')}; ${(R.events || []).length} events)`);
+  ok(rp.marks === 1 && R.marks?.length === 1 && R.marks[0].note === 'odd stutter after the spawn' && /^\d\d:\d\d:\d\d$/.test(R.marks[0].clock) && R.marks[0].before.length > 3 && R.marks[0].console.length > 0 && rp.note === '' && /MARK #1/.test(rp.toast) && /#1/.test(rp.marksUi),
+    `Debug mark: F9 notes the time and the note ("${R.marks?.[0]?.note}" at ${R.marks?.[0]?.clock}) with the minute before it, shows it, and clears the box`);
+  ok(Array.isArray(R.fps?.history) && R.fps.history.length >= 1 && R.fps.history[0].fps > 0 && 'p99' in R.fps.history[0] && R.fps.now.fps > 0, `Debug report: the FPS history (${R.fps?.history?.length} s) and the live numbers`);
+  const S0 = R.state || {};
+  ok(S0.game?.wave === 1 && S0.game?.state === 'wave' && Array.isArray(S0.player?.pos) && S0.player.battery > 0 && Array.isArray(S0.sites) && S0.sites.length === 3 && S0.tracks && 'byKind' in S0.tracks && S0.plan && S0.net?.role === 'solo' && S0.perf && S0.debug?.marked === true && Array.isArray(S0.bosses),
+    `Debug report: a state snapshot (wave ${S0.game?.wave}, ${S0.tracks?.live} tracks, the player, the sites, the plan, the co-op role)`);
+  ok(R.cheats?.length >= 2 && R.cheats.every(c => c.name && c.clock && c.run >= 1) && R.cheats[0].name === 'money' && R.run?.marked && R.run.why.includes('money') && R.run.why.includes('spawn') && /DEBUG RUN/.test(rp.head), `Debug report: the cheats used (${R.cheats?.map(c => c.name).join(', ')}) and the run flagged`);
+  ok(/^DRONE LEAGUE INTERCEPTOR DEBUG REPORT/.test(rp.head) && /Build [0-9a-f]{7}/.test(rp.head) && /Browser Mozilla/.test(rp.head) && /GPU /.test(rp.head) && /Console: \d+ lines, \d+ errors/.test(rp.head) && /Mark #1 at/.test(rp.head), 'Debug report: the readable summary on top says build, browser, GPU, run, FPS, console, marks and cheats');
+  await ev(p4, () => { for (let i = 0; i < 300; i++) console.log('ring ' + i); });
+  const ring = await ev(p4, async () => { const r = await __z.Z.dbg.report(); const L = r.data.console.lines; return {n: L.length, first: L[0].msg, last: L.at(-1).msg, total: r.data.console.total}; });
+  ok(ring.n === 200 && ring.last === 'ring 299' && ring.first === 'ring 100' && ring.total >= 300, `Debug console: the ring keeps the last 200 lines (${ring.first} .. ${ring.last} of ${ring.total})`);
+  /* the build stamp: its date is always in the summary; a served game file well newer than it says the stamp may be behind HEAD (a local server sends no Last-Modified: not judged) */
+  const sb = await ev(p4, async () => { const f0 = window.fetch, D = __z.Z.dbg, mk = lm => (u, o) => /interceptor\.js/.test(String(u)) && o && o.method === 'HEAD' ? Promise.resolve({headers: {get: k => /last-modified/i.test(k) ? lm : null}}) : f0(u, o);
+    window.fetch = mk('Fri, 01 Jan 2100 00:00:00 GMT'); const a = await D.report(); window.fetch = mk('Mon, 01 Jan 2001 00:00:00 GMT'); const b = await D.report(); window.fetch = f0; const c = await D.report();
+    return {a: [a.data.version.stampBehind, a.data.version.served.interceptor, /may be behind HEAD/.test(a.text)], b: [b.data.version.stampBehind, /may be behind HEAD/.test(b.text)], c: [c.data.version.stampBehind, /may be behind HEAD/.test(c.text), c.text.split('\n').find(l => /^Build /.test(l))]}; });
+  ok(sb.a[0] === true && sb.a[1] === 'Fri, 01 Jan 2100 00:00:00 GMT' && sb.a[2] && sb.b[0] === false && !sb.b[1] && sb.c[0] === null && !sb.c[1] && /^Build [0-9a-f]{7} of \d{4}-\d\d-\d\dT/.test(sb.c[2]),
+    `Debug report: the stamp's date is printed, and the report says the stamp may be behind HEAD when the served game files are newer than it (${JSON.stringify(sb.a.slice(0, 1))} / ${JSON.stringify(sb.b)} / none without a header; "${sb.c[2]?.slice(0, 60)}")`);
+  await ev(p4, () => { window.__clip = null; window.__dl.length = 0; document.getElementById('zd-shot').checked = true; });
+  const cp = await ev(p4, () => __z.Z.dbg.copyReport({shot: true}));
+  await sleep(500);
+  const cl = await ev(p4, () => ({clip: window.__clip, dl: window.__dl, msg: document.getElementById('zd-msg').textContent}));
+  const cdata = (() => { try { return JSON.parse(cl.clip.slice(cl.clip.indexOf('=== JSON ===') + 12)); } catch (e) { return null; } })();
+  const txt = cl.dl.find(f => /\.txt$/.test(f.name)), png = cl.dl.find(f => /\.png$/.test(f.name));
+  ok(cp.how === 'clipboard' && cdata && cdata.schema === 1 && cl.clip.startsWith('DRONE LEAGUE INTERCEPTOR DEBUG REPORT') && txt && txt.text === cl.clip && /^drone-league-debug-[0-9a-f]{7}-.*\.txt$/.test(txt.name),
+    `Debug report: Copy report puts the bundle on the clipboard (${cl.clip?.length} chars) and downloads the same text as ${txt?.name}`);
+  ok(png && png.type === 'image/png' && png.size > 100 && /\.png$/.test(cp.png), `Debug report: the screenshot comes as a separate PNG (${png?.name}, ${png?.size} bytes)`);
+  await ev(p4, () => { window.__clip = null; window.__dl.length = 0; document.getElementById('zd-shot').checked = false; });
+  await p4.keyboard.press('F10'); await sleep(500);
+  const f10 = await ev(p4, () => ({clip: !!window.__clip && window.__clip.includes('=== JSON ==='), dl: window.__dl.length}));
+  ok(f10.clip && f10.dl === 1, 'Debug report: F10 does the same as the button (without the screenshot)');
+  await ev(p4, () => { Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async () => { throw new Error('denied'); }}}); });
+  const cp2 = await ev(p4, () => __z.Z.dbg.copyReport());
+  const bx = await ev(p4, () => ({how: null, box: !document.getElementById('zd-out').hidden && document.getElementById('zd-out').value.includes('=== JSON ==='), msg: document.getElementById('zd-msg').textContent}));
+  ok((cp2.how === '' && bx.box && /saved/.test(bx.msg)) || cp2.how === 'clipboard', 'Debug report: with the clipboard refused it is still saved, and the text is in the box to copy by hand (or the fallback copy worked)');
+  const own = e4.filter(x => !/late boom|rejected boom|debug test error/.test(x));
+  ok(!own.length, 'Debug report: no unexpected errors' + (own.length ? '\n  ' + own.join('\n  ') : ''));
+  await p4.close();
+
+  // ---- a checkout that never made the stamp (version.js is generated and git-ignored) still boots and plays, and the report says "unknown" ----
+  const e5 = [], bak = VFILE + '.off'; let nf = null;
+  fs.renameSync(VFILE, bak);
+  try {
+    const p5 = await dpage('?debug=1', e5); await play(p5);
+    nf = await ev(p5, async () => { const r = await __z.Z.dbg.report(), d = JSON.parse(r.text.slice(r.text.indexOf('=== JSON ===') + 12)); return {hash: d.version.hash, stamp: d.version.stamp, behind: d.version.stampBehind, head: r.text.split('\n').find(l => /^Build /.test(l)), up: __z.G.on && !!__z.api.player, panel: !!document.getElementById('zdbg')}; });
+    await p5.close();
+  } finally { fs.renameSync(bak, VFILE); }
+  ok(nf && nf.up && nf.panel && nf.hash === 'unknown' && /run node tools\/version\.mjs/.test(nf.stamp) && nf.behind === null && /^Build unknown \(run node tools\/version\.mjs\)/.test(nf.head) && !e5.length,
+    `Debug without the stamp file: the game boots and plays, the report says "${nf?.head}"` + (e5.length ? '\n  ' + e5.join('\n  ') : ''));
+
+  // ---- the radio and the guide have no voice: no speechSynthesis anywhere in the game's code ----
+  const walk = dir => fs.readdirSync(dir, {withFileTypes: true}).flatMap(e => e.isDirectory() ? (e.name === 'node_modules' ? [] : walk(dir + '/' + e.name)) : /\.(m?js|html|css|json)$/.test(e.name) ? [dir + '/' + e.name] : []);
+  const {fileURLToPath} = await import('node:url');
+  const hits = ['games', 'engine'].flatMap(dn => walk(fileURLToPath(new URL('../' + dn, import.meta.url)))).filter(f => /speechSynthesis|SpeechSynthesis|getVoices|\.speak\(/.test(fs.readFileSync(f, 'utf8')));
+  ok(!hits.length, 'Speech is gone: no speechSynthesis, utterance or voice lookup in games/ or engine/' + (hits.length ? '\n  ' + hits.join('\n  ') : ''));
 }
 
 // ---------- balance: a scripted player who shops sensibly and runs down a share of the tracks; how far does it get? ----------
