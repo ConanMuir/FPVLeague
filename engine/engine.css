@@ -37,6 +37,9 @@ input[type=range]{accent-color:var(--amber)}
 .mp{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .mp input{flex:1;min-width:0;background:#0d1322;color:var(--ink);border:1px solid var(--edge);border-radius:4px;padding:8px 10px;font:500 14px var(--disp)}
 button.sm{font-size:14px;padding:8px 14px}button:disabled{opacity:.4;cursor:not-allowed}
+/* the key cell of a switch row (engine/input.js): the bound key; amber while it waits for a press, red for a refusal; .lnk: a button that reads as a link */
+button.kc{padding:4px 8px;min-width:3.2em;max-width:9.5em;font:600 12px/1.2 var(--mono);letter-spacing:0;text-transform:none}button.kc.cap{border-color:var(--amber);color:var(--amber)}button.kc.bad{border-color:var(--red);color:var(--red)}
+button.lnk{padding:0;border:0;background:none;font:inherit;letter-spacing:0;text-transform:none;text-decoration:underline;color:var(--blue)}
 .chans{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0;font:11px var(--mono);color:var(--dim)}
 .chans b{display:block;height:8px;margin-top:3px;background:rgba(0,0,0,.4);border:1px solid var(--edge);border-radius:2px;position:relative;overflow:hidden}
 .chans i{position:absolute;top:0;bottom:0;background:var(--blue)}

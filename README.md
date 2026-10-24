@@ -40,7 +40,9 @@ engine/                 Riley's engine, used by the Interceptor
   rates.js              Betaflight rates (BETAFLIGHT / ACTUAL / QUICK / KISS / RACEFLIGHT), 3 profiles,
                         throttle curve, Rates tab with CLI import/export
   input.js              keyboard, mouse, Gamepad API, RC radio detection + guided calibration, Xbox profile,
-                        controller panel, fire / flip buttons, switch mapping with Learn and Assign switches
+                        controller panel, fire / flip buttons, switch mapping with Learn and Assign switches,
+                        rebindable keyboard / mouse keys for the switch rows
+  keys.js               key-binding helpers (a KeyboardEvent code or mouse button as a short label)
   settings.js           saved settings; the pilot profile (calibration, rates, camera, flight mode, buttons)
                         is shared between games under the "droneleague" key
   render.js             Three.js renderer, bloom, canvas textures, horizontal FOV,

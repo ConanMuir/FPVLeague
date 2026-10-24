@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director,debug,types,layout   run only those sections (CI shards them across jobs); default all
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director,debug,types,layout,keys   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
@@ -61,7 +61,7 @@ if (want('saves')) {
   await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'classic', diff: 2, fuse: 'manual', skin: 'strela', guide: 0, guideSw: 3, setV: 4, wx: 'clear'})));
   await p.goto(origin + '/games/interceptor/?mode=classic', {waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
   const mg = await p.evaluate(() => { const S = __z.api.S; return {gone: ['gmode', 'diff', 'fuse', 'skin', 'guide', 'guideSw'].filter(k => k in S), setV: S.setV, picker: !!document.getElementById('gmode'), play: document.getElementById('play').textContent, zdiff: !!document.getElementById('zdiff')}; });
-  ok(!mg.gone.length && mg.setV === 6 && !mg.picker && mg.play === 'Quick defence' && mg.zdiff, `Saves: an old Classic save and ?mode=classic open Zombies, no mode picker (${JSON.stringify(mg)})`);
+  ok(!mg.gone.length && mg.setV === 7 && !mg.picker && mg.play === 'Quick defence' && mg.zdiff, `Saves: an old Classic save and ?mode=classic open Zombies, no mode picker (${JSON.stringify(mg)})`);
   await p.evaluate(() => localStorage.removeItem('dl-interceptor')); await p.close();
 }
 
@@ -3261,7 +3261,7 @@ if (want('debug')) {
   ok(!rp.err && R.schema === 1 && ['version', 'env', 'run', 'settings', 'save', 'console', 'events', 'marks', 'fps', 'state', 'cheats'].every(k => k in R), `Debug report: a text summary and the JSON, which parses, with every field (${Object.keys(R).join(', ')})`);
   ok(/^[0-9a-f]{7}$/.test(R.version?.hash) && R.version?.stamp === 'version.js' && typeof R.version?.pkg === 'string' && R.version.pkg.length > 0, `Debug report: the build (version.js: ${R.version?.hash}, ${R.version?.date}, ${R.version?.branch})`);
   ok(/Mozilla/.test(R.env?.userAgent) && typeof R.env?.gpu?.renderer === 'string' && R.env.gpu.renderer.length > 0 && R.env.screen?.w > 0 && R.env.viewport?.w > 0 && R.env.automated === true, `Debug report: the browser and GPU (${R.env?.userAgent?.slice(0, 40)}..., ${R.env?.gpu?.renderer?.slice(0, 50)})`);
-  ok(R.settings?.setV === 6 && R.settings?.zdbg === undefined && typeof R.save?.['dl-interceptor'] === 'object' && R.save['dl-interceptor'] !== null && !('zrspeech' in R.settings) && typeof R.save?.droneleague !== 'undefined', 'Debug report: the settings in force and the stored save');
+  ok(Number.isInteger(R.settings?.setV) && R.settings.setV >= 6 && R.settings?.zdbg === undefined && typeof R.save?.['dl-interceptor'] === 'object' && R.save['dl-interceptor'] !== null && !('zrspeech' in R.settings) && typeof R.save?.droneleague !== 'undefined', 'Debug report: the settings in force and the stored save');  /* setV only grows (v7 added the key bindings): the report must carry whatever version is current */
   const L = R.console?.lines || [], eb = L.find(l => /debug test error/.test(l.msg)), wb = L.find(l => /debug test warn/.test(l.msg)), ub = L.find(l => /late boom/.test(l.msg)), rj = L.find(l => /rejected boom/.test(l.msg));
   ok(L.length > 0 && L.length <= 200 && L.some(l => /debug test line/.test(l.msg) && l.lvl === 'log') && eb && eb.lvl === 'error' && /boom here/.test(eb.msg) && /Error/.test(eb.stack || '') && wb && wb.lvl === 'warn' && /\{"a":1\}/.test(wb.msg), `Debug console: the ring buffer caught the log, the warning and the error with its stack (${L.length} lines)`);
   ok(ub && ub.lvl === 'error' && /Error: late boom|late boom/.test(ub.msg) && /boom/.test(ub.stack || '') && rj && rj.lvl === 'error' && R.console.errors >= 3, `Debug console: an uncaught error and a rejected promise are caught too, with stacks (${R.console?.errors} errors)`);
@@ -3667,6 +3667,156 @@ if (want('layout')) {
   ok(!errs.length, 'Layout: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
   await p.close();
 }
+
+// ---------- keys: rebinding the keyboard / mouse side of the controller panel's switch rows (engine/keys.js, engine/input.js, zkeys.js) ----------
+if (want('keys')) {
+  const KURL = origin + '/games/interceptor/', DEFK = {fire: 'KeyF', tiltSw: 'KeyL', thermSw: 'KeyH', nextSw: 'KeyN'}, same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  /* the pure part, in Node: labels, what is refused, a hand-edited save cleaned, the text helpers */
+  const KZ = await import('../games/interceptor/zkeys.js'), KE = await import('../engine/keys.js'), {S: NS} = await import('../engine/settings.js');
+  const lab = ['KeyF', 'Mouse2', 'Mouse1', 'Mouse0', 'Space', 'Digit0', 'Numpad4', 'ArrowUp', 'ShiftLeft', 'Backquote', 'F11', 'PageUp', 'NumpadAdd', 'IntlBackslash', 'Escape'].map(KE.keyLabel);
+  ok(lab.join('|') === 'F|RMB|MMB|LMB|Space|0|Num 4|↑|L Shift|`|F11|PgUp|Num +|\\|Esc' && ['', null, 5, 'constructor', 'toString'].every(c => KE.keyLabel(c) === 'None'),
+    `Keys: a code reads as a short label (${lab.join(' ')}); an empty, odd or inherited-property code is None`);
+  const taken = ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyC', 'KeyV', 'KeyR', 'KeyM', 'KeyT', 'KeyP', 'Escape', 'Tab', 'KeyQ', 'KeyE', 'KeyX', 'KeyZ', 'KeyJ', 'KeyK', 'KeyU', 'KeyB', 'KeyY',
+    'Digit1', 'Digit9', 'Numpad3', 'Enter', 'F8', 'F9', 'F10', 'F5', 'ControlLeft', 'AltRight', 'MetaLeft', 'Mouse3'], free = ['KeyG', 'KeyI', 'KeyO', 'Space', 'Digit0', 'ShiftLeft', 'Backquote', 'Mouse1', 'Mouse2'];
+  ok(taken.every(c => KZ.reserved(c, 'tiltSw')) && free.every(c => !KZ.reserved(c, 'tiltSw')) && Object.values(DEFK).every(c => !KZ.reserved(c, 'fire')) && KZ.reserved('Mouse0', 'tiltSw') === 'Detonate' && KZ.reserved('Mouse0', 'fire') === '',
+    `Keys: the flight keys, C V R M T P Esc, the perks, J K U, B Y, the digits, Enter, the F-keys, Tab and the browser's own are taken; G I O, Space, Digit0, Shift and the middle / right buttons are free; left mouse is Detonate's alone`);
+  const custom = {fire: 'Mouse2', tiltSw: 'KeyG', thermSw: 'Space', nextSw: 'KeyO'};
+  const cleaned = [undefined, null, 'oops', [1, 2], 5, {}, {fire: 5}, {fire: 'constructor'}, {tiltSw: 'KeyC'}, {fire: 'KeyG', tiltSw: 'KeyG'}, {fire: 'KeyL', tiltSw: 'KeyC'}, {nextSw: 'Mouse0'}, {fire: 'Mouse7'}].map(KZ.cleanKeys);
+  ok(cleaned.every(k => same(k, DEFK)) && same(KZ.cleanKeys(custom), custom) && same(KZ.cleanKeys({tiltSw: 'KeyG'}), {...DEFK, tiltSw: 'KeyG'}),
+    'Keys: a missing, odd, reserved, doubled or inherited-property binding is cleaned back to the defaults; a good set and a partial one are kept');
+  NS.keys = {...DEFK, fire: 'Mouse2', thermSw: 'Space'};
+  const tx = [KZ.kl('fire'), KZ.kl('thermSw'), KZ.fireWith(x => `<${x}>`), KZ.fireList()]; NS.keys.fire = 'Mouse0'; tx.push(KZ.fireWith(), KZ.fireList()); delete NS.keys; tx.push(KZ.kl('tiltSw'), KZ.fireWith(x => `<${x}>`));
+  ok(tx.join('|') === 'RMB|Space|<RMB> or click|RMB, click|a click|click|L|<F> or click', `Keys: the text helpers follow the binding (${tx.join(' | ')})`);
+
+  const {p, errs} = await page();
+  await p.evaluate(async () => {
+    window.__in = await import('/engine/input.js');
+    window.__kd = (code, down = true) => { const e = new KeyboardEvent(down ? 'keydown' : 'keyup', {code, bubbles: true, cancelable: true}); window.dispatchEvent(e); return e.defaultPrevented; };
+    window.__mouse = (type, button, id = 'ov') => { const e = new MouseEvent(type, {button, bubbles: true, cancelable: true}); document.getElementById(id).dispatchEvent(e); return e.defaultPrevented; };
+    window.__cell = k => { const c = document.getElementById('kb_' + k); return {t: c.textContent, cap: c.classList.contains('cap'), bad: c.classList.contains('bad')}; };
+    window.__cap = k => document.getElementById('kb_' + k).click();
+    window.__saved = () => JSON.parse(localStorage.getItem('dl-interceptor') || '{}').keys;
+    window.__list = () => ['fire', 'tiltSw', 'thermSw', 'nextSw'].map(k => document.getElementById('kk_' + k).textContent).join('|');
+    window.__cells = () => ['fire', 'tiltSw', 'thermSw', 'nextSw'].map(k => __cell(k).t).join('|');
+    window.__sk = () => ({...__z.api.S.keys});
+  });
+  const settle = () => sleep(150);  /* a captured mouse press holds back the click / context menu that follows it for a moment (engine/input.js eat) */
+  const d0 = await p.evaluate(() => ({keys: __sk(), setV: __z.api.S.setV, cells: __cells(), list: __list(), reset: !!document.getElementById('keyreset'), labels: [...document.querySelectorAll('#map label')].map(l => l.textContent), menu: __z.api.menuOpen}));
+  ok(same(d0.keys, DEFK) && d0.setV === 7 && d0.cells === 'F|L|H|N' && d0.list === 'F / click|L|H|N' && d0.reset && ['Detonate', 'Cam tilt', 'Thermal', 'Next track'].every(r => d0.labels.includes(r)) && d0.menu,
+    `Keys: a fresh save has today's keys (${JSON.stringify(d0.keys)}), settings version ${d0.setV}, a key cell on each of the four rows and a Reset link`);
+
+  /* rebind a row through the panel (the menu is up, the backdrop demo runs behind it) */
+  await p.evaluate(() => __cap('tiltSw'));
+  const c1 = await p.evaluate(() => __cell('tiltSw'));
+  await p.evaluate(() => { __kd('KeyG'); __kd('KeyG', false); });
+  const c2 = await p.evaluate(() => ({cell: __cell('tiltSw'), keys: __sk(), saved: __saved(), list: __list(), leak: !!__in.keys.KeyG}));
+  ok(c1.t === 'press a key or mouse button' && c1.cap && c2.cell.t === 'G' && !c2.cell.cap && c2.keys.tiltSw === 'KeyG' && c2.saved.tiltSw === 'KeyG' && c2.saved.fire === 'KeyF' && c2.list === 'F / click|G|H|N' && !c2.leak,
+    `Keys: clicking a key cell asks for a press ("${c1.t}"), the next key (G) becomes the binding, is saved (${JSON.stringify(c2.saved)}), shows in the menu's key list (${c2.list}) and does not leak into the game as a held key`);
+  await p.evaluate(() => { __cap('tiltSw'); __kd('Escape'); });
+  const c3 = await p.evaluate(() => ({cell: __cell('tiltSw'), keys: __sk()}));
+  ok(c3.cell.t === 'G' && !c3.cell.cap && c3.keys.tiltSw === 'KeyG', 'Keys: Esc cancels the capture and keeps the binding');
+  await p.evaluate(() => { __cap('tiltSw'); __cap('tiltSw'); });
+  const c4 = await p.evaluate(() => __cell('tiltSw'));
+  ok(c4.t === 'G' && !c4.cap, 'Keys: clicking the cell again while it waits cancels too');
+
+  /* clashes are refused with a note in the cell, and the binding stays */
+  const clash = [];
+  for (const [what, act, want] of [['another row', "__kd('KeyG')", 'G is in use: Cam tilt'], ['the camera key', "__kd('KeyC')", 'C is in use: Camera'], ['a debug key', "__kd('F9')", 'F9 is in use: Debug mark'], ['Tab', "__kd('Tab')", 'Tab is in use: the browser'],
+    ['a perk', "__kd('KeyQ')", 'Q is in use: Freeze'], ['left mouse on a switch row', "__mouse('mousedown', 0); __mouse('mouseup', 0)", 'LMB is in use: Detonate']]) {
+    await p.evaluate(() => __cap('thermSw'));
+    await p.evaluate(act); await settle();
+    const r = await p.evaluate(() => ({cell: __cell('thermSw'), keys: __sk()}));
+    if (r.cell.t !== want || !r.cell.bad || r.cell.cap || r.keys.thermSw !== 'KeyH') clash.push(`${what}: "${r.cell.t}" ${r.keys.thermSw}`);
+  }
+  ok(!clash.length, 'Keys: a key another row or the game uses, Tab and left mouse on a switch row are refused with a short note in the cell, and the binding stays' + (clash.length ? '\n  ' + clash.join('\n  ') : ''));
+  const rv = await p.evaluate(() => new Promise(r => setTimeout(() => r(__cell('thermSw')), 3000)));
+  ok(rv.t === 'H' && !rv.bad, 'Keys: the note clears by itself and the cell reads the key again');
+  /* the Detonate row may take left mouse (its default button) */
+  await p.evaluate(() => __cap('fire'));
+  await p.evaluate(() => { __mouse('mousedown', 0); __mouse('mouseup', 0); }); await settle();
+  const lm = await p.evaluate(() => ({cell: __cell('fire').t, keys: __sk().fire, list: __list().split('|')[0]}));
+  ok(lm.cell === 'LMB' && lm.keys === 'Mouse0' && lm.list === 'LMB', `Keys: the Detonate row can be bound to the left button (cell ${lm.cell}, menu key list "${lm.list}")`);
+
+  /* four rebinds: Detonate Space, Cam tilt G (done), Thermal right mouse, Next track middle mouse */
+  await p.evaluate(() => { __cap('fire'); __kd('Space'); __kd('Space', false); __cap('thermSw'); });
+  const rbR = await p.evaluate(() => { const down = __mouse('mousedown', 2), ctx = __mouse('contextmenu', 2); __mouse('mouseup', 2); return {down, ctx}; }); await settle();
+  await p.evaluate(() => __cap('nextSw'));
+  const rbM = await p.evaluate(() => { const down = __mouse('mousedown', 1); __mouse('mouseup', 1); return down; }); await settle();
+  const rb = await p.evaluate(() => ({keys: __sk(), cells: __cells(), list: __list(), saved: __saved()}));
+  ok(same(rb.keys, {fire: 'Space', tiltSw: 'KeyG', thermSw: 'Mouse2', nextSw: 'Mouse1'}) && same(rb.saved, rb.keys) && rb.cells === 'Space|G|RMB|MMB' && rb.list === 'Space / click|G|RMB|MMB' && rbR.down && rbR.ctx && rbM,
+    `Keys: keys and mouse buttons both bind (${rb.cells}); a captured right / middle press and its context menu are swallowed`);
+
+  /* the text that names the keys follows them */
+  const tt = await p.evaluate(async () => { const {Z} = __z, cp = await import('/games/interceptor/zcampaign.js'); return {fuse: Z.perkBlurb('fuse'), night: cp.MODS.night.txt, look: Z.onboard.hud('look'), burst: Z.onboard.hud('burst')}; });
+  ok(/\(Space, click or the detonate button\)/.test(tt.fuse) && /Thermal \(RMB\) sees in the dark/.test(tt.night) && /<kbd>G<\/kbd> tilts the camera/.test(tt.look) && /Detonate with <kbd>Space<\/kbd> or click within/.test(tt.burst),
+    `Keys: the Proximity fuse blurb, the Night-heavy modifier and the first-run guide's camera and burst lines name the bound keys ("${tt.fuse.slice(-40)}", "${tt.night.slice(-36)}", "${tt.look.slice(0, 40)}", "${tt.burst.slice(0, 42)}")`);
+
+  /* in the air: the new keys act, the old ones do not */
+  await play(p);
+  await p.evaluate(() => { __z.cont(); __z.sim(2); });
+  const a0 = await p.evaluate(() => { const {api} = __z, o = {menu: api.menuOpen, up0: api.camUp, state: __z.G.state};
+    __kd('KeyL'); __kd('KeyL', false); o.old = api.camUp;
+    __kd('KeyG'); __kd('KeyG', false); o.on = api.camUp;
+    __kd('KeyG'); __kd('KeyG', false); o.off = api.camUp;
+    __kd('KeyF'); o.fOld = __in.fireBtnIn(); __kd('KeyF', false);
+    __kd('Space'); o.fNew = __in.fireBtnIn(); __kd('Space', false); o.fUp = __in.fireBtnIn();
+    __mouse('mousedown', 0); o.lmb = __in.fireBtnIn(); __mouse('mouseup', 0); o.lmbUp = __in.fireBtnIn(); return o; });
+  ok(a0.state === 'wave' && !a0.menu && !a0.up0 && !a0.old && a0.on && !a0.off, `Keys: Cam tilt on its new key (G) toggles the camera, its old key (L) does nothing (${JSON.stringify([a0.old, a0.on, a0.off])})`);
+  ok(!a0.fOld && a0.fNew && !a0.fUp && a0.lmb && !a0.lmbUp, `Keys: Detonate on Space fires and releases, F no longer does, left click still fires (${JSON.stringify([a0.fOld, a0.fNew, a0.fUp, a0.lmb, a0.lmbUp])})`);
+  const therm = want => until(() => p.evaluate(w => __z.api.thermLook === w, want), {timeout: 30000, every: 100});
+  await p.evaluate(() => { __kd('KeyH'); __kd('KeyH', false); });
+  await frames(p, 4);
+  const t0 = await p.evaluate(() => ({old: __z.api.thermLook, ctx: __mouse('contextmenu', 2)}));
+  const t1 = await p.evaluate(() => { const d = __mouse('mousedown', 2); __mouse('mouseup', 2); return d; }), tOn = await therm(true);
+  await p.evaluate(() => { __mouse('mousedown', 2); __mouse('mouseup', 2); });
+  const tOff = await therm(false);
+  ok(t0.old === false && t0.ctx && t1 && tOn && tOff, `Keys: Thermal on the right button switches the thermal camera on (${tOn}) and off (${tOff}), its old key (H) does nothing (${t0.old}), and the press and the context menu are suppressed while flying (${t1}, ${t0.ctx})`);
+  const nx = await p.evaluate(() => { const {api} = __z; let n = 0; while (api.TH.filter(api.live).length < 2 && n++ < 400) __z.sim(.25); api.pickT = null;
+    __kd('KeyN'); __kd('KeyN', false); const old = api.pickT, mid = __mouse('mousedown', 1), aux = __mouse('auxclick', 1); __mouse('mouseup', 1); return {tracks: api.TH.filter(api.live).length, old: old === null, now: api.pickT !== null, mid, aux}; });
+  ok(nx.tracks >= 2 && nx.old && nx.now && nx.mid && nx.aux, `Keys: Next track on the middle button picks a track, N no longer does, and the press does not autoscroll or paste (${JSON.stringify(nx)})`);
+  const mn = await p.evaluate(() => { __z.api.showMenu(true); __z.sim(.2); return __mouse('contextmenu', 2); });
+  ok(mn === false, 'Keys: with the menu open the right button opens the browser menu as usual');
+
+  /* the pause menu: Esc cancels a capture without closing the menu; a menu that closes under a capture frees the keys */
+  const pm = await p.evaluate(() => { const {api} = __z, o = {}; __cap('tiltSw'); __kd('Escape'); __kd('Escape', false); o.menu = api.menuOpen; o.cell = __cell('tiltSw');
+    __cap('tiltSw'); api.showMenu(false); __kd('KeyO'); __kd('KeyO', false); o.keys = __sk().tiltSw; o.cell2 = __cell('tiltSw'); o.menu2 = api.menuOpen; return o; });
+  ok(pm.menu && pm.cell.t === 'G' && !pm.cell.cap && pm.keys === 'KeyG' && !pm.cell2.cap && pm.cell2.t === 'G' && !pm.menu2, 'Keys: Esc cancels a capture and the pause menu stays open; if the menu closes under a capture, the next key is a game key again and nothing is rebound');
+
+  /* pictures of the panel: waiting for a press, a refusal, and the rebound rows */
+  await p.evaluate(() => __z.api.showMenu(true));
+  await frames(p, 3);
+  if (SHOTS) {
+    const pad = async f => { await p.evaluate(() => document.getElementById('kb_tiltSw').scrollIntoView({block: 'center'})); await (await p.$('#pilotpad')).screenshot({path: SHOTS + '/' + f}); };
+    await p.evaluate(() => __cap('nextSw')); await pad('z-keys-capture.png');
+    await p.evaluate(() => { __kd('Escape'); __cap('thermSw'); __kd('KeyC'); }); await pad('z-keys-refused.png');
+    await p.evaluate(() => new Promise(r => setTimeout(r, 2800))); await pad('z-keys-panel.png');
+  }
+
+  /* Reset: every row back to its key, saved, shown, and the old keys act again */
+  const r0 = await p.evaluate(() => { document.getElementById('keyreset').click(); return {keys: __sk(), saved: __saved(), cells: __cells(), list: __list()}; });
+  const r1 = await p.evaluate(() => { const {api} = __z, o = {}; api.showMenu(false); __z.sim(.2); const u = api.camUp;
+    __kd('KeyL'); __kd('KeyL', false); const u1 = api.camUp; o.tilt = u1 !== u; __kd('KeyG'); __kd('KeyG', false); o.tiltG = api.camUp !== u1;
+    __kd('KeyF'); o.f = __in.fireBtnIn(); __kd('KeyF', false); __kd('Space'); o.sp = __in.fireBtnIn(); __kd('Space', false); o.ctx = __mouse('contextmenu', 2); return o; });
+  ok(same(r0.keys, DEFK) && same(r0.saved, DEFK) && r0.cells === 'F|L|H|N' && r0.list === 'F / click|L|H|N', `Keys: Reset keys puts every row back to its default, saves it and shows it (${r0.cells})`);
+  ok(r1.tilt && !r1.tiltG && r1.f && !r1.sp && !r1.ctx, `Keys: after Reset the default keys act again (${JSON.stringify(r1)}) and the context menu is left alone`);
+  ok(!errs.length, 'Keys: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+  await p.close();
+
+  /* saves: the keys come back from the save, an older save has the defaults, a hand-edited one is cleaned and cannot make a key always held */
+  const kerrs = [], q = await open(browser, KURL, kerrs);
+  const load = async save => { await q.evaluate(s => { sessionStorage.setItem('zbossRoster', '0'); localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, save); await q.reload({waitUntil: 'load'}); await q.waitForFunction(() => window.__z, {timeout: 60000}); await frames(q, 3);
+    return q.evaluate(async () => { const m = await import('/engine/input.js'), S = __z.api.S; return {keys: {...S.keys}, setV: S.setV, cells: ['fire', 'tiltSw', 'thermSw', 'nextSw'].map(k => document.getElementById('kb_' + k).textContent).join('|'), held: m.fireBtnIn()}; }); };
+  const s1 = await load({wx: 'clear', setV: 7, keys: custom}), s2 = await load({wx: 'clear', setV: 6, keys: {fire: 'KeyG'}}), s3 = await load({wx: 'clear', setV: 7, keys: {fire: 'constructor', tiltSw: 'KeyC', thermSw: 'KeyG', nextSw: 'KeyG'}});
+  const s4 = await load({wx: 'clear', setV: 7, keys: 'oops'}), s5 = await load({wx: 'clear', setV: 7, keys: {fire: 'toString'}}), s6 = await load({wx: 'clear', setV: 7, keys: {fire: 'Mouse1', nextSw: 'KeyN', thermSw: 'KeyG'}});
+  ok(same(s1.keys, custom) && s1.cells === 'RMB|G|Space|O' && s1.setV === 7 && !s1.held, `Keys: bindings come back from the save (${s1.cells})`);
+  ok(same(s2.keys, DEFK) && s2.setV === 7, 'Keys: a save from before the setting (version 6) has the default keys');
+  ok([s3, s4, s5].every(s => same(s.keys, DEFK) && s.setV === 7 && s.cells === 'F|L|H|N' && !s.held), 'Keys: a hand-edited save (reserved or doubled keys, a string, a name inherited from Object) is cleaned to the defaults and no key reads as held');
+  ok(same(s6.keys, {fire: 'Mouse1', tiltSw: 'KeyL', thermSw: 'KeyG', nextSw: 'KeyN'}), `Keys: a partial save keeps its good keys and defaults the rest (${JSON.stringify(s6.keys)})`);
+  await q.evaluate(() => localStorage.removeItem('dl-interceptor'));
+  ok(!kerrs.length, 'Keys: saves: no errors' + (kerrs.length ? '\n  ' + kerrs.slice(0, 5).join('\n  ') : ''));
+  await q.close();
+}
+
 
 // ---------- balance: a scripted player who shops sensibly and runs down a share of the tracks; how far does it get? ----------
 if (argv.includes('--balance')) {  // about 10 minutes

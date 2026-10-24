@@ -68,7 +68,7 @@ jobs:
   browser:
     name: Browser check (${{ matrix.check }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.minutes || 20 }}  # a slow entry says `minutes:` (the types section flies a bot to wave 8: 12 min on a good runner, over 20 on a slow one)
     strategy:
       fail-fast: false
       matrix:
@@ -236,11 +236,16 @@ jobs:
           # craft types (ztypes.js, zplane.js, ztypeui.js): the table, the picker and its saved choice, the Plane's flight (catapult, cruise, bank, minimum speed and no hover, landing), bursts, lock, co-op models, bots flying each type, nothing left behind
           - check: zombies-test (types)
             area: interceptor
+            minutes: 35
             run: node tools/zombies-test.mjs --sections=types
           # the start page and the base screen (zhome.js, zbase.js): one big Start button above the fold, every card in the grid, a header and footer that stay on screen, shop sections and rows, the detail pane, Undo, a gamepad on the menu; at 1280x720, 1920x1080 and 900x420
           - check: zombies-test (layout)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=layout
+          # key rebinding (engine/keys.js, engine/input.js, zkeys.js): the four switch rows' key cells in the controller panel, the capture (key, mouse button, Esc), clashes refused, the new key acts and the old one does not, Reset, the saved bindings and a hand-edited save, the text that names the keys
+          - check: zombies-test (keys)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=keys
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

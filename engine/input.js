@@ -5,6 +5,7 @@ import {feed,banner} from './hud.js';
 import {tone} from './audio.js';
 import {syncUI} from './menu.js';
 import {toggleMod} from './modpanel.js';
+import {keyLabel,okCode} from './keys.js';
 // controller detection (RADIO; pad() = the most recently used gamepad; padX: Xbox-style gamepad, with its own calibration profile so a
 // radio's stays untouched; BTN, PAIR) is the shared stick code, src/input/sticks.js, the same code Jared's League uses
 import {BTN,PAIR,RADIO,pad,padBlocked,padX} from '../src/input/sticks.js';
@@ -25,15 +26,20 @@ export const swOn=(g,b)=>{if(b===-1||b==null)return null;if(typeof b!=='string')
 export const swRead=b=>{const g=pad();return g?swOn(g,b):null};
 export const swName=b=>{if(b===-1||b==null)return'None';if(typeof b!=='string')return'Button '+b;const m=SWRE.exec(b)||[];return`Axis ${m[2]} ${m[3]?(m[3]==='>'?'above ':'below ')+m[4]:m[1]||m[5]?'low':'high'}`};
 const swAx=b=>typeof b==='string'?+(SWRE.exec(b)||[0,0,-1])[2]:-1;
-// fire / detonate: F, left mouse, or the fire button or switch (S.fireInv: fire with the switch in the other position)
-export function fireBtnIn(){if(keys.KeyF||inp.mouseFire)return true;const g=pad(),b=padX?S.xfire:S.fireBtn;return !!(g&&(typeof b==='string'&&g.axes[swAx(b)]===undefined?false:!!swOn(g,b)!==!!S.fireInv))}
-// keyboard + mouse: o.menu() = menu open, o.pause() toggles it, o.key(e) gets every other key press while flying
-export function initInput(o){
- addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(learn?.seq&&!e.repeat){e.preventDefault();if(e.code==='Escape'){learn=null;syncSw()}else asnStep(learn.k);return}if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!o.menu())e.preventDefault();if(e.repeat)return;
+// fire / detonate: the bound key or mouse button (S.keys.fire, F by default), left mouse, or the fire button or switch (S.fireInv: fire with the switch in the other position)
+export function fireBtnIn(){if(keys[S.keys?.fire]||inp.mouseFire)return true;const g=pad(),b=padX?S.xfire:S.fireBtn;return !!(g&&(typeof b==='string'&&g.axes[swAx(b)]===undefined?false:!!swOn(g,b)!==!!S.fireInv))}
+// keyboard + mouse: o.menu() = menu open, o.pause() toggles it, o.key(e) gets every other key press while flying, and a mouse button bound to a switch row (S.keys, see mountSwitches)
+// as a stand-in event {code: 'Mouse2', ...}; a right or middle button bound to anything does not open the context menu or scroll while flying
+export function initInput(o){menuOpen=o.menu;
+ const ui=e=>e.target.closest?.('#mod,#menu,button,input,select,textarea'),flying=e=>!o.menu()&&!ui(e),any=c=>Object.values(S.keys||{}).includes(c),rowOf=c=>Object.keys(S.keys||{}).find(r=>r!=='fire'&&S.keys[r]===c);
+ addEventListener('keydown',e=>{if(e.target.matches?.('textarea,input:not([type=range]):not([type=checkbox])'))return;if(capOn()){e.preventDefault();if(!e.repeat)capKey(e.code);return}if(learn?.seq&&!e.repeat){e.preventDefault();if(e.code==='Escape'){learn=null;syncSw()}else asnStep(learn.k);return}if(e.code==='KeyT'&&!e.repeat){toggleMod();return}keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&!o.menu())e.preventDefault();if(e.repeat)return;
   if(e.code==='Escape'||e.code==='KeyP')o.pause();if(o.menu())return;
   if(e.code==='KeyM'){S.mode=S.mode==='acro'?'angle':'acro';save();syncUI();banner(S.mode.toUpperCase(),'',.8)}o.key(e)});
  addEventListener('keyup',e=>keys[e.code]=false);addEventListener('blur',()=>{for(const k in keys)keys[k]=false;inp.mouseFire=false});
- addEventListener('mousedown',e=>{if(e.button===0&&!o.menu()&&!e.target.closest?.('#mod,#menu,button,input,select,textarea'))inp.mouseFire=true});addEventListener('mouseup',e=>{if(e.button===0)inp.mouseFire=false});
+ addEventListener('mousedown',e=>{if(!capOn()||e.button===0&&e.target===cell(cap.k))return;e.preventDefault();e.stopPropagation();eat();capKey('Mouse'+e.button)},true);  /* capturing a binding: the next button is it (a click on the cell itself cancels, through its own handler) */
+ addEventListener('mousedown',e=>{if(!flying(e))return;const c='Mouse'+e.button;keys[c]=true;if(e.button===0)inp.mouseFire=true;if(!any(c))return;if(e.button)e.preventDefault();if(rowOf(c))o.key({code:c,type:'mousedown',repeat:false,preventDefault(){}})});
+ addEventListener('mouseup',e=>{keys['Mouse'+e.button]=false;if(e.button===0)inp.mouseFire=false});
+ addEventListener('contextmenu',e=>{if(any('Mouse2')&&flying(e))e.preventDefault()});addEventListener('auxclick',e=>{if(any('Mouse'+e.button)&&flying(e))e.preventDefault()});
  addEventListener('gamepadconnected',e=>{if(RADIO.test(e.gamepad.id)&&S.thrMode!=='full'){S.thrMode='full';save();syncUI();feed('Radio detected: throttle set to full range. Open the menu and press Calibrate radio.')}})}
 // gamepad shortcut buttons (never on a radio, never a button the Xbox profile flies with): fn(edge) with edge(i) = button i just pressed
 let prevBtn=[];
@@ -78,23 +84,33 @@ export function menuPad(){const g=pad();if(padX!==menuPad.lx){menuPad.lx=padX;sy
  for(let i=0;i<4;i++){const v=g?axv(g,i):0,b=$('ch'+i);b.style.left=(v<0?50+v*50:50)+'%';b.style.width=Math.abs(v)*50+'%'}
  const bw=$('btns'),nb=g?g.buttons.length:0;if(bw.childElementCount!==nb||bw.dataset.x!==String(padX)){bw.dataset.x=padX;bw.innerHTML=Array.from({length:nb},(_,j)=>`<span>${padX&&BTN[j]?BTN[j]:'B'+j}</span>`).join('')}
  for(let j=0;j<nb;j++){const b=g.buttons[j],e=bw.children[j];e.classList.toggle('on',b.pressed||b.value>.5);e.style.setProperty('--v',Math.round(b.value*100)+'%')}
- calTick(g);learnTick(g);for(const[k,,key]of SWS){if(learn?.k===k)continue;const v=g?swOn(g,S[sk(k)]):null;$('st_'+k).textContent=v==null?key+' key':v?'● ON':'○ off'}}
+ calTick(g);learnTick(g);for(const[k]of SWS){if(learn?.k===k)continue;const v=g?swOn(g,S[sk(k)]):null;$('st_'+k).textContent=v==null?'':v?'● ON':'○ off'}}
 
 // ---------- switches: map game functions to radio switches or buttons, each with a Learn button, plus an Assign switches walkthrough ----------
-// rows: [setting key, label, keyboard key]; 'fire' is the shared fire / detonate mapping (its own setting on an Xbox pad). Without mountSwitches nothing here runs.
-let SWS=[],learn=null;const sk=k=>k==='fire'?(padX?'xfire':'fireBtn'):k;
+// rows: [setting key, label, default keyboard / mouse code]; 'fire' is the shared fire / detonate mapping (its own setting on an Xbox pad). Without mountSwitches nothing here runs.
+// opts.reserved(code, row) names what already uses a key (the game's own keys) or gives '' when the row may take it; opts.onChange() runs when a binding or its text changes.
+// The keyboard / mouse side is S.keys[row] (engine/keys.js): the key cell next to Learn, click it and press a key or mouse button (Esc cancels); a key another row or the game uses is refused with a note in the cell.
+let SWS=[],learn=null,cap=null;const sk=k=>k==='fire'?(padX?'xfire':'fireBtn'):k,KB={},notes={},cell=k=>$('kb_'+k);
 export const swPrev={};
-export function mountSwitches(rows){SWS=rows;const map=$('map');
+function syncKeys(){for(const[k]of SWS){const c=cell(k);if(!c)continue;c.textContent=cap?.k===k?'press a key or mouse button':notes[k]?.t||keyLabel(S.keys?.[k]);c.classList.toggle('cap',cap?.k===k);c.classList.toggle('bad',!!notes[k])}KB.onChange?.()}
+const note=(k,t)=>{clearTimeout(notes[k]?.id);notes[k]={t,id:setTimeout(()=>{delete notes[k];syncKeys()},2600)}};
+const refuse=(k,c)=>{if(!okCode(c))return'That key cannot be used';const lab=keyLabel(c);for(const[r,l]of SWS)if(r!==k&&S.keys[r]===c)return`${lab} is in use: ${l}`;const x=KB.reserved?.(c,k);return x?`${lab} is in use: ${x}`:''};
+let menuOpen=()=>true;const capOn=()=>{if(cap&&!menuOpen()){cap=null;syncKeys()}return cap};  /* the menu closed under a capture (a pad's Start): flying keys are flying keys again */
+function capKey(c){const k=cap.k;cap=null;cell(k).blur();if(c!=='Escape'){const m=refuse(k,c);if(m)note(k,m);else{S.keys[k]=c;save()}}syncKeys()}
+function eat(){const f=e=>{e.preventDefault();e.stopPropagation()},t=['click','auxclick','contextmenu'];t.forEach(n=>addEventListener(n,f,true));addEventListener('mouseup',()=>setTimeout(()=>t.forEach(n=>removeEventListener(n,f,true)),60),{once:true,capture:true})}  /* the click / context menu that ends a captured mouse press belongs to the binding, not to what was under the pointer */
+export function mountSwitches(rows,opts={}){SWS=rows;Object.assign(KB,opts);if(!S.keys)S.keys={};for(const[k,,d]of SWS)if(!okCode(S.keys[k]))S.keys[k]=d;const map=$('map');
  map.insertAdjacentHTML('beforebegin','<div class="mp"><button class="sm" id="asnbtn">Assign switches</button><button class="sm" id="asnskip" hidden>Skip</button><span id="asnmsg" class="note" style="margin:0;align-self:center"></span></div>');
- map.insertAdjacentHTML('afterend','<p class="note">To map switches, press Assign switches and flip each one when it asks (any key skips), or press Learn next to a single one.</p>');
- for(const[k,lab,key]of SWS){const l=document.createElement('label');l.textContent=lab;l.htmlFor='sw_'+k;const s=document.createElement('select');s.id='sw_'+k;s.add(new Option('None','-1'));
+ map.insertAdjacentHTML('afterend','<p class="note">To map switches, press Assign switches and flip each one when it asks (any key skips), or press Learn next to a single one. The key cell is the keyboard or mouse side: click it, then press a key or mouse button (Esc cancels). <button class="lnk" id="keyreset">Reset keys</button></p>');
+ $('keyreset').onclick=()=>{cap=null;for(const[k,,d]of SWS){S.keys[k]=d;delete notes[k]}save();syncKeys()};
+ for(const[k,lab]of SWS){const l=document.createElement('label');l.textContent=lab;l.htmlFor='sw_'+k;const s=document.createElement('select');s.id='sw_'+k;s.add(new Option('None','-1'));
   for(let b=0;b<32;b++)s.add(new Option('Button '+b+(BTN[b]?' ('+BTN[b]+' on Xbox)':''),b));for(let a=0;a<16;a++){s.add(new Option(`Switch axis ${a} high`,'a'+a));s.add(new Option(`Switch axis ${a} low`,'-a'+a))}
   s.onchange=()=>{const v=s.value;S[sk(k)]=/a/.test(v)?v:+v;delete swPrev[k];save()};
-  const w=document.createElement('span');w.style.cssText='display:flex;gap:6px;align-items:center';w.innerHTML=`<button class="sm" id="ln_${k}" style="padding:4px 10px;font-size:12px">Learn</button><span class="note" id="st_${k}" style="margin:0;min-width:5.5em">${key} key</span>`;
-  map.append(l,s,w);w.firstChild.onclick=()=>{const g=pad();if(!g){$('st_'+k).textContent='no radio';return}learn={k,ax:[...g.axes],bt:g.buttons.map(x=>x.pressed),t:performance.now()};syncSw()}}
- $('asnbtn').onclick=()=>{if(learn?.seq){learn=null;syncSw();return}if(!pad()){$('asnmsg').textContent='No radio yet: move a stick first';return}asnStep()};$('asnskip').onclick=()=>asnStep(learn?.k);syncSw()}
+  const w=document.createElement('span');w.style.cssText='display:flex;gap:6px;align-items:center';w.innerHTML=`<button class="sm" id="ln_${k}" style="padding:4px 10px;font-size:12px">Learn</button><button class="sm kc" id="kb_${k}" title="Keyboard / mouse: click, then press a key or mouse button"></button><span class="note" id="st_${k}" style="margin:0;min-width:3.5em"></span>`;
+  map.append(l,s,w);w.firstChild.onclick=()=>{const g=pad();if(!g){$('st_'+k).textContent='no radio';return}cap=null;learn={k,ax:[...g.axes],bt:g.buttons.map(x=>x.pressed),t:performance.now()};syncSw()};
+  cell(k).onclick=()=>{if(cap?.k===k){cap=null;syncKeys();return}learn=null;cap={k};delete notes[k];syncSw()}}
+ $('asnbtn').onclick=()=>{if(learn?.seq){learn=null;syncSw();return}if(!pad()){$('asnmsg').textContent='No radio yet: move a stick first';return}cap=null;asnStep()};$('asnskip').onclick=()=>asnStep(learn?.k);syncSw()}
 function syncSw(){if(!SWS.length)return;for(const[k]of SWS){selV($('sw_'+k),S[sk(k)]);$('ln_'+k).textContent=learn?.k===k?'Flip it…':'Learn'}
- const q=learn?.seq;$('asnbtn').textContent=q?'Stop':'Assign switches';$('asnskip').hidden=!q;$('asnmsg').innerHTML=q?`Flip the switch for <b>${SWS.find(s=>s[0]===learn.k)[1]}</b> (any key skips)`:''}
+ const q=learn?.seq;$('asnbtn').textContent=q?'Stop':'Assign switches';$('asnskip').hidden=!q;$('asnmsg').innerHTML=q?`Flip the switch for <b>${SWS.find(s=>s[0]===learn.k)[1]}</b> (any key skips)`:'';syncKeys()}
 // Assign switches: walks the rows in order; each step waits for a flip, then moves on. The next step takes its baseline once the last switch has settled.
 function asnStep(k){const i=k==null?0:SWS.findIndex(s=>s[0]===k)+1;learn=i<SWS.length?{k:SWS[i][0],seq:1,ax:null,t:performance.now()}:null;syncSw();if(!learn&&k!=null)$('asnmsg').textContent='Done: all switches assigned'}
 function learnTick(g){if(!learn)return;if(!g||!learn.seq&&performance.now()-learn.t>10000){learn=null;syncSw();return}
