@@ -1794,6 +1794,10 @@ if (want('radio')) {
       def: [S.zradio, S.zradiov], voiceRow: !!document.getElementById('f_zrspeech'), voiceKey: 'zrspeech' in S, cap: R.cap, ac: !!__z.api.AC}; });
   ok(r0.has && r0.css && r0.chat && r0.rows.every(Boolean) && !r0.voiceRow && !r0.voiceKey, 'Radio: the module is up with its HUD log, stylesheet and two settings rows (chatter, volume), none of them hidden, and no speech row or setting');
   ok(r0.def[0] === true && r0.def[1] === .6 && r0.cap <= .1, `Radio: defaults are chatter on, volume ${r0.def[1]}; the sound cap is ${r0.cap}`);
+  /* the old subtitle's radio sound (zaudio.js Z.au.radio, heard with the chatter off) has no synthesized voice either: a squelch, static and one roger beep, no sawtooth syllables (asked while the page is quiet: the voice budget skips it when busy) */
+  const ro = await p.evaluate(() => { const {Z, api} = __z, AC = api.AC; if (!AC || !Z.au.ready) return null; const made = [], c0 = AC.createOscillator.bind(AC); AC.createOscillator = () => { const o = c0(); made.push(o); return o; };
+    try { Z.au.radio(1.5); } finally { delete AC.createOscillator; } return made.map(o => o.type); });
+  ok(ro === null || ro.length === 1 && ro[0] === 'sine', `Radio sound: the old subtitle's call is a squelch, static and one roger beep, no voice (oscillators: ${ro && ro.join() || 'none'})`);
 
   // new tracks: three Shaheds from the east are one call, with the direction and the site they threaten
   const m1 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio;
@@ -3229,6 +3233,12 @@ if (want('debug')) {
   await ev(p4, () => { for (let i = 0; i < 300; i++) console.log('ring ' + i); });
   const ring = await ev(p4, async () => { const r = await __z.Z.dbg.report(); const L = r.data.console.lines; return {n: L.length, first: L[0].msg, last: L.at(-1).msg, total: r.data.console.total}; });
   ok(ring.n === 200 && ring.last === 'ring 299' && ring.first === 'ring 100' && ring.total >= 300, `Debug console: the ring keeps the last 200 lines (${ring.first} .. ${ring.last} of ${ring.total})`);
+  /* the build stamp: its date is always in the summary; a served game file well newer than it says the stamp may be behind HEAD (a local server sends no Last-Modified: not judged) */
+  const sb = await ev(p4, async () => { const f0 = window.fetch, D = __z.Z.dbg, mk = lm => (u, o) => /interceptor\.js/.test(String(u)) && o && o.method === 'HEAD' ? Promise.resolve({headers: {get: k => /last-modified/i.test(k) ? lm : null}}) : f0(u, o);
+    window.fetch = mk('Fri, 01 Jan 2100 00:00:00 GMT'); const a = await D.report(); window.fetch = mk('Mon, 01 Jan 2001 00:00:00 GMT'); const b = await D.report(); window.fetch = f0; const c = await D.report();
+    return {a: [a.data.version.stampBehind, a.data.version.served.interceptor, /may be behind HEAD/.test(a.text)], b: [b.data.version.stampBehind, /may be behind HEAD/.test(b.text)], c: [c.data.version.stampBehind, /may be behind HEAD/.test(c.text), c.text.split('\n').find(l => /^Build /.test(l))]}; });
+  ok(sb.a[0] === true && sb.a[1] === 'Fri, 01 Jan 2100 00:00:00 GMT' && sb.a[2] && sb.b[0] === false && !sb.b[1] && sb.c[0] === null && !sb.c[1] && /^Build [0-9a-f]{7} of \d{4}-\d\d-\d\dT/.test(sb.c[2]),
+    `Debug report: the stamp's date is printed, and the report says the stamp may be behind HEAD when the served game files are newer than it (${JSON.stringify(sb.a.slice(0, 1))} / ${JSON.stringify(sb.b)} / none without a header; "${sb.c[2]?.slice(0, 60)}")`);
   await ev(p4, () => { window.__clip = null; window.__dl.length = 0; document.getElementById('zd-shot').checked = true; });
   const cp = await ev(p4, () => __z.Z.dbg.copyReport({shot: true}));
   await sleep(500);

@@ -353,7 +353,7 @@ Goals are tracked per difficulty (the letters next to each goal show where you h
 - **Your kills:** a short hit-stop and slow-mo, with the sound muffled. The dead-cam then becomes a kill cam that follows the wreck down. A big call names the kill: SHAHED DOWN, DOUBLE KILL, CLUTCH SAVE or MOTHERSHIP DESTROYED.
 - **Explosions:** a shockwave ring, a dust ring when near the ground, burning debris, and black smoke left hanging in the sky. Their sound reaches you at the speed of sound and gets duller with distance.
 - **Fires:** wrecks and impacts keep burning, with smoke columns that drift with the wind for about a minute.
-- **Each wave:** it opens with an air-raid siren and a radio call. The radio (subtitled, under a garbled voice) calls each raid by direction, launches, hits on the sites and the all-clear.
+- **Each wave:** it opens with an air-raid siren and a radio call. The radio (subtitled, with a squelch click and static; no voice) calls each raid by direction, launches, hits on the sites and the all-clear.
 - **The front:** artillery flickers and rumbles on the horizon, and far-off AA tracer climbs into the sky.
 - **Helpers:** you hear and see them fire: muzzle flashes on the Gepard's barrels and the mortar, a flash and a puff of launch gas on the drone racks, and SAM / Iron Dome missiles leave their tubes with a flash and a backblast cloud, then climb out on a motor flame and a smoke trail.
 - **Money:** a kill's money rises from the wreck and flies into the cash counter, which rolls up (with a chink) as it lands.

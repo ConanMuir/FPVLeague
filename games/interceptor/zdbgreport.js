@@ -1,19 +1,21 @@
 /* The debug report (zdebug.js): everything a developer needs from a tester's session in one bundle. A readable summary on top, then the JSON after the marker line
-   "=== JSON ===" (parse the text after it). Fields: version (git short hash and date from version.js, written by tools/version.mjs, plus when the served files last changed), env (user agent,
+   "=== JSON ===" (parse the text after it). Fields: version (git short hash and date from version.js, written by tools/version.mjs, plus when the served game files last changed and whether the stamp may be behind HEAD), env (user agent,
    GPU renderer, screen, memory), run, settings (the live settings) and save (the stored game key and the pilot profile as saved), console (the last 200 lines, errors with stacks),
    events (the last 60 s of game events), marks (F9: each with the 60 s before it), fps (one entry a second plus the live numbers), state (a snapshot of the game), cheats (what was used).
    Nothing in it is sensitive: the save holds settings, records and the pilot name the tester typed. */
 import {gpuInfo} from '../../src/ui/fpsmeter.js';
 import {gfx} from '../../engine/gfx.js';
 import {consoleLines,consoleCount,errorCount,events,fps,wall,clock} from './zdbglog.js';
-export const MARKER='=== JSON ===',SCHEMA=1;
+export const MARKER='=== JSON ===',SCHEMA=1,BEHIND_MS=15*60*1000;  /* the served files may be this much newer than the stamp's commit (the push and the deploy come after it) before the report says the stamp may be behind */
 const r1=v=>Math.round(v*10)/10,v3=p=>p?[r1(p.x),r1(p.y),r1(p.z)]:null,tryf=(f,d=null)=>{try{return f()}catch(e){return d}};
 const rd=k=>{try{const s=localStorage.getItem(k);return s==null?null:JSON.parse(s)}catch(e){return'unreadable'}};
 
 async function versionInfo(){
  const o={hash:'unknown',date:'',branch:'',dirty:null,pkg:'',stamp:'none'};
  try{const m=await import('./version.js');Object.assign(o,m.VERSION||{});o.stamp='version.js'}catch(e){}
- try{const r=await fetch(import.meta.url,{method:'HEAD',cache:'no-store'});o.served={module:r.headers.get('last-modified')||'',page:document.lastModified||''}}catch(e){}
+ /* the game files' own Last-Modified (GitHub Pages sets it to the deploy time): well past the stamp's date means newer commits are being served than the stamp names. A local server sends none: then it is not judged */
+ try{const r=await fetch(new URL('interceptor.js',import.meta.url),{method:'HEAD',cache:'no-store'}),lm=r.headers.get('last-modified')||'',t=Date.parse(lm),s=Date.parse(o.date);
+  o.served={interceptor:lm};o.stampBehind=Number.isFinite(t)&&Number.isFinite(s)?t-s>BEHIND_MS:null}catch(e){}
  return o}
 
 function counts(list){const by={};for(const k of list)by[k]=(by[k]|0)+1;return by}
@@ -60,7 +62,8 @@ function summary(d){
  const v=d.version,L=[],c=d.console.lines.filter(l=>l.lvl==='error'),e=c[c.length-1];
  L.push(`DRONE LEAGUE INTERCEPTOR DEBUG REPORT (schema ${d.schema})`);
  L.push(`Generated ${d.generated} (local ${clock(performance.now())}), page open ${d.uptime} s`);
- L.push(`Build ${v.hash}${v.date?` of ${v.date}`:''}${v.branch?` on ${v.branch}`:''}${v.dirty?' (uncommitted changes)':''}, package ${v.pkg||'?'}, stamp ${v.stamp}${v.served?.module?`, served ${v.served.module}`:''}`);
+ L.push(`Build ${v.hash}${v.date?` of ${v.date}`:''}${v.branch?` on ${v.branch}`:''}${v.dirty?' (uncommitted changes)':''}, package ${v.pkg||'?'}, stamp ${v.stamp}${v.served?.interceptor?`, game files served ${v.served.interceptor}`:''}`);
+ if(v.stampBehind)L.push('!! The stamp may be behind HEAD: the served game files are newer than the stamp\'s date, so this build may include later commits than the hash above.');
  L.push(`Browser ${d.env.userAgent}`);
  L.push(`GPU ${d.env.gpu.renderer||d.env.gpu.name||'unknown'}${d.env.gpu.igpu?' (integrated or software)':''}; screen ${d.env.screen.w}x${d.env.screen.h} @${d.env.screen.dpr}, viewport ${d.env.viewport.w}x${d.env.viewport.h}`);
  const g=d.state.game||{};

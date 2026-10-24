@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {write as writeStamp} from './version.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist', 'index.html');
@@ -35,6 +36,10 @@ const styles = head.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi) || [];
 if (!styles.some(s => /\[hidden\]\{display:none!important\}/.test(s))) fail('the [hidden]{display:none!important} rule is missing');
 const artifact = [title, ...links, ...styles, body.trim(), '<script type="module">' + js + '</script>', ''].join('\n');
 fs.writeFileSync(path.join(root, 'dist', 'drone-league.artifact.html'), artifact);
+
+/* c) the Interceptor debug report's build stamp (games/interceptor/version.js): the git hash of this checkout, so a release build never carries a stale one */
+const vs = writeStamp();
+console.log(vs ? `postbuild: games/interceptor/version.js stamped ${vs.hash}${vs.dirty ? ' (dirty)' : ''}` : 'postbuild: no git here, games/interceptor/version.js kept');
 
 const kb = n => (n / 1024).toFixed(0) + ' kB';
 console.log(`postbuild: dist/index.html ${kb(html.length)} -> games/drone-league/index.html; dist/drone-league.artifact.html ${kb(artifact.length)}`);
