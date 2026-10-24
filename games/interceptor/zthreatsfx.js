@@ -94,13 +94,16 @@ export function initThreatSfx(api,G,Z){
  // closest distance from the listener to the segment a..b (a fast source moves tens of metres a frame)
  const seg=(ax,ay,az,b,c)=>{const dx=b.x-ax,dy=b.y-ay,dz=b.z-az,L2=dx*dx+dy*dy+dz*dz,s=L2>1e-9?cl(((c.x-ax)*dx+(c.y-ay)*dy+(c.z-az)*dz)/L2,0,1):0;return Math.hypot(ax+dx*s-c.x,ay+dy*s-c.y,az+dz*s-c.z)};
  // ---------- sources: live tracks (a swarm is one voice, its nearest drone, louder with its size) and Golden Dome kill vehicles ----------
- const SRC=[],grp=new Map();
- function gather(){SRC.length=0;grp.clear();const c=L.p;
+ /* the source records are kept and filled again each frame (one object per track and frame was 20 KB of garbage a frame with 400 tracks) */
+ const SRC=[],grp=new Map(),REC=[];let rn=0;
+ const rec=(o,d,k)=>{const r=REC[rn]||(REC[rn]={o:null,d:0,n:1,k:''});rn++;r.o=o;r.d=d;r.n=1;r.k=k;return r};
+ function gather(){SRC.length=0;grp.clear();rn=0;const c=L.p;
   for(const t of TH){if(!api.live(t)||!KIND[t.k])continue;const d=t.p.distanceTo(c);
-   if(t.k==='swarm'&&t.grp){const g=grp.get(t.grp);if(g){g.n++;passTrack(t,'swarm',d);if(d<g.d){g.o=t;g.d=d}continue}grp.set(t.grp,{o:t,d,n:1,k:'swarm'})}
-   else SRC.push({o:t,d,n:1,k:t.k});passTrack(t,t.k,d)}
+   if(t.k==='swarm'&&t.grp){const g=grp.get(t.grp);if(g){g.n++;passTrack(t,'swarm',d);if(d<g.d){g.o=t;g.d=d}continue}grp.set(t.grp,rec(t,d,'swarm'))}
+   else SRC.push(rec(t,d,t.k));passTrack(t,t.k,d)}
   for(const g of grp.values())SRC.push(g);
-  for(const h of Z.def?.shots||[])if(h.kind==='space'){const d=h.p.distanceTo(c);SRC.push({o:h,d,n:1,k:'kv'});passTrack(h,'kv',d)}
+  for(const h of Z.def?.shots||[])if(h.kind==='space'){const d=h.p.distanceTo(c);SRC.push(rec(h,d,'kv'));passTrack(h,'kv',d)}
+  for(let i=rn;i<REC.length&&REC[i].o;i++)REC[i].o=null;  /* what is left of the last frame's records lets go of its tracks */
   ST.src=SRC.length}
  // pass tracker: the moment a source stops closing in, it has just passed its closest point
  const BQ=[];  // booms on their way to the listener: {at (audio time), ...}

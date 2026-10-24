@@ -161,13 +161,18 @@ export function initBosses(api,G,Z){
  function kill(t,by='p'){const B=t.bs;if(!B||B.dead)return;B.dead=1;t.by=by;const D=BOSSES[t.k];try{D.death?.(ctx,t)}catch(e){console.warn('boss death',e)}
   if(D.minor){kt0(t,true);return}api.boom(t.p,D.boomK||6);kt0(t,true);Z.fxTest?.slowmo(.18,.9,.8,.06);Z.au?.bossDown()}
  // gone without a kill (it escaped, impacted, or a split replaced it): no money, no reward
- function vanish(t,why){if(!t.bs||t.bs.dead)return;t.bs.dead=1;t.bs.gone=why||'gone';t.st='dead';if(why==='escaped'&&!BOSSES[t.k].minor){const D=BOSSES[t.k];feed(`<span class="co">${D.n} ${D.escTxt||'got away'}</span>`);Z.an?.say(`${D.tag||D.n.toUpperCase()} ESCAPED`,'no reward','#9fb3c8',2)}}
+ function vanish(t,why){if(!t.bs||t.bs.dead)return;t.bs.dead=1;t.bs.gone=why||'gone';t.st='dead';if(why==='escaped'&&!BOSSES[t.k].minor){const D=BOSSES[t.k];(Z.team||feed)(`<span class="co">${D.n} ${D.escTxt||'got away'}</span>`);Z.an?.say(`${D.tag||D.n.toUpperCase()} ESCAPED`,'no reward','#9fb3c8',2)}}
  // impact on a site (bosses that ram or bomb): through Z.impact so sandbags, fires, integrity and game over all apply
- function strike(t,site,dmg,aim){const fk={k:'shahed',tgt:site,aim:aim||site.aims[0],p:(aim||site.aims[0]).clone(),st:'cruise',_bdmg:dmg};Z.impact(fk);return fk}
+ function strike(t,site,dmg,aim){const a=aim||site.aims[0],fk={k:'shahed',tgt:site,aim:a,p:a.clone(),st:'cruise',_bdmg:dmg};
+  Z.netEv?.(['I',api.SITES.indexOf(site),dmg|0,Math.round(a.x),Math.round(a.y),Math.round(a.z)]);  /* the clients get the same impact (znet.js event I: the hit line, the tone; the site's hit points come with the snapshot) */
+  Z.impact(fk);return fk}
+ Z.bossStrike=a=>{if(auth())return;const s=api.SITES[a[0]|0];if(s&&a.slice(1,5).every(Number.isFinite))strike(null,s,a[1],new V3(a[2],a[3],a[4]))};
  const i0=Z.impact;Z.impact=t=>{if(t._bdmg!=null){const s=t.tgt,K=KIND.shahed,dm=K.dmg;K.dmg=t._bdmg;try{i0(t)}finally{K.dmg=dm}return}const s=t.tgt,h0=s?.hp;i0(t);if(s&&h0>0&&s.hp>0)for(const R of rew())R.impact?.(ctx,s,h0-s.hp)};
 
  // ---------- the reward: run-long, listed on the base screen. Effects are the reward's own hooks (rew() = what you hold) ----------
- const rew=()=>Object.keys(G.brw||{}).map(k=>REWARDS[k]).filter(Boolean);
+ /* one list until the trophies change (a key was added, or G.brw is a new object): every Z.seen / Z.radarK / Z.ident call, one per track and frame, used to build it again */
+ const NORW={};let rwO=null,rwN=-1,rwL=[];
+ const rew=()=>{const o=G.brw||NORW;let n=0;for(const k in o)n++;if(o===rwO&&n===rwN)return rwL;rwO=o;rwN=n;return rwL=Object.keys(o).map(k=>REWARDS[k]).filter(Boolean)};
  function grant(id,silent){const R=REWARDS[id];if(!R)return false;G.brw=G.brw||{};if(G.brw[id])return false;G.brw[id]=1;R.grant?.(ctx);
   if(!silent){feed(`<span class="cg">Boss trophy: <b>${R.n}</b></span> · ${R.txt}`);Z.an?.radio('OVERLORD',`Trophy recovered: ${R.n}. ${R.short||''}`,2)}return true}
  function won(e){if(e.over)return;e.over=true;e.won=true;const D=e.D;bump(e.id,'won');const w=Math.max(1,G.wave),cash=Math.round((D.bounty||2500)*(1+w/25));Z.earn?.(cash,e.main.p,' BOSS');
@@ -211,9 +216,9 @@ export function initBosses(api,G,Z){
   const title=I.title||D.n.toUpperCase(),sub=typeof I.sub==='function'?I.sub(ctx,t):I.sub||'';Z.fxTest?.cine('boss',t,t.p,title,sub);
   Z.an?.say(title,sub,I.col||D.col||'#ff4d4d',3);if(I.radio)Z.an?.radio(I.who||'OVERLORD',typeof I.radio==='function'?I.radio(ctx,t):I.radio,2)}
  /* a wave ends (every effect goes), a wave starts, the base screen opens. Read on every step; a co-op client also calls it the moment its mirrored state changes
-    (znet.js), because the base and game-over screens pause the sim: a client that never got a step in the wave's clear state would not see the wave end at all */
+    (Z.stateSync, znet.js), because the base and game-over screens pause the sim: a client that never got a step in the wave's clear state would not see the wave end at all */
  function trans(){if(G.state===st0)return;const was=st0;st0=G.state;if(was==='wave'&&G.state!=='wave')clearAll('wave over');if(G.state==='wave'&&was!=='wave')waveStart();if(G.state==='base'&&was!=='base'){for(const D of Object.values(BOSSES))D.g?.base?.(ctx);for(const R of rew())R.base?.(ctx)}}
- Z.bossTrans=()=>{if(G.on)trans()};
+ Z.stateHooks.push(()=>{if(G.on)trans()});
  const s0=Z.step;Z.step=dt=>{s0(dt);if(!G.on)return;pctx=null;habits(dt);
   /* the fights are judged before the wave-end cleanup below closes them all unrecorded: the boss that was the last track down wins in this very step */
   if(auth())encTick();
@@ -224,7 +229,7 @@ export function initBosses(api,G,Z){
   if(auth()&&G.state==='wave'&&!G.wq.length){const L=TH.filter(live);if(L.length&&L.every(t=>mine(t)&&BOSSES[t.k].persist))for(const t of L)withdraw(t)}};
  // a boss that outlives the wave: its run state is kept (G.bkeep), the track and every effect go; it comes back next wave
  function withdraw(t){const D=BOSSES[t.k];(G.bkeep||(G.bkeep={}))[t.k]=D.save?D.save(ctx,t):{};const e=t.bs.enc;if(e)e.over=true;t.bs.dead=1;t.bs.gone='withdrew';t.st='dead';
-  for(const u of TH)if(u.bs?.enc===e&&u!==t&&u.st!=='dead'){u.bs.dead=1;u.st='dead'}if(D.withdrawTxt)feed(D.withdrawTxt(ctx,t))}
+  for(const u of TH)if(u.bs?.enc===e&&u!==t&&u.st!=='dead'){u.bs.dead=1;u.st='dead'}if(D.withdrawTxt)(Z.team||feed)(D.withdrawTxt(ctx,t))}
  // ---------- the one cleanup path: every boss effect ends with the wave (and at game over, quit, restart). Kept: records, trophies, withdrawn
  // bosses' run state, the Ghost of the Ace's wreck (a map feature, not an effect). A boss still in the air here is simply gone. ----------
  function clearAll(why){for(const t of TH){if(mine(t)&&t.st!=='dead'){if(t.bs&&!t.bs.dead){t.bs.dead=1;t.bs.gone=why}t.st='dead'}if(t.iff)t.iff=0}
@@ -238,7 +243,11 @@ export function initBosses(api,G,Z){
   if(nx){const q=kinds.find(k=>BOSSES[k]);const D=q?BOSSES[q]:null;if(D)setTimeout(()=>{if(G.on&&G.state==='wave'){Z.an?.say(`${D.tag||D.n.toUpperCase()} INBOUND`,D.warn||'boss contact','#ff4d4d',3);Z.au?.siren?.(true)}},60)}}
 
  // ---------- radar, lock, helpers: what an alive boss does to them, and what your trophies do ----------
- const alive=()=>TH.filter(t=>mine(t)&&live(t));
+ /* the boss tracks alive: one scan of the track list per sim tick (and again when the list changed), then only the few bosses are looked at. Z.seen asks once per track, so each ask used to be a scan of its own:
+    with 400 tracks that was 160 thousand checks and a fresh array per radar frame */
+ let bkT=-1,bkN=-1,bkE=null,bkL=[];const NOB=[];
+ const bossTr=()=>{const n=TH.length,e=n?TH[n-1]:null,k=api.tick;if(k===bkT&&n===bkN&&e===bkE)return bkL;bkT=k;bkN=n;bkE=e;const L=[];for(let i=0;i<n;i++)if(mine(TH[i]))L.push(TH[i]);return bkL=L};
+ const alive=()=>{const L=bossTr();if(!L.length)return NOB;let r=null;for(let i=0;i<L.length;i++)if(live(L[i]))(r||(r=[])).push(L[i]);return r||NOB};
  const lj0=Z.lockJam;Z.lockJam=t=>{let k=lj0?.(t)??1;for(const u of alive()){const D=BOSSES[u.k];if(D.lockK)k*=D.lockK(ctx,u,t)}for(const R of rew())if(R.lockK)k*=R.lockK(ctx,t);if(mine(t)&&BOSSES[t.k].lockSelf)k*=BOSSES[t.k].lockSelf(ctx,t);return k};
  const rk0=Z.radarK;Z.radarK=()=>{let k=rk0?.()??1;for(const u of alive()){const D=BOSSES[u.k];if(D.radarK)k*=D.radarK(ctx,u)}for(const R of rew())if(R.radarK)k*=R.radarK(ctx);return k};
  const jk0=Z.jink;Z.jink=t=>{let k=jk0?.(t)??1;for(const u of alive()){const D=BOSSES[u.k];if(D.jinkK)k*=D.jinkK(ctx,u,t)}return k};
@@ -299,7 +308,12 @@ export function initBosses(api,G,Z){
 
  // ---------- co-op: the host's boss state rides on each boss track in the snapshot (znet.js) ----------
  Z.bossOut=t=>{if(!t.bs)return[];const D=BOSSES[t.k];return[t.bs.hp|0,t.bs.max|0,t.bs.ph|0,...(D.netOut?.(ctx,t)||[])]};
+ /* a co-op client holds the trophies the host won (znet.js sends the ids). The pilot-local ones work there as they do solo (radar, lock-on, the Crown's immunity, the Array's ears, Deathless,
+    the Shard); the ones that run the host's world (the Hive's counter-swarm, the Darts, the Ledger, the Plating...) guard themselves with auth() */
+ Z.brwIn=ids=>{if(auth()||!Array.isArray(ids))return;const B=G.brw||(G.brw={});
+  for(const id of ids){const R=typeof id==='string'?REWARDS[id]:null;if(!R||B[id])continue;B[id]=1;try{R.grant?.(ctx)}catch(e){console.warn('trophy',e)}feed(`<span class="cg">Boss trophy: <b>${R.n}</b></span> · ${R.txt}`)}};
  /* a co-op client: the host's win over a boss (znet.js event B: kind, bounty, trophy), shown and heard like the host's own */
+ Z.shootMe=why=>auth()?false:ctx.shoot(why);  /* a boss hit on this pilot, from the host (znet.js event H) */
  Z.bossWon=a=>{const D=BOSSES[a[0]];if(!D||D.minor||auth())return;const nm=String(a[2]||'').replace(/[<>&"'`]/g,'').slice(0,40);
   Z.an?.say(`${D.tag||D.n.toUpperCase()} DEFEATED`,`+${money(+a[1]||0)}${nm?' · '+nm:''}`,D.col||'#ff9a3c',3);Z.an?.radio('OVERLORD',D.winTxt||`${D.n} is down. Outstanding.`,2);Z.au?.bossDown()};
  Z.bossIn=(t,a)=>{if(!t.bs||!Array.isArray(a))return;const D=BOSSES[t.k];if(Number.isFinite(a[0]))t.bs.hp=a[0];if(Number.isFinite(a[1])&&a[1]>0)t.bs.max=a[1];if(Number.isFinite(a[2])&&a[2]!==t.bs.ph){t.bs.ph=a[2]|0;D.phase?.(ctx,t,t.bs.ph);if(!D.minor&&D.phases?.[t.bs.ph])Z.an?.say(D.phases[t.bs.ph],D.n,D.col||'#ff9a3c',2)}  /* the phase banner, as phaseCheck gives it on the host */
@@ -309,7 +323,8 @@ export function initBosses(api,G,Z){
  const ctx={api,G,Z,THREE,V3,S,SND,FX:BFX,SMK:BSMK,HAZE:BHZ,haze,gfx,BOSSES,REWARDS,decal,D2,cl,rnd,drnd,pick,money,auth,me,pilots,nearPilot,aspect,habit,steer,dirTo,levelTo,spawn,join,fightOf,encs,hurt,kill,vanish,strike,grant,rew,bolt,BO,rec,recAdd,bump,hpK,DFI,spark,intro,
   get wt(){return G.wt||0},
   // lose your interceptor to enemy fire (the Ace's missile, the Mirror's burst); the Deathless trophy may save it (zboss-ace.js)
-  shoot(why){const d=me();if(!d)return false;if(rew().some(R=>R.save?.(ctx,why)))return false;api.lose('shot');feed(`<span class="cr">Interceptor lost: ${why}</span>`);return true},
+  /* P: another pilot's interceptor (a co-op client's, znet.js): that pilot's own screen loses it */
+  shoot(why,P){if(P&&P!==api.player)return!!Z.netHit?.(P,why);const d=me();if(!d)return false;if(rew().some(R=>R.save?.(ctx,why)))return false;api.lose('shot');feed(`<span class="cr">Interceptor lost: ${why}</span>`);return true},
   // a tidy group: geometries made for one track are freed with it (interceptor.js dropMesh)
   group(){const g=new THREE.Group();g.userData.own=1;return g},
   mesh(g,geo,mat,x=0,y=0,z=0,shadow=true){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=shadow;g.add(m);return m},

@@ -58,15 +58,27 @@ const MS=[],TR=[];
 const _hz={x:0,y:0,z:0};  // haze emit point (reused)
 
 function msStep(C,dt){const{api}=C;for(let i=MS.length-1;i>=0;i--){const m=MS[i],d=m.tg;m.life-=dt;if(!d||d.dead>0||m.life<=0){MS.splice(i,1);C.FX.emit(m.p,0xffd080,12,6,.3,null,2);continue}
-  const r=new C.V3().subVectors(d.p,m.p),dist=r.length();if(dist<8){MS.splice(i,1);api.boom(m.p,1.2);if(d===api.player)C.shoot(`${KN}'s missile`)&&C.recAdd('ace','kills');continue}
+  const r=new C.V3().subVectors(d.p,m.p),dist=r.length();if(dist<8){MS.splice(i,1);api.boom(m.p,1.2);if(C.shoot(`${KN}'s missile`,d))C.recAdd('ace','kills');continue}
   const des=r.addScaledVector(d.v,Math.min(2,dist/m.spd)).normalize(),cur=m.v.clone().normalize(),a=Math.acos(C.cl(cur.dot(des),-1,1));if(a>1e-4)cur.lerp(des,Math.min(1,m.turn*dt/a)).normalize();
   m.v.copy(cur).multiplyScalar(m.spd);m.p.addScaledVector(m.v,dt);if(Math.random()<.8)C.SMK.emit(m.p,0xe8e4dc,1,1,2.6,null,1,.55)}
  for(let i=TR.length-1;i>=0;i--){const t=TR[i];t.life-=dt;t.p.addScaledVector(t.v,dt);if(t.life<=0)TR.splice(i,1)}}
-function fireMissile(C,t,d){MS.push({p:t.p.clone().add(new C.V3(0,-1.2,0)),v:t.v.clone().setLength(150),spd:175,turn:.95,tg:d,life:9});C.FX.emit(t.p,0xffc070,30,10,.4,null,2.5)}
+/* a co-op client sees the Ace's missiles and gun bursts: the host sends where its missiles are (six numbers and whose they are) and a count of bursts in netOut,
+   the client draws them and flies them on between snapshots (g.step) */
+const r0=Math.round;
+function netMs(t){const o=[];let n=0;for(const m of MS){if(m.o!==t.id)continue;if(n++>=3)break;o.push(r0(m.p.x),r0(m.p.y),r0(m.p.z),r0(m.v.x),r0(m.v.y),r0(m.v.z),m.tk||'')}return o}
+function netMsIn(C,t,a,i){const B=t.bs,gn=a[i]|0;
+ if(B.gn0!=null&&gn!==B.gn0){const fw=t.v.clone().normalize();for(let k=0;k<10;k++)TR.push({p:t.p.clone().addScaledVector(fw,6),v:fw.clone().multiplyScalar(600).add(new C.V3(C.rnd(-12,12),C.rnd(-12,12),C.rnd(-12,12))),life:1})}B.gn0=gn;
+ for(let k=MS.length-1;k>=0;k--)if(MS[k].o===t.id)MS.splice(k,1);
+ for(let k=i+1;k+6<a.length&&MS.length<8;k+=7){const q=a.slice(k,k+6);if(!q.every(Number.isFinite))break;const tk=typeof a[k+6]==='string'?a[k+6].slice(0,40):'';
+  MS.push({p:new C.V3(q[0],q[1],q[2]),v:new C.V3(q[3],q[4],q[5]),spd:175,turn:0,tg:tk&&tk===C.Z.netMe?.()?C.api.player:null,tk,life:2,o:t.id})}}
+function msMirror(C,dt){for(let i=MS.length-1;i>=0;i--){const m=MS[i];m.life-=dt;m.p.addScaledVector(m.v,dt);if(m.life<=0){MS.splice(i,1);continue}if(Math.random()<.8)C.SMK.emit(m.p,0xe8e4dc,1,1,2.6,null,1,.55)}
+ for(let i=TR.length-1;i>=0;i--){const t=TR[i];t.life-=dt;t.p.addScaledVector(t.v,dt);if(t.life<=0)TR.splice(i,1)}}
+function fireMissile(C,t,d){MS.push({p:t.p.clone().add(new C.V3(0,-1.2,0)),v:t.v.clone().setLength(150),spd:175,turn:.95,tg:d,life:9,o:t.id,tk:C.Z.pilotKey?.(d)||''});C.FX.emit(t.p,0xffc070,30,10,.4,null,2.5)}
 
 // ---------- the duel AI: shared by the Ace and his ghost ----------
 function duel(C,t,dt,o){const{api,G,V3}=C,B=t.bs,ph=B.ph,gh=api.gh;B.mcd=(B.mcd||0)-dt;B.gcd=(B.gcd||0)-dt;B.brkCd=(B.brkCd||0)-dt;B.ext=(B.ext||0)-dt;B.learn=B.learn||{};
- const P=C.nearPilot(t.p),r=P?P.p.distanceTo(t.p):1e9,flying=P&&P.v.length()>12&&r<5000,K=o.spd*[1,1.1,1.22][ph];
+ const P=C.nearPilot(t.p),r=P?P.p.distanceTo(t.p):1e9;B.tk=C.Z.pilotKey?.(P)||'';  /* whose lock it is: only that pilot's screen warns (the key rides in netOut) */
+ const flying=P&&P.v.length()>12&&r<5000,K=o.spd*[1,1.1,1.22][ph];
  // learning: each run at him from inside 650 m is filed by aspect; a favourite (3 of the same) makes him break early against it
  if(P&&r<650){const cv=-new V3().subVectors(t.v,P.v).dot(new V3().subVectors(t.p,P.p))/r;if(!B.appr&&cv>10){B.appr=1;const A=C.aspect(P.p,t);B.learn[A.key]=(B.learn[A.key]|0)+1;B.last=A.key;
    const f=Object.entries(B.learn).sort((a,b)=>b[1]-a[1])[0];if(f[1]>=3&&f[0]!==B.fav){B.fav=f[0];if(P===api.player)C.Z.an?.radio(o.who,o.taunt(f[0]),2)}}}
@@ -85,13 +97,13 @@ function duel(C,t,dt,o){const{api,G,V3}=C,B=t.bs,ph=B.ph,gh=api.gh;B.mcd=(B.mcd|
  const fw=new V3().copy(t.v).normalize(),ang=fw.angleTo(new V3().subVectors(P.p,t.p));
  if(r<1150&&r>160&&ang<.35&&B.mcd<=0&&o.missiles)B.lock=Math.min(1,(B.lock||0)+dt/(ph?1.9:2.7));else B.lock=Math.max(0,(B.lock||0)-dt*.7);
  if(B.lock>=1){B.lock=0;B.mcd=ph?5:7;fireMissile(C,t,P);B.ext=2.5;o.onShot?.(C,t,P)}
- if(r<420&&ang<.14&&B.gcd<=0){B.gcd=3;for(let i=0;i<10;i++)TR.push({p:t.p.clone().addScaledVector(fw,6),v:fw.clone().multiplyScalar(600).add(new V3(C.rnd(-12,12),C.rnd(-12,12),C.rnd(-12,12))),life:1});
-  if(Math.random()<[.3,.4,.5][ph]*(P===api.player?1:0)&&C.shoot(`${o.who}'s guns`))C.recAdd('ace','kills')}
+ if(r<420&&ang<.14&&B.gcd<=0){B.gcd=3;B.gn=(B.gn|0)+1;for(let i=0;i<10;i++)TR.push({p:t.p.clone().addScaledVector(fw,6),v:fw.clone().multiplyScalar(600).add(new V3(C.rnd(-12,12),C.rnd(-12,12),C.rnd(-12,12))),life:1});
+  if(Math.random()<[.3,.4,.5][ph]&&C.shoot(`${o.who}'s guns`,P))C.recAdd('ace','kills')}
  return true}
 
 // HUD warnings for you: the lock building on your six, a missile in the air, his nose on you
-function warn(C,oc,t,W,H){const{api}=C,d=api.player;if(!d||d.dead>0)return;const B=t.bs;let y=H*.24;oc.font='700 15px "JetBrains Mono",monospace';
- if(B.lock>.05){oc.fillStyle=Math.sin(performance.now()/90)>0?'#ff4d4d':'#ffc640';oc.fillText(`${t.k==='gace'?'THE DEATHLESS':KN} LOCKING ${Math.round(B.lock*100)}% · BREAK`,W/2,y);y+=20;
+function warn(C,oc,t,W,H){const{api}=C,d=api.player;if(!d||d.dead>0)return;const B=t.bs;let y=H*.24;const mine=!B.tk||B.tk===C.Z.netMe?.();oc.font='700 15px "JetBrains Mono",monospace';
+ if(B.lock>.05&&mine){oc.fillStyle=Math.sin(performance.now()/90)>0?'#ff4d4d':'#ffc640';oc.fillText(`${t.k==='gace'?'THE DEATHLESS':KN} LOCKING ${Math.round(B.lock*100)}% · BREAK`,W/2,y);y+=20;
   if(B.lock>.05&&C.SND.ok&&(B.bp=(B.bp||0)-1/60)<=0){B.bp=.5-.4*B.lock;C.api.tone(1100+600*B.lock,1100+600*B.lock,.06,.05,'square')}}
  for(const m of MS)if(m.tg===d){const r=m.p.distanceTo(d.p);oc.fillStyle='#ff4d4d';oc.fillText(`MISSILE ${Math.round(r)} m · TURN HARD`,W/2,y);y+=20;
   const q=m.p.clone().project(api.camera);let x=q.x,yy=q.y;if(q.z>1){x=-x;yy=-yy}const k=Math.max(Math.abs(x)/.85,Math.abs(yy)/.8,1);oc.beginPath();oc.arc((x/k*.5+.5)*W,(-yy/k*.5+.5)*H,14,0,7);oc.strokeStyle='#ff4d4d';oc.lineWidth=3;oc.stroke()}
@@ -124,7 +136,7 @@ export function legionRaise(C,lead,n,kinds,o={}){const L=[];const tot=Object.val
 function spectreTick(C,t,dt){const{api,G,V3}=C,B=t.bs,ld=B.lead;if(!ld||ld.bs.dead||ld.st==='dead'){C.vanish(t,'collapsed');C.FX.emit(t.p,t.sv==='mirror'?0xff3020:0x40ffc0,30,10,.8,null,2.5);return true}
  const sq=api.TH.filter(u=>u.k==='spectre'&&u.bs.lead===ld&&u.st!=='dead'&&!u.bs.dive),n=Math.max(1,sq.length),i=Math.max(0,sq.indexOf(t)),form=ld.bs.form|0;
  if(B.dive){const d=C.nearPilot(t.p);if(!d){B.dive=0;return true}const r=d.p.distanceTo(t.p);C.steer(t,C.dirTo(t,d.p),ld.spd*1.2+20,2.2,dt,8);B.dt=(B.dt||0)+dt;
-  if(r<7){C.vanish(t,'struck');api.boom(t.p,.8);if(d===api.player)C.shoot(t.sv==='mirror'?'your own drone':'a spectre');return true}if(B.dt>14)B.dive=0;return true}
+  if(r<7){C.vanish(t,'struck');api.boom(t.p,.8);C.shoot(t.sv==='mirror'?'your own drone':'a spectre',d);return true}if(B.dt>14)B.dive=0;return true}
  const f=ld.v.clone().setY(0);if(f.lengthSq()<1)f.set(0,0,1);f.normalize();const P=C.nearPilot(ld.p),ax=P?new V3().subVectors(P.p,ld.p).setY(0).normalize():f;
  const S=new V3();if(C.Z.sw?.slot)C.Z.sw.slot(form,i,n,ld.p,f,ax,(B.ph2=(B.ph2||Math.random()*6)+dt*.4),S);else S.copy(ld.p).add(new V3(Math.cos(i)*30,0,Math.sin(i)*30));
  S.multiplyScalar(1).sub(ld.p).multiplyScalar(form===0?3.2:2.6).add(ld.p);S.y=Math.max(S.y,api.gh(S.x,S.z)+20);
@@ -160,10 +172,10 @@ const ACE={id:'ace',n:'Ace of Aces',tag:KN,col:'#ff3b3b',spd:88,alt:[500,800],hi
  status(C,e){const B=e.main.bs;return`${B.fav?`READING YOU: <b>${B.fav}</b> · vary your approach`:'learning your approach'}${B.mcd>0&&B.ext>0?' · <b>WINDOW</b>: he is clearing his shot':''}${B.flee?' · <b>RUNNING</b> for the edge':''}`},
  vis(C,t,dt){fxDraw(C);const B=t.bs;if(B.ph>0&&(B.sm=(B.sm||0)-dt)<=0){B.sm=B.ph>1?.04:.09;C.SMK.emit(t.p,0x2a2826,1,1.2,4,null,1,.7)}},
  overlay:(C,oc,t,W,H)=>warn(C,oc,t,W,H),
- netOut:(C,t)=>[Math.round((t.bs.lock||0)*100),t.bs.flee?1:0],netIn(C,t,a){t.bs.lock=(a[0]|0)/100;t.bs.flee=a[1]|0},
+ netOut:(C,t)=>[Math.round((t.bs.lock||0)*100),t.bs.flee?1:0,t.bs.tk||'',t.bs.gn|0,...netMs(t)],netIn(C,t,a){t.bs.lock=(a[0]|0)/100;t.bs.flee=a[1]|0;t.bs.tk=typeof a[2]==='string'?a[2].slice(0,40):'';netMsIn(C,t,a,3)},
  aim(C,t,s){const B=t.bs,pen=B.fav&&B.fav===B.last?.45*Math.min(1,(B.learn[B.fav]|0)/4):0,good=Math.random()<s*(1-pen)*(B.brkT>0?.5:1);B.learn['LEVEL SIX']=(B.learn['LEVEL SIX']|0)+1;B.last='LEVEL SIX';if(!B.fav&&B.learn['LEVEL SIX']>=3)B.fav='LEVEL SIX';
   return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),good?-.8:-7)}},
- won(C,e){C.recAdd('ace','beaten');C.Z.an?.radio(KN,'"…not… the needle…"',2);C.api.feed('<span class="cg">KOSCHEI is down.</span> Legends say he never stays dead.')},
+ won(C,e){C.recAdd('ace','beaten');C.Z.an?.radio(KN,'"…not… the needle…"',2);(C.Z.team||C.api.feed)('<span class="cg">KOSCHEI is down.</span> Legends say he never stays dead.')},
  winTxt:`Splash ${KN}! The Ace of Aces is down.`,escTxt:'broke off and escaped toward the border',
  sting(S){const t0=S.t+.05,o=S.out(.9);for(const[f,d]of[[1318,0],[1046,.22],[784,.44]]){const x=S.osc('sawtooth',f,t0+d,.5),fl=S.filt('bandpass',f*1.5,3);x.connect(fl).connect(S.env(t0+d,.07,.02,.5,o))}  // three falling notes: his call
   const n=S.nz(t0,2.2),f=S.filt('bandpass',900,.6);f.frequency.setValueAtTime(300,t0);f.frequency.exponentialRampToValueAtTime(3500,t0+1.4);n.connect(f).connect(S.env(t0,.18,.6,2.2,o))},  // jet scream
@@ -172,7 +184,7 @@ const ACE={id:'ace',n:'Ace of Aces',tag:KN,col:'#ff3b3b',spd:88,alt:[500,800],hi
   lockK:(C,t)=>t.k==='jet'||t.k==='cruise'?.6:1},
  clear(C){MS.length=0;TR.length=0;if(FXP){FXP.geo.setDrawRange(0,0);FXP.n=0}for(const k in SPI)SPI[k].count=0},
  fxLeft:()=>({missiles:MS.length+TR.length,spectreMeshes:Object.values(SPI).reduce((a,I)=>a+I.count,0)}),
- g:{step(C,dt){if(C.auth())msStep(C,dt)},vis(C){if(!C.api.TH.some(t=>t.k==='ace'||t.k==='gace'))fxDraw(C);spDraw(C)},stop(){MS.length=0;TR.length=0},
+ g:{step(C,dt){if(C.auth())msStep(C,dt);else msMirror(C,dt)},vis(C){if(!C.api.TH.some(t=>t.k==='ace'||t.k==='gace'))fxDraw(C);spDraw(C)},stop(){MS.length=0;TR.length=0},
   overlay(C,oc,W,H){if(!C.G.brw?.instinct)return;const{api,Z}=C,d=api.player;if(!d||d.dead>0)return;oc.strokeStyle='#ffc640';oc.lineWidth=2.5;
    for(const t of api.TH){if(!api.live(t)||!Z.evades?.(t)||t.p.distanceTo(d.p)>1500)continue;const v=t.v.clone().setY(0).normalize(),lat=new C.V3(-v.z,0,v.x),side=(t.p.x-d.p.x)*lat.x+(t.p.z-d.p.z)*lat.z>0?1:-1;
     const a=t.p.clone().project(api.camera),b=t.p.clone().addScaledVector(lat,side*25).project(api.camera);if(a.z>1||b.z>1)continue;const ax=(a.x*.5+.5)*W,ay=(-a.y*.5+.5)*H,bx=(b.x*.5+.5)*W,by=(-b.y*.5+.5)*H,ang=Math.atan2(by-ay,bx-ax);
@@ -204,7 +216,7 @@ registerBoss({id:'gace',clear(){if(WK.snd){try{WK.snd.g.gain.value=0;WK.snd.stop
   if(M){M.skin.opacity=B.intang?.18:.58;M.dark.opacity=M.skin.opacity}if((B.sm=(B.sm||0)-dt)<=0){B.sm=.05;C.FX.emit(t.p,0x40ffc0,2,3,.9,null,2)}
   if((B.mi=(B.mi||0)-dt)<=0){B.mi=.12;const c=C.api.camera.position,a=Math.random()*6.28,r=C.rnd(120,700);_hz.x=c.x+Math.cos(a)*r;_hz.z=c.z+Math.sin(a)*r;_hz.y=C.api.gh(_hz.x,_hz.z)+C.rnd(4,40);C.haze(_hz,0x2e6650,.24,16,1)}},  // mist
  overlay:(C,oc,t,W,H)=>warn(C,oc,t,W,H),
- netOut:(C,t)=>[Math.round((t.bs.lock||0)*100),t.bs.intang?1:0,t.bs.form|0],netIn(C,t,a){t.bs.lock=(a[0]|0)/100;t.bs.intang=a[1]|0;t.bs.form=a[2]|0},
+ netOut:(C,t)=>[Math.round((t.bs.lock||0)*100),t.bs.intang?1:0,t.bs.form|0,t.bs.tk||'',t.bs.gn|0,...netMs(t)],netIn(C,t,a){t.bs.lock=(a[0]|0)/100;t.bs.intang=a[1]|0;t.bs.form=a[2]|0;t.bs.tk=typeof a[3]==='string'?a[3].slice(0,40):'';netMsIn(C,t,a,4)},
  aim(C,t,s){if(t.bs.intang)return null;return{p:t.p.clone().addScaledVector(t.v.clone().normalize(),Math.random()<s*.8?-.8:-7)}},
  won(C){C.recAdd('ghost','beaten')},winTxt:'The Deathless is gone. For now.',
  sting(S){const t0=S.t+.05,o=S.out(1);for(const f of[110,116.5,164.8,174.6]){const x=S.osc('sine',f,t0,4.5),tr=S.osc('sine',.7+Math.random(),t0,4.5),tg=S.env(t0,.05,1.2,4.5,o);x.connect(tg);tr.connect(x.frequency)}  // a detuned dead choir

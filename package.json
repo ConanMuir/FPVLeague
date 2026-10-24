@@ -8,6 +8,8 @@
     "dev": "vite",
     "build": "vite build && node tools/postbuild.mjs",
     "smoke": "node tools/smoke.mjs",
+    "stamp": "node tools/version.mjs",
+    "pretest": "node tools/version.mjs",
     "test": "node --test \"test/*.test.mjs\""
   },
   "dependencies": {

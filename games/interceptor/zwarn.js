@@ -20,7 +20,9 @@ export function initWarn(api,G,Z){
  const warnS=Z.warnS=()=>Math.round((EWARN.base+EWARN.perk*(Z.perkLevel?.('radar')|0)+EWARN.lv.slice(0,G.kc?.ewr|0).reduce((a,l)=>a+l.s,0))*(Z.cp?.has?.('blind')?.7:1));
  // the fast kinds are on the radar (and engageable) only once detected; on a co-op client the host's flag counts
  const se0=Z.seen;Z.seen=t=>isFast(t)?!!t.kc?.det:se0(t);
- const alerts=()=>TH.filter(t=>isFast(t)&&TH.includes(t)&&(t.st==='cruise'||t.st==='dive')&&t.kc?.det).sort((a,b)=>tti(a)-tti(b));
+ /* the HUD asks every frame (twice: the panel and the focus): no array while nothing is up, and no scan of the whole list per fast track */
+ const NOAL=[];
+ const alerts=()=>{let L=null;for(let i=0;i<TH.length;i++){const t=TH[i];if(isFast(t)&&(t.st==='cruise'||t.st==='dive')&&t.kc?.det)(L||(L=[])).push(t)}return L?L.sort((a,b)=>tti(a)-tti(b)):NOAL};
  // the track the actions apply to: the selected one if it is a fast track with an alert up, else the most urgent alert
  const focusT=()=>{const s=api.selT?.(),L=alerts();return s&&L.includes(s)?s:L[0]||null};
  // detection (host / solo): when it gets inside the warning time, or at launch if a boost battery covers its sector

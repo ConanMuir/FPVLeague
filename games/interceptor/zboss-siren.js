@@ -35,7 +35,7 @@ registerBoss({id:'siren',n:'The Siren',tag:'FRIENDLY',col:'#5ff0e0',spd:70,alt:[
  introFn(C,t){C.Z.an?.radio('OVERLORD','Friendly flight checking in from the north… wait. We have no flights up there.',2);C.api.feed('<span class="cg">IFF: friendly flight inbound.</span> <span class="co">…Nobody filed one.</span>')},
  build:C=>model(C),
  init(C,t){const{api}=C;t.p.y=api.gh(t.p.x,t.p.z)+450;const n=4+Math.floor(C.G.wave/8);for(let i=0;i<n;i++){const u=C.Z.make(i%3?'shahed':'jet',t.p.x+C.rnd(-200,200),t.p.z+C.rnd(-200,200));if(u)u.p.y=t.p.y+C.rnd(-80,80)}},
- tick(C,t,dt){const{api}=C,B=t.bs;for(const d of C.pilots())if(d.p.distanceTo(t.p)<600&&!B.ident){B.ident=1;C.Z.an?.say('SIREN UNMASKED','that "friendly" is the Siren','#5ff0e0',3);api.feed('<span class="cr">That friendly is an enemy: the SIREN.</span> Its covered drones still read green while it sings.')}
+ tick(C,t,dt){const{api}=C,B=t.bs;for(const d of C.pilots())if(d.p.distanceTo(t.p)<600&&!B.ident){B.ident=1;C.Z.an?.say('SIREN UNMASKED','that "friendly" is the Siren','#5ff0e0',3);(C.Z.team||api.feed)('<span class="cr">That friendly is an enemy: the SIREN.</span> Its covered drones still read green while it sings.')}
   if(B.age>240&&!B.flee)B.flee=1;if(B.flee){C.steer(t,C.levelTo(t,new C.V3(t.p.x,0,-6000),500),95,.5,dt,100);if(t.p.z<-4400)C.vanish(t,'escaped');return true}
   if(B.ph>=1&&!B.hop){B.hop=1;const L=api.TH.filter(u=>api.live(u)&&!C.BOSSES[u.k]&&u.p.distanceTo(t.p)>1500);if(L.length)B.goal=C.pick(L)}
   let c=B.goal&&api.live(B.goal)?B.goal.p:group(C,t);if(!c){const s=C.pick(C.sites());if(!s)return true;c=new C.V3(s.x,s.y+400,s.z-1800)}
@@ -66,4 +66,4 @@ registerBoss({id:'siren',n:'The Siren',tag:'FRIENDLY',col:'#5ff0e0',spd:70,alt:[
  reward:{id:'transponder',n:'Captured Transponder',short:'two drones a wave spoofed into empty fields',txt:'Twenty seconds into every wave, the captured transponder sings to the two drones closest to their targets: they come down in empty fields.',
   wave(C){C.G.trT=20},step(C,dt){const{G,api}=C;if(!(G.trT>0)||G.state!=='wave'||!C.auth())return;if((G.trT-=dt)>0)return;G.trT=0;
    const L=api.TH.filter(t=>api.live(t)&&!C.BOSSES[t.k]&&(t.k==='shahed'||t.k==='jet'||t.k==='heavy')&&!t.spoof).sort((a,b)=>a.p.distanceTo(a.aim)-b.p.distanceTo(b.aim)).slice(0,2);
-   for(const t of L){t.spoof=1;C.Z.pop?.(t.p,'SPOOFED','#5ff0e0')}if(L.length)api.feed(`<span class="cb">Captured transponder: ${L.length} drone${L.length>1?'s':''} spoofed</span>`)}}});
+   for(const t of L){t.spoof=1;C.Z.pop?.(t.p,'SPOOFED','#5ff0e0')}if(L.length)(C.Z.team||api.feed)(`<span class="cb">Captured transponder: ${L.length} drone${L.length>1?'s':''} spoofed</span>`)}}});

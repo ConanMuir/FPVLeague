@@ -1,6 +1,7 @@
 // Drone League Interceptor: a tail-sitter dart interceptor against Shahed-136 / Geran-3 waves over steppe farmland.
 // The dart keeps its own flight model (thrust along the fuselage, fin side force, wind, battery) below; rates, input and calibration,
 // settings, audio synth, mod panel, menu and the main loop come from the engine (../../engine).
+import './zdbglog.js';  /* the debug mode's recorders (console ring buffer, event log, frame sampler): first, so nothing before the panel is missed */
 import * as THREE from 'three';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {Sky} from 'three/addons/objects/Sky.js';
@@ -40,6 +41,7 @@ loadSettings('dl-interceptor',DEF,['tilt']);  // camera tilt stays per game: the
 if(typeof S.wx!=='string')S.wx=DEF.wx;  /* an array or object here is taken for a whole weather object by setWeather and threw at the first start */S.rr=cl(S.rr|0,0,2);S.fpvMix=S.fpvMix?1:0;S.grain=cl(+S.grain||0,0,1);S.gfx=cleanPref(S.gfx);S.fps=S.fps!==false;S.haze=S.haze===true;S.fcap=[0,120,80,60].includes(S.fcap)?S.fcap:0;
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
 if((S.setV|0)<5){for(const k of['gmode','diff','fuse','skin','guide','guideSw'])delete S[k];S.setV=5}  /* v5: Classic is gone, Zombies is the game: the settings only Classic read (mode, threat level, fuse, look, midcourse guidance) are dropped */
+if((S.setV|0)<6){delete S.zrspeech;S.setV=6}  /* v6: the radio has no voice any more: the speech setting is dropped */
 
 // ---------- renderer ----------
 const ov=$('ov'),oc=ov.getContext('2d');let sens;
@@ -511,7 +513,7 @@ const deadP=new V3(),deadC=new V3();
 function launch(){if(!player)player=new Drone();player.spawn();TH.forEach(t=>{t.pd=t.dmin=1e9;t.cvm=0});FW.clear();fireWas=true;kbThr=0;kbArm=false;camUp=false;lqS=1;{const v=typeof S.tiltSw==='string'?swRead(S.tiltSw):null;if(v!=null)camUp=v}
  if(!demo)feed(`On the mat at <b>${player.home.n}</b>. Throttle up to take off`)}
 function relaunch(){if(player.dead<=0&&player.p.distanceTo(player.home.mat)>3)spent++;launch()}
-function lose(why){const d=player;if(d.dead>0)return;d.dead=RELT;spent++;deadP.copy(d.p);d.mesh.visible=false;
+function lose(why){const d=player;if(d.dead>0)return;if(Z.on&&Z.god?.(why))return;  /* the debug mode's god mode (zdebug.js): the interceptor is not lost to a crash, a flat pack or a hit */d.dead=RELT;spent++;deadP.copy(d.p);d.mesh.visible=false;
  _f.copy(d.v).setY(0);if(_f.lengthSq()<.01)_f.set(0,0,-1);deadC.copy(d.p).addScaledVector(_f.normalize(),-25).setY(Math.max(d.p.y,gh(d.p.x,d.p.z))+8);
  boom(d.p,why==='det'?.7:.4);if(camMode===0){const f=$('flash');f.style.transition='none';f.style.opacity=why==='det'?.9:.5;requestAnimationFrame(()=>{f.style.transition='opacity .6s';f.style.opacity=0})}
  if(why==='crash')feed('Interceptor lost: crashed');if(why==='bat')feed('Interceptor lost: battery flat')}
@@ -627,6 +629,7 @@ let nl=0;for(const t of TH)if(live(t))nl++;
    css(a,'transform',`translate(${(x*.5+.5)*innerWidth-13}px,${(-y*.5+.5)*innerHeight-12}px) rotate(${Math.atan2(x,y)}rad)`)}}
  radDt+=dt;const rn=performance.now();if(rn-radT>=32||rn<radT){radT=rn;radar(radDt);radDt=0}}
 // FPV overlay: Betaflight-style artificial horizon, target brackets (a label with range per track), site labels (Zombies adds its own: zombies.js overlay)
+const CRN=[-1,-1,1,-1,1,1,-1,1];  /* the four corners of a bracket, x then y: a list made once (it was a new array of arrays for every track in every frame) */
 function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if(demo)return;
  const me=player&&player.dead<=0?player:null,ft=Math.tan(camera.fov*Math.PI/360),sel=selT(),scr=p=>{_t.copy(p).project(camera);if(!(_t.z<1&&Math.abs(_t.x)<1.1&&Math.abs(_t.y)<1.1))return null;const q=RQ[rqi=(rqi+1)&3];q[0]=(_t.x*.5+.5)*W2;q[1]=(-_t.y*.5+.5)*H2;return q};
  oc.lineWidth=1.6;oc.font='700 11px "JetBrains Mono",monospace';oc.textAlign='center';oc.shadowColor='#000';oc.shadowBlur=3;
@@ -638,7 +641,7 @@ function overlay(){const W2=innerWidth,H2=innerHeight;oc.clearRect(0,0,W2,H2);if
  for(const t of TH){if(t.st==='dead')continue;const q=scr(t.p);if(!q)continue;const[x,y]=q,d=t.p.distanceTo(camera.position),s=Math.max(9,Math.min(70,2.8/d/ft*H2*.5+5)),L=live(t),k=s*.45;
   if(Z.hid?.(t))continue;  /* a hidden boss (stealth, jammer, disguise) gets no bracket */
   oc.strokeStyle=oc.fillStyle=!L?'rgba(170,170,170,.55)':Z.ocol(t,sel);if(Z.quiet(t)){oc.fillRect(x-2,y-2,4,4);continue}
-  oc.beginPath();for(const[sx,sy]of[[-1,-1],[1,-1],[1,1],[-1,1]]){oc.moveTo(x+sx*s,y+sy*s-sy*k);oc.lineTo(x+sx*s,y+sy*s);oc.lineTo(x+sx*s-sx*k,y+sy*s)}oc.stroke();
+  oc.beginPath();for(let i=0;i<8;i+=2){const sx=CRN[i],sy=CRN[i+1];oc.moveTo(x+sx*s,y+sy*s-sy*k);oc.lineTo(x+sx*s,y+sy*s);oc.lineTo(x+sx*s-sx*k,y+sy*s)}oc.stroke();
   if(L&&!Z.quiet(t)){const k=(d<1000?Math.round(d):1e6+Math.round(d/100))*(t.st==='dive'?-1:1);if(t._lbk!==k){t._lbk=k;t._lbs=`T${String(t.id).padStart(2,'0')} ${rng(d)}${t.st==='dive'?' DIVE':''}`}oc.fillText(t._lbs,x,y+s+13)}}
  oc.shadowBlur=0}
 
