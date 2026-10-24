@@ -17,6 +17,7 @@
 // Co-op: the host runs the enemy side, the cuts and every pilot's carried salvage; each pilot flies and bombs, impacts go to the host.
 import {KIND,SECTORS,FAST,sectorOf} from './zdata.js';
 import {initFog} from './zfog.js';
+import {kl} from './zkeys.js';
 import {initSites,SO,TGT,TIERK,TIER,PER_TRUCK} from './zsites.js';
 import './zsortiebot.js';  // the bots' sorties: a zbotbrain.js hook
 const cl=(v,a,b)=>v<a?a:v>b?b:v,sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},money=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -122,7 +123,7 @@ export function initSortie(api,G,Z){
  function toPad(d){const f=padOf(),h=d.home;if(!h?.mat||!f.mat||h===f)return;const dy=d.p.y-h.mat.y;d.home=f;d.p.set(f.mat.x,f.mat.y+dy,f.mat.z);const o=W.list.find(t=>t.id===S.obj);if(o){const a=Math.atan2(f.x-o.x,f.z-o.z);if(d.cx)d.cx.face(a);else d.q.setFromAxisAngle(_a.set(0,1,0),a)}}  /* a fixed-wing type turns on the pad (ztypes.js) */
  function launch(pad){if(!avail()||Z.isReady?.())return false;if(pad!=null)S.pad=pad;else{const o=W.list.find(t=>t.id===S.obj);if(o){let b=1,bd=1e9;FOBS.forEach((f,i)=>{const d=Math.hypot(f.x-o.x,f.z-o.z);if(d<bd){bd=d;b=i}});S.pad=b}}
   Object.assign(S,{on:true,t:SO.clock,hull:SO.hull,bombs:bombsMax(),carry:0,used:G.wave,home:true,alive:true,lastT:0});Z.base.close();banner('');Z.an?.sumHide?.();Z.an?.radioClear?.();api.launch();const d=me();if(d){toPad(d);S.lastT=d.t}
-  Z.an?.say('SORTIE',`${fmt(SO.clock)} · F drops a bomb · back inside the line in time`,'#ffc640',2);feed(`Sortie from <b>${padOf().n}</b>: ${fmt(SO.clock)} on the clock. F drops a bomb (${SO.bombs} a drone), the last F is your warhead. Salvage is banked inside the line.`);
+  Z.an?.say('SORTIE',`${fmt(SO.clock)} · ${kl('fire')} drops a bomb · back inside the line in time`,'#ffc640',2);feed(`Sortie from <b>${padOf().n}</b>: ${fmt(SO.clock)} on the clock. ${kl('fire')} drops a bomb (${SO.bombs} a drone), the last ${kl('fire')} is your warhead. Salvage is banked inside the line.`);
   hud();return true}
  function end(late){if(!S.on)return;S.on=false;S.used=G.wave;S.lock=0;hud();if(late)return;if(G.on&&G.state==='base'){Z.base.open();Z.base.setTab('sortie')}}
  function finish(){const d=me(),alive=d&&d.dead<=0;
@@ -219,7 +220,7 @@ export function initSortie(api,G,Z){
  function html(){const can=avail()&&!Z.isReady?.(),c=strikeCost(),K=known(),sel=W.list.find(t=>t.id===S.obj);
   const why=!G.on?'':G.wave<SO.from?`Sorties open after wave ${SO.from}.`:S.used===G.wave?'You have flown your sortie this break.':Z.isReady?.()?'You are marked ready: unready to fly a sortie.':'';
   let h=`<div class="zso-l"><button class="go" data-so="go" ${can?'':'disabled'}>Launch sortie ▸ ${fmt(SO.clock)}</button><span class="zso-pads">${FOBS.map((f,i)=>`<button class="sm ${S.pad===i?'on':''}" data-so="pad:${i}">${f.n.replace('POS ','')}</button>`).join('')}</span></div>
-   <p class="zhint">${why?`<b>${why}</b> `:''}Fly past the line, find what feeds the next waves and bomb it: <b>F</b> drops a bomb (${SO.bombs} a drone, aim with the pipper), the last F is your warhead. Salvage is carried: it is banked when you are back inside the line. Shot down or late, it is lost. ${Z.online?'The clock is yours; if the wave starts while you are out, the drone and salvage are lost.':'When the clock runs out outside the line the wave starts without you.'}</p>`;
+   <p class="zhint">${why?`<b>${why}</b> `:''}Fly past the line, find what feeds the next waves and bomb it: <b>${kl('fire')}</b> drops a bomb (${SO.bombs} a drone, aim with the pipper), the last ${kl('fire')} is your warhead. Salvage is carried: it is banked when you are back inside the line. Shot down or late, it is lost. ${Z.online?'The clock is yours; if the wave starts while you are out, the drone and salvage are lost.':'When the clock runs out outside the line the wave starts without you.'}</p>`;
   h+=`<h3>Known targets · ${K.filter(t=>!t.dead).length}</h3>`;
   if(!K.length)h+=`<p class="zhint">Nothing found yet. The radar watches ${(radarR()/1000).toFixed(1)} km of ground around the pad (Long-range radar widens it); fly out to find the rest. The deeper the site, the more it pays and the better it is defended.</p>`;
   h+=K.map(t=>{const T=TGT[t.t],dd=Math.hypot(t.x-padOf().x,t.z-padOf().z),ok=!t.dead&&t.struck!==G.wave&&G.cash>=c&&G.state==='base';

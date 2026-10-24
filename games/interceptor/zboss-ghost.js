@@ -6,6 +6,7 @@
 import {registerBoss} from './zbosses.js';
 import {dot} from '../../engine/render.js';
 import {KIND} from './zdata.js';
+import {kl} from './zkeys.js';
 function ramTex(C){return C.decal('gh-ram',512,512,(g,w,h)=>{g.fillStyle='#1b1d20';g.fillRect(0,0,w,h);g.strokeStyle='rgba(60,64,70,.5)';g.lineWidth=1;for(let i=0;i<w;i+=16){g.beginPath();g.moveTo(i,0);g.lineTo(i+h*.3,h);g.stroke();g.beginPath();g.moveTo(0,i);g.lineTo(w,i-w*.3);g.stroke()}
  g.fillStyle='rgba(40,42,48,.9)';for(let k=0;k<8;k++){const x=C.rnd(40,w-80),y=C.rnd(40,h-60);g.beginPath();g.moveTo(x,y);g.lineTo(x+60,y+12);g.lineTo(x+40,y+30);g.closePath();g.fill()}  // RAM patches
  C.D2.text(g,'G-0',w*.78,h*.62,30,'rgba(70,74,80,.9)','900');C.D2.text(g,'NO STEP',w*.3,h*.4,16,'rgba(70,74,80,.9)','700');C.D2.grime(g,w,h,.05)})}
@@ -47,7 +48,7 @@ registerBoss({id:'ghost',n:'Ghost',tag:'GHOST',col:'#b8c4d0',spd:75,alt:[1050,11
  seen:(C,t)=>seenBy(C,t),hid:(C,t)=>!seenBy(C,t),lockSelf:(C,t)=>t.bs.lcd>0?1e3:1.6,
  hit(C,t,h){return h.q==='kill'?2:1},
  phase(C,t,i){if(i===1)C.api.feed('<span class="co">The Ghost is leaking fuel: follow the dark trail. It is running low and fast.</span>');if(i===2)C.api.feed('<span class="cr">The Ghost is diving for your weakest site!</span>')},
- status(C,e){const B=e.main.bs;return`passes ${B.pass|0}/3 · ${B.ph?'<b>LEAK TRAIL</b>':'<b>CONTRAIL</b> high'} · not on radar · lock slips after 2 s${C.api.thermLook?' · <b>THERMAL</b>: you see it farther':' · thermal (H) sees it farther'}`},
+ status(C,e){const B=e.main.bs;return`passes ${B.pass|0}/3 · ${B.ph?'<b>LEAK TRAIL</b>':'<b>CONTRAIL</b> high'} · not on radar · lock slips after 2 s${C.api.thermLook?' · <b>THERMAL</b>: you see it farther':` · thermal (${kl('thermSw')}) sees it farther`}`},
  vis(C,t,dt){const B=t.bs,M=mats(C),{api,Z}=C;M.slot.emissiveIntensity=api.thermLook?2.5:0;const f=t.v.clone().normalize();
   for(const s of t.mesh.userData.sh){s.material.opacity=.06+.05*Math.sin(performance.now()/40+s.position.x);s.scale.set(6+Math.sin(performance.now()/70)*1.5,3,1)}
   if((B.mk=(B.mk||0)-dt)<=0){B.mk=.35;const p=t.mesh.localToWorld((_gv||(_gv=new C.V3())).set(0,0,-14));C.haze(p,0x1c2028,.3,26,1)}  // murk left along its path
