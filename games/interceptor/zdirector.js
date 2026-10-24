@@ -19,6 +19,7 @@
 import {KIND} from './zdata.js';
 import {solve} from './lead.js';
 import {BOSSES} from './zbosses.js';
+import {clampFov} from '../../engine/render.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,ramp=(x,a,b)=>cl((x-a)/(b-a),0,1),sm=t=>t*t*(3-2*t),DEG=Math.PI/180,esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
 export const HARD=1.8,MINL=2.5,MARGIN=.18;
 /* [shortest, longest] seconds a shot stays on air */
@@ -72,7 +73,7 @@ export function initDirector(api,G,Z,opts={}){
  function inView(P,L,X,fov,k){_f.subVectors(L,P);if(_f.lengthSq()<1e-6)return false;_f.normalize();_r.crossVectors(_f,UP);if(_r.lengthSq()<1e-9)return false;_r.normalize();_u.crossVectors(_r,_f);_e.subVectors(X,P);
   const z=_e.dot(_f);if(z<1)return false;const tv=Math.tan(fov*DEG/2)*k,th=tv*cam.aspect;return Math.abs(_e.dot(_r))<z*th&&Math.abs(_e.dot(_u))<z*tv}
  const lerpTo=(v,t,dt,rate,snap)=>snap||dt<=0?v.copy(t):v.lerp(t,1-Math.exp(-dt*rate));
- const aspectFov=h=>2*Math.atan(Math.tan(h*DEG/2)/cam.aspect)/DEG;
+ const aspectFov=h=>2*Math.atan(Math.tan(clampFov(h)*DEG/2)/cam.aspect)/DEG;
  /* the heading a follow camera uses: the level direction of travel, kept when the subject hangs or climbs straight up */
  function heading(S,A,dt){_b.set(A.v.x,0,A.v.z);if(_b.lengthSq()>25){_b.normalize();if(S.h.lengthSq()<1e-4||dt<=0)S.h.copy(_b);else S.h.lerp(_b,1-Math.exp(-dt*3)).setY(0);if(S.h.lengthSq()<1e-4)S.h.copy(_b);S.h.normalize()}}
  /* look between the subject and the other body when both stay well inside the frame */

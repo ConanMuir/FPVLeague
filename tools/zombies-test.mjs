@@ -48,6 +48,15 @@ if (want('saves')) {
     if (!up || errs.length > n0) bad.push(JSON.stringify(save) + (up ? '' : ' (page never came up)'));
   }
   ok(!bad.length, 'Saves: odd saved values still load and play' + (bad.length ? '\n  ' + bad.join('\n  ') + '\n  ' + errs.slice(0, 3).join('\n  ') : ''));
+  /* a field of view from a hand-edited or foreign pilot profile (the shared droneleague key): the lens stays sane and the reticle in a wave draws (zlock's arc took a negative radius from fov -1 or 1e9) */
+  { const fb = [];
+    for (const fov of [-1, 1e9, 0, 'x', 5, 400]) { const n0 = errs.length;
+      await p.evaluate(f => { localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z'})); localStorage.setItem('droneleague', JSON.stringify({fov: f})); }, fov); await p.reload({waitUntil: 'load'});  /* the pilot profile is the League's key */
+      await p.waitForFunction(() => window.__z, {timeout: 60000}); await p.click('#play'); await p.waitForFunction(() => __z.G.state === 'base', {timeout: 30000});
+      await p.evaluate(() => __z.cont()); await frames(p, 8);
+      const cf = await p.evaluate(() => __z.api.camera.fov); if (!(cf > 1 && cf < 179) || errs.length > n0) fb.push(`fov ${JSON.stringify(fov)}: camera ${cf}${errs.length > n0 ? ' ' + errs.at(-1) : ''}`); }
+    await p.evaluate(() => localStorage.removeItem('droneleague'));  /* the profile is shared by every page of this run */
+    ok(!fb.length, 'Saves: a field of view of -1, 1e9, 0, text, 5 or 400 is clamped (lens and reticle stay sane)' + (fb.length ? '\n  ' + fb.join('\n  ') : '')); }
   /* Classic is gone: an old Classic save (and ?mode=classic) opens Zombies, there is no mode picker, and the settings only Classic read are dropped */
   await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'classic', diff: 2, fuse: 'manual', skin: 'strela', guide: 0, guideSw: 3, setV: 4, wx: 'clear'})));
   await p.goto(origin + '/games/interceptor/?mode=classic', {waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
@@ -61,6 +70,7 @@ if (want('zombies')) {
   const {p, errs} = await page();
   ok(await p.$eval('#play', b => b.textContent) === 'Quick defence', 'Zombies: the start button reads Quick defence (the campaign has its own card)');
   ok(await p.evaluate(() => !document.getElementById('zdiff').hidden && document.querySelectorAll('#zdiff button').length === 4 && document.querySelector('#zdiff button.on')?.textContent === 'Normal'), 'Zombies menu: difficulty selector Easy / Normal / Hard / Nightmare, Normal by default');
+  ok(await p.evaluate(() => { const pl = document.getElementById('play'), b = pl.getBoundingClientRect(); return document.getElementById('zdiff').nextElementSibling === pl.parentNode && b.top > 0 && b.bottom <= innerHeight; }), 'Zombies menu: the Quick defence / Campaign button row sits right under the difficulty tabs, on screen without scrolling (not below six cards)');
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-menu.png'});
   await p.click('#zdiff button[data-d="3"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '3', {timeout: 5000}).catch(() => {});
   const dm = await p.evaluate(() => ({on: document.querySelector('#zdiff button.on')?.textContent, desc: document.getElementById('gmdesc').textContent, zd: JSON.parse(localStorage.getItem('dl-interceptor')).zdiff}));
@@ -68,6 +78,15 @@ if (want('zombies')) {
   await p.click('#zdiff button[data-d="1"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '1', {timeout: 5000}).catch(() => {});
   ok(dm.on === 'Nightmare' && dm.zd === 3 && /Nightmare/.test(dm.desc), `Zombies menu: picking Nightmare highlights it, saves it and describes it ("${dm.desc.split('Nightmare: ')[1]?.slice(0, 50)}")`);
   await play(p);
+  { const out = [];  /* the event feed (top left) never runs under the centred top bar, at a laptop, a 1080p and a short window */
+    for (const [w, h] of [[1280, 720], [1920, 1080], [900, 420], [1280, 720]]) {
+      await p.setViewport({width: w, height: h});
+      await p.evaluate(() => { for (const t of ['Inbound: 4× Shahed-136, 3× Geran-3 jet, 2× decoy, 1× Lancet', 'Wave 13 clear: <span class="cg">+$12,400</span> (perfect defence bonus included)', 'Upkeep: <span class="co">−$800</span>', 'Passed Shahed 14 m off']) __z.api.feed(t); });
+      await frames(p, 3);
+      out.push(await p.evaluate(() => { const f = document.getElementById('feed').getBoundingClientRect(), b = {left: 1e9, top: 1e9, right: 0, bottom: 0}; for (const c of document.getElementById('zhud').children) { const q = c.getBoundingClientRect(); if (q.width) { b.left = Math.min(b.left, q.left); b.top = Math.min(b.top, q.top); b.right = Math.max(b.right, q.right); b.bottom = Math.max(b.bottom, q.bottom); } }  /* the bar, the site row and a warning: wider than the grid box itself when the window is narrow */
+        return {vp: innerWidth + 'x' + innerHeight, hit: f.left < b.right && b.left < f.right && f.top < b.bottom && b.top < f.bottom, feed: [f.left, f.top, f.right, f.bottom].map(Math.round), bar: [b.left, b.top, b.right, b.bottom].map(Math.round), rows: document.getElementById('feed').children.length}; }));
+    }
+    ok(out.every(r => r.rows >= 3 && !r.hit), `Zombies HUD: the event feed keeps clear of the top bar at 1280x720, 1920x1080 and 900x420 (${out.map(r => r.vp + (r.hit ? ' OVERLAP ' + r.feed + ' / ' + r.bar : ' ok')).join(', ')})`); }
   const s0 = await p.evaluate(() => ({base: !document.getElementById('zbase').hidden, cash: __z.G.cash, st: __z.G.state, integ: __z.integrity()}));
   ok(s0.base && s0.st === 'base' && s0.cash === 1500, `Zombies: opens on the base screen with $${s0.cash}, integrity ${s0.integ.hp}/${s0.integ.max}`);
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-base-1.png'});
@@ -1039,6 +1058,12 @@ if (want('bosses')) {
   const bar = await p.evaluate(() => { __z.Z.hud(1 / 60); const b = document.getElementById('zbb'); return {on: !b.hidden, txt: b.textContent.slice(0, 120), dbg: JSON.stringify({st: __z.G.state, on: __z.G.on, demo: __z.api.demo, menu: __z.api.menuOpen, e: __z.Z.bosses.encs.map(e => [e.id, e.over]), t: __z.api.TH.filter(t => t.k === 'hive').map(t => t.st)})}; });
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-boss-bar.png'});
   ok(bar.on && /HIVE/.test(bar.txt), `HUD: boss bar "${bar.txt}"` + (bar.on ? '' : ' ' + bar.dbg));
+  /* no boss holds a wave for ever against a pilot who cannot hurt it: past six minutes (those with timers of their own go sooner) it breaks off with a radio call and flies out, its whole encounter with it */
+  const lv = await p.evaluate(() => { const {Z} = __z, B = Z.bosses, R = Z.radio, out = {};
+    for (const id of ['mirror', 'jugg', 'twins', 'hive']) { __b.clear(); R.hush(); R.calls.length = 0; B.spawn(id); __z.sim(12); const L = B.alive().filter(t => !B.BOSSES[t.k].minor); for (const t of L) t.bs.age = 361; __z.sim(1);
+      const flagged = L.every(t => t.bs.out); __z.sim(140); out[id] = {n: L.length, flagged, gone: L.every(t => t.bs.gone === 'escaped'), left: B.alive().length, call: R.calls.some(c => /breaking off/.test(c.txt))}; }
+    return out; });
+  ok(Object.values(lv).every(o => o.n >= 1 && o.flagged && o.gone && !o.left && o.call) && lv.twins.n === 2, `Bosses: after six minutes the Mirror, the Juggernaut, the Twins (both) and the Hive break off, say so on the radio and are gone (${JSON.stringify(lv)})`);
   const cls = await p.evaluate(() => { __z.api.startDemo(); return {on: __z.Z.on, boss: __z.api.TH.some(t => __z.Z.bosses.BOSSES[t.k]), bar: document.getElementById('zbb').hidden || getComputedStyle(document.getElementById('zbb')).display === 'none'}; });
   ok(!cls.on && !cls.boss && cls.bar, 'Menu: no bosses, no boss bar');
   ok(!errs.length, 'Bosses: no errors' + (errs.length ? '\n  ' + errs.join('\n  ') : ''));
@@ -1890,6 +1915,14 @@ if (want('radio')) {
     const b2 = __z.make('boss', 5000, 1950, api.SITES[1]); __z.sim(.6); R.hush(); R.calls.length = 0; api.killThreat(b2, true); __rf(); out.down = R.calls.map(c => c.txt); __clr(); out.err = R.err && String(R.err.stack || R.err); return out; });
   ok(/Heavy contact.*Mothership|Mothership/.test(bs.arr[0] || '') && /Stage down\. Two left/.test(bs.stage[0] || '') && /Mothership|carrier/.test(bs.down[0] || ''), `Radio bosses: arrival ("${bs.arr[0]}"), a stage ("${bs.stage[0]}"), the kill ("${bs.down[0]}")`);
   ok(/breached/i.test(bs.phase.join(' ')) && !bs.err, `Radio bosses: a phase change is called ("${bs.phase.find(t => /breached/i.test(t)) || bs.phase[0]}")`);
+  /* a boss the pilot cannot see is an unknown contact (no name, bearing or time: the call would do the hunting); Little Buddy's bump is the Buddy's kill; the site has its article */
+  const hw = await p.evaluate(() => { const {Z, api} = __z, R = Z.radio, out = {}; __clr(); R.hush(); R.calls.length = 0;
+    const h = Z.bosses.spawn('hush', {brg: 1}); __z.sim(.6); __rf(); for (let i = 0; i < 4; i++) R.step(2); out.hush = R.calls.map(c => c.txt); out.hid = Z.hid(h); out.hushName = R.calls.some(c => /Hush|Heavy contact|north|south|east|west|minute|seconds/.test(c.txt)); Z.bossClear('test'); Z.fxTest?.endCine(); __clr(); R.hush(); R.calls.length = 0;
+    const m = __z.make('shahed', 3000, 1000, api.SITES[1]); __z.sim(.3); R.hush(); R.calls.length = 0; m.bd = 1; Z.helperKill(m); __rf(); out.buddy = R.calls.map(c => c.who + '|' + c.txt); __clr(); R.hush(); R.calls.length = 0;
+    const t = __z.make('shahed', 3000, 1000, api.SITES[2]); const L = new Set(); for (let i = 0; i < 80; i++) for (const c of R.GEN.trk([{t, k: 'shahed', id: 5, dir: 'east', site: 'apartments', eta: 60, n: 1}], {over: 0})) L.add(c.txt); out.trk = [...L]; __clr(); return out; });
+  ok(hw.hid && hw.hush.some(s => /unknown contact/i.test(s)) && !hw.hushName, `Radio bosses: the Hush is an unknown contact, no name, bearing or time ("${hw.hush.join(' / ')}")`);
+  ok(hw.buddy.length === 1 && /^BUDDY\|/.test(hw.buddy[0]), `Radio kills: Little Buddy's bump is called by BUDDY ("${hw.buddy[0]}")`);
+  ok(hw.trk.length >= 2 && hw.trk.every(s => /the apartments/.test(s)), `Radio tracks: every phrasing of a track for the apartments says "the apartments" (${hw.trk.length} phrasings)`);
 
   // co-op partners, from the state a client has (pilots, their drones' dead flags, the kill credit)
   const co = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, out = {}, k0 = [Z.pilotsK, Z.netMe, Z.netName]; __clr(); R.hush(); R.calls.length = 0;
@@ -2749,6 +2782,15 @@ if (want('buddy')) {
       return {state: b.state, job: b.job, hp: b.hp / b.st.tuf, chg: b.chg / b.st.end, card: !c.hidden, text: c.textContent, title: c.title, fx: Z.bd.fx(), pos: b.p.toArray()}; });
     ok(r.state === 'pad' && r.hp === 1 && r.chg === 1 && r.card && /LITTLE BUDDY/.test(r.text) && /Motors/.test(r.title), `Buddy: at the wave start it is on the radar pad, full charge and health; the HUD card is up ("${r.text.replace(/\s+/g, ' ').slice(0, 60)}")`);
     ok(r.fx.models === 1 && r.fx.vis === 1, 'Buddy: its model is shown while the wave runs'); }
+  { const out = [];  /* the HUD card stays off the top bar and the FPS meter and the radar, short window or tall */
+    for (const [w, h] of [[1280, 720], [900, 420], [1280, 720]]) {
+      await p.setViewport({width: w, height: h}); await frames(p, 3);
+      out.push(await p.evaluate(() => { const r = e => e.getBoundingClientRect(), zt = document.querySelector('#zhud .zt'), pad = document.createElement('span');
+        pad.style.cssText = 'padding:0;width:' + Math.max(0, 772 - r(zt).width) + 'px'; zt.append(pad);  /* the bar as a flying pilot has it: weapon, battery and range readouts included, about 770 px */
+        const c = r(document.getElementById('zbd')), hit = [...document.querySelectorAll('#zhud .zt,#zsites,#fpsm,#radw,#feed')].filter(e => { const b = r(e); return b.width && c.left < b.right && b.left < c.right && c.top < b.bottom && b.top < c.bottom; }).map(e => e.id || e.className); pad.remove();
+        return {vp: innerWidth + 'x' + innerHeight, hit, shown: !document.getElementById('zbd').hidden, inside: c.left >= 0 && c.top >= 0 && c.right <= innerWidth && c.bottom <= innerHeight}; }));
+    }
+    ok(out.every(r => r.shown && r.inside && !r.hit.length), `Buddy: the HUD card overlaps no top bar, FPS meter, radar or feed at 1280x720 and 900x420 (${out.map(r => r.vp + (r.hit.length ? ' hits ' + r.hit : r.inside ? ' ok' : ' off screen')).join(', ')})`); }
   // no tracks and the pilot on the ground: it waits on the pad
   { const r = await p.evaluate(() => { const b = __z.Z.bd.mine; const c0 = b.chg; __bd.run(15); return {state: b.state, chg: b.chg - c0, job: b.job, s: __bd.sample(40)}; });
     ok(r.state === 'pad' && r.job === 'perch' && r.s.perch >= 38, `Buddy, nothing inbound: it perches on the pad and uses no charge (${JSON.stringify(r.s)})`); }

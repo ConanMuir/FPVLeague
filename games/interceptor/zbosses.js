@@ -203,7 +203,14 @@ export function initBosses(api,G,Z){
  // ---------- per step (host and every screen): first steps, intros, habits, run-wide hooks, bosses that withdraw, rewards ----------
  Z.tstep=(ts0=>(t,dt)=>{const D=BOSSES[t.k];if(!D||t.net)return ts0(t,dt);if(t.pp)t.pp.copy(t.p);else t.pp=t.p.clone();
   if(!t.bs.init){t.bs.init=1;t.bs.max=t.bs.hp=maxHp(D);if(!t.bs.enc&&!D.minor){newEnc(t);(G.bseen||(G.bseen={}))[t.k]=1;if(!t.bs.keep)bump(t.k,'met')}D.init?.(ctx,t);if(t.bs.keep){D.restore?.(ctx,t,t.bs.keep);if(t.bs.wake)D.wake?.(ctx,t)}}
-  t.bs.age=(t.bs.age||0)+dt;if(D.tick)return D.tick(ctx,t,dt)!==false;return false})(Z.tstep);
+  t.bs.age=(t.bs.age||0)+dt;if(t.bs.out)return breakOff(t,dt);if(!D.minor&&t.bs.age>(D.stay??STAY)&&auth())leave(t);if(D.tick)return D.tick(ctx,t,dt)!==false;return false})(Z.tstep);
+ /* a boss that has been on the field this long breaks off and flies out (the Hush, the Jammer King, the Siren, the Ace and the Ghost have shorter timers of their own, the
+    Twins leave after four runs, the Puppeteer after three waves): no pilot is held in a wave for ever by one it cannot hurt. Its whole encounter goes with it; no kill, no reward */
+ const STAY=360;
+ function leave(t){const D=BOSSES[t.k],e=t.bs.enc;Z.an?.radio('OVERLORD',Z.hid?.(t)?'The unknown contact is breaking off. It is leaving the area.':`${D.n} is breaking off. It is leaving the area.`,2);
+  for(const u of e?e.list:[t]){if(!u.bs||!live(u))continue;if(BOSSES[u.k].minor)vanish(u,'gone');else u.bs.out=u.bs.age||1}}
+ function breakOff(t,dt){const away=_a.set(t.p.x-SITE_C.x,0,t.p.z-SITE_C.z);if(away.lengthSq()<1)away.set(0,0,-1);away.normalize();_b.copy(t.p).addScaledVector(away,6000);
+  steer(t,levelTo(t,_b,400,_c),Math.max(110,(t.cs||60)*1.4),.6,dt,60);if(Math.hypot(t.p.x-SITE_C.x,t.p.z-SITE_C.z)>5200||t.bs.age-t.bs.out>90)vanish(t,'escaped');return true}
  let st0=G.state;
  function intro(t){const D=BOSSES[t.k];t.bs.intro=1;if(D.minor)return;sting(t.k);if(D.introFn){D.introFn(ctx,t);return}const I=D.intro||{};
   const title=I.title||D.n.toUpperCase(),sub=typeof I.sub==='function'?I.sub(ctx,t):I.sub||'';Z.fxTest?.cine('boss',t,t.p,title,sub);
