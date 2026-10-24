@@ -21,6 +21,8 @@ import {startLoop} from '../../engine/loop.js';
 import {txt,html,css,cls,hide,depthFix,hyp,hyp3,freeze} from '../../engine/hot.js';
 import {particlePool,PFX} from '../../engine/particles.js';
 import {makeInterp} from '../../engine/interp.js';
+import {keyHit} from '../../engine/keys.js';
+import {KEYDEF,cleanKeys,reserved,paintKeys} from './zkeys.js';
 import {initZombies} from './zombies.js';
 import {makeGrid} from './grid.js';
 import {strelaBody} from './strela.js';
@@ -44,6 +46,8 @@ if(typeof S.wx!=='string')S.wx=DEF.wx;  /* an array or object here is taken for 
 if((S.setV|0)<4){S.tilt=90;S.setV=4}  // v4: interceptor cameras sit at ~90° (switch to level for take-off)
 if((S.setV|0)<5){for(const k of['gmode','diff','fuse','skin','guide','guideSw'])delete S[k];S.setV=5}  /* v5: Classic is gone, Zombies is the game: the settings only Classic read (mode, threat level, fuse, look, midcourse guidance) are dropped */
 if((S.setV|0)<6){delete S.zrspeech;S.setV=6}  /* v6: the radio has no voice any more: the speech setting is dropped */
+if((S.setV|0)<7){delete S.keys;S.setV=7}  /* v7: the four switch rows' keyboard / mouse keys are bindable (S.keys, zkeys.js): an older save has the keys it always had */
+S.keys=cleanKeys(S.keys);  /* a hand-edited, reserved or doubled binding goes back to its default */
 
 // ---------- renderer ----------
 const ov=$('ov'),oc=ov.getContext('2d');let sens;
@@ -453,7 +457,7 @@ function humanControl(d,dt){const g=pad();let thr=null,yaw=0,pit=0,rol=0;
 // horizontal heading of the airframe: works hovering (camera side) and in dart cruise (nose)
 const fwdH=(q,o)=>(player&&player.cx?o.set(0,1,0):o.set(0,1,-1)).applyQuaternion(q).setY(0);  /* a fixed-wing type's heading is its nose */
 const fireIn=fireBtnIn;
-// camera tilt switch (S.tilt for cruise / level for take-off and hover) and thermal switch: keyboard L / H toggle; a mapped radio switch axis sets the position whenever it moves, a mapped button toggles
+// camera tilt switch (S.tilt for cruise / level for take-off and hover) and thermal switch: the keyboard keys (L / H unless rebound, zkeys.js) toggle; a mapped radio switch axis sets the position whenever it moves, a mapped button toggles
 let camUp=false,therm=false;const camA=()=>player&&player.cx?typeOf(player.ty).cam.tilt:camUp?S.tilt:0;  /* a fixed-wing type's camera sits on its nose (ztypes.js cam.tilt) */
 const setCam=v=>{if(v!==camUp){camUp=v;if(!demo&&!(player&&player.cx))banner(v?`CAM ${S.tilt}°`:'CAM LEVEL','',.7)}},setTherm=v=>{if(v!==therm){therm=v;if(!demo)banner(v?'THERMAL WHT':'DAY CAM','',.7)}};
 const SWA={tiltSw:[setCam,()=>camUp],thermSw:[setTherm,()=>therm],nextSw:[()=>nextTrack(),null]};
@@ -673,14 +677,14 @@ function visuals(dt,now){const me=player;if((dfN++&63)===0)depthFix(scene);  /* 
 // ---------- input events ----------
 function cycleCam(){camMode=(camMode+1)%3;S.cam=camMode;save()}
 function togglePause(){if(demo)return;showMenu(!menuOpen)}
-initInput({menu:()=>menuOpen,pause:togglePause,key:e=>{if(Z.on&&Z.key(e))return;if(e.code==='KeyC')cycleCam();if(e.code==='KeyL')setCam(!camUp);if(e.code==='KeyH')setTherm(!therm);if(e.code==='KeyN')nextTrack();if(e.code==='KeyV'){S.rr=(S.rr+1)%RRS.length;save();syncUI()}if(e.code==='KeyR'&&player&&!demo&&wstate!=='over')relaunch()}});
+initInput({menu:()=>menuOpen,pause:togglePause,key:e=>{if(Z.on&&Z.key(e))return;if(e.code==='KeyC')cycleCam();if(keyHit(e,'tiltSw'))setCam(!camUp);if(keyHit(e,'thermSw'))setTherm(!therm);if(keyHit(e,'nextSw'))nextTrack();if(e.code==='KeyV'){S.rr=(S.rr+1)%RRS.length;save();syncUI()}if(e.code==='KeyR'&&player&&!demo&&wstate!=='over')relaunch()}});
 const padKeys=e=>{if(e(9))togglePause();if(!menuOpen&&!demo){if(Z.on&&Z.pad(e))return;if(e(4))cycleCam();if(e(3)&&player&&wstate!=='over')relaunch()}};
 // ---------- menu / settings ----------
 const FIELDS=[['wx','Weather','sel',[['random','Random'],...Object.entries(WXS).map(([k,w])=>[k,w.n])]],
  ['rr','Radar range','sel',RRS.map((r,i)=>[i,r/1000+' km'])],['mode','Flight mode','sel',[['acro','Acro (rate)'],['angle','Angle (self-level)']]],
  ['tilt','Camera tilt (switch up)','rng',0,90,1,'°'],['fpvMix','FPV angle mix','sel',[[1,'On (follows camera angle)'],[0,'Off']]],['grain','Camera grain','rng',0,1,.05],['zwx','Zombies weather','sel',[['wave','New forecast each wave'],['menu','Use the Weather setting']]],['gfx','Graphics quality','sel',['auto','high','med','low'].map(k=>[k,k==='auto'?'Auto (lowers resolution, then detail, when slow)':k==='low'?'Low (integrated GPUs)':GFXN[k]])],['fps','FPS meter','sel',[[true,'On'],[false,'Off']]],['haze','Distance haze','sel',[[false,'Off (the weather fog only)'],[true,'On (hazier far out, faster)']]],['fcap','Frame cap','sel',[[0,'Unlimited'],[120,'120 FPS'],[80,'80 FPS'],[60,'60 FPS']]],['fov','FPV field of view','rng',80,150,1,'°'],['thrMode','Throttle stick','sel',[['spring','Gamepad (centre = hover)'],['full','Radio (full range)']]],['dz','Stick deadband','rng',0,.15,.005]];
 mountPad($('pilotpad'),{flip:false,fire:false});initMenu(FIELDS,k=>{if(k==='wx'&&demo)setWeather(S.wx);if(k==='gfx'||k==='fps'||k==='haze'||k==='fcap')IG.sync()});
-mountSwitches([['fire','Detonate','F'],['tiltSw','Cam tilt','L'],['thermSw','Thermal','H'],['nextSw','Next track','N']]);
+mountSwitches([['fire','Detonate',KEYDEF.fire],['tiltSw','Cam tilt',KEYDEF.tiltSw],['thermSw','Thermal',KEYDEF.thermSw],['nextSw','Next track',KEYDEF.nextSw]],{reserved,onChange:paintKeys});
 syncUI();
 $('play').onclick=startMatch;$('resume').onclick=()=>showMenu(false);$('leave').onclick=startDemo;
 // ---------- mod panel ----------
@@ -701,7 +705,7 @@ function applyTune(){const T=S.mod;G=T.grav;THR=T.thr;TE=T.te;VP=T.vp;MAXV=T.max
   HBP=[[.15,-.36,0],[-.15,-.36,0],[0,-.36,.15],[0,-.36,-.15],[.27,.15,.27],[-.27,.15,.27],[.27,.15,-.27],[-.27,.15,-.27],[0,.4,0]].map(([x,y,z])=>new V3(x,y,z).multiplyScalar(k))}SPOOL=T.spool/1000;GF=T.gfric;TURT=T.turtle*Math.PI/180;WASH=T.wash;DB=T.dbounce;BCAP=T.bcap;
  LETH=T.leth;CRASH=T.crash;RELT=T.relt;GSPD=T.speed;SHK=T.shake;bloom.strength=T.bloom*.33;HOV=(G/THR)**(1/TE)}
 $('modbtn').onclick=toggleMod;let zTune=()=>{};initModPanel({mods:MODS,presets:PRESETS,migrate,onApply:()=>{applyTune();zTune()}});initRates('Drone League Interceptor');
-$('copyset').onclick=()=>{const o={};for(const k of['mode','tilt','fov','cam','thrMode','dz','fireBtn','wx','rr','fpvMix','grain','zwx','gfx','fps','haze','fcap','tiltSw','thermSw','nextSw','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
+$('copyset').onclick=()=>{const o={};for(const k of['mode','tilt','fov','cam','thrMode','dz','fireBtn','wx','rr','fpvMix','grain','zwx','gfx','fps','haze','fcap','tiltSw','thermSw','nextSw','keys','cal','mod','rprof','rpi'])o[k]=S[k];const t=JSON.stringify(o);
  const show=()=>{$('mod').hidden=false;tab(false);$('mio').value=t;$('mio').select();modMsg('Select and copy this text')};
  try{navigator.clipboard.writeText(t).then(()=>feed('Settings copied. Paste them to Claude to make them the defaults.'),show)}catch(e){show()}};
 
