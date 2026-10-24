@@ -11,8 +11,11 @@ const r1=v=>Math.round(v*10)/10,v3=p=>p?[r1(p.x),r1(p.y),r1(p.z)]:null,tryf=(f,d
 const rd=k=>{try{const s=localStorage.getItem(k);return s==null?null:JSON.parse(s)}catch(e){return'unreadable'}};
 
 async function versionInfo(){
- const o={hash:'unknown',date:'',branch:'',dirty:null,pkg:'',stamp:'none'};
- try{const m=await import('./version.js');Object.assign(o,m.VERSION||{});o.stamp='version.js'}catch(e){}
+ /* version.js is generated and not in git (tools/version.mjs: npm run stamp, and npm run build / npm test write it): a checkout that never made one still boots, and the report says so */
+ const o={hash:'unknown',date:'',branch:'',dirty:null,pkg:'',stamp:'none (run node tools/version.mjs)'};
+ const m=await import('./version.js').catch(()=>({VERSION:{hash:'unknown',date:null}}));
+ if(m.VERSION&&m.VERSION.hash&&m.VERSION.hash!=='unknown'){Object.assign(o,m.VERSION);o.stamp='version.js'}
+ if(!o.date)o.date='';
  /* the game files' own Last-Modified (GitHub Pages sets it to the deploy time): well past the stamp's date means newer commits are being served than the stamp names. A local server sends none: then it is not judged */
  try{const r=await fetch(new URL('interceptor.js',import.meta.url),{method:'HEAD',cache:'no-store'}),lm=r.headers.get('last-modified')||'',t=Date.parse(lm),s=Date.parse(o.date);
   o.served={interceptor:lm};o.stampBehind=Number.isFinite(t)&&Number.isFinite(s)?t-s>BEHIND_MS:null}catch(e){}
@@ -62,7 +65,7 @@ function summary(d){
  const v=d.version,L=[],c=d.console.lines.filter(l=>l.lvl==='error'),e=c[c.length-1];
  L.push(`DRONE LEAGUE INTERCEPTOR DEBUG REPORT (schema ${d.schema})`);
  L.push(`Generated ${d.generated} (local ${clock(performance.now())}), page open ${d.uptime} s`);
- L.push(`Build ${v.hash}${v.date?` of ${v.date}`:''}${v.branch?` on ${v.branch}`:''}${v.dirty?' (uncommitted changes)':''}, package ${v.pkg||'?'}, stamp ${v.stamp}${v.served?.interceptor?`, game files served ${v.served.interceptor}`:''}`);
+ L.push(`Build ${v.hash==='unknown'?'unknown (run node tools/version.mjs)':v.hash}${v.date?` of ${v.date}`:''}${v.branch?` on ${v.branch}`:''}${v.dirty?' (uncommitted changes)':''}, package ${v.pkg||'?'}${v.hash==='unknown'?'':`, stamp ${v.stamp}`}${v.served?.interceptor?`, game files served ${v.served.interceptor}`:''}`);
  if(v.stampBehind)L.push('!! The stamp may be behind HEAD: the served game files are newer than the stamp\'s date, so this build may include later commits than the hash above.');
  L.push(`Browser ${d.env.userAgent}`);
  L.push(`GPU ${d.env.gpu.renderer||d.env.gpu.name||'unknown'}${d.env.gpu.igpu?' (integrated or software)':''}; screen ${d.env.screen.w}x${d.env.screen.h} @${d.env.screen.dpr}, viewport ${d.env.viewport.w}x${d.env.viewport.h}`);

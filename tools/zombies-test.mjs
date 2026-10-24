@@ -3047,6 +3047,9 @@ if (want('director')) {
 // ---------- debug mode (zdebug.js, zdbgcheat.js, zdbgreport.js, zdbglog.js): off by default; the panel, every cheat, a marked run saves nothing, the report and the console ring buffer; no speech anywhere ----------
 if (want('debug')) {
   const GURL = origin + '/games/interceptor/', DKEY = 'dl-interceptor';
+  /* the build stamp is generated, not in git (tools/version.mjs): make it for the "with the file" half, move it away for the "without" half below */
+  const {write: stampWrite} = await import('./version.mjs'), {fileURLToPath: toPath} = await import('node:url'), VFILE = toPath(new URL('../games/interceptor/version.js', import.meta.url));
+  stampWrite();
   /* a page on a fresh save (extra: more saved keys) with the given query; the clipboard and the downloads are stand-ins that keep what they were given */
   const dpage = async (qs, errs, extra = {}) => {
     const p = await open(browser, GURL + qs, errs);
@@ -3259,6 +3262,17 @@ if (want('debug')) {
   const own = e4.filter(x => !/late boom|rejected boom|debug test error/.test(x));
   ok(!own.length, 'Debug report: no unexpected errors' + (own.length ? '\n  ' + own.join('\n  ') : ''));
   await p4.close();
+
+  // ---- a checkout that never made the stamp (version.js is generated and git-ignored) still boots and plays, and the report says "unknown" ----
+  const e5 = [], bak = VFILE + '.off'; let nf = null;
+  fs.renameSync(VFILE, bak);
+  try {
+    const p5 = await dpage('?debug=1', e5); await play(p5);
+    nf = await ev(p5, async () => { const r = await __z.Z.dbg.report(), d = JSON.parse(r.text.slice(r.text.indexOf('=== JSON ===') + 12)); return {hash: d.version.hash, stamp: d.version.stamp, behind: d.version.stampBehind, head: r.text.split('\n').find(l => /^Build /.test(l)), up: __z.G.on && !!__z.api.player, panel: !!document.getElementById('zdbg')}; });
+    await p5.close();
+  } finally { fs.renameSync(bak, VFILE); }
+  ok(nf && nf.up && nf.panel && nf.hash === 'unknown' && /run node tools\/version\.mjs/.test(nf.stamp) && nf.behind === null && /^Build unknown \(run node tools\/version\.mjs\)/.test(nf.head) && !e5.length,
+    `Debug without the stamp file: the game boots and plays, the report says "${nf?.head}"` + (e5.length ? '\n  ' + e5.join('\n  ') : ''));
 
   // ---- the radio and the guide have no voice: no speechSynthesis anywhere in the game's code ----
   const walk = dir => fs.readdirSync(dir, {withFileTypes: true}).flatMap(e => e.isDirectory() ? (e.name === 'node_modules' ? [] : walk(dir + '/' + e.name)) : /\.(m?js|html|css|json)$/.test(e.name) ? [dir + '/' + e.name] : []);

@@ -1,10 +1,10 @@
 /* Build stamp for the debug report: writes games/interceptor/version.js (the git short hash of HEAD, its date and branch, the package version and whether the
-   tree has uncommitted changes), which games/interceptor/zdebug.js reads for "which build is this". The game is served as plain files (GitHub Pages, the local
-   server), so there is no build step to bake it in: run this before publishing, or let CI do it (the fast job runs it and checks the result).
-     node tools/version.mjs            write games/interceptor/version.js (npm run build does it in postbuild, npm test in pretest)
-     node tools/version.mjs --check    do not write: say how old the committed stamp is (warn-only, exits 0) and that the file loads
+   tree has uncommitted changes), which games/interceptor/zdebug.js reads for "which build is this". The file is generated and not in git (.gitignore): a tracked
+   stamp would change on every commit and conflict between branches. A checkout that never made one still runs; the debug report then says "unknown".
+     npm run stamp  /  node tools/version.mjs    write games/interceptor/version.js (npm run build does it in postbuild, npm test in pretest, CI's fast job too)
+     node tools/version.mjs --check    do not write: say how old the stamp is (warn-only, exits 0) and that the file loads; no file: say so, exit 0
      node tools/version.mjs --print    print the stamp as JSON
-   Without git (a zip download) the stamp says "unknown". The stamp is the commit it was made on top of, so a stamp committed with a change is one commit behind it. */
+   Without git (a zip download) an existing stamp is kept, else it says "unknown". */
 import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -32,10 +32,11 @@ export const render = v =>`/* Build stamp for the debug report (games/intercepto
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (has('--check')) {
     let v = null;
+    if (!fs.existsSync(OUT)) { console.log('version: games/interceptor/version.js has not been generated here (npm run stamp); the debug report will say "unknown"'); process.exit(0); }
     try { v = (await import(pathToFileURL(OUT).href)).VERSION; } catch (e) { console.log(`version: games/interceptor/version.js does not load (${e.message})`); process.exit(1); }
     if (!v || typeof v.hash !== 'string' || !('date' in v)) { console.log('version: games/interceptor/version.js has no VERSION with a hash'); process.exit(1); }
     const behind = git('rev-list', '--count', `${v.hash}..HEAD`);
-    console.log(`version: committed stamp ${v.hash} (${v.date || 'no date'}), ${behind === '' ? 'not in this history' : behind + ' commit(s) behind HEAD'}${v.dirty ? ', stamped on a dirty tree' : ''}`);
+    console.log(`version: stamp ${v.hash} (${v.date || 'no date'}), ${behind === '' ? 'not in this history' : behind + ' commit(s) behind HEAD'}${v.dirty ? ', stamped on a dirty tree' : ''}`);
     process.exit(0);
   }
   if (has('--print')) { console.log(JSON.stringify(stamp(), null, 1)); process.exit(0); }
