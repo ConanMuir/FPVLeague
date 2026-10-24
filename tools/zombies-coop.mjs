@@ -4,7 +4,7 @@
 // shared purse and shop requests (helper, personal perk, team perk, repair, kill chain), personal swarms (formation and strike over the wire), Little Buddies (each pilot with a garage gets one, flown by the host, drawn on every screen),
 // the arsenal (a client's weapon purchase, loadout and EMP resolved on the host, the host's laser beam and a client-parked carrier on every screen),
 // site hit points in sync, the living map's scars, launch alerts and warning actions from clients (harden, decoy), late join, a client leaving,
-// boss fights (a client's burst reads hit / no effect / down; the boss that is the last track down still wins; the wave's end on a client that never saw the clear state), the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS] [--throttle N]  (N: CPU throttling per page, e.g. 4, to play a slow CI runner)
+// debug mode (only the host cheats, and its cheat marks the clients' runs), boss fights (a client's burst reads hit / no effect / down; the boss that is the last track down still wins; the wave's end on a client that never saw the clear state), the host leaving. Run: node tools/zombies-coop.mjs [--shots DIR] [--delay MS] [--throttle N]  (N: CPU throttling per page, e.g. 4, to play a slow CI runner)
 // The three windows skip their WebGL draw calls (tools/browser.mjs render stub) unless --shots asks for pictures: drawing three full game
 // windows can drop a busy machine to ~1 frame a second, and the game loop caps the sim per frame, so every wait here would starve.
 import {serve, launch, open, sleep, newWindow} from './zlib.mjs';
@@ -556,6 +556,21 @@ if (SHOTS) await A.p.screenshot({path: SHOTS + '/coop-host-left.png'});
   const code2 = await ev(H, () => __z.net.n.code);
   for (const C of [A, B]) { await C.p.$eval('#zcode', (e, c) => { e.value = c; }, code2); await C.p.click('#zjoin'); }
   for (const C of [A, B]) ok(await until(C, () => __z.G.on && __z.Z.cp.run?.endless === true && __z.Z.endless.on()), `Endless co-op: ${C.name} joins with the code and plays the host's Endless run`); }
+
+// ---------- debug mode (zdebug.js): only the host cheats, and the host's cheat marks every client's run as a debug run (znet.js event D); last, because a marked run holds its records back ----------
+{ for (const P of all) await ev(P, () => __z.Z.dbg.enable(true, false));
+  const d0 = await Promise.all(all.map(P => ev(P, () => ({on: __z.Z.dbg.on, marked: __z.Z.dbg.marked, role: __z.Z.netRole(), ro: __z.Z.dbg.D.client}))));
+  ok(d0.every(x => x.on && !x.marked) && d0[0].role === 'host' && d0[1].role === 'client' && d0[1].ro && !d0[0].ro, 'Debug co-op: debug mode is on for the host and both clients, nobody is marked yet');
+  const cash0 = (await st(H)).cash, refused = await ev(A, () => __z.Z.dbg.c.money(5000));
+  ok(refused === false && (await st(A)).cash === cash0 && !(await ev(A, () => __z.Z.dbg.marked)), "Debug co-op: a client's cheat is refused (nothing moves, nothing is marked)");
+  const hc = await ev(H, () => __z.Z.dbg.c.money(5000));
+  ok(hc !== false && (await st(H)).cash === cash0 + 5000, "Debug co-op: the host's cheat works on the shared purse");
+  for (const C of [A, B]) ok(await until(C, () => __z.Z.dbg.marked && __z.Z.dbg.cheats.at(-1)?.name === 'host: money'), `Debug co-op: ${C.name}'s run is a debug run after the host's cheat (event D)`);
+  const rr = await Promise.all([A, B].map(C => ev(C, () => __z.Z.board.record(1, 9, true))));
+  ok(rr.every(x => x === null), "Debug co-op: a marked client's game over writes no leaderboard entry");
+  const rep = await ev(B, async () => { const r = await __z.Z.dbg.report(); const d = JSON.parse(r.text.slice(r.text.indexOf('=== JSON ===') + 12)); return {role: d.state.net.role, marked: d.run.marked, host: d.cheats.map(c => c.name).join()}; });
+  ok(rep.role === 'client' && rep.marked && rep.host === 'host: money', `Debug co-op: a client builds its own report (role ${rep.role}, cheats "${rep.host}")`);
+  for (const P of all) await ev(P, () => __z.Z.dbg.enable(false, false)); }
 
 for (const P of all) ok(!P.errs.length, `${P.name}: no errors` + (P.errs.length ? '\n  ' + P.errs.slice(0, 6).join('\n  ') : ''));
 await browser.close(); server.close();

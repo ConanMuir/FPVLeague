@@ -21,4 +21,6 @@ export function loadSettings(key,DEF,local=[]){KEY=key;LOCAL=local;const own=rea
  for(const k of BTNK)if(k in P&&k in own&&toLeague(own[k])===toLeague(P[k]))P[k]=own[k];  // the shared value is this game's exact binding, reduced: keep the exact one
  Object.assign(S,PILOT_DEF,DEF,own,P);for(const k of BTNK)if(k in S)S[k]=fromLeague(S[k]);
  if(!okCal(S.cal))S.cal=(DEF.cal||PILOT_DEF.cal).map(c=>({...c}));if(!okCal(S.xcal))S.xcal=(DEF.xcal||PILOT_DEF.xcal).map(c=>({...c}));return S}
-export const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(KEY===SHARED?leagueBtns(S):S));if(KEY!==SHARED){const sh=read(SHARED);for(const k of PILOT)if(k in S&&!LOCAL.includes(k))sh[k]=BTNK.includes(k)?toLeague(S[k]):S[k];localStorage.setItem(SHARED,JSON.stringify(sh))}}catch(e){}};
+/* hooks.persist(S) -> the object a game's own key is written from (default: S itself). The debug mode (games/interceptor/zdebug.js) keeps a debug run's progress out of the save with it */
+export const hooks={};
+export const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(KEY===SHARED?leagueBtns(S):hooks.persist?hooks.persist(S):S));if(KEY!==SHARED){const sh=read(SHARED);for(const k of PILOT)if(k in S&&!LOCAL.includes(k))sh[k]=BTNK.includes(k)?toLeague(S[k]):S[k];localStorage.setItem(SHARED,JSON.stringify(sh))}}catch(e){}};

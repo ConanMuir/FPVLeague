@@ -58,6 +58,13 @@ jobs:
           BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
         run: node tools/lint-comments.mjs --strict --base "$BASE"
 
+      - name: Build stamp for the debug report (tools/version.mjs)
+        # the game is served as plain files, so games/interceptor/version.js (the git hash the debug report names) is a generated file:
+        # this writes it from this checkout (not committed), then loads it and says how old the committed stamp is (warn-only)
+        run: |
+          node tools/version.mjs
+          node tools/version.mjs --check
+
   browser:
     name: Browser check (${{ matrix.check }})
     runs-on: ubuntu-latest
@@ -157,7 +164,7 @@ jobs:
           - check: zombies-test (codex)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=codex
-          # radio chatter (zradio.js): callouts, merging and rate limits, the HUD log, the sound cap, speech with and without speechSynthesis
+          # radio chatter (zradio.js): callouts, merging and rate limits, the HUD log, the sound cap (the radio has no voice: nothing is spoken)
           - check: zombies-test (radio)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=radio
@@ -222,6 +229,10 @@ jobs:
           - check: qa-sweep (Zombies, fast 4/4)
             area: interceptor
             run: node tools/qa-sweep.mjs --fast --area=interceptor --part=4
+          # debug mode (zdebug.js): off without the flag, the panel and every cheat, a marked run saves nothing, the report and the console ring buffer, no speech anywhere
+          - check: zombies-test (debug)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=debug
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
