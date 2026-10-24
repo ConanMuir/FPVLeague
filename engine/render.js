@@ -24,7 +24,9 @@ export const glow=(hex,k=3)=>new THREE.MeshBasicMaterial({color:new THREE.Color(
 export const dot=tex(64,64,(g)=>{const r=g.createRadialGradient(32,32,0,32,32,32);r.addColorStop(0,'#fff');r.addColorStop(.4,'rgba(255,255,255,.6)');r.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=r;g.fillRect(0,0,64,64)});
 // camera: field of view set horizontally (like a real FPV lens) unless horizontal=false
 let curFov=0;
-export function setFov(h,horizontal=true){const v=horizontal?2*Math.atan(Math.tan(h*Math.PI/360)/camera.aspect)*180/Math.PI:h;if(Math.abs(v-curFov)>.05){curFov=camera.fov=v;camera.updateProjectionMatrix()}}
+/* a field of view from a save (the shared pilot profile, hand-edited or foreign) is a number between 20 and 170 degrees: -1 or 1e9 gave the lens a negative tangent and the HUD a negative radius */
+export const clampFov=h=>typeof h==='number'&&isFinite(h)?Math.min(170,Math.max(20,h)):110;
+export function setFov(h,horizontal=true){h=clampFov(h);const v=horizontal?2*Math.atan(Math.tan(h*Math.PI/360)/camera.aspect)*180/Math.PI:h;if(Math.abs(v-curFov)>.05){curFov=camera.fov=v;camera.updateProjectionMatrix()}}
 // ---------- surface detail (shared by games' terrain, trees and buildings) ----------
 // close-up detail: two scales of tiling noise multiplied over the field texture so the ground keeps grain at low level.
 // The noise lattice wraps at the tile edge (vp), so the repeats join without a seam (a seam showed up as a crack line in the bump).

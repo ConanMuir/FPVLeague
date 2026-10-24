@@ -70,6 +70,8 @@ export function initZombies(api){
  const hudEl=document.createElement('div');hudEl.id='zhud';hudEl.className='osd';hudEl.hidden=true;
  hudEl.innerHTML='<div class="zt"><span id="zw">WAVE 1</span><span id="zc">$0</span><span class="zi"><i id="zib"></i><em id="zit">100%</em></span><span id="zs"></span><span id="zinb"></span></div><div id="zsites"></div><div id="zwarn"></div>';
  $('hud').append(hudEl);
+ const fitFeed=()=>{const h=$('hud');let l=1e9,b=0;if(!hudEl.hidden)for(const c of hudEl.children){const r=c.getBoundingClientRect();if(r.width){l=Math.min(l,r.left);b=Math.max(b,r.bottom)}}const on=b>0;h.classList.toggle('zfd',on&&l<336);h.style.setProperty('--zhl',on?Math.round(l)+'px':'50vw');h.style.setProperty('--zhb',on?Math.round(b)+'px':'44px')};  /* the event feed (top left) keeps clear of this centred stack (the bar, the site row, a warning; its children can be wider than the box itself): beside it when 300 px or more are free, else under it (zombies.css, #hud.z #feed) */
+ if(typeof ResizeObserver==='function'){const ro=new ResizeObserver(fitFeed);for(const c of [hudEl,...hudEl.children])ro.observe(c)}addEventListener('resize',fitFeed);
  let lastSites='';
  Z.hud=()=>{pk.hud();const integ=integrity();txt($('zw'),Z.waveTxt?.()||(G.state==='base'?`WAVE ${G.wave+1} NEXT`:`WAVE ${G.wave}`));if(!Z.cashRoll)txt($('zc'),money(G.cash));  /* zannounce.js rolls the cash counter (Z.cashRoll) */
   const f=integ.max?integ.hp/integ.max:0;css($('zib'),'width',(f*100).toFixed(1)+'%');cls($('zib'),f<.3?'lo':f<.6?'mid':'');txt($('zit'),`INTEGRITY ${Math.round(f*100)}%`);
@@ -349,4 +351,5 @@ export function initZombies(api){
  initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
  initTypes(api,G,Z);  /* craft types (ztypeui.js, ztypes.js): the Dart or the Plane; the picker on the start card and the base screen, the HUD panel, the radio line, the saved choice */
  initDebug(api,G,Z);  /* debug mode (zdebug.js): off unless ?debug=1 or Ctrl+Shift+D; a panel with cheats, readouts and the developer report; a marked run saves nothing; the outermost wrapper, so it goes last */
+ $('zdiff').after($('play').parentNode);  /* the start / resume row sits right under the difficulty tabs: the cards the modules added below them (campaign, enemies, watch a bot, doctrine, leaderboard, co-op) had pushed it below the fold of a 1080p window */
  return Z}
