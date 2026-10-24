@@ -79,6 +79,7 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
  function start(o){if(sp.on)stop();const P=brain.level(o.lv);if(!P)return false;
   let pickWhy='';if(o.auto){const c=brain.loadout(P,o.sec?SECTORS.find(s=>s.id===o.sec):null);o={...o,doc:c.doc,kit:c.kit};pickWhy=c.why}
   Object.assign(sp,{on:true,bench:!!o.bench,P,o:{...o},spd:1,paused:false,cam:o.bench?'chase':'director',site:0,gen:null,cur:null,next:0,stats:newStats(o),shopT:0});
+  Z.craft?.bot(o.ty||(o.bench?'dart':''));  /* the bot flies your pick; the benchmark and its tests the Dart unless they name a type (ztypes.js) */
   sp.pilot=createPilot(api,G,Z,P,E);if(pickWhy)E.bot?.use('camp','Loadout: '+DOCS[o.doc].n+(o.kit.length?' + '+o.kit.map(k=>KIT[k].n).join(', '):'')+' · '+pickWhy);
   Z.botIn=(d,dt)=>sp.on&&(G.state!=='base'||Z.bot?.sortie?.on())&&G.state!=='over'?sp.pilot.input(d,dt):null;Z.botFire=()=>sp.on&&sp.pilot.fire();Z.sightCam=sight;
   const ld=Z.meta.load;Z.meta.load=()=>({doc:DOCS[o.doc]?o.doc:'std',kit:(o.kit||[]).filter(k=>KIT[k]).slice(0,KIT_MAX)});sp.starting=true;
@@ -89,11 +90,11 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
  // the bot's difficulty, whatever the menu or the campaign says: start cash and site hit points follow it, and the first wave is planned again
  function reseed(d){const D0=Z.diff();G.dfo=d;const D=Z.diff(),k=Z.meta.k('startK');G.cash+=Math.round(D.start*k)-Math.round(D0.start*k);
   for(const s of SITES){s.max=Math.max(1,Math.round(s.max*D.hp/D0.hp));s.hp=s.max}G.next=Z.plan(G.wave+1);Z.wx?.start?.(G.next.wx);Z.base.refresh?.()}
- function stop(){if(!sp.on)return;sp.on=false;dir.off();delete Z.botIn;delete Z.botFire;delete Z.sightCam;Z.stepCap=0;sp.pilot=null;sp.gen=null;
+ function stop(){if(!sp.on)return;sp.on=false;Z.craft?.bot('');dir.off();delete Z.botIn;delete Z.botFire;delete Z.sightCam;Z.stepCap=0;sp.pilot=null;sp.gen=null;
   document.body.classList.remove('zsp-on');api.camMode=S.cam|0;G.dfo=undefined;for(const id of['zspbar','zspctl','zspcap','zsptune'])$(id)?.remove()}
  // the bot's sights: its FPV camera (down the nose with the tilt switch up), whatever camera the spectator is watching through
  const sq=new THREE.Quaternion(),sx=new V3(1,0,0),sightO={position:new V3(),quaternion:new THREE.Quaternion()};
- function sight(){const me=api.player;if(!me)return null;sightO.position.copy(me.p);sightO.quaternion.copy(me.q).multiply(sq.setFromAxisAngle(sx,(api.camUp?S.tilt:0)*Math.PI/180));return sightO}
+ function sight(){const me=api.player;if(!me)return null;sightO.position.copy(me.p);sightO.quaternion.copy(me.q).multiply(sq.setFromAxisAngle(sx,api.camA()*Math.PI/180));return sightO}
 
  // ---------- hooks ----------
  const zs0=Z.start;Z.start=()=>{if(sp.on&&!sp.starting)stop();zs0()};
@@ -268,7 +269,7 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
 
  // ---------- headless benchmark (tools/zombies-bench.mjs --real) and tests ----------
  E.spec={get on(){return sp.on},sp,dir,start,stop,report,TUNE,apply,resetAll,setCam,setSpeed,setPause,stepOnce,toggleTune,
-  bench:{start:(lv,d,o={})=>start({lv,d,doc:o.doc||'std',kit:o.kit||[],sec:o.sec||'',bench:true}),
+  bench:{start:(lv,d,o={})=>start({lv,d,doc:o.doc||'std',kit:o.kit||[],sec:o.sec||'',bench:true,ty:o.ty||''}),
    shop(){const r=brain.shopNow(sp.P,E);for(const s of r)if(s.spent>0||s.what==='chain'||s.what==='sell')sp.stats.buys.push({w:G.wave+1,what:s.what,k:s.k||'',why:s.why,cost:s.spent});return r.length},
    wave(max=2400){let n=0;while(G.state==='wave'&&n++<max)E.sim(.5);if(G.state==='clear')E.sim(4);return G.state}}};
  return E.spec}

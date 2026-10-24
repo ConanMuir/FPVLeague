@@ -233,6 +233,10 @@ jobs:
           - check: zombies-test (debug)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=debug
+          # craft types (ztypes.js, zplane.js, ztypeui.js): the table, the picker and its saved choice, the Plane's flight (catapult, cruise, bank, minimum speed and no hover, landing), bursts, lock, co-op models, bots flying each type, nothing left behind
+          - check: zombies-test (types)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=types
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)

@@ -20,7 +20,7 @@ export function createFlier(E,B,F,P){
  const st={ph:'idle',t:null,sc:null,u:[0,1],pass:0,abort:false,bombT:0,lastT:1e9,thinkT:0,slow:0,ban:new Set(),cash0:0};
  const out={x:0,y:0,z:0,speed:80,agl:40,floor:25,kv:1.8,fire:false,kind:'sortie',why:'',what:'',label:'',tgt:null};
  const _c=new V3();
- const top=d=>(api.S.mod.maxv||115)+(d.bmax||0);
+ const top=d=>d.cx?d.cx.vlev?.()??d.cx.vtop():(api.S.mod.maxv||115)+(d.bmax||0);  /* a fixed-wing type: its level top speed (ztypes.js) */
  const dHome=(x,z)=>W.dHome(x,z);
  const nearHome=(x,z)=>{let b=null,bd=1e9;for(const h of W.HOME){const d=Math.hypot(h.x-x,h.z-z);if(d<bd){bd=d;b=h}}return b};
  const mains=t=>t.parts.filter(q=>q.main&&q.alive);
