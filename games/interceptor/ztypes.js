@@ -1,30 +1,29 @@
 /* Craft types: what you can fly in Zombies. One table; the rest of the game asks it (typeOf(id)) instead of assuming the dart.
    The Dart is the original craft and the default (it is also what an old save, an unknown id or a hand-edited value turns into); its flight
    and look stay in interceptor.js (Drone), so its entry holds only the text and the numbers the HUD and the bots read.
-   ADDING A TYPE = one entry below + a model builder + a flight-controller function (nothing else in the game needs to know it exists):
-     id, name, call (radio call sign), blurb, facts[]         the picker cards (start menu, base screen) and the radio / guide text
-     buildModel()   -> {group, props[], nozzle}                the craft's mesh, built from shared geometry (a few merged primitives, one or two
-                                                               materials: it is built every time a pilot switches to the type, so no new geometry);
-                                                               body +Y = nose, +Z = up, +X = right; props spin about their local Y; the exhaust
-                                                               and the Rocket Assist flame come out of nozzle along its -Y
-     make(drone, X) -> cx                                      the flight controller, made once per Drone that flies the type. X is the world
-                                                               (interceptor.js CRAFT: gh, sdf, sdN, WIND, G, HOV, BCAP, ocv, FOBS, MSZ, banner, feed...). cx:
-                                                               spawn(pad, bearing)  put the craft on the pad (called for every new interceptor)
+   ADDING A TYPE = one entry in TYPES below, a model builder and a flight-controller factory (zplane.js is the worked example; nothing else in the game needs to know the type exists):
+     id, name, call (radio call sign), blurb, facts[]         the picker cards (start card, base screen) and the radio / guide text
+     buildModel()   -> {group, props[], nozzle}                the craft's mesh: a few merged primitives, one or two materials, geometry and materials shared (each Drone builds a
+                                                               type's model once and keeps it for later switches; interceptor.js Drone.setType); body +Y = nose, +Z = up, +X = right;
+                                                               props spin about their local Y; the exhaust and the Rocket Assist flame come out of nozzle along its -Y
+     make(drone, X) -> cx                                      the flight controller, made when a Drone takes the type. X is the world (interceptor.js CRAFT: gh, sdf, sdN, WIND, G, HOV,
+                                                               BCAP, SAGK, ocv, FOBS, MSZ, banner, feed, wind). The Drone's own fields stay the interface (p, v, q, w, thr, ms, mah, vc,
+                                                               gt, t, dead, home, boost, bmax); cx:
+                                                               spawn(pad, bearing)  put the craft on the pad, battery full (every new interceptor)
                                                                face(bearing)        turn it to a bearing (a sortie moved it to another pad)
-                                                               stick(thr, yaw, pit, rol)  this tick's sticks from the player or a bot (thr 0..1, the rest are -1..1)
+                                                               stick(thr, yaw, pit, rol)  this tick's sticks from the player or a bot (thr 0..1, the rest -1..1)
                                                                step(dt) -> hit      one physics tick; returns the impact speed (over the crash speed = lost)
-                                                               info() -> {...}      what hud[] reads; vtop() -> the top speed the lock-on solves with
-     hud[]          -> {id, label, v(info), c(info)}           readouts in the craft's own HUD panel (v: text, c: '' | 'a' | 'r'); tape: {max, min(info)}
-                                                               draws the airspeed bar (marker, red below the minimum speed)
-     state(info)    -> a status line for the panel
+                                                               info() -> {...}      what hud[] and state() read
+                                                               vtop() / vlev()      the never-exceed and the level top speed (m/s): the lock-on solves with the first, the bots plan with the second
+     hud[]          -> {id, label, v(info), c(info)}           readouts in the craft's own HUD panel (v: text, c: '' | 'a' | 'r'); tape: {max, min(info)} draws a speed bar with a red
+                                                               zone below the minimum speed; state(info) is the status line under it
      cam {off, chase, tilt}                                    FPV camera mount (body frame, m), chase camera [distance, height], FPV tilt in degrees
-                                                               (null = the camera switch decides, as on the dart)
-     bot(api, me, Vd, head, dt, o) -> {thr, yaw, pit, rol}     the bot pilot's sticks for a wanted velocity Vd (zbotfly.js asks; null = zbotfly's dart controller)
-     guide {fly, look}, radio                                  the first-wave guide's text for flying and for the camera step, the radio line at launch
+     bot(api, me, Vd, head, dt, o) -> {thr, yaw, pit, rol}     the bot pilot's sticks for a wanted velocity Vd (zbotfly.js asks when the craft has a cx; o: {land, look, near})
+     guide {fly, look}, radio                                  the first-wave guide's text for flying and for the camera step, the radio line at the start of a wave (the call sign replaces "Dart One")
      draw {full, cruise}                                       pack draw at full throttle (A) and level full-throttle speed (m/s) for the battery gauge
    Everything with a body, a battery and a nose then works as it does on the dart: the pip, the lock, the burst, Rocket Assist, sorties, co-op
-   (each pilot's type travels in the presence packet), the bots. */
-import {planeModel,makePlane,F as PF,stickOf,cruiseAmps} from './zplane.js';
+   (each pilot's type travels in the presence packet), the bots. The checks in tools/zombies-test.mjs "types" loop over this table where they can. */
+import {planeModel,makePlane,F as PF,cruiseAmps} from './zplane.js';
 import {planeBot} from './zplanebot.js';
 
 export const VER=1;
@@ -55,6 +54,6 @@ export const TYPES={
 export const ORDER=Object.keys(TYPES);
 export const typeOf=id=>Object.hasOwn(TYPES,id)?TYPES[id]:TYPES.dart;
 export const cleanId=id=>typeof id==='string'&&Object.hasOwn(TYPES,id)?id:'dart';
-/* the saved choice: S.zty = {v, id}. A string (hand-edited), a number, an unknown id or a future version's unknown type all read as the dart; an old save has none */
+/* the saved choice: S.zty = {v, id} (versioned: VER). An old save has none; a number, an object without a known id, an unknown id (a type from a later version) and anything else odd read as the dart;
+   a bare string that is a known id is taken as that type */
 export const cleanSave=o=>({v:VER,id:cleanId(o&&typeof o==='object'?o.id:o)});
-export const thrStick=(u,h)=>stickOf(u,h);

@@ -46,7 +46,7 @@ export function initTypes(api,G,Z){
 
  // ---------- the radio names the craft at the start of each wave (the Dart's lines are the radio's own) ----------
  let ws='';const s0=Z.step;Z.step=dt=>{s0(dt);const me=api.player;
-  if(G.on&&G.state==='wave'&&ws!=='wave'&&me&&me.cx&&!api.demo&&Z.radio){const T=typeOf(me.ty);Z.radio.say('craft',1,'OVERLORD',`${T.call}, ${T.radio}`,{nb:1})}ws=G.state};
+  if(G.on&&G.state==='wave'&&ws!=='wave'&&me&&me.cx&&!api.demo&&Z.radio){const T=typeOf(me.ty);Z.radio.say('craft',2,'OVERLORD',`${T.call}, ${T.radio}`,{nb:1})}ws=G.state};
  const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();render()};
  render();
  return C}

@@ -33,7 +33,7 @@ export function createPilot(api,G,Z,P,E){
  const sortie=P.explore>=2?createFlier(E,B,F,P):null;  /* real-flight sorties between waves (zbotsortiefly.js) */
  B.sortie=sortie;
  const live=t=>api.live(t)&&t.st!=='fall';
- const topV=me=>me.cx?me.cx.vlev():(S.mod.maxv||115)+(me.bmax||0);  /* a fixed-wing type: its level top speed */
+ const topV=me=>me.cx?me.cx.vlev?.()??me.cx.vtop():(S.mod.maxv||115)+(me.bmax||0);  /* a fixed-wing type: its level top speed */
  const ttiOf=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
  const name=t=>Z.tname?Z.tname(t):`T${String(t.id).padStart(2,'0')} ${KIND[t.k]?.n}`;
  const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';
@@ -182,7 +182,7 @@ export function createPilot(api,G,Z,P,E){
    else if(st.mode==='roam'&&roamO)B.set(roamO.kind,roamO.why,{x:roamO.st.x,y:roamO.st.y+roamO.st.agl,z:roamO.st.z,label:roamO.label});
    else{const K={mat:'launch',hold:'idle',line:'line',home:'return',loiter:'station'}[st.mode]||(tg&&tg.k==='boss'?'boss':tg&&Z.lk?.t===tg?'lock':'intercept');B.set(K,wy,tg?{x:tg.p.x,y:tg.p.y,z:tg.p.z,label:name(tg)}:null)}}
   const A=want(me,Vd,kv,me.cx?floor+22:floor,sfl);  /* a fixed-wing type: its own bot controller flies the wanted velocity (ztypes.js bot), with more room over the ground */
-  if(me.cx)return typeOf(me.ty).bot(api,me,Vd,head,dt,{land:st.mode==='home',look,near:st.mode==='chase'?st.dT:1e9});
+  if(me.cx&&typeOf(me.ty).bot)return typeOf(me.ty).bot(api,me,Vd,head,dt,{land:st.mode==='home',look,near:st.mode==='chase'?st.dT:1e9});
   return sticks(me,A,head,dt,look)}
 
  // manual detonation: when the closest approach is a moment away and close enough, press detonate at that moment (with this pilot's timing

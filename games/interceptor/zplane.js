@@ -15,10 +15,15 @@ import {noise,tone} from '../../engine/audio.js';
 
 const V3=THREE.Vector3,QT=THREE.Quaternion,M4=THREE.Matrix4,D2R=Math.PI/180,cl=(v,a,b)=>v<a?a:v>b?b:v,sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)};
 
-/* the numbers: speeds in m/s, loads in g, rates in rad/s, accelerations in m/s^2, currents in A */
+/* the numbers: speeds in m/s, loads in g, rates in rad/s, accelerations in m/s^2, currents in A.
+   vs minimum speed in level flight (it grows with the load), vc cruise, vlev level top speed at full throttle (what the drag and thrust below give), vne never-exceed;
+   nmax pull-up limit, rate the path rate a full pitch stick asks (rad/s), bank the bank a full roll stick asks, broll how fast it rolls into it; at / te / vp thrust at full throttle
+   (m/s^2, its throttle exponent, the speed it fades out at), c0 / ci parasite and induced drag, tm motor spool (s), i0 / i1 pack current idle / full; vcl the speed it climbs best at
+   (the bots), cat the catapult (m/s, run length m, angle), up the climb-out assist angle, sink / bankL the touchdown limits, fl the flare gate (range m, height m, speed), chg the
+   shortest taxi-and-charge (s), rest the wheels' height on the ground, vlow the stall warning margin, hdn the throttle level that fires the catapult */
 export const F={vs:28,vc:62,vlev:106,vne:135,nmax:2.6,nmin:-1,rate:.22,bank:65*D2R,broll:2.6,yawr:.2,lvl:.15,a0:4.5*D2R,
  at:5.8,te:1.4,vp:200,c0:2.1e-4,ci:1500,tm:.3,i0:8,i1:118,
- vcl:68,cat:{v:52,len:24,inc:12*D2R},up:14*D2R,sink:5,bankL:22*D2R,fl:{r:150,agl:14,v:58},chg:3.2,rest:.19,vlow:1.12,hdn:.66};
+ vcl:68,cat:{v:52,len:24,inc:12*D2R},up:14*D2R,sink:5,bankL:22*D2R,fl:{r:150,agl:9,v:58},chg:3.2,rest:.19,vlow:1.12,hdn:.66};
 /* the pack's draw at the cruise speed in level flight (A), for the picker's endurance line */
 export const cruiseAmps=()=>{const V=F.vc,D=F.c0*V*V+F.ci/(V*V),u=(D/(F.at*(1-V/F.vp)*.99))**(1/F.te);return F.i0+(F.i1-F.i0)*u**1.5};
 /* the throttle stick to the throttle level and back; the stick's rest point (the keyboard's hover point HOV, 0.32 by default) is half throttle = cruise */
@@ -44,13 +49,13 @@ const geos=()=>{if(GE)return GE;
   wheel=[[0,.3],[.2,-.06],[-.2,-.06]].map(([x,y])=>col(flat(new THREE.CylinderGeometry(.03,.03,.02,10).rotateZ(Math.PI/2).translate(x,y,-.165)),DK));
  const dark=[col(flat(new THREE.SphereGeometry(.03,10,6).translate(0,.555,.012)),DK),col(flat(new THREE.CylinderGeometry(.034,.03,.07,10).translate(0,-.575,0)),DK)];
  GE={body:mergeGeometries([fus,wing,stab,fin,tip(1),tip(-1),...gear,...wheel,...dark]),
-  prop:new THREE.CircleGeometry(.12,24).rotateX(-Math.PI/2),blade:new THREE.BoxGeometry(.24,.004,.022)};
- MT={body:new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.12}),prop:new THREE.MeshBasicMaterial({color:0xaab4c8,transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide}),
-  blade:new THREE.MeshStandardMaterial({color:0x22252a,roughness:.5,transparent:true,opacity:.65})};
+  prop:new THREE.CircleGeometry(.12,24).rotateX(-Math.PI/2),blade:col(flat(new THREE.BoxGeometry(.24,.004,.022)),DK)};
+ MT={body:new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.12}),  /* two materials: the vertex-coloured airframe (and the prop blade), and the translucent prop disc */
+  prop:new THREE.MeshBasicMaterial({color:0xaab4c8,transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide})};
  return GE};
 /* the craft's group: {group, props: the parts that spin (about their local Y), nozzle: the exhaust exit (flame along its -Y)} */
 export function planeModel(){const G=geos(),g=new THREE.Group(),body=new THREE.Mesh(G.body,MT.body);body.castShadow=true;g.add(body);
- const pr=new THREE.Mesh(G.prop,MT.prop);pr.position.y=-.62;pr.castShadow=false;const bl=new THREE.Mesh(G.blade,MT.blade);pr.add(bl);g.add(pr);
+ const pr=new THREE.Mesh(G.prop,MT.prop);pr.position.y=-.62;pr.castShadow=false;const bl=new THREE.Mesh(G.blade,MT.body);pr.add(bl);g.add(pr);
  const nozzle=new THREE.Object3D();nozzle.position.set(0,-.66,0);g.add(nozzle);return{group:g,props:[pr],nozzle}}
 
 /* ---------- the flight ---------- */
@@ -87,7 +92,7 @@ export function makePlane(d,X){
     if([-w0,0,w0].some(w=>X.sdf(m.x+_h.x*t-_h.z*w,y,m.z+_h.z*t+_h.x*w)>-2.5))break}
    if(t>best){best=t;psi=-ang-o}if(t>200)break}
   P.psi=psi;hv(psi,_h);
-  d.p.set(m.x,m.y+F.rest*s,m.z);d.v.set(0,0,0);d.w.set(0,0,0);d.wt.set(0,0,0);orient(d.q,_h,UP);Object.assign(P,{padLand:false,mode:'pad',bank:0,alpha:0,ct:0,flare:false,sit:false,landed:0,crash:0,warn:0,stall:0,hd:psi});
+  d.p.set(m.x,m.y+F.rest*s,m.z);d.v.set(0,0,0);d.w.set(0,0,0);d.wt.set(0,0,0);orient(d.q,_h,UP);Object.assign(P,{ga:0,ias:0,padLand:false,mode:'pad',bank:0,alpha:0,ct:0,flare:false,sit:false,landed:0,crash:0,warn:0,stall:0,hd:psi});
   d.ms=0;d.thr=0;d.gt=0;d.mah=0;d.vp=0;d.vc=4.2;d.t=0;d.dead=0;d.tb.set(0,0,0);d.gu.set(0,0,0)};
  /* turn the waiting plane to face a bearing (a sortie pad change) */
  P.face=ang=>{P.psi=-ang;hv(P.psi,_h);if(P.mode==='pad')orient(d.q,_h,UP)};
@@ -108,7 +113,8 @@ export function makePlane(d,X){
   const eff=sm((V-F.vs*.7)/(F.vs*.5));
   let bc=k.rol*F.bank*eff,gd=-k.pit*F.rate-gam*F.lvl*(1-Math.abs(k.pit));
   if(P.up>0){P.up-=dt;if(P.agl<30){bc=cl(bc,-.35,.35);if(k.pit<.3)gd=Math.max(gd,cl((F.up-gam)*1.5,-.1,.2))}}  /* climb-out assist after the catapult: wings nearly level and fourteen degrees up until it is clear of the pad's trees */
-  if(P.flare){const vt=-cl(.9+P.agl*.5,.9,3.2),gt=Math.asin(cl(vt/V,-.3,.05));gd=cl((gt-gam)*2.5,-.5,.5);bc=0}
+  if(P.flare){const vt=-cl(1.4+P.agl*.5,1.4,3.2),hh=Math.hypot(xw.x,xw.z)||1,sl=Math.atan2(X.gh(d.p.x+xw.x/hh*45,d.p.z+xw.z/hh*45)-X.gh(d.p.x,d.p.z),45),  /* the sink it wants is over the ground it is about to meet: along a slope it follows the slope */
+   gt=Math.asin(cl(vt/V,-.3,.05))+cl(sl,-.15,.2);gd=cl((gt-gam)*2.5,-.5,.5);bc=0}
   P.bank+=(bc-P.bank)*(1-Math.exp(-dt*(P.flare?4:F.broll)));const bk=P.bank,cb=Math.max(.35,Math.cos(bk));
   const nc=(gd*V+g*Math.cos(gam))/(g*cb),cap=Math.min(F.nmax,(V/F.vs)**2),n=cl(nc,F.nmin,cap);P.n=n;
   P.vmin=F.vs*Math.sqrt(cl(nc,1,F.nmax));P.stall=cl((P.vmin*F.vlow-V)/(P.vmin*(F.vlow-.9)),0,1);
@@ -138,12 +144,12 @@ export function makePlane(d,X){
   return 0}
  function land(vn){const h=Math.hypot(d.v.x,d.v.z);P.mode='roll';P.hd=Math.atan2(d.v.x,-d.v.z);P.padLand=P.flare;P.flare=false;P.bank=0;d.v.y=0;d.gt=.12;P.landed++;if(h<1)P.hd=P.psi;noise(.12,300,cl(vn/30,.03,.2));return vn}
  function roll(dt){const k=P.k,s=X.MSZ;power(dt);let V=Math.hypot(d.v.x,d.v.z);nearPad();const pad=P.padLand||P.pad<110,u=cl(d.thr,0,1),go=u>.6;P.ias=V;P.agl=0;P.flare=false;
-  let a=(go?F.at*Math.max(d.ms,0)**F.te*cl(1-V/F.vp,.1,1)*vf()+(d.boost||0):0)-.9-(u<.55?(pad?11:5.5):0);  /* throttle past 60% is thrust (a take-off run); under 55% the wheel brakes, hard on a pad */
+  let a=(go?F.at*Math.max(d.ms,0)**F.te*cl(1-V/F.vp,.1,1)*vf()+(d.boost||0):0)-.9-(u<.55?(pad?15:9):0);  /* throttle past 60% is thrust (a take-off run); under 55% the wheel brakes, hard on a pad */
   V=Math.max(0,V+a*dt);if(V<.05&&a<0)V=0;P.hd+=k.yaw*.75*Math.min(1,V/6)*dt;hv(P.hd,_h);
   const x0=d.p.x,z0=d.p.z,y0=d.p.y;d.p.x+=_h.x*V*dt;d.p.z+=_h.z*V*dt;
   const gy=X.gh(d.p.x,d.p.z)+F.rest*s;d.p.y+=(gy-d.p.y)*Math.min(1,dt*40);d.v.set(_h.x*V,(d.p.y-y0)/dt,_h.z*V);
   /* a solid thing at nose or wing height ahead: stop if it is a bump, crash if it is not */
-  for(const o of[[0,.56],[.8,.06],[-.8,.06]]){_P.set(0,0,0).addScaledVector(_r0.set(Math.cos(P.hd),0,Math.sin(P.hd)),o[0]*s).addScaledVector(_h,o[1]*s).add(d.p);_P.y+=.1*s;if(sdAt(_P.x,_P.y,_P.z)>-.05){if(V>12)return P.crash=1e3;V=0;d.p.x=x0;d.p.z=z0;d.v.set(0,0,0);break}}
+  for(const o of[[0,.56],[.8,.06],[-.8,.06]]){_P.set(0,0,0).addScaledVector(_r0.set(Math.cos(P.hd),0,Math.sin(P.hd)),o[0]*s).addScaledVector(_h,o[1]*s).add(d.p);_P.y+=.1*s;if(sdAt(_P.x,_P.y,_P.z)>-.05){if(V>12){P.hit=['roll',o.join(),V,_P.x,_P.y,_P.z,X.gh(_P.x,_P.z)];return P.crash=1e3}V=0;d.p.x=x0;d.p.z=z0;d.v.set(0,0,0);break}}
   const sl=Math.atan2(X.gh(d.p.x+_h.x,d.p.z+_h.z)-X.gh(d.p.x-_h.x,d.p.z-_h.z),2),ps=sl+(V>F.vs*.6?4*D2R:0);
   _nose.copy(_h).multiplyScalar(Math.cos(ps));_nose.y=Math.sin(ps);orient(d.q,_nose,UP);d.w.set(0,0,0);
   if(u>.6&&V>F.vs*1.1&&(k.pit<-.1||V>F.vs*1.35)){P.mode='fly';P.alpha=6*D2R;d.v.set(_h.x*V,V*.07,_h.z*V);d.gt=0;return 0}
