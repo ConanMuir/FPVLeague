@@ -14,7 +14,7 @@ export function initBatt(api,G,Z){
  // flight time and range left flat out (full throttle plus the swarm's draw): the figure you can count on, whatever you are doing right now
  function hud(dt){const me=api.player,cap=api.BCAP;if(!me||!cap||G.state==='base'||G.state==='over'||me.dead>0){el.hidden=true;return}el.hidden=false;
   B.spd+=(me.v.length()-B.spd)*Math.min(1,dt/6);if((B.t-=dt)>0)return;B.t=.25;
-  const left=Math.max(0,cap-me.mah),f=left/cap,sec=left*3.6/(BAT.full+(Z.sw?.draw?.()||0)),km=sec*Math.max(BAT.cruise,B.spd)/1000;
+  const dr=Z.craft?.of(me).draw,left=Math.max(0,cap-me.mah),f=left/cap,sec=left*3.6/((dr?dr.full:BAT.full)+(Z.sw?.draw?.()||0)),km=sec*Math.max(dr?dr.cruise:BAT.cruise,B.spd)/1000;  /* dr: another craft type's draw (ztypes.js) */
   const mm=Math.floor(sec/60),ss=Math.floor(sec%60),txt=`${Math.round(f*100)}% · ${mm}:${String(ss).padStart(2,'0')} · ${km<10?km.toFixed(1):Math.round(km)} km`;
   if(txt!==B.last){B.last=txt;$('zbatt').textContent=txt;const i=$('zbati');i.style.width=(f*100).toFixed(1)+'%';i.className=f<.15?'lo':f<.35?'mid':'';el.className=f<.15?'lo':''}}
  const h0=Z.hud;Z.hud=dt=>{h0(dt);hud(dt||1/60)};

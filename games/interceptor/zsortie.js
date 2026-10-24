@@ -119,7 +119,7 @@ export function initSortie(api,G,Z){
 
  // ---------- the sortie: launch, the clock, home, the end ----------
  const padOf=()=>FOBS[cl(S.pad|0,0,FOBS.length-1)];
- function toPad(d){const f=padOf(),h=d.home;if(!h?.mat||!f.mat||h===f)return;const dy=d.p.y-h.mat.y;d.home=f;d.p.set(f.mat.x,f.mat.y+dy,f.mat.z);const o=W.list.find(t=>t.id===S.obj);if(o)d.q.setFromAxisAngle(_a.set(0,1,0),Math.atan2(f.x-o.x,f.z-o.z))}
+ function toPad(d){const f=padOf(),h=d.home;if(!h?.mat||!f.mat||h===f)return;const dy=d.p.y-h.mat.y;d.home=f;d.p.set(f.mat.x,f.mat.y+dy,f.mat.z);const o=W.list.find(t=>t.id===S.obj);if(o){const a=Math.atan2(f.x-o.x,f.z-o.z);if(d.cx)d.cx.face(a);else d.q.setFromAxisAngle(_a.set(0,1,0),a)}}  /* a fixed-wing type turns on the pad (ztypes.js) */
  function launch(pad){if(!avail()||Z.isReady?.())return false;if(pad!=null)S.pad=pad;else{const o=W.list.find(t=>t.id===S.obj);if(o){let b=1,bd=1e9;FOBS.forEach((f,i)=>{const d=Math.hypot(f.x-o.x,f.z-o.z);if(d<bd){bd=d;b=i}});S.pad=b}}
   Object.assign(S,{on:true,t:SO.clock,hull:SO.hull,bombs:bombsMax(),carry:0,used:G.wave,home:true,alive:true,lastT:0});Z.base.close();banner('');Z.an?.sumHide?.();Z.an?.radioClear?.();api.launch();const d=me();if(d){toPad(d);S.lastT=d.t}
   Z.an?.say('SORTIE',`${fmt(SO.clock)} · F drops a bomb · back inside the line in time`,'#ffc640',2);feed(`Sortie from <b>${padOf().n}</b>: ${fmt(SO.clock)} on the clock. F drops a bomb (${SO.bombs} a drone), the last F is your warhead. Salvage is banked inside the line.`);

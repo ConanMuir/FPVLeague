@@ -15,6 +15,7 @@ import {tactics} from './zbotbrain.js';
 import {installBot} from './zbotstat.js';
 import {createRoam} from './zbotroam.js';
 import {createFlier} from './zbotsortiefly.js';
+import {typeOf} from './ztypes.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,sm=t=>{t=cl(t,0,1);return t*t*(3-2*t)},gauss=()=>(Math.random()+Math.random()+Math.random()+Math.random()-2)*1.73;
 // stick that gives this output of a monotonic curve f on [lo, hi] (bisection): rates and throttle curves are the player's, so the bot inverts them
 function inv(f,y,lo,hi){let a=lo,b=hi;if(y<=f(a))return a;if(y>=f(b))return b;for(let i=0;i<22;i++){const m=(a+b)/2;if(f(m)<y)a=m;else b=m}return(a+b)/2}
@@ -32,7 +33,7 @@ export function createPilot(api,G,Z,P,E){
  const sortie=P.explore>=2?createFlier(E,B,F,P):null;  /* real-flight sorties between waves (zbotsortiefly.js) */
  B.sortie=sortie;
  const live=t=>api.live(t)&&t.st!=='fall';
- const topV=me=>(S.mod.maxv||115)+(me.bmax||0);
+ const topV=me=>me.cx?100+(me.bmax||0):(S.mod.maxv||115)+(me.bmax||0);  /* a fixed-wing type: its level top speed */
  const ttiOf=t=>Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd);
  const name=t=>Z.tname?Z.tname(t):`T${String(t.id).padStart(2,'0')} ${KIND[t.k]?.n}`;
  const rng=d=>d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';
@@ -91,7 +92,7 @@ export function createPilot(api,G,Z,P,E){
   // roaming with a spent pack and nothing to chase: a fresh interceptor from the pad (the rocket burst gets it back out quickly)
   if(alive&&roam&&roam.wantRelaunch&&!t&&!st.line&&G.state==='wave'&&me.home&&st.t-st.launchT>6){st.why='pack spent';api.relaunch?.();st.launchT=st.t;return}
   // tipped over on the ground: press R
-  if(alive&&me.v.lengthSq()<1&&agl(me.p)<2&&_v.set(0,1,0).applyQuaternion(me.q).y<.5){if((st.stuck+=F.react)>3){st.stuck=0;st.why='tipped over';api.relaunch?.();st.launchT=st.t}}else st.stuck=0}
+  if(alive&&(me.cx?me.cx.info().sit:me.v.lengthSq()<1&&agl(me.p)<2&&_v.set(0,1,0).applyQuaternion(me.q).y<.5)){if((st.stuck+=F.react)>3){st.stuck=0;st.why=me.cx?'down in a field':'tipped over';api.relaunch?.();st.launchT=st.t}}else st.stuck=0}  /* a fixed-wing type that stopped away from a pad relaunches (ztypes.js) */
 
  // ---------- turning a wanted acceleration into sticks ----------
  function sticks(me,A,head,dt,look){const M=S.mod,g=M.grav||9.81,THR=M.thr||48,TE=M.te||1.4,VP=M.vp||260,DQ=M.dq,DL=M.dl,FS=M.fs||4;
@@ -180,7 +181,9 @@ export function createPilot(api,G,Z,P,E){
   {const tg=t||L,wy=st.why2||st.intent;st.why2='';if(st.mode==='sortie'&&sortO)B.set(sortO.kind,sortO.why,sortO.tgt?{...sortO.tgt,label:sortO.label}:null);
    else if(st.mode==='roam'&&roamO)B.set(roamO.kind,roamO.why,{x:roamO.st.x,y:roamO.st.y+roamO.st.agl,z:roamO.st.z,label:roamO.label});
    else{const K={mat:'launch',hold:'idle',line:'line',home:'return',loiter:'station'}[st.mode]||(tg&&tg.k==='boss'?'boss':tg&&Z.lk?.t===tg?'lock':'intercept');B.set(K,wy,tg?{x:tg.p.x,y:tg.p.y,z:tg.p.z,label:name(tg)}:null)}}
-  const A=want(me,Vd,kv,floor,sfl);return sticks(me,A,head,dt,look)}
+  const A=want(me,Vd,kv,me.cx?floor+22:floor,sfl);  /* a fixed-wing type: its own bot controller flies the wanted velocity (ztypes.js bot), with more room over the ground */
+  if(me.cx)return typeOf(me.ty).bot(api,me,Vd,head,dt,{land:st.mode==='home',look});
+  return sticks(me,A,head,dt,look)}
 
  // manual detonation: when the closest approach is a moment away and close enough, press detonate at that moment (with this pilot's timing
  // error); when it is already as close as it will get (sitting in the track's six, or passing), press now if that is close enough
