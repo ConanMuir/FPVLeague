@@ -34,8 +34,10 @@ export function initHome(api,G,Z){
  const focusables=()=>[...$('menu').querySelectorAll('button:not([disabled]),summary,select,input')].filter(b=>{const r=b.getBoundingClientRect();return r.width>1&&r.height>1});
  function move(dx,dy){const bs=focusables(),a=document.activeElement,ra=bs.includes(a)?a.getBoundingClientRect():null;
   if(!ra){($('resume').hidden?$('play'):$('resume')).focus();return}
-  const cx=ra.x+ra.width/2,cy=ra.y+ra.height/2;let best=null,bd=1e9;
-  for(const b of bs){if(b===a)continue;const r=b.getBoundingClientRect(),x=r.x+r.width/2-cx,y=r.y+r.height/2-cy,al=x*dx+y*dy;if(al<=4)continue;const d=al+Math.abs(x*dy+y*dx)*2;if(d<bd){bd=d;best=b}}
+  /* the nearest one that way whose row (or column) overlaps this one's; failing that, the nearest by distance along plus twice the distance across */
+  const cx=ra.x+ra.width/2,cy=ra.y+ra.height/2,lap=r=>dx?Math.min(r.bottom,ra.bottom)-Math.max(r.top,ra.top)>4:Math.min(r.right,ra.right)-Math.max(r.left,ra.left)>4;let best=null,bd=1e9,fb=null,fd=1e9;
+  for(const b of bs){if(b===a)continue;const r=b.getBoundingClientRect(),x=r.x+r.width/2-cx,y=r.y+r.height/2-cy,al=x*dx+y*dy;if(al<=4)continue;const d=al+Math.abs(x*dy+y*dx)*2;if(lap(r)){if(al<bd){bd=al;best=b}}else if(d<fd){fd=d;fb=b}}
+  best=best||fb;
   if(best){best.focus();best.scrollIntoView?.({block:'nearest'})}}
  /* e(i): button i went down this frame. Not ours while the campaign map, the enemies screen or the mod panel is up. */
  Z.menuPad=e=>{if(!$('zcamp').hidden||!$('zcdx').hidden||$('mod')&&!$('mod').hidden)return false;
