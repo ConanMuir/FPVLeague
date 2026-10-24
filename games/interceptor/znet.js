@@ -106,7 +106,7 @@ export function initNet(api,G,Z){
  setInterval(()=>{if(net&&performance.now()-net.tk>150)tick()},100);
  const pack=d=>[+d.p.x.toFixed(2),+d.p.y.toFixed(2),+d.p.z.toFixed(2),+d.q.x.toFixed(3),+d.q.y.toFixed(3),+d.q.z.toFixed(3),+d.q.w.toFixed(3),+d.v.x.toFixed(1),+d.v.y.toFixed(1),+d.v.z.toFixed(1)];
  function send(now,force){const n=net;if(!n||!force&&now-n.sendT<(n.host?n.snapIv:50))return;n.sendT=now;const me=api.player,P={z:1,n:myName(),rd:n.rd|0,es:n.evSeen,sr:Z.sc?.cRev??-1,lt:n.late?1:0,sk:G.streak|0,kt:Z.meta.load().kit};
-  if(me&&G.on&&!api.demo){P.s=pack(me);P.d=me.dead>0?1:0;P.rk=(me.boost||0)>1?1:0;const s=api.selT();P.sl=s&&me.dead<=0&&me.v.lengthSq()>64&&api.live(s)&&s.p.distanceTo(me.p)<1500?s.id:0;const sw=Z.swOut?.();if(sw)P.sw=sw;const bd=Z.bdOut?.();if(bd)P.bd=bd}  /* P.bd: my Little Buddy's garage loadout (zbuddy.js) */
+  if(me&&G.on&&!api.demo){P.s=pack(me);P.ty=me.ty;P.d=me.dead>0?1:0;P.rk=(me.boost||0)>1?1:0;const s=api.selT();P.sl=s&&me.dead<=0&&me.v.lengthSq()>64&&api.live(s)&&s.p.distanceTo(me.p)<1500?s.id:0;const sw=Z.swOut?.();if(sw)P.sw=sw;const bd=Z.bdOut?.();if(bd)P.bd=bd}  /* P.bd: my Little Buddy's garage loadout (zbuddy.js) */
   if(n.host){if(G.on)P.g=snap(now)}else P.ev=n.out.slice(-32);
   n.r.presence(P).catch(()=>{});
   if(n.host&&room&&!room.p2p&&now-lobT>2000){lobT=now;room.presence({zg:n.code,host:myName(),pl:rows().length}).catch(()=>{})}}
@@ -136,7 +136,7 @@ export function initNet(api,G,Z){
  const nameOf=k=>k===net?.me?myName():net?.pil.get(k)?.n||net?.names[k]||net?.pl.find(p=>p[0]===k)?.[1]||'Pilot';
  // other pilots' interceptors: a Strela-2 body each (interceptor.js Drone), drawn where their presence says, with a name tag
  function pilotIn(k,pr,now){const n=net;if(!G.on)return;let r=n.pil.get(k);if(!r){r={d:api.newDrone(),n:'',np:new V3(),nq:new THREE.Quaternion(),nv:new V3(),at:0,dead:0,seen:0,sl:0,rk:0};r.d.mesh.visible=false;n.pil.set(k,r)}
-  r.n=clean(pr.n);r.sl=pr.sl|0;r.rk=pr.rk?1:0;
+  r.n=clean(pr.n);r.sl=pr.sl|0;r.rk=pr.rk?1:0;if(typeof pr.ty==='string'&&pr.ty!==r.d.ty)r.d.setType(pr.ty);  /* their craft type (ztypes.js): an unknown id reads as the Dart */
   if(okArr(pr.s,10)){r.np.fromArray(pr.s,0);r.nq.fromArray(pr.s,3).normalize();r.nv.fromArray(pr.s,7);r.at=now;if(!r.seen){r.seen=1;r.d.p.copy(r.np);r.d.q.copy(r.nq)}}
   const dead=pr.d?1:0;if(dead&&!r.dead&&r.seen&&G.on){n.mute=1;api.boom(r.d.p,.7);n.mute=0}r.dead=r.d.dead=dead;if(pr.sw)Z.swIn?.(k,pr.sw,r);if(pr.bd)Z.bdIn?.(k,pr.bd,r)}  /* their swarm: formation and commands only (zswarm.js); their Little Buddy: the garage loadout (zbuddy.js) */
  // a track another pilot is running down shows their name (and helpers on the host leave it alone, zdef pickTarget)

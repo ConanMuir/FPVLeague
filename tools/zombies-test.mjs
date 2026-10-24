@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director,debug   run only those sections (CI shards them across jobs); default all
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director,debug,types   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
@@ -3279,6 +3279,240 @@ if (want('debug')) {
   const {fileURLToPath} = await import('node:url');
   const hits = ['games', 'engine'].flatMap(dn => walk(fileURLToPath(new URL('../' + dn, import.meta.url)))).filter(f => /speechSynthesis|SpeechSynthesis|getVoices|\.speak\(/.test(fs.readFileSync(f, 'utf8')));
   ok(!hits.length, 'Speech is gone: no speechSynthesis, utterance or voice lookup in games/ or engine/' + (hits.length ? '\n  ' + hits.join('\n  ') : ''));
+}
+
+/* ---------- craft types (ztypes.js, zplane.js, ztypeui.js): the Dart is the default and stays what it was (tools/flight-golden.mjs holds its flight); the Plane is a fixed-wing: fast cruise,
+   bank to turn, a minimum speed below which it sinks (no hover), a pull-up limit, catapult launch, a low pass to land and recharge. The picker and the saved choice, each pilot's model in co-op,
+   bots flying each type, and nothing left behind. A new type is one table entry, a model builder and a controller; the checks that can loop over the table do ---------- */
+if (want('types')) {
+  const TURL = origin + '/games/interceptor/', terrs = [], kmh = v => Math.round(v * 3.6);
+  /* a page on a save (zty: the saved craft choice, undefined = none saved), its helpers in place */
+  const inject = async q => {
+    await q.waitForFunction(() => window.__z, {timeout: 60000}); await frames(q, 5); await drawFrames(q);
+    await q.evaluate(() => {
+      window.__tk = {thr: 0, yaw: 0, pit: 0, rol: 0};  /* scripted sticks through the game's own input path (Z.botIn): __script(true), then __run(sec, {thr, yaw, pit, rol}) steps the sim and samples the craft */
+      window.__script = on => { if (on) __z.Z.botIn = () => __tk; else delete __z.Z.botIn; };
+      window.__run = (sec, k, every = .5) => { Object.assign(__tk, {thr: 0, yaw: 0, pit: 0, rol: 0}, k); const me = __z.api.player, o = [];
+        for (let i = 0; i < sec / every; i++) { __z.sim(every); const I = me.cx?.info(); o.push({y: me.p.y, ias: I ? I.ias : me.v.length(), gs: Math.hypot(me.v.x, me.v.z), vy: me.v.y, hd: me.cx?.hd ?? 0, n: I?.n ?? 1, stall: I?.stall ?? 0, mode: I?.mode ?? '', dead: me.dead}); } return o; };
+      window.__quiet = () => { const {api, G} = __z; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); };  /* no raid, and the wave does not end */
+      window.__turn = a => { let s = 0; for (let i = 1; i < a.length; i++) { let d = a[i].hd - a[i - 1].hd; d = Math.atan2(Math.sin(d), Math.cos(d)); s += d; } return s * 180 / Math.PI; };  /* degrees turned over the samples */
+    });
+  };
+  const tpage = async (zty, errs = terrs, x = {}) => {
+    const q = await open(browser, TURL, errs);
+    await q.evaluate((z, x) => { sessionStorage.setItem('zbossRoster', '0'); sessionStorage.setItem('zonb', '0'); localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', zdiff: 1, zmus: 0, ...(z === undefined ? {} : {zty: z}), ...x})); }, zty, x);
+    await q.reload({waitUntil: 'load'}); await inject(q); return q;
+  };
+  const on = q => q.evaluate(() => [...document.querySelectorAll('#zcraft .zcr.on')].map(b => b.dataset.zty).join());
+
+  // ---------- the table, and saved values that are not what the picker saves ----------
+  {
+    const p = await tpage(undefined);
+    const T = await p.evaluate(async () => { const m = await import('/games/interceptor/ztypes.js');
+      return {order: m.ORDER.join(), clean: [undefined, null, 'plane', 7, {id: 'plane'}, {v: 1, id: 'plane'}, {v: 9, id: 'plane'}, {v: 1, id: 'jet'}, 'toString', {id: '__proto__'}, {id: ['plane']}].map(x => m.cleanSave(x).id).join(), v: m.cleanSave().v,
+        shape: m.ORDER.every(id => { const t = m.TYPES[id]; return t.id === id && t.name && t.call && t.blurb && t.facts.length && t.cam.off.length === 3 && 'buildModel' in t && 'make' in t && 'bot' in t && Array.isArray(t.hud); }), dartPlain: !m.TYPES.dart.buildModel && !m.TYPES.dart.make && !m.TYPES.dart.bot}; });
+    ok(T.order === 'dart,plane' && T.shape && T.dartPlain, `Types: the table lists ${T.order} (the Dart first and plain: it flies in interceptor.js; every entry has its name, call sign, facts, camera, model, controller and bot slots)`);
+    ok(T.clean === 'dart,dart,plane,dart,plane,plane,plane,dart,dart,dart,dart' && T.v === 1, `Types: a missing, odd or unknown saved choice reads as the Dart, a known id as itself, the version is ${T.v} (${T.clean})`);
+    await p.close();
+    const bad = [];
+    for (const [z, want] of [[undefined, 'dart'], ['x', 'dart'], [7, 'dart'], [{v: 1, id: {}}, 'dart'], [{v: 5, id: 'zzz'}, 'dart'], [{v: 1, id: 'plane'}, 'plane']]) {
+      const n0 = terrs.length, q = await tpage(z), r = await q.evaluate(() => ({pick: __z.Z.craft.pick(), save: JSON.stringify(__z.api.S.zty), n: document.querySelectorAll('#zcraft .zcr').length}));
+      r.on = await on(q); await play(q); r.ty = await q.evaluate(() => { __z.sim(2); return __z.api.player.ty; });
+      if (r.pick !== want || r.ty !== want || r.on !== want || r.n !== 2 || r.save !== JSON.stringify({v: 1, id: want}) || terrs.length > n0) bad.push(JSON.stringify(z) + ' -> ' + JSON.stringify(r));
+      await q.close();
+    }
+    ok(!bad.length, 'Types: odd saved choices boot to a working picker and launch the right craft' + (bad.length ? '\n  ' + bad.join('\n  ') + '\n  ' + terrs.slice(0, 3).join('\n  ') : ''));
+  }
+
+  // ---------- the picker (start card and base screen), the saved choice, applied at the next launch ----------
+  let p = await tpage(undefined);
+  {
+    const c0 = await p.evaluate(() => ({n: document.querySelectorAll('#zcraft [data-zty]').length, pressed: document.querySelectorAll('#zcraft [aria-pressed="true"]').length, text: document.getElementById('zcraft').textContent, saved: JSON.parse(localStorage.getItem('dl-interceptor')).zty}));
+    ok(c0.n === 2 && await on(p) === 'dart' && c0.pressed === 1 && /Dart/.test(c0.text) && /Plane/.test(c0.text) && c0.saved.id === 'dart', 'Types picker: the start card has a card per type with the Dart chosen by default (aria-pressed on one)');
+    await p.click('#zcraft [data-zty="plane"]');
+    const c1 = await p.evaluate(() => ({saved: JSON.parse(localStorage.getItem('dl-interceptor')).zty, pick: __z.Z.craft.pick(), facts: document.querySelector('#zcraft [data-zty="plane"] ul').textContent}));
+    ok(await on(p) === 'plane' && c1.saved.id === 'plane' && c1.saved.v === 1 && c1.pick === 'plane' && /Minimum speed \d+ km\/h/.test(c1.facts) && /Pull-up limit/.test(c1.facts), `Types picker: choosing the Plane highlights it and saves {v:1, id:"plane"} (card facts: ${c1.facts.slice(0, 70)}...)`);
+    await p.reload({waitUntil: 'load'}); await inject(p);
+    ok(await on(p) === 'plane', 'Types picker: the choice is still there after a reload');
+    await play(p);
+    const b0 = await p.evaluate(() => { const me = __z.api.player; return {ty: me.ty, cx: !!me.cx, tag: me.mesh.userData.ty, props: me.props.length, base: __z.G.state, cards: document.querySelectorAll('#zbase [data-zty]').length, on: [...document.querySelectorAll('#zbase .zcr.on')].map(b => b.dataset.zty).join(), head: document.querySelector('#zbase .zcrh')?.textContent || ''}; });
+    ok(b0.ty === 'plane' && b0.cx && b0.tag === 'plane' && b0.props === 1 && b0.base === 'base', `Types: a run opens with the chosen craft (${b0.ty}: its own model with ${b0.props} prop, its own flight controller)`);
+    ok(b0.cards === 2 && b0.on === 'plane' && /Craft/.test(b0.head), 'Types picker: the base screen has the same cards at the top of the Shop, the Plane on');
+    if (SHOTS) { await drawFrames(p, 2); await p.screenshot({path: SHOTS + '/types-base.png'}); }
+    await p.click('#zbase [data-zty="dart"]');
+    const b1 = await p.evaluate(() => ({ty: __z.api.player.ty, saved: JSON.parse(localStorage.getItem('dl-interceptor')).zty.id, on: [...document.querySelectorAll('#zbase .zcr.on')].map(b => b.dataset.zty).join()}));
+    ok(b1.ty === 'plane' && b1.saved === 'dart' && b1.on === 'dart', 'Types picker: a pick on the base screen is saved at once and waits for the next launch (the craft on the mat is still the Plane)');
+    await p.click('#zgo'); await p.waitForFunction(() => __z.G.state === 'wave', {timeout: 10000});
+    const b2 = await p.evaluate(() => { const me = __z.api.player; return {ty: me.ty, cx: me.cx, tag: me.mesh.userData.ty, props: me.props.length, models: Object.keys(me.M || {}).join()}; });
+    ok(b2.ty === 'dart' && b2.cx === null && b2.tag === 'dart' && b2.props === 4, `Types: the wave start launches the new pick (${b2.ty}, ${b2.props} props, no fixed-wing controller); both models are kept for the next switch (${b2.models})`);
+  }
+
+  // ---------- the Dart still hovers; the Plane cannot ----------
+  {
+    await p.evaluate(() => { __script(true); __quiet(); const me = __z.api.player; me.p.y += 150; me.gt = 0; });
+    const h = await p.evaluate(() => { const me = __z.api.player, y0 = me.p.y; const a = __run(6, {thr: __z.api.HOV}, .25); return {dy: me.p.y - y0, speed: Math.max(...a.map(x => x.gs)), ty: me.ty}; });
+    ok(h.ty === 'dart' && Math.abs(h.dy) < 12 && h.speed < 8, `Dart: at the hover stick it holds its place in the air (${h.dy.toFixed(1)} m of height change and ${h.speed.toFixed(1)} m/s over 6 s)`);
+    await p.evaluate(() => { __script(false); __z.Z.craft.set('plane'); __z.api.relaunch(); });
+    const r0 = await p.evaluate(() => { const me = __z.api.player; return {ty: me.ty, mode: me.cx.info().mode, dead: me.dead}; });
+    ok(r0.ty === 'plane' && r0.mode === 'pad', `Types: a relaunch applies the pick too (${r0.ty} on the pad, mode ${r0.mode})`);
+  }
+
+  // ---------- the Plane: catapult, cruise, bank, pull-up limit, top speed, minimum speed ----------
+  {
+    await p.evaluate(() => { __script(true); __quiet(); });
+    const g0 = await p.evaluate(() => { const a = __run(2, {thr: 0}); return {modes: [...new Set(a.map(x => x.mode))].join(), ias: Math.max(...a.map(x => x.ias))}; });
+    ok(g0.modes === 'pad' && g0.ias === 0, 'Plane: with no throttle it waits on the pad (nothing moves)');
+    const t0 = await p.evaluate(() => { const me = __z.api.player, y0 = me.p.y; const a = __run(8, {thr: 1}, .25); const f = a.findIndex(x => x.mode === 'fly'); return {modes: [...new Set(a.map(x => x.mode))].join('>'), tFly: f < 0 ? -1 : (f + 1) * .25, ias: a[Math.max(f, 0)].ias, dy: me.p.y - y0, dead: me.dead}; });
+    ok(t0.modes === 'cat>fly' && t0.tFly > 0 && t0.tFly <= 4 && t0.ias >= 45 && t0.dy > 20 && !t0.dead, `Plane: throttle up fires the catapult (airborne after ${t0.tFly} s at ${t0.ias.toFixed(0)} m/s, ${t0.dy.toFixed(0)} m up after 8 s)`);
+    await p.evaluate(() => { __z.api.player.p.y += 800; });  /* clear of the hills for the rest of the flight checks */
+    const c = await p.evaluate(() => { const a = __run(16, {thr: __z.api.HOV}).slice(10); return {lo: Math.min(...a.map(x => x.ias)), hi: Math.max(...a.map(x => x.ias)), vy: Math.abs(a.at(-1).vy)}; });
+    ok(c.lo > 56 && c.hi < 68 && c.vy < 6, `Plane: the throttle stick at rest holds cruise (${kmh(c.lo)}-${kmh(c.hi)} km/h, level to within ${c.vy.toFixed(1)} m/s of climb)`);
+    const b = await p.evaluate(() => { const a = __run(6, {thr: __z.api.HOV, rol: 1}, .25); return {turn: __turn(a), n: Math.max(...a.map(x => x.n)), dy: a.at(-1).y - a[0].y, ias: a.at(-1).ias}; });
+    ok(b.turn > 45 && b.turn < 150 && b.n < 2.65 && Math.abs(b.dy) < 70, `Plane: full right stick banks and turns (${b.turn.toFixed(0)}° in 6 s, ${b.n.toFixed(2)} g, ${b.dy.toFixed(0)} m of height change): wide turns, no spinning on the spot`);
+    await p.evaluate(() => __run(8, {thr: __z.api.HOV}));
+    const pu = await p.evaluate(() => { const a = __run(3, {thr: __z.api.HOV, pit: -1}, .25); return {n: Math.max(...a.map(x => x.n)), vy: Math.max(...a.map(x => x.vy))}; });
+    ok(pu.n > 1.8 && pu.n < 2.62 && pu.vy > 15, `Plane: full back stick pulls up at the limit and no harder (${pu.n.toFixed(2)} g, climbing ${pu.vy.toFixed(0)} m/s)`);
+    await p.evaluate(() => __run(10, {thr: __z.api.HOV}));
+    const f = await p.evaluate(() => { const a = __run(45, {thr: 1}, 1); return {top: Math.max(...a.map(x => x.ias)), dead: __z.api.player.dead}; });
+    ok(f.top > 98 && f.top < 125 && !f.dead, `Plane: full throttle level tops out at ${kmh(f.top)} km/h (the flat-out speed on its card is the same)`);
+    await p.evaluate(() => __run(10, {thr: __z.api.HOV}));
+    const s = await p.evaluate(() => { const me = __z.api.player; me.v.multiplyScalar(.5); const y0 = me.p.y, a = __run(40, {thr: 0}, .25); return {ias: Math.min(...a.map(x => x.ias)), stall: Math.max(...a.map(x => x.stall)), up: Math.max(...a.map(x => x.y)) - y0, down: y0 - a.at(-1).y, gs: Math.min(...a.map(x => x.gs)), dead: me.dead}; });
+    ok(s.stall >= .5 && s.ias < 31.5 && s.up < 40 && s.down > 100 && s.gs > 10 && !s.dead, `Plane: with no thrust it slows to its minimum speed (${kmh(s.ias)} km/h), the nose drops and it sinks (${s.down.toFixed(0)} m lower after 40 s, never above ${Math.max(0, s.up).toFixed(0)} m): it cannot hover (slowest ground speed ${s.gs.toFixed(0)} m/s)`);
+    await p.evaluate(() => { const me = __z.api.player, u = me.v.clone().setY(0).normalize(); me.p.y += 600; me.v.copy(u).multiplyScalar(20); });
+    const sk = await p.evaluate(() => { const a = __run(3, {thr: 0}, .25); return {vy: a.at(-1).vy, stall: a.at(-1).stall}; });
+    ok(sk.vy < -3 && sk.stall > 0, `Plane: below its minimum speed the wing lets go (20 m/s: sinking ${(-sk.vy).toFixed(1)} m/s, stall ${sk.stall.toFixed(2)})`);
+    /* the craft's own HUD panel: airspeed and minimum speed in its own elements; the Dart has none */
+    const hud = await p.evaluate(() => { const me = __z.api.player; __run(8, {thr: __z.api.HOV}); __z.Z.hud(.016); const e = document.getElementById('zty'); return {shown: !e.hidden, text: e.textContent, tape: !e.querySelector('.zttape').hidden, mark: e.querySelector('.ztmark').style.left}; });
+    ok(hud.shown && /AIRSPEED/.test(hud.text) && /MIN SPEED/.test(hud.text) && /km\/h/.test(hud.text) && hud.tape && parseFloat(hud.mark) > 0, `Plane: the HUD panel shows the airspeed and the minimum speed with a bar ("${hud.text.replace(/\s+/g, ' ').slice(0, 60)}")`);
+    if (SHOTS) { await p.evaluate(() => { __script(false); __z.api.camMode = 1; }); await drawFrames(p, 2); await p.screenshot({path: SHOTS + '/types-plane-chase.png'}); await p.evaluate(() => { __script(true); __z.api.camMode = 0; }); }
+  }
+
+  // ---------- bursts and kills, the pip and the lock: the same for both types ----------
+  {
+    const kill = async ty => {
+      await p.evaluate(ty => { __script(false); __z.Z.craft.set(ty); __z.api.relaunch(); __script(true); __quiet(); }, ty);
+      await p.evaluate(() => __run(6, {thr: 1}));
+      return p.evaluate(() => { const {api, G} = __z, me = api.player, t = __z.make('shahed', me.p.x + 300, me.p.z - 300), k0 = G.kills.p; t.p.set(me.p.x + 400, me.p.y + 20, me.p.z - 400);
+        const kind = __z.botKill(.8); __z.sim(.1); return {ty: me.ty, kind, kills: G.kills.p - k0, dead: me.dead > 0, live: api.live(t)}; });
+    };
+    for (const ty of ['dart', 'plane']) {
+      const k = await kill(ty);
+      ok(k.ty === ty && k.kind === 'shahed' && k.kills === 1 && k.dead && !k.live, `${ty === 'dart' ? 'Dart' : 'Plane'}: a burst on a track kills it and costs the interceptor (kills +${k.kills})`);
+      const rl = await p.evaluate(() => { __tk.thr = 0; __z.sim(4); const me = __z.api.player; return {ty: me.ty, dead: me.dead, mode: me.cx?.info().mode ?? 'mat'}; });
+      ok(rl.ty === ty && rl.dead <= 0 && (ty === 'dart' || rl.mode === 'pad'), `${ty === 'dart' ? 'Dart' : 'Plane'}: the next interceptor is the same type, back on its mat (${rl.mode})`);
+    }
+    /* the proximity fuse (the Fuse perk): a pass within 7.5 m of a track bursts the warhead with nobody pressing anything */
+    await p.evaluate(() => { __script(true); __quiet(); __z.G.perks.fuse = 1; });
+    await p.evaluate(() => __run(5, {thr: 1}));
+    const fz = await p.evaluate(() => { const {api, G} = __z, me = api.player; me.p.y += 800; __run(4, {thr: api.HOV}); const u = me.v.clone().normalize(), side = new api.THREE.Vector3(-u.z, 0, u.x).normalize();
+      const t = __z.make('shahed', 0, 0), P = me.p.clone().addScaledVector(u, me.v.length() * 2.5).addScaledVector(side, 2.5); t.wps.length = 0; let d0 = me.dead, i = 0;
+      for (; i < 600 && me.dead <= 0; i++) { t.p.copy(P); t.v.set(0, 0, 0); api.step(1 / 120); }
+      delete G.perks.fuse; return {burst: me.dead > 0 && G.detFlag, i, ty: me.ty}; });
+    ok(fz.ty === 'plane' && fz.burst, `Plane: the proximity fuse bursts the warhead at a fly-by 2.5 m off a track (${fz.i} steps in), nothing pressed`);
+    await p.evaluate(() => { __z.sim(4); __quiet(); });
+    /* the lock: a track dead ahead in the sights locks, and the pip (the intercept point) is solved */
+    const lk = await p.evaluate(() => { const {api, Z} = __z, me = api.player; __run(5, {thr: 1}); me.p.y += 800; __run(4, {thr: api.HOV}); Z.lk.clear(); const t = __z.make('shahed', 0, 0); t.wps.length = 0; t.spd = 0; let s = 0, tti = 0, ip = null;
+      for (let i = 0; i < 80 && !s; i++) { const u = me.v.clone().normalize(); t.p.copy(me.p).addScaledVector(u, 700); t.v.copy(u).multiplyScalar(40); __z.sim(.1); if (Z.lk.t === t) s = (i + 1) / 10; }
+      if (s) { tti = Z.lk.L.tti; ip = Z.lk.L.ip.distanceTo(me.p); } return {s, tti, ip, ty: me.ty}; });
+    ok(lk.ty === 'plane' && lk.s > 0 && lk.s < 8 && lk.tti > 0 && lk.ip > 200 && lk.ip < 3000, `Plane: a track held in the sights locks in ${lk.s} s and the pip is solved (${lk.ip?.toFixed(0)} m ahead, ${lk.tti?.toFixed(1)} s to go)`);
+    await p.evaluate(() => { __script(false); __z.Z.lk.clear(); });
+  }
+
+  // ---------- nothing left behind: models are built once, a wave end and many switches leave the scene and the GPU memory where they were ----------
+  {
+    await p.evaluate(() => { __script(false); __quiet(); });
+    const snap = async () => { await drawFrames(p, 2); return p.evaluate(() => { const {api} = __z, i = api.renderer.info.memory; return {kids: api.scene.children.length, geo: i.geometries, tex: i.textures, models: Object.keys(api.player.M || {}).length, th: api.TH.length}; }); };
+    const cycle = async () => {
+      for (const ty of ['plane', 'dart', 'plane', 'dart']) { await p.evaluate(ty => { __z.Z.craft.set(ty); __z.api.relaunch(); __z.sim(1); }, ty); await drawFrames(p, 2); }
+      await p.evaluate(() => { const {api, G} = __z; __z.Z.craft.set('plane'); for (const t of api.TH.filter(api.live)) { t.by = 'p'; api.killThreat(t, true); } G.wq.length = 0; let n = 0; while (G.state === 'wave' && n++ < 200) __z.sim(.5); __z.sim(5); });  /* a wave end: every track down, the base screen back */
+      const st = await p.evaluate(() => { const {G} = __z; if (G.state === 'base') { __z.cont(); __z.sim(3); __quiet(); } return G.state; });
+      return {st, ...await snap()};
+    };
+    const c1 = await cycle(), c2 = await cycle(), c3 = await cycle();  /* the first cycle builds both models and wakes lazily made things (an effect pool); the next two must change nothing */
+    ok(c1.models === 2 && c3.kids === c2.kids && c3.geo === c2.geo && c3.tex === c2.tex && c2.geo - c1.geo <= 2 && c2.kids === c1.kids, `Types: switching type, relaunching and ending waves leaves the scene and the GPU as they were (scene children ${c1.kids}/${c2.kids}/${c3.kids}, geometries ${c1.geo}/${c2.geo}/${c3.geo}, textures ${c1.tex}/${c2.tex}/${c3.tex}; ${c1.models} models kept)`);
+  }
+
+  // ---------- the guide and the radio name the craft ----------
+  {
+    const g = await p.evaluate(() => { const C = __z.Z.craft, r = {}; C.set('plane'); r.call = C.call(); r.fly = C.guide('fly', false); r.flyPad = C.guide('fly', true); r.say = C.say('fly'); r.look = C.guide('look', false); C.set('dart'); r.dFly = C.guide('fly', false); r.dSay = C.say('fly'); r.dCall = C.call(); return r; });
+    ok(g.call === 'Plane One' && /catapult/i.test(g.fly) && /minimum/i.test(g.fly) && /catapult/i.test(g.flyPad) && /Plane One/.test(g.say) && /view/i.test(g.look), `Guide: the Plane's first-wave steps are its own ("${g.fly.replace(/<[^>]+>/g, '').slice(0, 60)}...", call sign ${g.call})`);
+    ok(g.dFly === null && g.dSay === null && g.dCall === 'Dart One', 'Guide: the Dart keeps the original steps and call sign (no override)');
+    const rd = async ty => p.evaluate(ty => { const {api, G, Z} = __z; Z.craft.set(ty); __quiet(); for (const t of api.TH.filter(api.live)) { t.by = 'p'; api.killThreat(t, true); } G.wq.length = 0; let n = 0; while (G.state === 'wave' && n++ < 200) __z.sim(.5); __z.sim(5);
+      Z.radio.calls.length = 0; if (G.state === 'base') __z.cont(); __z.sim(15); return Z.radio.calls.filter(c => c.topic === 'craft').map(c => c.who + ': ' + c.txt); }, ty);
+    const rp = await rd('plane'), rdt = await rd('dart');
+    ok(rp.length >= 1 && /Plane One/.test(rp[0]) && /catapult/i.test(rp[0]), `Radio: the wave start names the Plane ("${rp[0]}")`);
+    ok(rdt.length === 0, 'Radio: the Dart gets no extra call (its lines are the radio\'s own)');
+  }
+  await p.close();
+
+  // ---------- bots fly each type: your pick when you watch one, the Dart for the benchmark, a real run to wave 8 on Normal, landing to recharge ----------
+  {
+    const berrs = [];
+    const wp = await tpage({v: 1, id: 'plane'}, berrs);
+    await wp.evaluate(() => { document.getElementById('zspc').open = true; });
+    await wp.click('[data-zsl="Pro"]'); await wp.click('[data-zsd="1"]'); await wp.click('#zspgo');
+    await wp.waitForFunction(() => __z.spec.on && __z.G.state === 'base', {timeout: 30000});
+    const w0 = await wp.evaluate(() => ({ty: __z.api.player.ty, cur: __z.Z.craft.cur(), pick: __z.Z.craft.pick(), note: document.querySelector('#zcraft small')?.textContent || ''}));
+    ok(w0.ty === 'plane' && w0.cur === 'plane', `Bots: Watch a bot flies your pick (${w0.ty}); the picker says so while it runs ("${w0.note}")`);
+
+    const w1 = await wp.evaluate(() => { const {api, spec, Z} = __z; api.startDemo(); spec.bench.start('Pro', 1); const r = {ty: api.player.ty, cur: Z.craft.cur(), note: document.querySelector('#zcraft small')?.textContent || ''}; spec.stop(); r.after = Z.craft.cur(); return r; });
+    ok(w1.ty === 'dart' && w1.cur === 'dart' && w1.after === 'plane', `Bots: the benchmark flies the Dart whatever you picked (${w1.ty}), and your pick is back when it stops (${w1.after})`);
+    await wp.close();
+
+    const bp = await tpage(undefined, berrs);
+    await bp.evaluate(() => __z.spec.bench.start('Pro', 1, {ty: 'plane'}));
+    await bp.waitForFunction(() => __z.G.state === 'base', {timeout: 60000});
+    const r8 = await bp.evaluate(() => { const {G, api, Z, spec} = __z; let top = 0, guard = 0; const z0 = Z.step; Z.step = dt => { z0(dt); const me = api.player; if (me && me.dead <= 0) top = Math.max(top, me.p.y - api.gh(me.p.x, me.p.z)); };
+      while (G.wave < 8 && G.state !== 'over' && guard++ < 40) { spec.bench.shop(); if (G.state === 'base') __z.cont(); spec.bench.wave(); }
+      const s = spec.sp.stats; Z.step = z0; return {wave: G.wave, over: G.state === 'over', ty: api.player.ty, simT: Math.round(s.simT), bursts: s.bursts, kills: s.kills.pilot?.n | 0, lost: JSON.stringify(s.deaths), top: Math.round(top), used: api.spent | 0}; });
+    console.log('  plane bot, Pro on Normal:', JSON.stringify(r8));
+    ok(r8.wave >= 8 && !r8.over && r8.ty === 'plane' && r8.simT > 300 && r8.top > 40, `Bots: a Pro bot flying the Plane reaches wave ${r8.wave} on Normal (${r8.simT} s in the air up to ${r8.top} m, ${r8.kills} kills, ${r8.used} interceptors)`);
+    /* a pack running low: it comes home, lines up on the pad, the flare settles it, the pack charges, the catapult throws it out again. The bot's landing is good for most
+       approaches, not all (a tree line it cannot see in time, a pack that was too far gone): one more try is allowed, as a player would */
+    const ld = await bp.evaluate(() => { const {api, G} = __z; let res = null;
+      for (let att = 1; att <= 2; att++) { __quiet(); G.state === 'base' && __z.cont(); api.relaunch(); __quiet(); __z.sim(12); const me = api.player; me.mah = api.BCAP * .905;
+        const seq = [], P = me.cx; let mahPad = -1, dead = 0, flare = 0;
+        for (let i = 0; i < 4 * 200; i++) { __z.sim(.25); const I = P.info(); if (me.dead > 0) dead++; if (I.flare) flare++; if (seq.at(-1) !== I.mode) seq.push(I.mode); if (I.mode !== 'chg' && mahPad < 0 && seq.includes('chg')) mahPad = me.mah; if (/chg>(pad>)?cat>fly$/.test(seq.join('>'))) break; }
+        res = {seq: seq.join('>'), mahPad: Math.round(mahPad), dead, flare, landed: P.landed, att}; if (/roll>chg>(pad>)?cat>fly$/.test(res.seq) && !dead) break; }
+      return res; });
+    ok(/roll>chg>(pad>)?cat>fly$/.test(ld.seq) && ld.mahPad >= 0 && ld.mahPad < 400 && ld.flare > 0 && ld.landed >= 1 && !ld.dead, `Bots: a low pack brings the Plane home: flare, roll-out, taxi and recharge (pack ${ld.mahPad} mAh used when it is ready), then the catapult again (${ld.seq}, try ${ld.att})`);
+    const rl = await bp.evaluate(() => { const {api} = __z, s0 = api.spent; __z.sim(8); const mode0 = api.player.cx.info().mode; api.relaunch(); const I = api.player.cx.info(); return {mode0, mode: I.mode, spent: api.spent - s0, ias: I.ias}; });
+    ok(rl.mode0 === 'fly' && rl.mode === 'pad' && rl.ias === 0 && rl.spent === 1, `Plane: R from the air puts a fresh one on the pad (was ${rl.mode0}, now ${rl.mode} at ${rl.ias} m/s; ${rl.spent} interceptor counted)`);
+    ok(!berrs.length, 'Bots, types: no errors' + (berrs.length ? '\n  ' + berrs.slice(0, 5).join('\n  ') : ''));
+    await bp.close();
+  }
+
+  // ---------- co-op: each pilot flies their own type and the others see the right model ----------
+  {
+    const cerrs = [], CU = origin + '/games/interceptor/?mode=zombies&netloop=40';
+    const cpage = async (name, zty) => { const q = await open(browser, CU, cerrs, {page: await newWindow(browser, {noRender: !SHOTS})});
+      await q.evaluate(z => { sessionStorage.setItem('zbossRoster', '0'); sessionStorage.setItem('zonb', '0'); localStorage.setItem('dl-interceptor', JSON.stringify({...JSON.parse(localStorage.getItem('dl-interceptor') || '{}'), gmode: 'z', wx: 'clear', zwx: 'menu', zdiff: 1, zty: z})); }, zty);
+      await q.reload({waitUntil: 'load'}); await q.waitForFunction(() => window.__z && window.__z.net, {timeout: 60000}); await q.$eval('#zname', (e, n) => { e.value = n; }, name); return q; };
+    const cuntil = (q, fn, arg) => q.waitForFunction(fn, {timeout: 60000, polling: 50}, arg).then(() => true, () => false);
+    const H = await cpage('Hosty', {v: 1, id: 'dart'}), C = await cpage('Ash', {v: 1, id: 'plane'});
+    await H.click('#zhost');
+    ok(await cuntil(H, () => __z.G.on && __z.G.state === 'base' && __z.net.n?.code), 'Types, co-op: the host is up on the base screen');
+    const code = await H.evaluate(() => __z.net.n.code);
+    await C.$eval('#zcode', (e, c) => { e.value = c; }, code); await C.click('#zjoin');
+    ok(await cuntil(C, () => __z.G.on && __z.G.state === 'base' && __z.net.rows().length === 2 && !document.getElementById('zbase').hidden), 'Types, co-op: the client joined');
+    const own = await Promise.all([H, C].map(q => q.evaluate(() => ({pick: __z.Z.craft.pick(), ty: __z.api.player.ty, online: !!__z.Z.online, head: document.querySelector('#zbase .zcrh')?.textContent || ''}))));
+    ok(own[0].ty === 'dart' && own[1].ty === 'plane' && /each pilot picks their own/.test(own[0].head), `Types, co-op: each pilot has their own pick (host ${own[0].ty}, client ${own[1].ty}); the base screen says each pilot picks`);
+    for (const q of [H, C]) await q.evaluate(() => document.querySelector('#zgo').click());
+    ok(await cuntil(H, () => __z.G.state === 'wave') && await cuntil(C, () => __z.G.state === 'wave'), 'Types, co-op: wave 1 started on both screens');
+    const others = q => q.evaluate(() => [...__z.net.n.pil.values()].map(r => ({ty: r.d.ty, tag: r.d.mesh.userData.ty, props: r.d.props.length, inScene: r.d.mesh.parent === __z.api.scene})));
+    ok(await cuntil(H, () => [...__z.net.n.pil.values()].some(r => r.d.ty === 'plane')), 'Types, co-op: the host sees the client as a Plane');
+    ok(await cuntil(C, () => __z.net.n.pil.size > 0 && [...__z.net.n.pil.values()].every(r => r.d.ty === 'dart')), 'Types, co-op: the client sees the host as a Dart');
+    const oh = await others(H), oc = await others(C);
+    ok(oh.length === 1 && oh[0].tag === 'plane' && oh[0].props === 1 && oh[0].inScene && oc.length === 1 && oc[0].tag === 'dart' && oc[0].props === 4 && oc[0].inScene, `Types, co-op: the models are the right ones on each screen (host sees ${JSON.stringify(oh[0])}, client sees ${JSON.stringify(oc[0])})`);
+    /* the client changes type at a relaunch: the host's copy of them follows, and back again */
+    for (const [ty, tag] of [['dart', 'dart'], ['plane', 'plane']]) {
+      await C.evaluate(ty => { __z.Z.craft.set(ty); __z.api.relaunch(); }, ty);
+      ok(await cuntil(H, ty => [...__z.net.n.pil.values()].some(r => r.d.ty === ty && r.d.mesh.userData.ty === ty), ty), `Types, co-op: the client relaunches as a ${tag} and the host's copy of them changes model`);
+    }
+    ok(!cerrs.length, 'Types, co-op: no errors' + (cerrs.length ? '\n  ' + cerrs.slice(0, 5).join('\n  ') : ''));
+    await H.close(); await C.close();
+  }
+  ok(!terrs.length, 'Types: no errors' + (terrs.length ? '\n  ' + terrs.slice(0, 5).join('\n  ') : ''));
 }
 
 // ---------- balance: a scripted player who shops sensibly and runs down a share of the tracks; how far does it get? ----------
