@@ -548,14 +548,15 @@ const SETTLE = +(argv.find(a => a.startsWith('--settle='))?.slice(9) || 0);  /* 
 const ONLYC = argv.find(a => a.startsWith('--cycle='))?.slice(8);  /* --cycle=text: run only the cycle tests whose name contains it, and 12 of them */
 /* run once() n+1 times; the first is the warm-up (shaders, textures and sounds are built on first use), the second the baseline.
    opts.warm: the Zombies way, where first-use builds keep landing late on a slow machine: the baseline is the count after that many full cycles, and the n cycles after it are judged
-   opts.ready: an in-page test waited on before each count (nothing still queued in the idle-time builder); opts.watch: in-page functions that name what grew (see zWatchOn) */
-async function cycles(S, name, once, n, extra, settle = 0, {warm = 0, ready = null, watch = null} = {}) {  /* settle: ms to wait after each run before counting, for timers that retire things later (the HUD feed keeps a removed message 4.5 s) */
+   opts.ready: an in-page test waited on before each count (nothing still queued in the idle-time builder); opts.draw: an in-page function run after it that draws everything the page holds once (zDrawAll), so what the renderer has counted does not depend on where the camera looked; opts.watch: in-page functions that name what grew (see zWatchOn) */
+async function cycles(S, name, once, n, extra, settle = 0, {warm = 0, ready = null, watch = null, draw = null} = {}) {  /* settle: ms to wait after each run before counting, for timers that retire things later (the HUD feed keeps a removed message 4.5 s) */
   if (ONLYC && !name.includes(ONLYC)) return; if (ONLYC) n = 12;
   const rows = [], b = warm ? warm - 1 : 1, last = warm ? b + n : n;  /* b: the baseline row, last: the last one judged */
   for (let i = 0; i <= last; i++) {
     if (watch && i > b) await S.p.evaluate(watch.mark, i);
     await once(i); if (SETTLE || settle) await sleep(SETTLE || settle);
     if (ready && !await until(() => S.p.evaluate(ready), {timeout: 30000, every: 250})) note(`${name}: the idle queue was still busy when cycle ${i} was counted`);
+    if (draw) { await S.p.evaluate(draw); await frames(S.p, 2); }
     rows.push(await counters(S, extra)); if (watch && i === b) await S.p.evaluate(watch.on);
   }
   const z = await leakVerdict(S, name, `${n} cycles`, rows, b, last, watch);
@@ -840,6 +841,10 @@ const zExtra = () => { const z = window.__z, i = z.api.renderer.info; let n = 0,
    zWatchOff(report) puts the page back and, when asked, lists what came in by type, name, parent, the cycle and, for a geometry built since, the game file and line that made it
    (enemy meshes left out of the objects, like in zExtra) */
 const zIdle = () => { const s = window.__z.Z.warmSt; return !s || !s.idle || !s.idle.left; };
+/* One render of the whole scene with frustum culling off (and back on): the renderer counts a geometry when it first draws it, and a mesh outside the view is not drawn, so which of a run's three enemy roads were counted depended on where the camera pointed in the
+   frames the run happened to get. Called before each count, every geometry the scene holds is in it, the same way each time (a hidden mesh stays out: nothing draws it). */
+const zDrawAll = () => { const z = window.__z, {scene, camera, renderer} = z.api, saved = []; scene.traverse(o => { if (o.frustumCulled) { saved.push(o); o.frustumCulled = false; } });
+  try { renderer.render(scene, camera); } finally { for (const o of saved) o.frustumCulled = true; } };
 const zWatchOn = () => {
   const z = window.__z, T = z.api.THREE, info = z.api.renderer.info, sc = z.api.scene, W = window.__qaW = {live: new Map(), made: new WeakMap(), objs: new WeakSet(), base: [], undo: [], cyc: 0, late: 0, fresh: 0, freed: 0, id0: new T.BufferGeometry().id};
   const patch = (P, k, f) => { const own = Object.prototype.hasOwnProperty.call(P, k), o = P[k]; P[k] = function (...a) { return f(o, this, a); }; W.undo.push(() => { if (own) P[k] = o; else delete P[k]; }); };
@@ -876,7 +881,7 @@ const zWatchOff = report => {
   for (const f of W.undo) f(); delete window.__qaW;
   return [...out].map(([s, n]) => (n > 1 ? n + 'x ' : '') + s).slice(0, 60);
 };
-const ZCYC = {warm: 1, ready: zIdle, watch: {on: zWatchOn, stat: zWatchStat, mark: zWatchMark, off: zWatchOff}};  /* the Zombies leak probes: one full warm cycle, then the count */
+const ZCYC = {warm: 1, ready: zIdle, draw: zDrawAll, watch: {on: zWatchOn, stat: zWatchStat, mark: zWatchMark, off: zWatchOff}};  /* the Zombies leak probes: one full warm cycle, then the count */
 /* one of every enemy kind flown in front of the camera and drawn, then removed: the kinds' geometry is built the first time one is seen, and which kinds a wave or the demo
    happens to bring is random, so the first appearances belong before the counting starts, not in the middle of it */
 async function zprime(S) {
@@ -895,7 +900,9 @@ section('zombies-cycles', async browser => {
   await cycles(S, 'Zombies quick defence start / quit', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.G.cash = 5000; z.Z.base.setTab('shop'); const i = z.G.cards.findIndex(c => c.k === 'rack'); document.querySelector(`#zbase [data-buy="${i}"]`)?.click(); document.querySelector('[data-slot]')?.click(); z.cont(); z.sim(8); }); await frames(p, 3); await back(); }, N, zExtra, 5500, ZCYC);
   await cycles(S, 'Zombies game over / play again', async () => { await zplay(S, 'cycle'); await p.evaluate(() => { const z = window.__z; z.cont(); z.sim(3); z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500, ZCYC);
   await cycles(S, 'Zombies campaign sector', async () => { await p.evaluate(() => { window.__z.Z.cp.openMap(); window.__z.Z.cp.select('mill'); }); await click(p, '#zcpgo'); await p.waitForFunction(() => window.__z.G.state === 'base' && !!window.__z.Z.cp.run, {timeout: 30000}); await p.evaluate(() => { window.__z.cont(); window.__z.sim(5); window.__z.Z.gameOver(); }); await frames(p, 3); await click(p, '#zmenu'); await until(async () => (await zst(p)).demo, {timeout: 20000}); }, N, zExtra, 5500, ZCYC);
-  await cycles(S, 'Zombies bot spectator', async () => { await p.evaluate(() => { document.getElementById('zspc').open = true; }); await click(p, '#zspgo'); await p.waitForFunction(() => window.__z.spec.on && window.__z.G.state === 'base', {timeout: 30000}); await p.evaluate(() => window.__z.spec.setSpeed(8)); await sleep(2500); await back(); }, N, zExtra, 5500, ZCYC);
+  await cycles(S, 'Zombies bot spectator', async () => { await p.evaluate(() => { document.getElementById('zspc').open = true; }); await click(p, '#zspgo'); await p.waitForFunction(() => window.__z.spec.on && window.__z.G.state === 'base', {timeout: 30000}); await p.evaluate(() => window.__z.spec.setSpeed(8));
+    /* the same stretch of game every time: the bot shops and starts wave 1 (state, not a number of seconds: how far a runner gets in 2.5 s varied), then a fixed 4 s of it is stepped before the way out */
+    await p.waitForFunction(() => window.__z.G.state === 'wave', {timeout: 90000}).catch(() => {}); await p.evaluate(() => window.__z.sim(4)); await frames(p, 2); await back(); }, N, zExtra, 5500, ZCYC);
   await cycles(S, 'Zombies menu screens', async () => { await click(p, '#modbtn'); await click(p, '#mclose'); if (await has(p, '#zcpopen')) { await click(p, '#zcpopen'); await key(p, 'Escape'); } }, N, zExtra, 5500, ZCYC);
   drain(S, 'Zombies cycles'); await p.close();
 }, {fast: true});
