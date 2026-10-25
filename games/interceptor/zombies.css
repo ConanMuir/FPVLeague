@@ -121,7 +121,7 @@ button.sm.pri{background:linear-gradient(180deg,#3a8f5c,#2b6a45);border-color:#4
 .zbf-k{font:11.5px var(--mono);color:var(--dim);white-space:nowrap}.zbf kbd{font:700 11px var(--mono);border:1px solid var(--edge);border-radius:3px;padding:0 4px;margin-right:2px;color:var(--amber)}
 .zpanel .zbf button.go{margin:0;flex:none;font-size:18px;padding:9px 26px;white-space:nowrap}
 .zpanel button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
-body.zsp-on .zbf-u,body.zsp-on .zbf-k{visibility:hidden}  /* watching a bot shop: the spectator bar sits over the footer, and nothing there is yours to press */
+body.zsp-on .zbf-u,body.zsp-on .zbf-k,body.zsp-on .zbf .go{visibility:hidden}  /* watching a bot shop: the spectator's control bar sits over the footer, and nothing there (Undo, the keys, Start wave: the bot starts it) is yours to press */
 @media (max-width:1100px){.zbf-k{display:none}.zb header.zbh{gap:8px 16px}}
 @media (max-width:700px){.zb header.zbh{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:900px){.zcols{grid-template-columns:minmax(0,1fr);height:auto}.zside{order:-1}  /* stacked: the tabs and the list come first, the map under them */

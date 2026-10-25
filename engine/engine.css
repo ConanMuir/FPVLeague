@@ -60,3 +60,4 @@ button.lnk{padding:0;border:0;background:none;font:inherit;letter-spacing:0;text
 /* FPS meter (src/ui/fpsmeter.js, #fpsm in #hud): top right, clear of the centred top bar (the Zombies bar); on narrower
  screens those bars reach the corner, so it drops under them */
 @media (max-width:1180px){#hud #fpsm{top:calc(104px + env(safe-area-inset-top,0px))}}
+#hud #fpsm span{text-overflow:ellipsis}  /* the meter's box is fixed (size containment); a pathological reading ("5 FPS 216.6 ms · H" on a loaded CI runner) is wider than its 148 px, so it trims instead of clipping mid-glyph */
