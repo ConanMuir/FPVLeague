@@ -95,6 +95,7 @@ registerBoss({id: 'hush', n: 'The Hush', tag: 'HUSH', col: COL, spd: 62, alt: [1
   resist: {rack: .2, gepard: .2, sam: .3, mpads: .2, idome: .1, hflak: .15, flak: .1}, hp: 5, phases: ['WHISPER', 'HUSH', 'SILENCE'],
   note: 'a silent hunter in total darkness: radar and thermal are static for it, no bracket, no lock. Hunt it by ear (wear headphones): its hum, the whoosh of its passes, wind-shear on the banks and a creak before each pass. It is open only while its exhaust flare burns and a moment after a pass.',
   warn: 'lights out', spawn: {event: {from: 24, p: .04}, boss: 45},
+  practice: {radio: 'All stations: lights out. Do not look for it. Listen.'},  /* it needs nothing: headphones, the dark and your ears */
   introFn(C, t) { C.Z.an?.say('THE HUSH', 'lights out · radar and thermal are static · headphones on', COL, 3);
     C.Z.an?.radio('OVERLORD', 'All contacts dark and the scope is static. Put your headphones on: you will hear it before you see it.', 2);
     C.api.feed('<span style="color:#9db4d8">The lights went out.</span> Listen for the hum, the whoosh, the creak. Burst it when the flare burns.'); },

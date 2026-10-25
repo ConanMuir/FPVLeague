@@ -65,6 +65,7 @@ function wire(C,t){const{api,Z}=C,B=t.bs,R=3000;const H=(Z.def?.drones||[]).filt
 registerBoss({id:'puppet',n:'The Puppeteer',tag:'PUPPETEER',col:'#e8e2d0',spd:14,alt:[0,2],hitR:3.5,det:1,cash:1500,bounty:6000,far:5200,persist:1,resist:{},hp:C=>2/C.hpK(),phases:['HIDDEN','EXPOSED'],phaseAt:[.5],
  note:'a ground unit in disguise that strings wires to drones, boosting enemies and hijacking yours. Follow the glinting wires and the trails they leave; kill it with a direct strike.',warn:'something on the ground pulls the strings',
  spawn:{event:{from:12,p:.045}},
+ practice:{radio:'Wires in the wheat. Something on the ground is pulling the drones\' strings. Follow the glint.',stream:{kinds:{shahed:5,jet:1,decoy:1},gap:[3,5],cap:8}},  /* it needs drones to wire (the standard kit's rack is one for it to hijack) and a steady stream to hide among */
  introFn(C,t){C.Z.an?.say('THE PUPPETEER','somewhere on the ground · follow the wires','#e8e2d0',3);C.Z.an?.radio('OVERLORD','Some of the drones are moving like they are on strings. Look for wires.',2)},
  build:C=>model(C),warm:C=>{draw(C)},
  init(C,t){const B=t.bs,s=spot(C,null);t.p.set(s.x,C.api.gh(s.x,s.z)+.1,s.z);t.v.set(0,0,1);B.dis=C.pick(DIS.slice(1));show(t,B.dis);B.mv=null;B.next=C.rnd(35,50);B.wt=6;B.waves=0},

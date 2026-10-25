@@ -43,6 +43,7 @@ registerBoss({id:'jugg',n:'Juggernaut',tag:'JUGGERNAUT',col:'#ffb020',spd:34,alt
  resist:{sam:.35,idome:.35},burst:1,hp:C=>6/C.hpK(),phases:['ARMOURED','BREACHED','CORE EXPOSED'],phaseAt:[.67,.34],
  note:'a building-sized armoured cruise missile. Only bursts on its glowing weak points hurt it; each stage cleared blows the armour off the next. It hits for 350.',warn:'a building-sized missile',
  spawn:{event:{from:25,p:.04},boss:20},
+ practice:{R:2000,radio:'Something the size of a building, slow and low, armoured. Find where it glows.',more:[['sam','fuel depot west']]},  /* SAMs are the one helper that can knock out a weak point */
  intro:{title:'JUGGERNAUT',sub:C=>`armoured · ${WP.length} weak points in three stages · ${C.rec().b.jugg?.lost|0} sites flattened`,col:'#ffb020',radio:'Radar has a monster: one huge, slow cruise missile. Only the glowing weak points will crack it.'},
  build:C=>model(C),
  init(C,t){const B=t.bs;B.wm=63;let b=null;for(const s of C.sites())if(!b||s.hp>b.hp)b=s;B.site=b||t.tgt;t.tgt=B.site;t.aim=B.site.aims[0];t.p.y=C.api.gh(t.p.x,t.p.z)+150},

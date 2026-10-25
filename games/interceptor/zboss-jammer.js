@@ -88,6 +88,7 @@ registerBoss({id:'jammer',n:'Jammer King',tag:'JAMMER KING',col:'#c77dff',spd:55
  resist:{rack:.3,gepard:.4,sam:.8,mpads:.5,idome:.4,hflak:.3},hp:6,phases:['HIDDEN','HUNTED','CORNERED'],
  note:'an electronic-warfare aircraft hiding in the fog. Radar, lock-on and helpers degrade while it lives, and it spoofs your intercept pip (drift, ghosts): hold the real target in your sights, close in and kill its relay pods to burn through the noise. Hunt it: jamming windows, the heat meter, bearing lines from its relay pods, and overloads when you kill inside its bubbles.',
  warn:'massive jamming',spawn:{event:{from:18,p:.045},boss:30},
+ practice:{radio:'Heavy jamming on every band. Radar and lock are going. Kill its relay pods and hold the real track in your sights.',more:[['ew','substation west']],perks:{optics:1}},  /* the duel is lock-on against noise: the EW jammer is on the ground and Optics makes the lock quicker */
  build:C=>kingModel(C),
  init(C,t){const B=t.bs,{api}=C;relocate(C,t);B.pt=0;B.cnt=0;B.surf=0;B.lines=[];B.sil=5;B.exposed=0;B.pm=0;
   const cam=api.camera,f=new C.V3(0,0,-1).applyQuaternion(cam.quaternion).setY(0);if(f.lengthSq()<.01)f.set(0,0,-1);f.normalize();const r=new C.V3(-f.z,0,f.x);

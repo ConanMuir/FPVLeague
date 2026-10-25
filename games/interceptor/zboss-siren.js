@@ -33,6 +33,7 @@ registerBoss({id:'siren',n:'The Siren',tag:'FRIENDLY',col:'#5ff0e0',spd:70,alt:[
  resist:{rack:.5,gepard:.6,sam:.9,mpads:.7,idome:.4,hflak:.4,flak:.2},hp:3,phases:['SINGING','SHRIEKING','FALTERING'],
  note:'an escort that broadcasts a false friendly ID: drones near it show green and your helpers hold fire. Spot it visually (within 600 m it is unmasked) and kill it, or kill what it covers by hand.',warn:'friendlies?',
  spawn:{event:{from:10,p:.05}},
+ practice:{radio:'Friendly transponders inbound? We have nothing of ours in the air. Trust your eyes, not the scope.',stream:{kinds:{shahed:4,jet:2,decoy:1},gap:[3,5.5],cap:8}},  /* it hides in a raid: its own escort and a steady stream of ordinary tracks around it */
  introFn(C,t){C.Z.an?.radio('OVERLORD','Friendly flight checking in from the north… wait. We have no flights up there.',2);C.api.feed('<span class="cg">IFF: friendly flight inbound.</span> <span class="co">…Nobody filed one.</span>')},
  build:C=>model(C),
  init(C,t){const{api}=C;t.p.y=api.gh(t.p.x,t.p.z)+450;const n=4+Math.floor(C.G.wave/8);for(let i=0;i<n;i++){const u=C.Z.make(i%3?'shahed':'jet',t.p.x+C.rnd(-200,200),t.p.z+C.rnd(-200,200));if(u)u.p.y=t.p.y+C.rnd(-80,80)}},

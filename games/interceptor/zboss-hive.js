@@ -34,6 +34,7 @@ registerBoss({id:'hive',n:'The Hive',tag:'HIVE',col:'#ffb21e',spd:24,alt:[580,62
  resist:{rack:.3,gepard:.4,sam:.8,mpads:.3,idome:.5,hflak:.4,flak:.2},hp:8,phases:['HIVE','SPLIT'],phaseAt:[.5],
  note:'a giant drone carrier that launches swarms; at half strength it splits into three brood carriers that go for three different sites.',warn:'a carrier full of swarms',
  spawn:{event:{from:30,p:.03},boss:30},
+ practice:{R:2000,radio:'A honeycomb carrier, full of swarms. When it breaks, it breaks into three broods.',more:[['sam','substation west']]},  /* its swarms and its three broods are its own; a SAM battery is what bites a carrier */
  intro:{title:'THE HIVE',sub:'carrier · it splits when hurt · each piece spawns swarms',col:'#ffb21e',radio:'Massive carrier inbound, honeycomb hull. It is full of swarms.'},
  build:C=>model(C,16,0),
  init(C,t){t.p.y=C.api.gh(t.p.x,t.p.z)+600;t.bs.rel=8},
