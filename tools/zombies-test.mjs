@@ -77,7 +77,12 @@ if (want('zombies')) {
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-menu-nightmare.png'});
   await p.click('#zdiff button[data-d="1"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '1', {timeout: 5000}).catch(() => {});
   ok(dm.on === 'Nightmare' && dm.zd === 3 && /Nightmare/.test(dm.desc), `Zombies menu: picking Nightmare highlights it, saves it and describes it ("${dm.desc.split('Nightmare: ')[1]?.slice(0, 50)}")`);
+  /* the audio context is opened ahead in idle time on the menu (engine/audio.js audioPrime): suspended, and not the game's yet (api.AC stays null, so a menu with no run on it makes no sound); Play adopts it and starts it */
+  const au = await p.evaluate(async () => { const A = await import('/engine/audio.js'); for (let i = 0; i < 300 && A.audioPrimed() !== 'suspended'; i++) await new Promise(r => setTimeout(r, 100)); return {primed: A.audioPrimed(), live: !!A.AC, on: A.audioOn()}; });
+  ok(au.primed === 'suspended' && !au.live && !au.on, `Zombies audio: the context is built ahead on the menu and waits suspended (${au.primed}), the game's own AC and the engine voices are not live yet (${au.live}/${au.on})`);
   await play(p);
+  const au2 = await p.evaluate(async () => { const A = await import('/engine/audio.js'); for (let i = 0; i < 50 && A.AC?.state !== 'running'; i++) await new Promise(r => setTimeout(r, 100)); return {live: !!A.AC, state: A.AC?.state, primed: A.audioPrimed(), on: A.audioOn(), sfx: __z.api.AC === A.AC}; });
+  ok(au2.live && au2.state === 'running' && au2.primed === null && au2.on && au2.sfx, `Zombies audio: Play adopts the primed context and starts it (${au2.state}), the motor voices are on, one context`);
   { const out = [];  /* the event feed (top left) never runs under the centred top bar, at a laptop, a 1080p and a short window */
     for (const [w, h] of [[1280, 720], [1920, 1080], [900, 420], [1280, 720]]) {
       await p.setViewport({width: w, height: h});
@@ -2602,6 +2607,7 @@ if (want('endless')) {
   // ---- the briefing of a climbing wave ----
   const BR = await p.evaluate(() => { const {Z} = __z; __z.jump(33, 1e6); Z.openBase(); const t = document.getElementById('zbrief').innerText.replace(/\s+/g, ' '); return {t, line: Z.brief.data().extra.join(' | ')}; });
   ok(/Endless \+\d+% tracks · \+\d+% speed · \d+% of the Shaheds armored · sites take \+\d+%/.test(BR.t) && /boss every 5 waves · milestone wave 40: \+\$3,200 and a repair/.test(BR.t), `Briefing in Endless at wave 33: "${BR.line}"`);
+  ok(/at most 400 tracks in the air/.test(BR.t), 'Briefing in Endless: the note says how many tracks can be in the air at once (the ceiling)');
 
   // ---- the end: the Endless screen, the Endless table, the campaign untouched, the scars saved ----
   const GO = await p.evaluate(() => { const {Z, G, api} = __z, S = api.S; __z.jump(13, 0); Z.openBase(); G.wave = 12; Z.gameOver();
@@ -2643,6 +2649,26 @@ if (want('endless')) {
   ok(CL.sp[1] / CL.sp[0] > 1.3 && CL.sp[2] > CL.sp[1] * 1.08 && Math.abs(CL.sp[3] / CL.sp[2] - 1) < .05 && CL.spOff < CL.sp[1] * .8, `Climb, speed: a Shahed flies ${CL.sp.map(v => v.toFixed(1)).join(' / ')} m/s at waves 20 / 60 / 100 / 140 (+40% at 60, capped at +60%; ${CL.spOff.toFixed(1)} at 60 without the climb)`);
   ok(CL.dk[0] === 1 && Math.abs(CL.dk[1] - 1.2) < 1e-9 && Math.abs(CL.dk[2] - 1.4) < 1e-9, `Climb, damage: a hit on a site is x${CL.dk.join(' / ')} at waves 20 / 40 / 60`);
   ok(CL.b[23] === 0 && CL.b[25] === 1 && CL.b[30] === 1 && CL.b[51] === 2 && CL.b[52] === 0 && CL.b[60] === 2 && CL.b[80] === 3 && CL.b25off === 0 && CL.b51off === 0, `Climb, bosses: ${JSON.stringify(CL.b)} (waves 23 / 25 / 30 / 51 / 52 / 60 / 80: every 5 waves past 20, every 3 past 50, two at a time from wave 50, three from 80); wave 25 without the climb has ${CL.b25off}`);
+  // the radar scope writes a label (T07 12) for the 40 nearest tracks and the selected one, not for every track (every track still has its blip)
+  const RD = await p.evaluate(async () => { const {Z, G, api} = __z, P = api.PADP, o = {labels: 0, paints: 0}, rc = document.getElementById('radar').getContext('2d'), c0 = rc.clearRect, f0 = rc.fillText; let k = 0;
+    __z.cont(); for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); api.SITES.forEach(s => s.hp = s.max);
+    for (let i = 0; i < 120; i++) { const a = i * 2.399, r = 1200 + (i % 12) * 100; __z.make('shahed', P.x + Math.cos(a) * r, P.z + Math.sin(a) * r, api.SITES[i % 3]); }  /* 120 Shaheds inside the radar's reach, looked at over some real frames */
+    rc.clearRect = function (...a) { o.labels = Math.max(o.labels, k); k = 0; o.paints++; return c0.apply(this, a); }; rc.fillText = function (t, ...a) { if (/^T\d+ -?\d+$/.test(t)) k++; return f0.call(this, t, ...a); };
+    await new Promise(r => setTimeout(r, 900)); delete rc.clearRect; delete rc.fillText; o.n = api.TH.filter(api.live).length; G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; return o; });
+  ok(RD.paints >= 2 && RD.labels >= 30 && RD.labels <= 41, `Radar: with ${RD.n} tracks on the scope a repaint writes ${RD.labels} labels (the 40 nearest and the selected one; ${RD.paints} repaints looked at)`);  /* two repaints are enough to judge the cap: a loaded CI runner draws only two or three in the 900 ms window */
+  // the ceiling: no more than CAP_LIVE tracks in the air; what the plan has due past it waits in the queue (a swarm whole) and goes out as tracks die, nothing is lost; with the climb off there is no ceiling
+  const CP = await p.evaluate(() => { const {Z, G, api} = __z, E = Z.endless, o = {cap: E.CAP_LIVE}, live = () => api.TH.filter(api.live).length, keep = () => api.SITES.forEach(s => s.hp = s.max);
+    const clear = () => { for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; };
+    const start = on => { Z.cp.run.endless = on; __z.cont(); clear(); keep(); G.wq.length = 0; const g0 = G.gid; for (let i = 0; i < 100; i++) G.wq.push({k: 'swarm:6', at: 0, brg: (i % 9 - 4) * .2}); return g0; };  /* 100 swarms of 6, all due at once */
+    let g0 = start(true); __z.sim(.3); o.l1 = live(); o.q1 = G.wq.length; o.s1 = G.gid - g0; o.st1 = G.state;
+    let n = 0; for (const t of api.TH) if (api.live(t) && n++ < 100) t.st = 'dead'; __z.sim(.1); o.l2 = live(); o.q2 = G.wq.length;  /* 100 tracks die: the queue goes out into the room they left */
+    for (let i = 0; i < 60 && (G.wq.length || live()); i++) { for (const t of api.TH) if (api.live(t)) t.st = 'dead'; keep(); __z.sim(.1); } o.s3 = G.gid - g0; o.q3 = G.wq.length;
+    g0 = start(false); __z.sim(.3); o.l4 = live(); o.q4 = G.wq.length;  /* the climb off: all 600 at once */
+    Z.cp.run.endless = true; G.wq.length = 0; clear(); keep(); return o; });
+  ok(CP.cap === 400 && CP.l1 > 390 && CP.l1 <= 400 && CP.q1 >= 30 && CP.s1 === 100 - CP.q1 && CP.st1 === 'wave', `Climb, ceiling: 600 drones due at once, ${CP.l1} fly (at most ${CP.cap}), ${CP.q1} swarms wait in the queue`);
+  ok(CP.l2 > 390 && CP.l2 <= 400 && CP.q2 < CP.q1 && CP.q2 > 0, `Climb, ceiling: 100 tracks die and the queue fills the room (${CP.l2} in the air, ${CP.q1} -> ${CP.q2} swarms waiting)`);
+  ok(CP.s3 === 100 && CP.q3 === 0, `Climb, ceiling: the whole plan goes out in the end (${CP.s3} of 100 swarms), nothing lost`);
+  ok(CP.l4 === 600 && CP.q4 === 0, `Climb, ceiling: with the climb off there is no ceiling (${CP.l4} in the air)`);
   // the boss codex (zcodex.js): an Endless run's bosses come from its pool (unlocked and allowed), never from the sector's set piece; the Launch Complex's own Mothership escort does not double the boss
   const CX = await p.evaluate(() => { const {Z, G, api, KIND} = __z, S = api.S, X = Z.codex, o = {}, R0 = Z.bosses.roster;
     const bs = L => L.filter(k => { const K = KIND[k.split(':')[0]]; return K.armor === 'boss' || !!K.bossy; }), seen = (w, n) => { const m = {}; for (let i = 0; i < n; i++) for (const k of bs(__z.plan(w).list)) m[k] = (m[k] | 0) + 1; return m; };
@@ -2862,7 +2888,7 @@ if (want('buddy')) {
         for (let i = 0; i < 30; i++) { b.jt = 0; __z.sim(1); } const mid = Z.bd.fx(); api.pickT = null; G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; let n = 0; while (G.state !== 'base' && n++ < 60) __z.sim(1);
         const o = {mid, end: Z.bd.fx(), scene: api.scene.children.length, mem: [api.renderer.info.memory.geometries, api.renderer.info.memory.textures], bumps: b.bumps}; __z.cont(); __z.sim(.2); return o; });
       seen.push(q); }
-    const e = seen.map(q => q.end), same2 = seen[1].scene === seen[2].scene && seen[1].mem[1] === seen[2].mem[1] && Math.abs(seen[1].mem[0] - seen[2].mem[0]) <= 2;  /* the game itself may upload a geometry now and then; a buddy leak would add objects every wave */
+    const e = seen.map(q => q.end), near = (a, b, n) => Math.abs(a - b) <= n, same2 = seen[1].scene === seen[2].scene && near(seen[1].mem[0], seen[2].mem[0], 2) && near(seen[1].mem[1], seen[2].mem[1], 2);  /* waves 2 and 3 only: the first wave still uploads what it draws for the first time (the renderer counts a geometry on its first draw); past that the game itself uploads a geometry or a texture now and then and frees one a frame later (the idle warm-up, a label's canvas), so the counts wobble by one or two, while a buddy leak adds objects every wave */
     ok(e.every(x => x.vis === 0 && x.tags === 0 && x.spots === 0 && x.slows === 0 && x.marked === 0) && seen.every(q => q.mid.marked > 0 || q.mid.vis >= 1), `Buddy wave end: no visible model or tag, no marked or slowed track left behind (mid-wave it had ${seen.map(q => q.mid.marked).join('/')} marked)`);
     ok(same2, `Buddy wave end: no new objects in the scene (${seen.map(q => q.scene).join('/')}) or on the GPU (geometries/textures ${seen.map(q => q.mem.join('/')).join(' | ')}) from wave to wave`); }
   // the base screen: a row with the same tooltip on the Shop tab
