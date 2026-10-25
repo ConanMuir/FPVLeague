@@ -16,6 +16,9 @@ let fails = 0;
 const ONLY = argv.includes('--only');  // with --balance or --tiers: run just those sections
 const SECTIONS = argv.find(a => a.startsWith('--sections='))?.slice(11).split(','), want = n => !ONLY && (!SECTIONS || SECTIONS.includes(n));
 const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fails++; };
+/* the enemy's roads (zsites.js W.reset) are new at every game start, and a scar keeps clear of them (zscars.js bad): one saved in a run sits where it was valid then, and under the next run's roads it is dropped
+   on load (about one start in five for a dozen scars). The sections that save scars and start again pin the roads' seed, so the same ground is valid every time. Called again after a page reload. */
+const pinRoads = p => p.evaluate(() => { const W = __z.Z.so.W, r = W.reset; if (!r._pin) { const f = () => r(424242); f._pin = 1; W.reset = f; } });
 
 // --throttle N: CPU throttling on each game page (CDP), e.g. 4, to play a slow CI runner
 const THROTTLE = argv.includes('--throttle') ? +argv[argv.indexOf('--throttle') + 1] : 0;
@@ -771,12 +774,15 @@ if (want('grid')) {
     await p.evaluateOnNewDocument(() => { let s = 4242; Math.random = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; });
     await p.goto(origin + '/games/interceptor/', {waitUntil: 'load'}); await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', zmus: 0})));
     await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
+    /* both pages start the game in the same state: the menu's idle work (the textures and pools, the scars' build, the shader warm-up) is done on each. Mid-way it is not: the scars exist or do not (a destroyed house lifts its collider), and how far it had got when the game started was a matter of timing */
+    await p.waitForFunction(() => { const w = __z.Z.warmSt; return __z.Z.sc.ready && w.done && !w.idle.left; }, {timeout: 180000, polling: 200});
     const o = await p.evaluate(RUN, brute); await p.close(); return {o, errs}; };
   const A = await game(false), B = await game(true), a = JSON.parse(A.o), b = JSON.parse(B.o);
   console.log(`  grid game: wave ${a.w} ${a.st}, ${a.k.p} pilot / ${a.k.h} helper kills, ${a.dets} bursts, ${a.th.length} tracks, up to ${a.shots} shots, swarm ${a.swMax} up, ${a.swLost} lost, ${a.swKills} kills, ${a.sw.length} left`);
   /* the swarm counts if it flew this wave: its attack passes lose drones on the dice, so how many are left at the end is luck (all six can go) */
   ok(a.k.p + a.k.h >= 10 && a.dets > 3 && a.swMax > 0, `Grid game: busy enough to mean something (${a.k.p + a.k.h} kills, ${a.dets} bursts, swarm of ${a.swMax} flew)`);
-  ok(A.o === B.o, `Grid: a whole wave plays out identically with the grid and with plain loops (${A.o.length} chars of end state compared)` + (A.o === B.o ? '' : `\n  grid ${A.o.slice(0, 300)}\n  loop ${B.o.slice(0, 300)}`));
+  const gd = A.o === B.o ? -1 : [...A.o].findIndex((c, i) => c !== B.o[i]);  /* where the two end states first differ */
+  ok(A.o === B.o, `Grid: a whole wave plays out identically with the grid and with plain loops (${A.o.length} chars of end state compared)` + (A.o === B.o ? '' : `\n  first difference at ${gd}\n  grid ${A.o.slice(Math.max(0, gd - 120), gd + 180)}\n  loop ${B.o.slice(Math.max(0, gd - 120), gd + 180)}`));
   ok(!A.errs.length && !B.errs.length, 'Grid game: no errors' + (A.errs.length + B.errs.length ? '\n  ' + [...A.errs, ...B.errs].join('\n  ') : ''));
 }
 
@@ -2212,7 +2218,7 @@ if (want('onboard')) {
 
 // ---------- the living map (zscars.js): craters, burns and rubble that stay; caps and recycling, the save, the campaign, co-op, no glitches, frame cost, no leaks ----------
 if (want('scars')) {
-  const {p, errs} = await page();
+  const {p, errs} = await page(); await pinRoads(p);
   /* nobody has played yet: the menu's idle time builds the textures and pools, a few ms a slice */
   const idle = await p.waitForFunction(() => __z.Z.sc.ready, {timeout: 120000}).then(() => true, () => false), worst = await p.evaluate(() => __z.Z.sc.worst);
   ok(idle, 'Scars: the textures and pools are built in idle time at the menu, before anyone plays');
@@ -2574,8 +2580,8 @@ if (want('briefing')) {
 // ---------- Endless (zendless.js): opens only once the Launch Complex is held; a sector with no objective whose waves climb past the caps (tracks, speed, armour, damage, bosses);
 // milestones; the sector's scars carry forward, grow and are saved (and survive a reload); the run goes on the Endless table and costs the campaign nothing; nothing leaks ----------
 if (want('endless')) {
-  const {p, errs} = await page();
-  const reload = async () => { await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3); };
+  const {p, errs} = await page(); await pinRoads(p);
+  const reload = async () => { await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3); await pinRoads(p); };
   const boot = async (camp, zend) => { await p.evaluate((c, z) => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); if (c === undefined) delete s.zcamp; else s.zcamp = c; if (z === undefined) delete s.zend; else s.zend = z;
     Object.assign(s, {zdiff: 1, gmode: 'z', zload: null}); delete s.zbrief; localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, camp, zend); await reload(); };
   const begun = () => p.waitForFunction(() => __z.G.state === 'base' && !!__z.Z.cp.run, {timeout: 30000}).then(() => true, () => false);
@@ -2696,12 +2702,6 @@ if (want('endless')) {
   ok(LS.feat === 1 && LS.n === 2 && LS.ids === 'missile,tot,boss5,raid,big' && LS.per === '2,2,1' && LS.afterOne === 0 && LS.afterBoth === 1, `Enemy launch sites (Launch Complex): the sorties flag is set, the sector's modifiers are ${LS.ids} (one Heavy pressure, no fallback), launch sites per sector ${LS.per}; the first site of a doubled sector cuts nothing (${LS.afterOne}), the second does (${LS.afterBoth})`);
   ok((LS.names.match(/Heavy pressure/g) || []).length === 1 && /Enemy launch sites/.test(LS.names), `Enemy launch sites: the briefing lists it once, and Heavy pressure once ("${LS.names}")`);
 
-  // ---- a campaign sector after it is a plain campaign sector ----
-  const PL = await p.evaluate(() => { const {Z, G, api, KIND} = __z; Z.cp.start('mill', true); const r = {en: Z.endless.on(), obj: Z.cp.run?.obj, hud: (Z.hud(0), document.getElementById('zw').textContent), strip: document.querySelector('#zbase .zcpbar')?.textContent || '', b: __z.plan(60).list.filter(k => KIND[k.split(':')[0]].armor === 'boss').length};
-    G.wave = 59; r.dk = Z.dmgK(api.SITES[0], {id: -1, k: 'shahed'}); G.wave = 0; api.startDemo(); r.after = Z.endless.on(); return r; });
-  ok(!PL.en && PL.obj === 8 && PL.hud === 'WAVE 1/8 NEXT' && /Hold 8 waves/.test(PL.strip) && PL.b === 1 && PL.dk === 1 && !PL.after, 'Old Mill afterwards is the plain campaign sector: 8 waves, no climb (one boss on wave 60, a hit counts x1), and leaving it turns Endless off');
-
-  // ---- the bots can play it (the bench hook), and it is off by default ----
   // ---- the late-game sink: past wave 40 upkeep and repairs grow with the wave, so the purse of a strong run stays bounded (up to wave 40 they cost what they always did) ----
   const SINK = await p.evaluate(() => { const {Z, G, api} = __z, E = Z.endless, o = {};
     E.start('gate'); const R = Z.cp.run, def = Z.def;
@@ -2723,6 +2723,12 @@ if (want('endless')) {
   const sOn = SINK.on, sOff = SINK.off, peak = Math.max(...Object.values(sOn || {}), 0), k$ = v => '$' + Math.round(v / 1000) + 'K';
   ok(!SINK.err && !sOff?.err && peak < 1e6 && sOn[90] < sOn[75] && sOn[90] < sOff[90] * .25 && sOff[90] > 3e6, `Endless sink: in a scripted strong run (14 racks, $20,000 each, ordinary income of 18 x wave squared, real clears and repairs) the purse peaks at ${k$(peak)} and is falling by wave 90 (${k$(sOn?.[75])} at 75, ${k$(sOn?.[90])} at 90), where the same run without the sink holds ${k$(sOff?.[75])} / ${k$(sOff?.[90])}${SINK.err ? ' ' + SINK.err : ''}`);
 
+  // ---- a campaign sector after it is a plain campaign sector ----
+  const PL = await p.evaluate(() => { const {Z, G, api, KIND} = __z; Z.cp.start('mill', true); const r = {en: Z.endless.on(), obj: Z.cp.run?.obj, hud: (Z.hud(0), document.getElementById('zw').textContent), strip: document.querySelector('#zbase .zcpbar')?.textContent || '', b: __z.plan(60).list.filter(k => KIND[k.split(':')[0]].armor === 'boss').length};
+    G.wave = 59; r.dk = Z.dmgK(api.SITES[0], {id: -1, k: 'shahed'}); G.wave = 0; api.startDemo(); r.after = Z.endless.on(); return r; });
+  ok(!PL.en && PL.obj === 8 && PL.hud === 'WAVE 1/8 NEXT' && /Hold 8 waves/.test(PL.strip) && PL.b === 1 && PL.dk === 1 && !PL.after, 'Old Mill afterwards is the plain campaign sector: 8 waves, no climb (one boss on wave 60, a hit counts x1), and leaving it turns Endless off');
+
+  // ---- the bots can play it (the bench hook), and it is off by default ----
   const BH = (await import('node:fs')).readFileSync(new URL('./zombies-bench.mjs', import.meta.url), 'utf8');
   ok(/'--endless'/.test(BH) && /!ENDLESS/.test(BH) && /Z\.endless\.start\(id\)/.test(BH) && /ENDLESS \? campDone/.test(BH), 'Bench hook: tools/zombies-bench.mjs --endless [sector] plays Endless on a finished campaign, never writes zbench.json, and is off unless asked for');
 
@@ -2927,7 +2933,7 @@ if (want('explore')) {
   /* the numbers this section holds the bot to (real-flying benchmark, Champion on Normal, fresh profile: median wave 36.5 over 20 runs before roaming and sorties; cells by wave 12: 208 before, 323 after). BASE_WAVE sits below the benchmark's quarter-point so a bad draw of three does not fail it; the coverage floors sit well under what the bot reaches. */
   /* CI (software GL on a slow runner, the shard has 20 minutes and a retry) runs the light version: one Champion run to wave 13 (the coverage floors are read at wave 12) instead of three to wave 30, beside the full-purse run of two waves from wave 15 instead of five (two windows, not four contexts), the visual run and the campaign
      choice on one page; the same assertions with floors that one run clears (3 standard deviations under what a run reaches by wave 12: a single run is a wider draw than the median of three; it reaches 13 in all but about 1 run in 20, and the shard retries once). Locally: the full one. */
-  const BASE_CAP = CI ? 13 : 30, BASE_WAVE = CI ? 13 : 26, COV_CELLS = CI ? 230 : 240, COV_PLACES = CI ? 12 : 15, COV_SYS = CI ? 14 : 18, N_RUNS = CI ? 1 : 3, SYS_WAVES = CI ? 2 : 5;
+  const BASE_CAP = CI ? 13 : 30, BASE_WAVE = CI ? 13 : 26, COV_CELLS = CI ? 230 : 240, COV_PLACES = CI ? 12 : 15, COV_SYS = CI ? 14 : 18, N_RUNS = CI ? 1 : 3, SYS_WAVES = CI ? 2 : 5, SHOP_ACT = CI ? 3 : 4;  /* SHOP_ACT: kinds of shop action in the full-purse window; two waves draw three or four (CI failed one run in five on 3), five waves four or more */
   const T0 = Date.now(), lap = n => console.log(`  [explore ${n}: ${Math.round((Date.now() - T0) / 1000)} s]`);
   const KINDS = ['shop', 'launch', 'station', 'transit', 'intercept', 'lock', 'line', 'boss', 'sortie', 'bomb', 'return', 'strike', 'relaunch', 'idle'];
   // 1. the visual run: the leaderboard's flying results, the HUD line, Z.bot.intent, and a sortie flown frame by frame (the shop waits for it, then goes on)
@@ -3001,7 +3007,7 @@ if (want('explore')) {
   const S = RS.sum.s;
   console.log('  systems run (wave 15, $60,000):', S.systems + '/' + S.systemsTotal, S.systemIds.join(','), '| unused:', S.unused.join(','));
   const has = pre => S.systemIds.filter(i => i.startsWith(pre)).length;
-  ok(S.systems >= COV_SYS && has('wpn:') + has('def:') >= 2 && has('swarm:') >= 2 && has('perk:') >= 2 && S.systemIds.includes('lock') && has('shop:') >= 4, `Explore: a full purse from wave 15 uses ${S.systems} of ${S.systemsTotal} systems (arsenal ${has('wpn:') + has('def:')}, swarm commands ${has('swarm:')}, perks ${has('perk:')}, lock-on, shop actions ${has('shop:')}; at least ${COV_SYS})`);
+  ok(S.systems >= COV_SYS && has('wpn:') + has('def:') >= 2 && has('swarm:') >= 2 && has('perk:') >= 2 && S.systemIds.includes('lock') && has('shop:') >= SHOP_ACT, `Explore: a full purse from wave 15 uses ${S.systems} of ${S.systemsTotal} systems (arsenal ${has('wpn:') + has('def:')}, swarm commands ${has('swarm:')}, perks ${has('perk:')}, lock-on, shop actions ${has('shop:')} of at least ${SHOP_ACT}; at least ${COV_SYS} systems)`);
   ok(RS.sum.s.stuck === 0, 'Explore: and sat still nowhere');
   const errs = [...RUNS, RS].flatMap(r => r.errs);
   ok(!errs.length, 'Explore: headless runs: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
@@ -3023,7 +3029,9 @@ if (want('director')) {
     const at = (b, R) => [Math.sin(b) * R, 1950 - Math.cos(b) * R], did = {}; let t = 0, boss = null;
     dir.wipe();
     while (G.state !== 'over' && t < 330 && !(G.state === 'base' && t > 5)) {
-      for (let i = 0; i < 12; i++) api.step(TICK); api.visuals(.1, performance.now()); t += .1;
+      for (let i = 0; i < 12; i++) api.step(TICK);
+      if (M.tFlip == null && G.state !== 'wave' && G.state !== 'clear') M.tFlip = dir.now;  /* the wave ended in these steps: from the next tick the director wipes its books (the lock goes with them) and the shot on air finishes on its own */
+      api.visuals(.1, performance.now()); t += .1;
       if (!did.a && t > 2) { did.a = 1; for (const [b, k] of [[-1.1, 'shahed'], [0, 'shahed'], [1, 'shahed'], [.4, 'jet'], [-.5, 'jet'], [.1, 'heavy']]) { const [x, z] = at(b, 3800); __z.make(k, x, z); }
         for (let i = 0; i < 8; i++) { const [x, z] = at(.8, 3600), u = __z.make('swarm', x + i * 20, z + i * 10); u.grp = 77; } }
       if (!did.b && t > 12) { did.b = 1; boss = __z.make('boss', 0, -3200); }
@@ -3048,7 +3056,7 @@ if (want('director')) {
     }
     for (let i = 0; i < 4; i++) { api.step(TICK); api.visuals(.1, performance.now()); Z.cam(.1); }
     Z.flash = f0; M.t = +t.toFixed(1); M.state = G.state; M.end = [G.kills.p + G.kills.h];
-    M.log = dir.log.map(l => ({kind: l.kind, type: l.type, why: l.why, t0: +l.t0.toFixed(2), t1: +l.t1.toFixed(2), locked: l.locked, dist: Math.round(l.dist)}));
+    M.log = dir.log.map(l => ({kind: l.kind, type: l.type, why: l.why, t0: l.t0, t1: l.t1, locked: l.locked, dist: Math.round(l.dist)}));  /* the clock as it was: rounded to hundredths, a cut stamped 8.2168 reads 8.22 and a boom of the same reading (which came after it) looked earlier */
     M.stats = dir.stats; M.leaks = dir.leaks(); M.min = dir.MINL; M.ev = dir.slots.filter(s => s.ev && s.s > 0).length;
     return M; } catch (e) { return {error: String(e.stack).slice(0, 1200)}; } });
   if (run.error) { console.log('  ' + run.error); ok(false, 'Director: the scripted wave ran'); } else {
@@ -3064,7 +3072,8 @@ if (want('director')) {
     const rule = L.filter(l => ['end', 'better'].includes(l.why)), early = rule.filter(l => dur(l) < run.min - .05), hard = L.filter(l => l.why === 'interrupt' && dur(l) < 1.8 - .05);
     ok(rule.length >= 5 && !early.length && !hard.length, `Director: shots keep their minimum (${run.min} s; interrupts 1.8 s): shortest ${Math.min(...rule.map(dur)).toFixed(1)} s of ${rule.length} planned cuts, ${L.filter(l => l.why === 'interrupt').length} interrupts` + (early.length ? ' ' + JSON.stringify(early) : ''));
     /* the director's clock moves at its tick and the sim steps run between ticks: a boom stamped with the same reading as a cut came after that cut, so only an earlier stamp can hold it */
-    const bad = rule.filter(l => l.locked || run.booms.some(b => b.vis && b.k >= 1.2 && b.t < l.t1 - 1e-6 && l.t1 - b.t < b.hold - .15));
+    /* the rule is for the wave: once it is over (the base screen opened) the director drops the lock with everything else and the last shot may end whenever it is due */
+    const bad = rule.filter(l => l.t1 <= (run.tFlip ?? Infinity) && (l.locked || run.booms.some(b => b.vis && b.k >= 1.2 && b.t < l.t1 - 1e-6 && l.t1 - b.t < b.hold - .15)));
     ok(run.booms.filter(b => b.vis && b.k >= 1.2).length >= 5 && !bad.length, `Director: no planned cut while an explosion in view was still going (${run.booms.filter(b => b.vis && b.k >= 1.2).length} explosions in view)` + (bad.length ? ' ' + JSON.stringify(bad) + ' booms: ' + JSON.stringify(run.booms.filter(b => b.vis && b.k >= 1.2 && bad.some(l => b.t < l.t1 && l.t1 - b.t < b.hold + 1))) : ''));
     ok(run.cineHeld === true, "Director: it steps aside while the game's own boss fly-by cinematic has the camera");
     ok(/MOTHERSHIP/.test(run.card) && run.cardOn && /\d+ DOWN/.test(run.kb), `Director: lower-third name card on the boss's arrival ("${run.card.replace(/\s+/g, ' ')}") and a kill count ("${run.kb}")`);
