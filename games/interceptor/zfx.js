@@ -139,11 +139,11 @@ export function initFX(api,G,Z){
  let hRad=0;
  function flushKills(){if(!KB.length)return;const P=[],H=[];for(const k of KB)(k.ply?P:H).push(k);KB.length=0;W.you+=P.length;W.help+=H.length;
   const clutchOf=k=>{const K=KIND[k.t.k]||KIND.shahed;return K.dmg>0&&Math.hypot(k.t.aim.x-k.t.p.x,k.t.aim.z-k.t.p.z)<CLUTCH_R};
-  const boss=[...P,...H].find(k=>k.t.k==='boss');if(boss){if(CN.on)endCine();W.boss++;au.bossDown();an.say('MOTHERSHIP DESTROYED',money(boss.c)+(boss.ply?' · your kill':''),'#ff9a3c',3);slowmo(.15,1.1,.9,.08);killCam(boss.t);
+  const boss=[...P,...H].find(k=>k.t.k==='boss');if(boss){if(CN.on)endCine();W.boss++;au.bossDown();an.say('MOTHERSHIP DESTROYED',(Z.practice?.on?'practice':money(boss.c))+(boss.ply?' · your kill':''),'#ff9a3c',3);slowmo(.15,1.1,.9,.08);killCam(boss.t);
    an.radio('OVERLORD',pick(['Mothership is down! Outstanding.','Splash the Mothership! Great work.','The carrier is down. Mop up the swarms.']),2)}
   if(P.length){const n=P.length,cash=P.reduce((a,k)=>a+k.c,0),cs=P.filter(clutchOf).length,me=api.player,dead=me&&me.dead>0;W.clutch+=cs;W.multi=Math.max(W.multi,n);W.streak=Math.max(W.streak,G.streak);
    const lead=P.find(clutchOf)||P[0],K=KIND[lead.t.k]||KIND.shahed;
-   if(!boss){const sub=[];if(G.streak>=2)sub.push('STREAK ×'+G.streak);sub.push('+'+money(cash));
+   if(!boss){const sub=[];if(G.streak>=2)sub.push('STREAK ×'+G.streak);if(!Z.practice?.on)sub.push('+'+money(cash));  /* nothing is paid in a practice run */
     if(n>=2)an.say(['','','DOUBLE KILL','TRIPLE KILL','QUAD KILL'][n]||'MULTI KILL ×'+n,sub.join(' · '),'#ffc640',2);
     else if(cs)an.say('CLUTCH SAVE',`${Math.round(Math.hypot(lead.t.aim.x-lead.t.p.x,lead.t.aim.z-lead.t.p.z))} m from the ${lead.t.tgt.n.toLowerCase()} · ${sub.join(' · ')}`,'#5fe3ff',2);
     else an.say((lead.t.k==='decoy'&&!lead.t.ident?'SHAHED':K.tag)+' DOWN',sub.join(' · '),'#3ddc84',1)}
@@ -240,8 +240,8 @@ export function initFX(api,G,Z){
  addEventListener('pointerdown',()=>{if(CN.on)endCine()},true);
 
  // ---------- wrapped hooks ----------
- const c0=Z.continue;Z.continue=()=>{c0();if(!G.on)return;newWave();an.sumHide();RQ.clear();const boss=TH.some(t=>t.k==='boss')||(G.wq||[]).some(q=>q.k==='boss');au.siren(boss);au.sting(boss);FR.art=rnd(2,5);FR.aa=rnd(4,9);
-  if(boss)an.say('MOTHERSHIP INBOUND','air raid warning','#ff4d4d',3);an.radio('OVERLORD',boss?`Air raid warning. Wave ${G.wave}: heavy contact, all units stand to.`:pick([`Air raid warning. Wave ${G.wave}, all units stand to.`,`Wave ${G.wave} incoming. Air raid warning is up.`,`Radar has new tracks. Wave ${G.wave}, stand to.`]),1)};
+ const c0=Z.continue;Z.continue=()=>{c0();if(!G.on)return;newWave();an.sumHide();RQ.clear();const boss=TH.some(t=>t.k==='boss')||(G.wq||[]).some(q=>q.k==='boss');if(!Z.practice?.on){au.siren(boss);au.sting(boss)}FR.art=rnd(2,5);FR.aa=rnd(4,9);  /* a practice run has no air raid warning: the briefing's own line says what is coming (zpractice.js) */
+  if(Z.practice?.on)return;if(boss)an.say('MOTHERSHIP INBOUND','air raid warning','#ff4d4d',3);an.radio('OVERLORD',boss?`Air raid warning. Wave ${G.wave}: heavy contact, all units stand to.`:pick([`Air raid warning. Wave ${G.wave}, all units stand to.`,`Wave ${G.wave} incoming. Air raid warning is up.`,`Radar has new tracks. Wave ${G.wave}, stand to.`]),1)};
  const st0=Z.step;Z.step=dt=>{st0(dt);trB=Math.min(trB+dt*400,40);seeTracks();helpersTick();wrecks();
   if(G.state!==W.st){const was=W.st;W.st=G.state;if(G.state==='clear'&&was==='wave'){an.summary(G.wave,{...W,perfect:G.perfect,cash:G.earned-W.e0});au.clearChord();an.radio('OVERLORD',pick(['All tracks down. Good work.','Sky is clear. Rearm and stand by.','Raid defeated. Well done.']),1)}
    if(G.state==='over'){au.rumble(.5,0,4);an.radioClear?.()}}};

@@ -231,13 +231,13 @@ export function initRadio(api,G,Z){
  /* ---------- the wave edges ---------- */
  function stateTick(){const st=G.state;if(st===st0)return;const was=st0;st0=st;
   if(st==='wave'&&was!=='clear'){critW=false;SWG.clear();batF=0;const q=G.wq||[],n=q.reduce((a,e)=>a+(+String(e.k).split(':')[1]||1),0)+TH.reduce((a,t)=>a+(api.live(t)&&!KIND[t.k]?.minor?1:0),0),big=q.some(e=>{const k=String(e.k).split(':')[0];return k==='boss'||KIND[k]?.bossy&&!KIND[k].minor});
-   say('wave',1,BASE,big?pick([`Wave ${G.wave}: heavy contact expected. All units stand to.`,`Air raid warning. Wave ${G.wave}, and something big is coming.`]):
+   Z.practice?.on||say('wave',1,BASE,big?pick([`Wave ${G.wave}: heavy contact expected. All units stand to.`,`Air raid warning. Wave ${G.wave}, and something big is coming.`]):
     !n?pick([`Wave ${G.wave}. Air raid warning is up.`,`Stand to, wave ${G.wave}.`]):
     pick([`Wave ${G.wave}. Air raid warning is up, about ${num(n)} track${n>1?'s':''} on the way.`,`Stand to, wave ${G.wave}. Radar shows ${num(n)} contact${n>1?'s':''} launching.`,`Wave ${G.wave} incoming, about ${num(n)} track${n>1?'s':''}.`]),{nb:1})}  /* nb: the wave's edges are not held back by the budget */
   else if(st==='clear'&&was==='wave'){let hp=0,mx=0;for(const s of SITES){hp+=Math.max(0,s.hp);mx+=s.max}
    say('wave',2,BASE,G.perfect?pick([`Sky is clear. Wave ${G.wave} held, no damage.`,`Wave ${G.wave} defeated without a scratch.`]):pick([`Sky is clear. Wave ${G.wave} held, integrity ${pc(mx?hp/mx:1)}.`,`All tracks down. Wave ${G.wave} is over, integrity ${pc(mx?hp/mx:1)}.`]),{nb:1})}
   else if(st==='base')hush();
-  else if(st==='over')say('wave',3,BASE,pick(['All sites are lost. That is the end.','The defence has collapsed.']),{over:true})}
+  else if(st==='over')Z.practice?.on||say('wave',3,BASE,pick(['All sites are lost. That is the end.','The defence has collapsed.']),{over:true})}
 
  /* ---------- the old subtitle: while the chatter is on, its generic lines are dropped (covered above) and its scripted ones come through here ---------- */
  const an=Z.an;

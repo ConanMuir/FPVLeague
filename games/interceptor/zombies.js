@@ -32,6 +32,7 @@ import './zboss-roster.js';
 import {initEW} from './zew.js';
 import {initSell} from './zsell.js';
 import {initCodex} from './zcodex.js';
+import {initPractice} from './zpractice.js';
 import {initOnboard} from './zonboard.js';
 import {initRadio} from './zradio.js';
 import {initScars} from './zscars.js';
@@ -80,7 +81,7 @@ export function initZombies(api){
   txt($('zs'),G.streak>1?`STREAK ×${G.streak}`:'');hide($('zs'),G.streak<2);
   const sh=SITES.map(s=>`<span class="${s.hp>0?(s.hp<s.max*.35?'lo':''):'dead'}">${s.n} ${Math.max(0,Math.ceil(s.hp))}/${s.max}</span>`).join('');if(sh!==lastSites)$('zsites').innerHTML=lastSites=sh;
   if(!Z.warnHud){const HT=hardT();const hw=HT.length?HT.sort((a,b)=>ttImpact(a)-ttImpact(b)).slice(0,3).map(t=>`${KIND[t.k].tag} → ${t.tgt.n} ${Math.ceil(ttImpact(t))} s`).join(' · '):'';if(hw!==G.hw)$('zwarn').textContent=G.hw=hw}  /* zwarn.js draws the alert panel when loaded */
-  let live=0;for(const t of TH)if(api.live(t))live++;txt($('zinb'),G.state==='wave'?`INBOUND ${live+G.wq.length}`:'')};
+  let live=0;for(const t of TH)if(api.live(t))live++;txt($('zinb'),Z.inbTxt?.()??(G.state==='wave'?`INBOUND ${live+G.wq.length}`:''))};  /* Z.inbTxt: a practice run's own label (zpractice.js) */
  const integrity=()=>{let hp=0,max=0;for(const s of SITES){hp+=Math.max(0,s.hp);max+=s.max}return{hp,max}};
 
  // ---------- start / stop ----------
@@ -351,6 +352,7 @@ export function initZombies(api){
  initEndless(api,G,Z);  /* Endless (zendless.js): after the campaign, a sector with no objective whose waves keep climbing; wraps the campaign's hooks, so it goes last */
  initBuddy(api,G,Z);  /* Little Buddy (zbuddy.js): your Drone League garage quad flies as a free helper; it only adds to the step / visuals / overlay / radar / start / stop / lock hooks */
  initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
+ initPractice(api,G,Z);  /* boss practice (zpractice.js): a one-on-one run against a boss from the Enemies screen; after the codex it takes its buttons from, before debug mode so a marked run keeps its best time out of the save */
  initTypes(api,G,Z);  /* craft types (ztypeui.js, ztypes.js): the Dart or the Plane; the picker on the start card and the base screen, the HUD panel, the radio line, the saved choice */
  initDebug(api,G,Z);  /* debug mode (zdebug.js): off unless ?debug=1 or Ctrl+Shift+D; a panel with cheats, readouts and the developer report; a marked run saves nothing; the outermost wrapper, so it goes last */
  return Z}
