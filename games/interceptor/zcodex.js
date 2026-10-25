@@ -160,7 +160,7 @@ export function initCodex(api,G,Z){
  const all=()=>{if(force)return force==='all';try{if(sessionStorage.getItem('zcodex')==='all')return true}catch(e){}return!!window.__z?.spec?.on};
  let _ids=null;const ids=()=>_ids||(_ids=[...KNOWN,...Object.keys(BOSSES).filter(k=>!KNOWN.includes(k)&&!BOSSES[k].minor&&!BOSSES[k].child)]);  /* the registry is complete once the roster is imported */
  const load=()=>cleanCodex(S.zcodex,ids()),put=c=>{S.zcodex=c;save();sync()};
- const writes=()=>B.roster!==false&&!all()&&!Z.mirror&&!api.demo&&G.on;  /* roster false: the harness's plain Zombies sections leave the save alone */
+ const writes=()=>B.roster!==false&&!all()&&!Z.mirror&&!api.demo&&G.on&&!Z.practice?.on;  /* roster false: the harness's plain Zombies sections leave the save alone; a practice run (zpractice.js) counts nothing toward the codex */
  const info=id=>{const D=BOSSES[id];if(id==='boss')return{debut:10,fixed:1};const sp=D?.spawn;if(!sp)return null;const ev=sp.event||null;
   return{debut:Math.max(10,sp.boss??ev?.from??10),event:ev,can:D.can?w=>D.can(C,w):null}};
  const camp=()=>{const r=Z.cp?.run;return r&&!r.endless?r:null};  /* a campaign sector's run; an Endless run (zendless.js) is not one: it plays the Quick defence rotation and the pool, with no set piece */
@@ -244,8 +244,10 @@ export function initCodex(api,G,Z){
    <div class="zcdxn"><h3>${esc(r.name)}</h3><em>${bt?'BEATEN':r.st==='seen'?'MET':'UNKNOWN'}</em></div>
    ${bt?`<p class="zcdxd">${esc(r.one)}</p><p class="zcdxtr">${r.tr?`<b>Trophy: ${esc(r.tr.n)}</b> ${esc(r.tr.short)}`:'No trophy: the classic boss pays cash only.'}</p>
     <p class="zcdxm">${r.pool?`Quick defence from wave ${r.from}`:r.tog?'Comes when a site is neglected':'Appears only when you find it'}${r.met?` · beaten ${r.won}×`:''}</p>
-    ${r.tog?togBtn(r):''}`
-   :`<p class="zcdxh">${esc(r.hint)}</p>${r.free&&r.tog?`<p class="zcdxm">In Quick defence from wave ${r.from}, from the start</p>${togBtn(r)}`:''}`}</article>`}
+    ${acts(r)}`
+   :`<p class="zcdxh">${esc(r.hint)}</p>${r.free&&r.tog?`<p class="zcdxm">In Quick defence from wave ${r.from}, from the start</p>${acts(r)}`:''}`}</article>`}
+ /* a card's buttons: the Allowed switch and, for a boss you can practise against (the beaten ones and the free baseline boss), the Practice button (zpractice.js) */
+ const acts=r=>{const a=r.tog?togBtn(r):'',b=Z.practice?.btn(r.id)||'';return a||b?`<div class="zcdxbt">${a}${b}</div>`:''};
  const togBtn=r=>`<button class="sm zcdxa ${r.allowed?'on':''}" data-allow="${r.id}" aria-pressed="${r.allowed}" title="${r.allowed?'This boss can come to Quick defence':'Quick defence will not send this boss'}">${r.allowed?'Allowed ✓':'Blocked'}</button>`;
  function render(){const R=rows(),c=count(),a=all();
   ov.innerHTML=`<div class="zpanel zcdxp" role="dialog" aria-modal="true" aria-label="Enemies"><header><div><h2>Enemies</h2><div class="zcdxs"><b>${c.n}</b> of ${c.of} bosses beaten${a?' · <span class="co">bots and tests: everything unlocked</span>':''}</div></div>
@@ -285,9 +287,11 @@ export function initCodex(api,G,Z){
  Z.cdxBrief=id=>{const S0=SET[id];if(!S0)return'';const bt=load().b[S0.boss]?.beaten;
   return`<div class="zcdxbr ${bt?'bt':''}" title="Beat a sector's boss to add it to your codex (Enemies)"><span>Boss event · wave ${S0.wave}</span><b>${bt?esc(name(S0.boss)):'???'}</b>${bt?'<em>in your codex</em>':''}</div>`};
  /* what this run added to the codex, on the sector result and the game-over screen */
- const newTxt=()=>{const L=G.cdx.new;return L.length?`<p class="zhint zcdxnew"><b>Enemies:</b> ${L.map(id=>`<b style="color:${col(id)}">${esc(name(id))}</b>`).join(', ')} added to your codex. It can now come to Quick defence.</p>`:''};
+ const newTxt=()=>{const L=G.cdx.new;if(!L.length)return'';const pr=Z.practice?.offer(L)||'';  /* the offer: practise it now (zpractice.js; none in co-op) */
+  return`<p class="zhint zcdxnew"><b>Enemies:</b> ${L.map(id=>`<b style="color:${col(id)}">${esc(name(id))}</b>`).join(', ')} added to your codex. It can now come to Quick defence.${pr?` <span class="zcdxpo">${pr}</span>`:''}</p>`};
  const co0=Z.cpOver;if(co0)Z.cpOver=()=>{if(G.on)poll();const r=co0();if(r){const b=$('zover')?.querySelector('.btns'),t=newTxt();if(b&&t)b.insertAdjacentHTML('beforebegin',t)}return r};
- const on0=Z.overNote;Z.overNote=()=>{if(G.on)poll();return(on0?.()||'')+newTxt()};
+ /* the game-over screen puts its notes under the buttons; this one carries the Practice offer, so it moves up over them (as it sits on the sector result) once the screen is drawn */
+ const on0=Z.overNote;Z.overNote=()=>{if(G.on)poll();const t=newTxt();if(t)setTimeout(()=>{const o=$('zover'),n=o?.querySelector('.zcdxnew'),b=o?.querySelector('.btns');if(n&&b&&b.compareDocumentPosition(n)&Node.DOCUMENT_POSITION_FOLLOWING)b.before(n)},0);return(on0?.()||'')+t};
 
  Z.codex={get c(){return load()},rows,view,pool,plan,all,force:v=>{force=v||null},open,close,note,poll,shot,url,pixels,count,sync,SET,ORDER,SECRET,DEX,
   set(id,field,v){const c=load();if(!ids().includes(id))return false;const e=c.b[id]||(c.b[id]={seen:false,beaten:false,allowed:true});e[field]=v;if(field==='beaten'&&v)e.seen=true;put(c);return true},
