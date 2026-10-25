@@ -9,6 +9,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {seeded} from '../../engine/util.js';
 import {ORDER,sectorOf} from './zdata.js';
 import {warmers} from '../../engine/idle.js';
+import {freeze} from '../../engine/hot.js';
 const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a);
 
 // clock = sortie length (s); from = first break with sorties (after wave 1); hull = what your drone takes on a sortie; bombs per drone, blast
@@ -75,12 +76,23 @@ export function initSites(api,G,Z,fog){
  const RMAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4});
  warmers.push(()=>{const g=new THREE.BoxGeometry();return[MAT,BURN,RMAT].map(m=>{const o=new THREE.Mesh(g,m);o.castShadow=o.receiveShadow=true;return o})});  /* the sites' materials meet the scene when a run builds them: samples for the warm-up (zwarm.js) */
  const mesh=(g,x,y,z,ry=0,sx=1,sy=1,sz=1)=>{const m=new THREE.Mesh(g,MAT);m.position.set(x,y,z);m.rotation.y=ry;m.scale.set(sx,sy,sz);m.castShadow=m.receiveShadow=true;root.add(m);return m};
+ /* One draw per site for everything that stands still: its pad, crate and net and the hall, launchers and gun bases still up are merged into one mesh in world coordinates (a site was 7 to 13 meshes).
+    The guns' turrets (they aim), the patrols and the trucks (they move) stay their own. Each part keeps its own mesh, hidden, for its wreck: when a part goes it shows its burnt mesh and the site's batch is made again without it. */
+ function batch(t){if(t.t==='convoy')return;const gs=[],ms=[];
+  for(const m of t.extra){m.updateMatrix();gs.push(m.geometry.clone().applyMatrix4(m.matrix));ms.push(m)}
+  for(const p of t.parts)if(p.alive&&p.mesh){p.mesh.updateMatrix();gs.push(p.mesh.geometry.clone().applyMatrix4(p.mesh.matrix));ms.push(p.mesh)}
+  const geo=gs.length?mergeGeometries(gs,false):null;for(const g of gs)g.dispose();if(!geo)return;geo.computeBoundingSphere();
+  if(t.bt){t.bt.geometry.dispose();t.bt.geometry=geo}else{const m=new THREE.Mesh(geo,MAT);m.castShadow=m.receiveShadow=true;root.add(m);freeze(m);t.bt=m}
+  for(const m of ms)m.visible=false;for(const p of t.parts)if(!p.alive&&p.mesh)p.mesh.visible=true}
+ /* the three roads are one mesh (one material, they never move) */
+ function joinRoads(){const geo=mergeGeometries(W.routes.map(r=>r.mesh.geometry),false);if(!geo)return;const m=new THREE.Mesh(geo,RMAT);m.receiveShadow=true;root.add(m);freeze(m);
+  for(const r of W.routes){root.remove(r.mesh);r.mesh.geometry.dispose();r.mesh=m}}
 
  // ---------- the world ----------
  // W.list: targets {id, t: 'convoy'|'launch'|'factory', x, z, y, sec, tier, parts, dead, known, ...}; a part {uid, t, main, aa, x, y, z, r, h, hp, max, alive, mesh}
  const W={seed:1,routes:[],list:[],nid:1,bombs:[],later:[],tr:[],auth:true,ver:0,on:false};
  const kill0=()=>{for(const t of W.list)drop(t);W.list.length=0;for(const r of W.routes){root.remove(r.mesh);r.mesh.geometry.dispose()}W.routes.length=0;  /* each game start builds three new roads (W.reset): the old ones' vertex buffers are freed with them */for(const b of W.bombs)root.remove(b.mesh);W.bombs.length=0;W.later.length=0};
- function drop(t){for(const p of t.parts){if(p.mesh)root.remove(p.mesh);if(p.tur)root.remove(p.tur)}for(const m of t.extra||[])root.remove(m);for(const q of t.pats||[])if(q.mesh)root.remove(q.mesh)}
+ function drop(t){if(t.bt){root.remove(t.bt);t.bt.geometry.dispose();t.bt=null}for(const p of t.parts){if(p.mesh)root.remove(p.mesh);if(p.tur)root.remove(p.tur)}for(const m of t.extra||[])root.remove(m);for(const q of t.pats||[])if(q.mesh)root.remove(q.mesh)}
  const part=(t,o)=>{const p={uid:t.id*16+t.parts.length,t:'',main:false,aa:false,x:0,y:0,z:0,r:3,h:3,hp:1,max:1,alive:true,yaw:0,lock:0,cd:rnd(0,1),los:false,losT:0,tk:null,seen:false,...o};t.parts.push(p);return p};
  // ---------- roads: one per sector, from beyond the map edge through a deep spot to a staging point near the front; 25 m samples ----------
  function mkRoute(R,sec){const S=cands().filter(c=>c.s===sec),pick=(lo,hi)=>{const L=S.filter(c=>c.d>=lo&&c.d<=hi),A=L.length?L:S;return A[R()*A.length|0]};
@@ -119,7 +131,7 @@ export function initSites(api,G,Z,fog){
   if(!o)for(let i=0,n=aaN(ty,w);i<n;i++){const a=t.yaw+(i+.5)/n*Math.PI*2+rnd(-.3,.3),d=ty==='factory'?rnd(70,120):rnd(40,70);addPart(t,'aa',c.x+Math.sin(a)*d,c.z+Math.cos(a)*d,a)}
   {const[x,z]=L(ty==='factory'?-40:16,ty==='factory'?18:-12);t.extra.push(mesh(GEO.crate,x,gh(x,z),z,t.yaw+.4))}
   if(ty==='launch'){const[x,z]=L(-18,-14);const nm=mesh(GEO.net,x,t.y+3.2,z,t.yaw,12,1,9);t.extra.push(nm)}
-  pats(t,w);W.list.push(t);W.ver++;return t}
+  pats(t,w);batch(t);W.list.push(t);W.ver++;return t}
  function addPart(t,ty,x,z,yaw,hp=1,max=1){const y=ty==='aa'?gh(x,z)+.05:t.y,p=part(t,{t:ty,main:ty!=='aa',aa:ty==='aa',x,y,z,yaw,hp,max,r:ty==='hall'?17:ty==='tel'?4.2:2.6,h:ty==='hall'?13:ty==='tel'?4:2.2});
   p.mesh=mesh(ty==='hall'?GEO.hall:ty==='tel'?GEO.tel:GEO.aaBase,x,y,z,yaw);if(ty==='aa'){p.tur=mesh(GEO.turret,x,y+1.5,z,yaw);p.tur.rotation.order='YXZ';p.y=y}
   if(hp<=0)wreck(t,p,true);return p}
@@ -142,7 +154,7 @@ export function initSites(api,G,Z,fog){
  // ---------- wrecks, blasts, bombs ----------
  const fire=(p,k,life)=>Z.fxTest?.fire(p,k,life);
  // a part goes: burnt mesh, its explosion and fire (quiet: rebuilding a client's view, no effects)
- function wreck(t,p,quiet){p.alive=false;p.hp=0;if(p.t==='tel')p.mesh.geometry=GEO.telW;if(p.t==='hall'){p.mesh.geometry=GEO.rubble}p.mesh.material=BURN;if(p.tur)p.tur.visible=false;
+ function wreck(t,p,quiet){p.alive=false;p.hp=0;if(p.t==='tel')p.mesh.geometry=GEO.telW;if(p.t==='hall'){p.mesh.geometry=GEO.rubble}p.mesh.material=BURN;if(p.tur)p.tur.visible=false;if(t.bt)batch(t);
   if(t.t==='convoy'&&p.mesh)p.mesh.rotation.z=rnd(-.12,.12);if(quiet)return;const at=_a.set(p.x,p.y+p.h*.5,p.z).clone();
   api.boom(at,p.t==='hall'?5:p.t==='tel'?3.2:p.t==='aa'?1.8:2.4);fire(at,p.t==='hall'?1.6:1,p.t==='hall'?90:55);
   if(p.t==='tel')W.later.push({t:.45,f:()=>{api.boom(_b.set(at.x,at.y+6,at.z),2.2);api.shake=.3}});
@@ -209,7 +221,7 @@ export function initSites(api,G,Z,fog){
   tracers(dt)};
 
  // ---------- the world over a run: new each game; each break new convoys, rebuilt sites, reinforced guns, fresh patrols ----------
- W.reset=seed=>{kill0();W.seed=seed;W.nid=1;W.ver++;const R=seeded(seed);for(let s=0;s<3;s++)W.routes.push(mkRoute(R,s))};
+ W.reset=seed=>{kill0();W.seed=seed;W.nid=1;W.ver++;const R=seeded(seed);for(let s=0;s<3;s++)W.routes.push(mkRoute(R,s));joinRoads()};
  /* a launch site per sector; a campaign sector's "Enemy launch sites" (zcampaign.js raid, Z.cp.n('launchSites')) gives a second one to the North, then the West, then the East */
  W.populate=w=>{const x=Z.cp?.n?.('launchSites')|0;
   for(let s=0;s<3;s++){const need=1+([1,0,2].indexOf(s)<x?1:0);let have=W.list.filter(t=>t.t==='launch'&&t.sec===s&&(!t.dead||t.rebuild>w)).length;while(have<need&&build('launch',s,w))have++}
@@ -220,7 +232,7 @@ export function initSites(api,G,Z,fog){
   for(const t of W.list)if(t.dead&&t.rebuild==null)t.rebuild=w+(TGT[t.t].rebuild|0);
   W.populate(w);
   for(const t of W.list){if(t.dead)continue;const need=aaN(t.t,w);for(const q of t.parts)if(q.aa&&!q.alive){q.alive=true;q.hp=1;q.mesh.material=MAT;if(q.tur)q.tur.visible=true}
-   let have=t.parts.filter(q=>q.aa).length;while(have<need){const a=Math.random()*6.283,d=t.t==='factory'?rnd(70,120):rnd(40,70);addPart(t,'aa',t.x+Math.sin(a)*d,t.z+Math.cos(a)*d,a);have++}pats(t,w)}
+   let have=t.parts.filter(q=>q.aa).length;while(have<need){const a=Math.random()*6.283,d=t.t==='factory'?rnd(70,120):rnd(40,70);addPart(t,'aa',t.x+Math.sin(a)*d,t.z+Math.cos(a)*d,a);have++}batch(t);pats(t,w)}
   for(const c of cargos)convoy(c.route,w,c);W.ver++};
  W.convoy=convoy;W.build=build;W.wreck=wreck;W.pats=pats;W.place=place;
  W.tierOf=tierOf;W.depth=depth;W.dHome=dHome;W.isHome=(x,z)=>dHome(x,z)<SO.homeR;W.enemy=enemy;W.HOME=HOME;W.root=root;W.cands=cands;W.brg=brg;W.SITE_C=SITE_C;W.GEO=GEO;W.MAT=MAT;
@@ -235,7 +247,7 @@ export function initSites(api,G,Z,fog){
  W.des=o=>{if(!o||typeof o!=='object')return;if(Number.isFinite(o.seed)&&o.seed!==W.seed){W.reset(o.seed)}const seen=new Set();
   for(const a of Array.isArray(o.s)?o.s:[]){if(!Array.isArray(a)||a.length<12)continue;const[id,ty,x,z,sec,tier,ki,built,dead,known,reb,ps]=a;seen.add(id);let t=W.list.find(u=>u.id===id);
    if(!t){t=build(ty?'factory':'launch',sec|0,G.wave,{id,x:+x,z:+z,tier:tier|0,built,kind:KN(ki),parts:(Array.isArray(ps)?ps:[]).map(q=>({t:['tel','hall','aa'][q[0]|0]||'aa',x:+q[1],z:+q[2],yaw:+q[3]||0,hp:q[4]|0,max:q[5]|0||1}))});if(!t)continue}
-   t.known=t.known||!!known;t.rebuild=reb>=0?reb:undefined;if(Array.isArray(ps))ps.forEach((q,i)=>{const p=t.parts[i];if(!p)return;if(p.alive&&!(q[4]>0))lateWreck(t,p);else if(!p.alive&&q[4]>0){p.alive=true;p.mesh.material=MAT;if(p.tur)p.tur.visible=true}p.hp=q[4]|0});
+   t.known=t.known||!!known;t.rebuild=reb>=0?reb:undefined;if(Array.isArray(ps))ps.forEach((q,i)=>{const p=t.parts[i];if(!p)return;if(p.alive&&!(q[4]>0))lateWreck(t,p);else if(!p.alive&&q[4]>0){p.alive=true;p.mesh.material=MAT;if(p.tur)p.tur.visible=true;batch(t)}p.hp=q[4]|0});
    if(dead&&!t.dead){t.dead=true;W.onDead?.(t,null,true)}t.dead=!!dead}
   for(const a of Array.isArray(o.c)?o.c:[]){if(!Array.isArray(a)||a.length<9)continue;const[id,ri,ki,n,all,sn,ls,done,ps]=a;seen.add(id);let t=W.list.find(u=>u.id===id);
    if(!t){t=convoy(ri|0,G.wave,{k:KN(ki),n:n|0,all:!!all},{id,parts:(Array.isArray(ps)?ps:[]).map(q=>({t:q[0]?'aat':'truck',s:+q[1]||0,hp:q[2]?1:0}))});if(!t)continue}

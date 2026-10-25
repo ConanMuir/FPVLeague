@@ -21,13 +21,15 @@ Branch `perf-hotpaths` (2026-10-20). The goal is a smoother Zombies without losi
   CPU or 25 ms of interval, with the event before it, and **every shader compile over 20 ms with the material and object that caused it**.
 - `node tools/zombies-perf-shots.mjs OUTDIR [views]` and `--diff A B`: same-seed, fixed-camera screenshots (forest, sites, high, smoke, burn,
   storm, snow, overcast, night, thermal) to compare two builds picture for picture.
-- `node tools/zombies-regress.mjs [w1,w20boss,fixed60,tracks400,base,endless60,spec,coop,hush,hushq,jammer,buddy,guide,codex] [--reps=3] [--sec=3] [--json=f] [--off=Scars,Radio] [--cam=chase] [--funcs] [--draws]`
+- `node tools/zombies-regress.mjs [w1,w20boss,fixed60,tracks400,base,endless60,spec,coop,hush,hushq,jammer,buddy,buddyv,guide,codex] [--reps=3] [--sec=3] [--json=f] [--off=Scars,Radio] [--cam=chase] [--funcs] [--draws]`
   (2026-10-23): the same scenes on any checkout, to compare two builds number for number (copy the file into an older worktree's `tools/`).
   The game's own frame (`engine/loop.js`) is called from the page by a timer, one every 16.7 ms, so a busy machine cannot starve the measurement of frames
   (see "The measurement" in section 6). Per scene: CPU ms per frame of the renderer's main thread (Chrome's ThreadTime), the time of the game frame
   (p50 / p95 / p99 / worst, frames over 8 ms) and of the gap between frame starts, draw calls, GC, allocation per frame, and the CPU and the allocation per source file.
   `--off=Scars,Radio` switches those modules' frame and tick hooks off (the names are the `initX` calls in `zombies.js`): the difference to a `--wrap` run is the
   module's cost. `--funcs` lists the hottest functions, `--draws` the draw calls by object.
+- `node tools/zombies-parity.mjs buddy|sites OUTDIR` and `--cmp A B` (2026-10-24): pixel parity of what a merge or a batch touches (Little Buddy's model, the enemy sites), drawn by the game's renderer into a render target from
+  fixed cameras with nothing else in the scene, so two builds compare exactly; also the draw calls and meshes per view (section 7).
 - `DL_HIGHGPU=1` (tools/browser.mjs) starts headless Edge with `--force_high_performance_gpu`. Without it, headless Edge on this laptop
   draws on the **Intel iGPU**.
 - `DL_NORENDER=1` skips draw calls: use it for the CPU side only.
@@ -320,3 +322,65 @@ in 10 of the 79 windows (in all three builds: the spectator, the 400-track scene
 - **Endless's track cap**: a track costs 0.0056 ms of CPU a frame after the fix (0.015 before; from 60 to 400 tracks), so the cap of 600 is about 6.3 ms on this machine (11.9 before): inside the 120 Hz budget
   (8.3 ms), but the 240 Hz budget (4.2 ms) is gone at about 160 tracks. A lower cap, or thinning the far swarm drones' sim, is the lever if 240 Hz matters in Endless.
 - The Director's scoring rate, the scar caps (256 / 128 / 64) and the radio's speech were looked at and need no change: under 0.02 ms each in the worst scenes.
+- The radar labels, Little Buddy's merge, the enemy bases' batch, the audio context and the Endless ceiling are done: section 7.
+
+## 7. The five proposals of section 6, made and measured (2026-10-24, branch `zombies-perf2`)
+
+**Method.** Before = `origin/main` at 278db25 in its own worktree, after = this branch, the same tools on both: `tools/zombies-regress.mjs`, `tools/zombies-hitch.mjs` and the new
+`tools/zombies-parity.mjs` (pixels), on the RTX (`DL_HIGHGPU=1`), headless Edge, 1280×720, the menu warm-up finished. The regress and hitch runs were **interleaved** (before, after, before, ...; the
+order flips every round), three rounds of one fresh page each, medians. The machine was shared again (load 7–50% in the runs): the whole-frame CPU rows move by ±0.3 ms between runs of the same build,
+so the numbers that carry each item are the ones that do not depend on the load: draw calls, objects, allocation, the profiler's per-function time and, for the pixels, a render target. New scene
+`buddyv` in the regress tool: the same as `buddy` with the camera on the buddy (the chase camera never has it in view in `buddy`, so its draws were not in that frame).
+
+| item | measure (tool) | before | after |
+|---|---|---|---|
+| 1 radar labels | `radar()` self time with its natives, 400 tracks (`zombies-regress tracks400 --funcs`, 3 rounds) | 0.29 / 0.38 / 0.37 ms per frame | **0.20 / 0.19 / 0.18** (the `fillText` part 0.16–0.20 → 0.02–0.05) |
+| | labels written by one repaint with 120 tracks in range (`zombies-test` endless section) | 120 | **≤ 41** (the 40 nearest and the selected one); every blip is still drawn |
+| | garbage from `interceptor.js` at 400 tracks | 109 KB per frame | 87 KB per frame |
+| 2 Little Buddy | meshes in the model (the League builder's 14 frame meshes, 4 blades, 4 discs) | 22–23, 17–18 of them casting shadows | **8**, 6 casting |
+| | draws of the model, main + shadow pass (`zombies-parity buddy`) | 39–41 | **14** |
+| | CPU of one `renderer.render` of the model alone (150-frame loop, median of 7, 7 loadouts) | 0.061–0.067 ms | **0.028–0.035 ms** |
+| | pixels, 7 loadouts × 4 cameras, 28 renders of 240,000 px | | 15 pixels differ (silhouette-edge specks, 6 of them far off), mean difference under 0.006 / 255 |
+| 3 enemy sites | draw calls of the sites' group in the scene (`zombies-regress w20boss --draws`) | 31 per frame | **10** (the whole frame: 184 → 161 calls; `tracks400` 166 → 145; objects 491 → 469) |
+| | six sites (3 launch, 3 factory; a launcher, a gun and a hall wrecked), 18 views (`zombies-parity sites`): visible meshes | 77 | **39** |
+| | main + shadow draws per view | 32, 21, 22, 27, 34, 40, 14, 19 ... | 17, 11, 11, 12, 20, 20, 7, 10 ... |
+| | pixels of those 18 renders (210,000–400,000 lit px each) | | mean difference ≤ 0.02 / 255; at most 143 px over 15 levels (coplanar slabs z-fighting differently) |
+| 4 audio context | the first Play click of a session (`zombies-hitch`, 3 rounds): JS of the click, frame CPU, worst frame interval | 138 / 186 / 653 ms*, 155 / 216 / 698 ms, 167 / 283 / 767 ms | **14 / 40 / 49 ms**, 26 / 75 / 107 ms, 33 / 150 / 183 ms |
+| 5 Endless ceiling | most tracks alive at once, a full defence, no pilot, waves 25 / 30 / 40 / 50 / 60 / 80 | 84, 106, 222, 293, **417**, **579** | 83, 108, 195, 267, **400**, **400** |
+| | `endless60` (wave 60, 30 s in): tracks on the field, CPU thread, frame average, p99, calls, KB per frame | 420 / 444 / 423; 4.96, 3.95, 5.3 ms, 222, 324 | **347–388; 4.52, 3.58, 4.7 ms, 178, 274** (items 1 and 3 are in this too) |
+
+\* round 3's baseline click also uploaded 15 textures: the warm-up was not finished, which says nothing about the context. The whole-frame time of the other scenes did not move beyond the load's noise
+(`w20boss` 2.79 → 2.79 ms of thread time, `buddy` 2.71 → 2.74, `tracks400` 4.32 → 4.34): a draw call is a microsecond or two of submission here (the buddy's 25 fewer draws are 0.034 ms), so 20 draws are
+a few hundredths of a millisecond and the radar's 0.18 ms is what a profile sees; under a shared machine none of it shows in a stopwatch over a whole frame.
+
+**1. Radar labels** (`interceptor.js`). `radar()` writes `T07 12` for the `RLAB` = 40 live tracks nearest the scope's centre and for the selected one. The cut is the 40th smallest squared distance
+(a `Float64Array` sorted in place, only when there are more than 40 tracks), so with 40 tracks or fewer the picture is the same as before. Blips, velocity ticks and colours are unchanged.
+
+**2. Little Buddy** (`zbudmodel.js`). The proposal said "merge by material, 22 to about 10". The League's builder already merges per material key, and the 14 frame meshes carry **13 different
+materials** (they differ in roughness, metalness, glow or colour): merging by material alone gives 18. So the plain opaque standard materials (12 of the 13) become one mesh with **one shared
+`MeshStandardMaterial`** that reads each part's colour, roughness, metalness and glow from its vertices (an `onBeforeCompile` patch of three's physical shader: the same numbers through the same lighting
+code; it checks that the shader chunks it patches are there, and falls back to merging by material if a three.js changes them). The clear-coated carbon and the glowing LEDs stay their own meshes, the
+four blades stay (they spin), and the four discs (flat and round, so their spin cannot show) become one mesh. The merged buffers are freed with the model; the League's cached geometry is untouched. One
+program is added (116 against 115); its sample is in the warm-up (`warmers`), so the first buddy does not compile it.
+
+**3. Enemy sites** (`zsites.js`). Per site, the pad, crate and net and every hall, launcher and gun base still standing are one mesh in world coordinates (`batch`); the turrets (they aim), the patrols and
+the trucks (they move) keep theirs. Each part keeps its own mesh, hidden, for its wreck: when a part goes it shows its burnt mesh and the batch is made again without it (also when a gun is replaced at
+the break and when a co-op client's world says a part is back). The three roads are one mesh. A site's geometry is freed when the site is dropped.
+
+**4. Audio context** (`engine/audio.js`, `interceptor.js`). `audioPrime` opens the context and builds the engine's voices in an idle slice on the menu (`later`, heavy, queued first) and suspends it. `AC`
+stays `null` until `audioInit` adopts the primed context in the Play click, so nothing can schedule a sound on a clock that is not running and a menu with no run on it stays silent; `startMatch`
+resumes it as before. If the click comes first (a `?mode=zombies` start, a slow machine) `audioInit` builds it on the spot, as it always did. `tools/audio-levels.mjs` makes its offline context when the
+timeline's length is known, so it sets `window.__noAudioPrime` and primes by hand (`api.audioPrime()`) just before Play: it passes (every sound under its cap, every slider row at -6 dB). Two things to
+know. The context is created before any gesture, which Chrome logs once as "The AudioContext was not allowed to start" (a console warning, not an error). And the noise buffer now has its own generator
+instead of `Math.random`: with the game's, a primed page and a page that was clicked early would have given a seeded run two different games (the grid test caught that in the first version); a seeded
+run's numbers after Play differ from before this change, the same in both orders.
+
+**5. Endless ceiling** (`zendless.js`). `CAP_LIVE` = 400 tracks in the air (the `tracks400` scene is where the quadratic radar check was measured). Each step, the wave's due entries go out while the
+tracks aloft plus the entry fit under it (a swarm whole, in the queue's order); the rest are lifted out of the queue for that step and put back at its front, so they go out the moment tracks die. A boss
+costs nothing and is never held, and the wave cannot clear while entries wait (400 tracks are up). The campaign and the Quick defence are untouched. The threat briefing's Endless note ends with "at most 400
+tracks in the air". The peaks above say where it bites: up to wave 50 a full defence never has more than 293 alive (play is unchanged); from wave 60 the plan holds 420–510 tracks, nearly all of
+them alive at once, and the ceiling holds the wave at 400 (wave 80: 579 → 400).
+
+**Tests added** (`zombies-test.mjs`): the radar's label count; the ceiling (600 drones due at once: ≤ 400 fly, 34 swarms wait, 100 deaths let 17 out, all 100 swarms go out in the end, no ceiling with the
+climb off); the briefing's note; the audio context (suspended and not live on the menu, adopted and running after Play). `tools/zombies-regress.mjs` has the new `buddyv` scene and
+`tools/zombies-parity.mjs` is new (`buddy` and `sites` render the same things in a private scene from fixed cameras and `--cmp` two runs; copy it into an older worktree's `tools/` for the before).

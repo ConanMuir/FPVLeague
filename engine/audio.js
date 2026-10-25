@@ -1,18 +1,24 @@
 // Audio (WebAudio synth): 4 motor voices with the Betaflight quad-X mixer split, motor whine, prop hiss and wind
 import {V3,cl} from './util.js';
 export let AC=null,nbuf;let MOT={rot:[70,470],wind:[40,1.3],phys:()=>[15,1.6,240]},mg,mf,mw,pf,pg,wf,wg,awp=null;const mo=[],aw=new V3(),_au=new V3(),_ad=new V3();
+/* Opening the context opens the audio device (about 120 ms of main thread in headless Edge on Windows), and the voices below are a few ms more. audioPrime builds all of it ahead of a run (idle time on the menu)
+   and leaves the context suspended: AC stays null until audioInit adopts it, so nothing can schedule a sound on a clock that is not running, and the run's first sound is not the one that pays.
+   The caller resumes the context in the click that starts the run. audioInit builds it on the spot when nothing was primed. */
+let PRE=null,ns=Date.now()>>>0||1;const nrnd=()=>(ns^=ns<<13,ns^=ns>>>17,ns^=ns<<5,(ns>>>0)/4294967296);  /* xorshift32, for the noise buffer */
+export function audioInit(o={}){if(AC)return;audioPrime(o);if(PRE){AC=PRE;PRE=null}}
 // 4 motors, each a tri-blade prop buzz (blade-pass sawtooth + harmonic) over the shaft tone; a slight per-motor offset gives the real beating
 // extra(AC) adds a game's own sounds; motor: {rot:[idle Hz, span], wind:[speed scale, cap], phys:()=>[gravity, thrust curve exponent, prop pitch speed]}
 // for the game's flight model (the default phys is the old League quad's: 15, 1.6, 240)
-export function audioInit({extra,motor}={}){if(AC)return;if(motor)MOT={...MOT,...motor};try{AC=new(window.AudioContext||window.webkitAudioContext)();masterBus(AC);mf=AC.createBiquadFilter();mf.type='lowpass';mf.Q.value=.9;mg=AC.createGain();mg.gain.value=0;mf.connect(mg).connect(SFX);  /* the motors, wash and wind sit under the effects gain too (setSfx) */
- for(let i=0;i<4;i++){const v=[];[['sawtooth',.3,3],['square',.05,6],['sine',.16,1]].forEach(([t,g0,h])=>{const o=AC.createOscillator(),g=AC.createGain();o.type=t;g.gain.value=g0;o.connect(g).connect(mf);o.start();v.push([o,h])});mo.push({v,off:1+(i-1.5)*.009})}
- mw=AC.createOscillator();mw.type='triangle';const wg0=AC.createGain();wg0.gain.value=.02;mw.connect(wg0).connect(mg);mw.start();mw.g=wg0;  // ESC/motor whine: shaft rpm x 7 pole pairs
- nbuf=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate);const ch=nbuf.getChannelData(0);for(let i=0;i<ch.length;i++)ch[i]=Math.random()*2-1;
- const loop=(type,q,out=SFX)=>{const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();s.buffer=nbuf;s.loop=true;f.type=type;f.Q.value=q;g.gain.value=0;s.connect(f).connect(g).connect(out);s.start();return[f,g]};
+export function audioPrime({extra,motor}={}){if(AC||PRE)return;if(motor)MOT={...MOT,...motor};try{const A=new(window.AudioContext||window.webkitAudioContext)();if(A.state==='running')A.suspend();masterBus(A);mf=A.createBiquadFilter();mf.type='lowpass';mf.Q.value=.9;mg=A.createGain();mg.gain.value=0;mf.connect(mg).connect(SFX);  /* the motors, wash and wind sit under the effects gain too (setSfx) */
+ for(let i=0;i<4;i++){const v=[];[['sawtooth',.3,3],['square',.05,6],['sine',.16,1]].forEach(([t,g0,h])=>{const o=A.createOscillator(),g=A.createGain();o.type=t;g.gain.value=g0;o.connect(g).connect(mf);o.start();v.push([o,h])});mo.push({v,off:1+(i-1.5)*.009})}
+ mw=A.createOscillator();mw.type='triangle';const wg0=A.createGain();wg0.gain.value=.02;mw.connect(wg0).connect(mg);mw.start();mw.g=wg0;  // ESC/motor whine: shaft rpm x 7 pole pairs
+ nbuf=A.createBuffer(1,A.sampleRate*2,A.sampleRate);const ch=nbuf.getChannelData(0);for(let i=0;i<ch.length;i++)ch[i]=nrnd()*2-1;  /* its own generator, not Math.random: whether the buffer is made on the menu or at Play must not move the game's random sequence (a seeded run, tools/zombies-test.mjs grid) */
+ const loop=(type,q,out=SFX)=>{const s=A.createBufferSource(),f=A.createBiquadFilter(),g=A.createGain();s.buffer=nbuf;s.loop=true;f.type=type;f.Q.value=q;g.gain.value=0;s.connect(f).connect(g).connect(out);s.start();return[f,g]};
  [pf,pg]=loop('bandpass',.7);[wf,wg]=loop('lowpass',.4);  // prop wash hiss, wind over the camera
- extra?.(AC,SFX);  /* a game's own voices connect to the effects gain (second argument), so its effects slider moves them too */
-}catch(e){AC=null}}
+ extra?.(A,SFX);  /* a game's own voices connect to the effects gain (second argument), so its effects slider moves them too */
+PRE=A}catch(e){PRE=null}}
 export const audioOn=()=>!!(AC&&mo.length);
+export const audioPrimed=()=>PRE?PRE.state:null;  /* the state of a context made ahead and not yet adopted (tests), else null */
 // master bus: every sound in the game (engine, Zombies) reaches the speakers through one gain and a limiter. AC.destination is
 // re-pointed at the bus so code that connects to AC.destination needs no change; setMaster(0..1) scales everything
 let MST=null,SFX=null;export let LIM=null;const MASTER=.45;  /* LIM: the limiter, read by tools/audio-levels.mjs (its reduction = how hard it worked) */
