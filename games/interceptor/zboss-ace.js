@@ -58,7 +58,7 @@ const MS=[],TR=[];
 const _hz={x:0,y:0,z:0};  // haze emit point (reused)
 
 function msStep(C,dt){const{api}=C;for(let i=MS.length-1;i>=0;i--){const m=MS[i],d=m.tg;m.life-=dt;if(!d||d.dead>0||m.life<=0){MS.splice(i,1);C.FX.emit(m.p,0xffd080,12,6,.3,null,2);continue}
-  const r=new C.V3().subVectors(d.p,m.p),dist=r.length();if(dist<8){MS.splice(i,1);api.boom(m.p,1.2);if(C.shoot(`${KN}'s missile`,d))C.recAdd('ace','kills');continue}
+  const r=new C.V3().subVectors(d.p,m.p),dist=r.length();if(dist<8){MS.splice(i,1);api.boom(m.p,1.2);C.shoot(`${KN}'s missile`,d,lost=>{if(lost)C.recAdd('ace','kills')});continue}
   const des=r.addScaledVector(d.v,Math.min(2,dist/m.spd)).normalize(),cur=m.v.clone().normalize(),a=Math.acos(C.cl(cur.dot(des),-1,1));if(a>1e-4)cur.lerp(des,Math.min(1,m.turn*dt/a)).normalize();
   m.v.copy(cur).multiplyScalar(m.spd);m.p.addScaledVector(m.v,dt);if(Math.random()<.8)C.SMK.emit(m.p,0xe8e4dc,1,1,2.6,null,1,.55)}
  for(let i=TR.length-1;i>=0;i--){const t=TR[i];t.life-=dt;t.p.addScaledVector(t.v,dt);if(t.life<=0)TR.splice(i,1)}}
@@ -98,7 +98,7 @@ function duel(C,t,dt,o){const{api,G,V3}=C,B=t.bs,ph=B.ph,gh=api.gh;B.mcd=(B.mcd|
  if(r<1150&&r>160&&ang<.35&&B.mcd<=0&&o.missiles)B.lock=Math.min(1,(B.lock||0)+dt/(ph?1.9:2.7));else B.lock=Math.max(0,(B.lock||0)-dt*.7);
  if(B.lock>=1){B.lock=0;B.mcd=ph?5:7;fireMissile(C,t,P);B.ext=2.5;o.onShot?.(C,t,P)}
  if(r<420&&ang<.14&&B.gcd<=0){B.gcd=3;B.gn=(B.gn|0)+1;for(let i=0;i<10;i++)TR.push({p:t.p.clone().addScaledVector(fw,6),v:fw.clone().multiplyScalar(600).add(new V3(C.rnd(-12,12),C.rnd(-12,12),C.rnd(-12,12))),life:1});
-  if(Math.random()<[.3,.4,.5][ph]&&C.shoot(`${o.who}'s guns`,P))C.recAdd('ace','kills')}
+  if(Math.random()<[.3,.4,.5][ph])C.shoot(`${o.who}'s guns`,P,lost=>{if(lost)C.recAdd('ace','kills')})}  /* the kill counts when the pilot's screen says it was lost (the Deathless trophy may have saved it) */
  return true}
 
 // HUD warnings for you: the lock building on your six, a missile in the air, his nose on you

@@ -9,7 +9,8 @@ import {$,V3,QT,cl,UP,seeded,sm,vnoise,fbm} from '../../engine/util.js';
 import {S,save,loadSettings} from '../../engine/settings.js';
 import {initRender,renderer,scene,camera,composer,bloom,tex,glow,dot,setFov,detail,crownGeo} from '../../engine/render.js';
 import {banner,feed,setFeedTime} from '../../engine/hud.js';
-import {AC,audioInit,audioOn,motorAudio,noise,tone} from '../../engine/audio.js';
+import {AC,audioInit,audioPrime,audioOn,motorAudio,noise,tone} from '../../engine/audio.js';
+import {later} from '../../engine/idle.js';
 import {attitude,gn,ou,weathervane} from '../../engine/flight.js';
 import {propWash,turn as turnQ,spool,thrust,inflow,bodyDrag,capSpeed,ONE} from '../../src/flight/core.js';  // the shared flight core's air-model blocks (the dart composes its own step from them)
 import {rate,thrCurve,stk,initRates} from '../../engine/rates.js';
@@ -342,7 +343,9 @@ const boomL=new THREE.PointLight(0xffa040,0,600,1.2);scene.add(boomL);
 // ---------- audio (engine motor synth; bigger interceptor props turn slower than a 5", wind noise follows airspeed) ----------
 let bzo,bzg,bzf;const _ad=new V3();
 // nearest threat: the Shahed's two-stroke "moped" buzz, or a jet's turbine whine
-const audioStart=()=>audioInit({motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:(AC,out)=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(out||AC.destination);bzo.start()}});  /* out: the engine's effects gain (the Zombies effects slider) */
+const AUD={motor:{rot:[50,300],wind:[45,1.4],phys:()=>[G,TE,VP]},extra:(AC,out)=>{bzf=AC.createBiquadFilter();bzf.type='lowpass';bzf.frequency.value=900;bzg=AC.createGain();bzg.gain.value=0;bzo=AC.createOscillator();bzo.type='sawtooth';bzo.frequency.value=95;bzo.connect(bzf).connect(bzg).connect(out||AC.destination);bzo.start()}};  /* out: the engine's effects gain (the Zombies effects slider) */
+const audioStart=()=>audioInit(AUD);
+later(()=>{if(!window.__noAudioPrime)audioPrime(AUD)},{heavy:true});  /* the audio context is opened and its voices built in idle time on the menu, suspended; Play adopts it and resumes it (engine/audio.js). __noAudioPrime: tools/audio-levels.mjs hands out its own context at Play */
 function audioTick(dt){const me=player,on=!demo&&!paused&&me&&me.dead<=0,t=AC.currentTime;
  const nt=nearestThreat(camera.position);let g=0,fz=95;if(nt&&!paused){const r=_a.subVectors(nt.p,camera.position),d=r.length();g=Math.pow(cl(1-d/(nt.jet?1400:800),0,1),2)*(nt.jet?.07:.1);fz=(nt.jet?nt.spd>70?1400:900:95)*(1-nt.v.dot(r)/d/343)}  // Doppler
  bzg.gain.setTargetAtTime(demo?g*.4:g,t,.1);bzo.frequency.setTargetAtTime(fz,t,.1);bzf.frequency.setTargetAtTime(nt?.jet?4000:900,t,.2);
@@ -583,7 +586,7 @@ function updateCam(dt,now){const me=player;camPrev.copy(camera.position);
 
 // ---------- HUD ----------
 // radar scope: heading-up PPI around the interceptor; blips repaint as the sweep passes them (like a real ground radar picture relayed to the goggles)
-const rc=$('radar').getContext('2d');let sweep=0;const RQ=[[0,0],[0,0],[0,0],[0,0]],RGB={};let rqi=0;
+const rc=$('radar').getContext('2d');let sweep=0;const RQ=[[0,0],[0,0],[0,0],[0,0]],RGB={},RLAB=40;let rqi=0,RD=new Float64Array(512);  /* RLAB: the scope writes a label for this many tracks (the nearest) and the selected one; every track still gets its blip. RD: their squared distances */
 function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:null,o=me?me.p:_ip.set(PADP.x,0,PADP.z),RR=RRS[S.rr],K=R/RR;
  const f=me?fwdH(me.q,_f):_f.set(0,0,-1);if(f.lengthSq()<1e-4)f.copy(me.v).setY(0);const hd=Math.atan2(f.x,-f.z);  // heading, 0 = north
  const ca=Math.cos(-hd),sa=Math.sin(-hd),ox=o.x,oz=o.z,P=(x,z)=>{const dx=x-ox,dz=z-oz,q=RQ[rqi=(rqi+1)&3];q[0]=c+(dx*ca-dz*sa)*K;q[1]=c+(dx*sa+dz*ca)*K;return q};  // points come from a ring of four: callers hold at most two at once
@@ -597,11 +600,13 @@ function radar(dt){const W=500,c=W/2,R=c-14,me=player&&player.dead<=0?player:nul
  const s0=sweep;sweep=(sweep+dt*Math.PI)%(Math.PI*2);const g=rc.createConicGradient?rc.createConicGradient(sweep-Math.PI/2-.6,c,c):null;
  if(g){g.addColorStop(0,'rgba(90,255,150,0)');g.addColorStop(.095,'rgba(90,255,150,.18)');g.addColorStop(.0955,'rgba(90,255,150,0)');rc.fillStyle=g;rc.beginPath();rc.arc(c,c,R,0,7);rc.fill()}
  const sel=selT();rc.font='700 17px "JetBrains Mono",monospace';rc.textAlign='left';
+ let lab=Infinity;  /* squared distance within which a track is labelled: the RLAB-th nearest live one (everything while there are no more than that) */
+ if(TH.length>RLAB){if(RD.length<TH.length)RD=new Float64Array(TH.length*2);let n=0;for(const t of TH)if(live(t)){const dx=t.p.x-ox,dz=t.p.z-oz;RD[n++]=dx*dx+dz*dz}if(n>RLAB){const d=RD.subarray(0,n);d.sort();lab=d[RLAB-1]}}
  for(const t of TH){if(t.st==='dead'||!Z.seen(t))continue;const q=P(t.p.x,t.p.z),b=(Math.atan2(q[0]-c,c-q[1])+Math.PI*2)%(Math.PI*2),crossed=s0<=sweep?b>s0&&b<=sweep:b>s0||b<=sweep;
   if(crossed||!t.rb){const r=t.rb||(t.rb={});r.x=t.p.x;r.z=t.p.z;r.vx=t.v.x;r.vz=t.v.z;r.y=t.p.y;r.age=0}else t.rb.age+=dt;if(!live(t)&&t.rb.age>1.5)continue;
   const a=cl(1-t.rb.age/2.4,.25,1),bq=P(t.rb.x,t.rb.z),hv=P(t.rb.x+t.rb.vx*20,t.rb.z+t.rb.vz*20),col=!live(t)?'170,170,170':Z.rcol(t,sel),rgb=RGB[col]||(RGB[col]=`rgb(${col})`);
   rc.globalAlpha=a;rc.strokeStyle=rc.fillStyle=rgb;rc.lineWidth=2.5;rc.beginPath();rc.moveTo(bq[0],bq[1]-7);rc.lineTo(bq[0]+7,bq[1]);rc.lineTo(bq[0],bq[1]+7);rc.lineTo(bq[0]-7,bq[1]);rc.closePath();live(t)?rc.fill():rc.stroke();
-  if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();const al=Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100);if(t._rak!==al){t._rak=al;t._ras=`T${String(t.id).padStart(2,'0')} ${al}`}rc.fillText(t._ras,bq[0]+10,bq[1]-8)}}
+  if(live(t)){rc.beginPath();rc.moveTo(bq[0],bq[1]);rc.lineTo(hv[0],hv[1]);rc.stroke();if(t===sel||(t.p.x-ox)**2+(t.p.z-oz)**2<=lab){const al=Math.round((t.rb.y-gh(t.rb.x,t.rb.z))/100);if(t._rak!==al){t._rak=al;t._ras=`T${String(t.id).padStart(2,'0')} ${al}`}rc.fillText(t._ras,bq[0]+10,bq[1]-8)}}}
  rc.globalAlpha=1;Z.radar(rc,P,sel,K);rc.restore();
  // own ship, ring labels, north marker
  rc.fillStyle='#3ddc84';rc.beginPath();rc.moveTo(c,c-10);rc.lineTo(c+7,c+8);rc.lineTo(c-7,c+8);rc.closePath();rc.fill();
@@ -715,7 +720,7 @@ function step(dt){const me=player;TK++;IP.snap();GRID.open();try{
 const Z=initZombies({THREE,scene,camera,renderer,S,save,newDrone:()=>new Drone(),TH,SITES,FOBS,PADP,RRS,WIND,FX,SMK,psys,groundTex,gh,rivZ,rivN,rivY,live,liveSites,shahedMesh,boom,killThreat,damage,lose,launch,startDemo,showMenu,selT,feed,banner,tone,noise,pkill,pdmg,FDLY,applyTune,step,visuals,startMatch,buildBunker:s=>BLD.build(s,'bunker'),SHG,SHM,SHJ,SHEN,EXM,MAT,detail,
  deadP,deadC,get shake(){return shake},set shake(v){shake=v},get player(){return player},get demo(){return demo},get menuOpen(){return menuOpen},get camMode(){return camMode},set camMode(v){camMode=v|0},get camUp(){return camUp},set camUp(v){setCam(!!v)},relaunch,get pickT(){return pickT},set pickT(v){pickT=v},
  get wave(){return wave},set wave(v){wave=v},get wstate(){return wstate},set wstate(v){wstate=v},nextId:()=>++tid,
- get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
+ get LETH(){return LETH},set LETH(v){LETH=v},set RELT(v){RELT=v},get BCAP(){return BCAP},set BCAP(v){BCAP=v},set SAGK(v){SAGK=v},get AC(){return AC},audioPrime:()=>audioPrime(AUD),set shake(v){shake=Math.max(shake,v)},get thermLook(){return thermLook},get WX(){return WX},deck,
  sdf,interp:IP,grid:GRID,think,get tick(){return TK},setWeather,wxSky,wxLook,WB,hemi,sun,sunDisc,sky,cloudG,rainL,RN,get rainN(){return rainN},set rainN(v){rainN=cl(v|0,0,RN);rGeo.setDrawRange(0,rainN*2)},set wxHook(f){wxHook=f},set groundSnow(v){GSNOW.value=v},set AW(v){AW=v},get AW(){return AW},get spent(){return spent},camA,get HOV(){return HOV},get MSZ(){return MSZ}});
 zTune=()=>{if(Z.on)Z.pk.apply()};  // the tuning panel (applyTune) must not wipe the Zombies perks that sit on top of it (warhead, relaunch, battery)
 // Graphics quality and the FPS meter (igfx.js); the shader warm-up (engine/warm.js) runs once the menu is up, and one frame through the camera-feed

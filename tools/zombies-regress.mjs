@@ -2,7 +2,7 @@
 //   node tools/zombies-regress.mjs [scene,...] [--sec=5] [--reps=3] [--json=out.json] [--off=Scars,Radio,...] [--cam=director] [--top=14] [--no-files] [--funcs] [--draws]
 // scenes: w1, w20boss (wave 20, a full defence, a Mothership), fixed60 (the same 60 tracks in every build), tracks400, base (the base screen at wave 24), endless60 (Endless,
 //   wave 60, scars on the ground), spec (Bot Spectator with the Director camera), coop (a host and two clients over ?netloop; the host is measured), hush and jammer (a roster
-//   boss on its own; hushq: the Hush with its voice stubbed out), buddy (Little Buddy flying), guide (the first-wave guide), codex (the Enemies screen opening). A scene a build does not have prints "n/a".
+//   boss on its own; hushq: the Hush with its voice stubbed out), buddy (Little Buddy flying), buddyv (the same with the camera on it), guide (the first-wave guide), codex (the Enemies screen opening). A scene a build does not have prints "n/a".
 //   The file runs unchanged from an older worktree's tools/ (copy it there): it serves and measures the checkout it sits in.
 // How the frames are made: the game's own frame (engine/loop.js) is called from the page on a timer, one every 16.7 ms, instead of by the display. A machine that is busy with other
 //   programs starves the compositor and a page gets a few frames a second (this tool was written on such a machine); a timer still fires, and what is measured is the renderer's
@@ -107,6 +107,10 @@ const SCENES = {
   /* Little Buddy (zbuddy.js) with a garage quad: wave 12, a defence, the buddy out of its pad after a few seconds of the wave */
   buddy: {need: () => !!window.__z?.Z?.bd, ls: {droneleague: {loadout: ['truex', 'brick', 'hikv', 'ram'], cos: {paint: 'cobalt', props: 'ice', bell: 'gold', led: 'cyan'}, physV: 5}},
     run: DEF => { const {G, Z, api} = __z; defend(DEF); __z.jump(12, 20000); G.next = __z.plan(12); __z.cont(); __z.sim(25); api.SITES.forEach(s => s.hp = s.max); keep(); const b = Z.bd.mine; return {...stat(), buddy: b.state + '/' + b.job, model: b.model?.kind || null}; }, arg: DEF},
+  /* the same with the camera on the buddy (the chase camera does not see it in `buddy`): its model's draws, in the main and the shadow pass, are in the frame */
+  buddyv: {need: () => !!window.__z?.Z?.bd, ls: {droneleague: {loadout: ['truex', 'brick', 'hikv', 'ram'], cos: {paint: 'cobalt', props: 'ice', bell: 'gold', led: 'cyan'}, physV: 5}},
+    run: DEF => { const {G, Z, api} = __z; defend(DEF); __z.jump(12, 20000); G.next = __z.plan(12); __z.cont(); __z.sim(25); api.SITES.forEach(s => s.hp = s.max); keep(); const b = Z.bd.mine, c = api.camera;
+      Z.cam = () => { c.position.set(b.p.x + 14, b.p.y + 7, b.p.z + 22); c.up.set(0, 1, 0); c.lookAt(b.p); }; return {...stat(), buddy: b.state + '/' + b.job, model: b.model?.kind || null}; }, arg: DEF},
   /* the first-wave guide (zonboard.js) running through wave 1: against w1, what the guide costs */
   guide: {url: '?guide=1', need: () => !!window.__z?.Z?.onboard, run: () => { __z.cont(); __z.sim(2); return {...stat(), guide: __z.Z.onboard.on}; }},
   /* the Enemies screen opening with every boss in the codex (zcodex.js): the silhouettes are drawn by a software rasteriser, a few per slice, while frames go on */

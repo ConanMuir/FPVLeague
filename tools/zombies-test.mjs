@@ -16,6 +16,9 @@ let fails = 0;
 const ONLY = argv.includes('--only');  // with --balance or --tiers: run just those sections
 const SECTIONS = argv.find(a => a.startsWith('--sections='))?.slice(11).split(','), want = n => !ONLY && (!SECTIONS || SECTIONS.includes(n));
 const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fails++; };
+/* the enemy's roads (zsites.js W.reset) are new at every game start, and a scar keeps clear of them (zscars.js bad): one saved in a run sits where it was valid then, and under the next run's roads it is dropped
+   on load (about one start in five for a dozen scars). The sections that save scars and start again pin the roads' seed, so the same ground is valid every time. Called again after a page reload. */
+const pinRoads = p => p.evaluate(() => { const W = __z.Z.so.W, r = W.reset; if (!r._pin) { const f = () => r(424242); f._pin = 1; W.reset = f; } });
 
 // --throttle N: CPU throttling on each game page (CDP), e.g. 4, to play a slow CI runner
 const THROTTLE = argv.includes('--throttle') ? +argv[argv.indexOf('--throttle') + 1] : 0;
@@ -77,7 +80,12 @@ if (want('zombies')) {
   if (SHOTS) await p.screenshot({path: SHOTS + '/z-menu-nightmare.png'});
   await p.click('#zdiff button[data-d="1"]'); await p.waitForFunction(() => document.querySelector('#zdiff button.on')?.getAttribute('data-d') === '1', {timeout: 5000}).catch(() => {});
   ok(dm.on === 'Nightmare' && dm.zd === 3 && /Nightmare/.test(dm.desc), `Zombies menu: picking Nightmare highlights it, saves it and describes it ("${dm.desc.split('Nightmare: ')[1]?.slice(0, 50)}")`);
+  /* the audio context is opened ahead in idle time on the menu (engine/audio.js audioPrime): suspended, and not the game's yet (api.AC stays null, so a menu with no run on it makes no sound); Play adopts it and starts it */
+  const au = await p.evaluate(async () => { const A = await import('/engine/audio.js'); for (let i = 0; i < 300 && A.audioPrimed() !== 'suspended'; i++) await new Promise(r => setTimeout(r, 100)); return {primed: A.audioPrimed(), live: !!A.AC, on: A.audioOn()}; });
+  ok(au.primed === 'suspended' && !au.live && !au.on, `Zombies audio: the context is built ahead on the menu and waits suspended (${au.primed}), the game's own AC and the engine voices are not live yet (${au.live}/${au.on})`);
   await play(p);
+  const au2 = await p.evaluate(async () => { const A = await import('/engine/audio.js'); for (let i = 0; i < 50 && A.AC?.state !== 'running'; i++) await new Promise(r => setTimeout(r, 100)); return {live: !!A.AC, state: A.AC?.state, primed: A.audioPrimed(), on: A.audioOn(), sfx: __z.api.AC === A.AC}; });
+  ok(au2.live && au2.state === 'running' && au2.primed === null && au2.on && au2.sfx, `Zombies audio: Play adopts the primed context and starts it (${au2.state}), the motor voices are on, one context`);
   { const out = [];  /* the event feed (top left) never runs under the centred top bar, at a laptop, a 1080p and a short window */
     for (const [w, h] of [[1280, 720], [1920, 1080], [900, 420], [1280, 720]]) {
       await p.setViewport({width: w, height: h});
@@ -771,12 +779,15 @@ if (want('grid')) {
     await p.evaluateOnNewDocument(() => { let s = 4242; Math.random = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; });
     await p.goto(origin + '/games/interceptor/', {waitUntil: 'load'}); await p.evaluate(() => localStorage.setItem('dl-interceptor', JSON.stringify({gmode: 'z', wx: 'clear', zwx: 'menu', zmus: 0})));
     await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000});
+    /* both pages start the game in the same state: the menu's idle work (the textures and pools, the scars' build, the shader warm-up) is done on each. Mid-way it is not: the scars exist or do not (a destroyed house lifts its collider), and how far it had got when the game started was a matter of timing */
+    await p.waitForFunction(() => { const w = __z.Z.warmSt; return __z.Z.sc.ready && w.done && !w.idle.left; }, {timeout: 180000, polling: 200});
     const o = await p.evaluate(RUN, brute); await p.close(); return {o, errs}; };
   const A = await game(false), B = await game(true), a = JSON.parse(A.o), b = JSON.parse(B.o);
   console.log(`  grid game: wave ${a.w} ${a.st}, ${a.k.p} pilot / ${a.k.h} helper kills, ${a.dets} bursts, ${a.th.length} tracks, up to ${a.shots} shots, swarm ${a.swMax} up, ${a.swLost} lost, ${a.swKills} kills, ${a.sw.length} left`);
   /* the swarm counts if it flew this wave: its attack passes lose drones on the dice, so how many are left at the end is luck (all six can go) */
   ok(a.k.p + a.k.h >= 10 && a.dets > 3 && a.swMax > 0, `Grid game: busy enough to mean something (${a.k.p + a.k.h} kills, ${a.dets} bursts, swarm of ${a.swMax} flew)`);
-  ok(A.o === B.o, `Grid: a whole wave plays out identically with the grid and with plain loops (${A.o.length} chars of end state compared)` + (A.o === B.o ? '' : `\n  grid ${A.o.slice(0, 300)}\n  loop ${B.o.slice(0, 300)}`));
+  const gd = A.o === B.o ? -1 : [...A.o].findIndex((c, i) => c !== B.o[i]);  /* where the two end states first differ */
+  ok(A.o === B.o, `Grid: a whole wave plays out identically with the grid and with plain loops (${A.o.length} chars of end state compared)` + (A.o === B.o ? '' : `\n  first difference at ${gd}\n  grid ${A.o.slice(Math.max(0, gd - 120), gd + 180)}\n  loop ${B.o.slice(Math.max(0, gd - 120), gd + 180)}`));
   ok(!A.errs.length && !B.errs.length, 'Grid game: no errors' + (A.errs.length + B.errs.length ? '\n  ' + [...A.errs, ...B.errs].join('\n  ') : ''));
 }
 
@@ -816,7 +827,7 @@ if (want('bosses')) {
   const runs = await p.evaluate(ids => { const {api, Z, G} = __z, out = {};
     G.hab = {n: 400, alt: 300 * 400, spd: 90 * 400, L: 300, R: 100, asp: {'LEVEL SIX': 9, 'HIGH BEAM': 2}, side: {LEFT: 6, RIGHT: 5}, dets: 0, yaw: null, t: 0};  /* habits for the Mirror to copy */
     for (const id of ids) { __b.clear(); api.player.v.set(0, 0, -40); const t = Z.bosses.spawn(id), D = Z.bosses.BOSSES[id]; __z.sim(3);
-      const o = {intro: !!t.bs.intro, decals: __b.decals(t), sound: typeof D.sting === 'function' && typeof D.loop === 'function', max: t.bs.max, phases: D.phases?.length || 1, net: Z.bossOut(t).every(Number.isFinite)};
+      const o = {intro: !!t.bs.intro, decals: __b.decals(t), sound: typeof D.sting === 'function' && typeof D.loop === 'function', max: t.bs.max, phases: D.phases?.length || 1, net: Z.bossOut(t).every(v => Number.isFinite(v) || typeof v === 'string')};  /* numbers, and the odd string (a pilot's key, the Mirror's favourite approach): never NaN or undefined */
       Object.assign(o, __b.beat(t)); o.reward = !!G.brw[D.reward.id]; o.won0 = api.S.zboss?.b?.[id]?.won | 0; out[id] = o; } return out; }, ids);
   for (const id of ids) { const o = runs[id]; console.log(`  ${id}:`, JSON.stringify(o));
     ok(o.intro && o.decals >= 2 && o.sound && o.net, `${id}: spawned by the debug trigger, intro played, model with ${o.decals} canvas-decal materials, signature and presence sounds`);
@@ -1888,6 +1899,23 @@ if (want('radio')) {
   ok(q1.stale.dropped >= 1 && !q1.stale.said, 'Radio channel: an ambient call that waited too long is dropped, not said late');
   ok(q1.dup.again === false && q1.dup.n === 1 && q1.cool.again === false && q1.cool.n === 1, 'Radio channel: the same words twice, and a second call of a topic inside its cooldown, are not said');
 
+  /* the first-run guide's lines (soft, zonboard.js): in a wave a battle call goes first and may cut in on one (said again once), the guide does not use up the battle budget, and a line that waited is still said */
+  const gd = await p.evaluate(() => { const {G, Z} = __z, R = Z.radio, out = {wave: G.state}, L = 'A long guide line that keeps the channel busy for a good while yes, over.', soft = {nb: 1, over: true, soft: 1};
+    const heard = () => R.calls.map(c => c.txt.slice(0, 12) + (c.cut ? '*' : '')).join('|'), adv = s => { for (let t = 0; t < s; t += .25) R.step(.25); };  /* the channel runs frame by frame: a coarse step would only age the waiting guide line */
+    R.hush(); R.calls.length = 0; R.say('guide', 2, 'OVERLORD', L, soft); const c1 = R.cur; R.say('trk', 1, 'OVERLORD', 'Battle call one.'); adv(.25);
+    out.cut = {first: c1.cut === 1, now: R.cur?.txt, again: R.q.some(c => c.txt === L && c.re === 1)}; adv(12); out.cutHeard = heard();
+    R.hush(); R.calls.length = 0; R.say('x', 1, 'OVERLORD', 'A long routine call that is on the air while the other two wait their turn.'); R.say('guide', 2, 'OVERLORD', L, soft); R.say('trk', 1, 'OVERLORD', 'Battle call two.');
+    adv(16); out.order = heard();
+    R.hush(); R.calls.length = 0; const r0 = R.st.drop.rate; for (let i = 0; i < 6; i++) { R.say('guide', 2, 'OVERLORD', 'Guide line number ' + i + '.', soft); adv(3); }
+    for (const [k, t] of [['trk', 'Track one.'], ['fast', 'Track two.'], ['site', 'Track three.']]) { R.say(k, 1, 'OVERLORD', t); adv(3); }
+    out.budget = {rate: R.st.drop.rate - r0, battle: R.calls.filter(c => c.pri === 1).length, guide: R.calls.filter(c => c.topic === 'guide').length};
+    R.hush(); R.calls.length = 0; let gone = false; R.say('x', 1, 'OVERLORD', 'A long routine call that is on the air while the guide line waits.'); R.say('guide', 2, 'OVERLORD', L, {...soft, alive: () => !gone}); gone = true; adv(12); out.alive = heard();
+    R.hush(); R.calls.length = 0; return out; });
+  ok(gd.wave === 'wave' && gd.cut.first && gd.cut.now === 'Battle call one.' && gd.cut.again && gd.cutHeard === 'A long guide*|Battle call |A long guide', `Radio guide: a battle call cuts in on a guide line during the wave and the guide line is said again after it (${gd.cutHeard})`);
+  ok(gd.order === 'A long routi|Battle call |A long guide', `Radio guide: queued together, the battle call is said before the guide line (${gd.order}), and the guide line still comes (it was not starved)`);
+  ok(gd.budget.guide === 6 && gd.budget.battle === 3 && gd.budget.rate === 0, `Radio guide: six guide lines do not use up the battle budget (battle calls said ${gd.budget.battle} of 3, rate-limited ${gd.budget.rate}, guide lines ${gd.budget.guide})`);
+  ok(gd.alive === 'A long routi', `Radio guide: a guide line whose prompt is gone is not said late (${gd.alive})`);
+
   // the sites: small hits add up before they are called; a site in trouble and a site lost are urgent
   const st1 = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.radio, s = api.SITES[1], out = {}; __clr(); R.hush(); R.calls.length = 0; R.scan();
     for (let i = 0; i < 3; i++) { s.hp -= 5; R.scan(); } out.small = R.pend().includes('site');
@@ -2091,6 +2119,9 @@ if (want('onboard')) {
   const lg = await p.evaluate(() => { __clear(); return {g: __g(), tr: __z.api.TH.filter(__z.api.live).length}; });
   ok(lg.g.log.join().startsWith('brief,fly,look,lock,pip,burst') && ['fly', 'look', 'lock', 'pip', 'burst'].every(k => lg.g.st[k] === 'done'),`Onboard: the wave-1 prompts came in order (${lg.g.log.join(' > ')}) and all five were done (${JSON.stringify(lg.g.st)})`);
   ok(!lg.g.gentle && lg.g.card && lg.g.ended === '', `Onboard: wave 1 over: the gentle wave is switched off, the guide goes on to the base screen`);
+  /* the guide's radio lines (priority 2) used to starve the battle calls on wave 1: the wave's own call and the tracks' calls were dropped as stale or rate-limited behind them */
+  const gr = await p.evaluate(() => { const c = __z.Z.radio.calls; return c.filter(x => x.topic !== 'guide' && x.pri >= 1).map(x => x.topic); });
+  ok(gr.includes('wave') && gr.includes('trk'), `Onboard radio: the guided wave still gets its battle calls (the wave's own call and a new track's call were heard: ${gr.join(' ')})`);
   // the base screen: the first helper, then sorties
   await p.evaluate(() => __u(() => __z.Z.onboard.step === 'helper', 6));
   const h0 = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); return {g: __g(), hl: document.querySelector('.zob-hl')?.dataset.buy === String(i), base: document.body.classList.contains('zb-open')}; });
@@ -2142,6 +2173,11 @@ if (want('onboard')) {
   await fresh(p, '?guide=1'); await play(p);
   const t0 = await p.evaluate(() => { __z.cont(); __u(() => __z.Z.onboard.st.fly === 'timeout', 40); const g = __g(); __u(() => __z.Z.onboard.step === 'look', 5); return {g, g2: __g(), tracks: __z.api.TH.filter(__z.api.live).length, st: __z.G.state}; });
   ok(t0.g.st.fly === 'timeout' && t0.g2.step === 'look' && t0.st === 'wave', `Onboard: a prompt nobody acts on times out (flying: ${t0.g.st.fly}) and the next one comes; the wave ran on meanwhile (${t0.tracks} track(s) live)`);
+  /* and a pilot who takes their time hears everything: each prompt's line was said whole (none dropped for waiting) between the battle calls (the wave's call and the first track's) */
+  const ig = await p.evaluate(() => { const {api, Z} = __z, R = Z.radio; __z.sim(2); __z.make('shahed', api.player.p.x, api.player.p.z - 2400);  /* a track in sight now: the wave's own first one is seen when its bearing and the ground allow, and on a slow day that was past the window */
+    __u(() => R.calls.some(x => x.topic === 'trk'), 30); __u(() => !R.cur && !R.q.length, 20);  /* its call is made, and the line of the prompt it opens (lock-on) is said after it */
+    const c = R.calls; return {guide: new Set(c.filter(x => x.topic === 'guide' && !x.cut && x.t > 0).map(x => x.txt)).size, opened: __z.Z.onboard.log.filter(s => s !== 'brief').length, bat: c.filter(x => x.topic !== 'guide' && x.pri >= 1).map(x => x.topic).join(' '), seq: c.map(x => x.topic + (x.cut ? '*' : '')).join(' ')}; });
+  ok(ig.opened >= 2 && ig.guide >= ig.opened && /wave/.test(ig.bat) && /trk/.test(ig.bat), `Onboard radio: with nobody acting, each opened prompt's line was said (${ig.guide} lines for ${ig.opened} prompts) and so were the wave's call and a track's (${ig.seq})`);
   const me1 = await p.evaluate(() => { __z.api.showMenu(true); __z.sim(.3); return {g: __g(), skip2: document.getElementById('zobskip2').hidden, shown: __z.Z.onboard.shown}; });  /* the pause menu has its own Skip guide (on the base screen the menu sits behind the panel, the card's button is the one there) */
   ok(me1.g.on && !me1.skip2 && !me1.shown, 'Onboard: the pause menu shows Skip guide and the card steps aside while it is open');
   await p.click('#zobskip2'); await p.evaluate(() => { __z.api.showMenu(false); }); await frames(p, 2);
@@ -2189,7 +2225,7 @@ if (want('onboard')) {
 
 // ---------- the living map (zscars.js): craters, burns and rubble that stay; caps and recycling, the save, the campaign, co-op, no glitches, frame cost, no leaks ----------
 if (want('scars')) {
-  const {p, errs} = await page();
+  const {p, errs} = await page(); await pinRoads(p);
   /* nobody has played yet: the menu's idle time builds the textures and pools, a few ms a slice */
   const idle = await p.waitForFunction(() => __z.Z.sc.ready, {timeout: 120000}).then(() => true, () => false), worst = await p.evaluate(() => __z.Z.sc.worst);
   ok(idle, 'Scars: the textures and pools are built in idle time at the menu, before anyone plays');
@@ -2551,8 +2587,8 @@ if (want('briefing')) {
 // ---------- Endless (zendless.js): opens only once the Launch Complex is held; a sector with no objective whose waves climb past the caps (tracks, speed, armour, damage, bosses);
 // milestones; the sector's scars carry forward, grow and are saved (and survive a reload); the run goes on the Endless table and costs the campaign nothing; nothing leaks ----------
 if (want('endless')) {
-  const {p, errs} = await page();
-  const reload = async () => { await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3); };
+  const {p, errs} = await page(); await pinRoads(p);
+  const reload = async () => { await p.reload({waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3); await pinRoads(p); };
   const boot = async (camp, zend) => { await p.evaluate((c, z) => { const s = JSON.parse(localStorage.getItem('dl-interceptor') || '{}'); if (c === undefined) delete s.zcamp; else s.zcamp = c; if (z === undefined) delete s.zend; else s.zend = z;
     Object.assign(s, {zdiff: 1, gmode: 'z', zload: null}); delete s.zbrief; localStorage.setItem('dl-interceptor', JSON.stringify(s)); }, camp, zend); await reload(); };
   const begun = () => p.waitForFunction(() => __z.G.state === 'base' && !!__z.Z.cp.run, {timeout: 30000}).then(() => true, () => false);
@@ -2602,6 +2638,7 @@ if (want('endless')) {
   // ---- the briefing of a climbing wave ----
   const BR = await p.evaluate(() => { const {Z} = __z; __z.jump(33, 1e6); Z.openBase(); const t = document.getElementById('zbrief').innerText.replace(/\s+/g, ' '); return {t, line: Z.brief.data().extra.join(' | ')}; });
   ok(/Endless \+\d+% tracks · \+\d+% speed · \d+% of the Shaheds armored · sites take \+\d+%/.test(BR.t) && /boss every 5 waves · milestone wave 40: \+\$3,200 and a repair/.test(BR.t), `Briefing in Endless at wave 33: "${BR.line}"`);
+  ok(/at most 400 tracks in the air/.test(BR.t), 'Briefing in Endless: the note says how many tracks can be in the air at once (the ceiling)');
 
   // ---- the end: the Endless screen, the Endless table, the campaign untouched, the scars saved ----
   const GO = await p.evaluate(() => { const {Z, G, api} = __z, S = api.S; __z.jump(13, 0); Z.openBase(); G.wave = 12; Z.gameOver();
@@ -2643,6 +2680,26 @@ if (want('endless')) {
   ok(CL.sp[1] / CL.sp[0] > 1.3 && CL.sp[2] > CL.sp[1] * 1.08 && Math.abs(CL.sp[3] / CL.sp[2] - 1) < .05 && CL.spOff < CL.sp[1] * .8, `Climb, speed: a Shahed flies ${CL.sp.map(v => v.toFixed(1)).join(' / ')} m/s at waves 20 / 60 / 100 / 140 (+40% at 60, capped at +60%; ${CL.spOff.toFixed(1)} at 60 without the climb)`);
   ok(CL.dk[0] === 1 && Math.abs(CL.dk[1] - 1.2) < 1e-9 && Math.abs(CL.dk[2] - 1.4) < 1e-9, `Climb, damage: a hit on a site is x${CL.dk.join(' / ')} at waves 20 / 40 / 60`);
   ok(CL.b[23] === 0 && CL.b[25] === 1 && CL.b[30] === 1 && CL.b[51] === 2 && CL.b[52] === 0 && CL.b[60] === 2 && CL.b[80] === 3 && CL.b25off === 0 && CL.b51off === 0, `Climb, bosses: ${JSON.stringify(CL.b)} (waves 23 / 25 / 30 / 51 / 52 / 60 / 80: every 5 waves past 20, every 3 past 50, two at a time from wave 50, three from 80); wave 25 without the climb has ${CL.b25off}`);
+  // the radar scope writes a label (T07 12) for the 40 nearest tracks and the selected one, not for every track (every track still has its blip)
+  const RD = await p.evaluate(async () => { const {Z, G, api} = __z, P = api.PADP, o = {labels: 0, paints: 0}, rc = document.getElementById('radar').getContext('2d'), c0 = rc.clearRect, f0 = rc.fillText; let k = 0;
+    __z.cont(); for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.wq.length = 0; G.wq.push({k: 'shahed', at: 1e9, brg: 0}); api.SITES.forEach(s => s.hp = s.max);
+    for (let i = 0; i < 120; i++) { const a = i * 2.399, r = 1200 + (i % 12) * 100; __z.make('shahed', P.x + Math.cos(a) * r, P.z + Math.sin(a) * r, api.SITES[i % 3]); }  /* 120 Shaheds inside the radar's reach, looked at over some real frames */
+    rc.clearRect = function (...a) { o.labels = Math.max(o.labels, k); k = 0; o.paints++; return c0.apply(this, a); }; rc.fillText = function (t, ...a) { if (/^T\d+ -?\d+$/.test(t)) k++; return f0.call(this, t, ...a); };
+    await new Promise(r => setTimeout(r, 900)); delete rc.clearRect; delete rc.fillText; o.n = api.TH.filter(api.live).length; G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; return o; });
+  ok(RD.paints >= 2 && RD.labels >= 30 && RD.labels <= 41, `Radar: with ${RD.n} tracks on the scope a repaint writes ${RD.labels} labels (the 40 nearest and the selected one; ${RD.paints} repaints looked at)`);  /* two repaints are enough to judge the cap: a loaded CI runner draws only two or three in the 900 ms window */
+  // the ceiling: no more than CAP_LIVE tracks in the air; what the plan has due past it waits in the queue (a swarm whole) and goes out as tracks die, nothing is lost; with the climb off there is no ceiling
+  const CP = await p.evaluate(() => { const {Z, G, api} = __z, E = Z.endless, o = {cap: E.CAP_LIVE}, live = () => api.TH.filter(api.live).length, keep = () => api.SITES.forEach(s => s.hp = s.max);
+    const clear = () => { for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; };
+    const start = on => { Z.cp.run.endless = on; __z.cont(); clear(); keep(); G.wq.length = 0; const g0 = G.gid; for (let i = 0; i < 100; i++) G.wq.push({k: 'swarm:6', at: 0, brg: (i % 9 - 4) * .2}); return g0; };  /* 100 swarms of 6, all due at once */
+    let g0 = start(true); __z.sim(.3); o.l1 = live(); o.q1 = G.wq.length; o.s1 = G.gid - g0; o.st1 = G.state;
+    let n = 0; for (const t of api.TH) if (api.live(t) && n++ < 100) t.st = 'dead'; __z.sim(.1); o.l2 = live(); o.q2 = G.wq.length;  /* 100 tracks die: the queue goes out into the room they left */
+    for (let i = 0; i < 60 && (G.wq.length || live()); i++) { for (const t of api.TH) if (api.live(t)) t.st = 'dead'; keep(); __z.sim(.1); } o.s3 = G.gid - g0; o.q3 = G.wq.length;
+    g0 = start(false); __z.sim(.3); o.l4 = live(); o.q4 = G.wq.length;  /* the climb off: all 600 at once */
+    Z.cp.run.endless = true; G.wq.length = 0; clear(); keep(); return o; });
+  ok(CP.cap === 400 && CP.l1 > 390 && CP.l1 <= 400 && CP.q1 >= 30 && CP.s1 === 100 - CP.q1 && CP.st1 === 'wave', `Climb, ceiling: 600 drones due at once, ${CP.l1} fly (at most ${CP.cap}), ${CP.q1} swarms wait in the queue`);
+  ok(CP.l2 > 390 && CP.l2 <= 400 && CP.q2 < CP.q1 && CP.q2 > 0, `Climb, ceiling: 100 tracks die and the queue fills the room (${CP.l2} in the air, ${CP.q1} -> ${CP.q2} swarms waiting)`);
+  ok(CP.s3 === 100 && CP.q3 === 0, `Climb, ceiling: the whole plan goes out in the end (${CP.s3} of 100 swarms), nothing lost`);
+  ok(CP.l4 === 600 && CP.q4 === 0, `Climb, ceiling: with the climb off there is no ceiling (${CP.l4} in the air)`);
   // the boss codex (zcodex.js): an Endless run's bosses come from its pool (unlocked and allowed), never from the sector's set piece; the Launch Complex's own Mothership escort does not double the boss
   const CX = await p.evaluate(() => { const {Z, G, api, KIND} = __z, S = api.S, X = Z.codex, o = {}, R0 = Z.bosses.roster;
     const bs = L => L.filter(k => { const K = KIND[k.split(':')[0]]; return K.armor === 'boss' || !!K.bossy; }), seen = (w, n) => { const m = {}; for (let i = 0; i < n; i++) for (const k of bs(__z.plan(w).list)) m[k] = (m[k] | 0) + 1; return m; };
@@ -2673,6 +2730,27 @@ if (want('endless')) {
   ok(LS.feat === 1 && LS.n === 2 && LS.ids === 'missile,tot,boss5,raid,big' && LS.per === '2,2,1' && LS.afterOne === 0 && LS.afterBoth === 1, `Enemy launch sites (Launch Complex): the sorties flag is set, the sector's modifiers are ${LS.ids} (one Heavy pressure, no fallback), launch sites per sector ${LS.per}; the first site of a doubled sector cuts nothing (${LS.afterOne}), the second does (${LS.afterBoth})`);
   ok((LS.names.match(/Heavy pressure/g) || []).length === 1 && /Enemy launch sites/.test(LS.names), `Enemy launch sites: the briefing lists it once, and Heavy pressure once ("${LS.names}")`);
 
+  // ---- the late-game sink: past wave 40 upkeep and repairs grow with the wave, so the purse of a strong run stays bounded (up to wave 40 they cost what they always did) ----
+  const SINK = await p.evaluate(() => { const {Z, G, api} = __z, E = Z.endless, o = {};
+    E.start('gate'); const R = Z.cp.run, def = Z.def;
+    for (let j = 0, n = 0; j < def.SLOTS.length && n < 14; j++) if (def.slotFree(j, 'rack')) { const d = def.add('rack', j); if (d) { d.spent = 20000; n++; } }  /* a full line: fourteen racks with $20,000 spent on each, as a deep run has it */
+    o.defs = def.D.length; const up = w => Z.upkeep(w).total;
+    o.plain = [11, 30, 40].map(w => { R.endless = true; const a = up(w); R.endless = false; const b = up(w); R.endless = true; return a === b && a > 0; });  /* up to wave 40 Endless pays exactly what any run pays */
+    G.wave = 39; R.endless = true; const r1 = Z.repairK(); R.endless = false; const r2 = Z.repairK(); R.endless = true; o.repair40 = r1 === r2; G.wave = 59; o.repair60 = Z.repairK() / r2; G.wave = 0;
+    o.k = [41, 50, 60, 75].map(w => +(up(w) / up(40)).toFixed(3)); o.curve = [41, 50, 60, 75].map(w => +E.sinkK(w).toFixed(3));
+    const income = w => 18 * w * w;  /* about what a strong run's kills pay a wave: $45K at wave 50, $100K at 75 (the Legend bot's Endless runs) */
+    const play = on => { R.endless = on; G.cash = 0; G.wave = 40; Z.openBase(); const out = {};
+      for (let w = 41; w <= 90; w++) { __z.cont(); G.wq.length = 0; for (const t of api.TH) api.scene.remove(t.mesh); api.TH.length = 0; G.cash += income(w); __z.sim(.5);  /* the wave's raid is down: it clears, the bonus and the upkeep are paid */
+        if (G.state !== 'clear' || G.wave !== w) return {err: `wave ${w} is ${G.state} (${G.wave})`}; __z.sim(4);  /* the base screen opens */
+        api.SITES.forEach((s, i) => { s.hp = Math.round(s.max * .85); Z.base.act.repair(i, s.max - s.hp); });  /* the wave's damage, repaired at the going price */
+        if (w % 5 === 0) out[w] = Math.round(G.cash); }
+      return out; };
+    o.on = play(true); o.off = play(false); R.endless = true; return o; });
+  ok(SINK.defs === 14 && SINK.plain.every(Boolean) && SINK.repair40, `Endless sink: up to wave 40 the upkeep (waves 11 / 30 / 40) and the repair price are exactly the ordinary ones (${SINK.defs} defences)`);
+  ok(SINK.k.join() === SINK.curve.join() && Math.abs(SINK.k[1] - 2) < 1e-6 && Math.abs(SINK.k[2] - 5) < 1e-6 && SINK.k[0] > 1 && SINK.k[0] < 1.05 && Math.abs(SINK.repair60 - 5) < 1e-6, `Endless sink: past wave 40 the upkeep and the repairs grow on a gentle curve (x${SINK.k.join(' / x')} at waves 41 / 50 / 60 / 75; repairs x${SINK.repair60.toFixed(2)} at 60)`);
+  const sOn = SINK.on, sOff = SINK.off, peak = Math.max(...Object.values(sOn || {}), 0), k$ = v => '$' + Math.round(v / 1000) + 'K';
+  ok(!SINK.err && !sOff?.err && peak < 1e6 && sOn[90] < sOn[75] && sOn[90] < sOff[90] * .25 && sOff[90] > 3e6, `Endless sink: in a scripted strong run (14 racks, $20,000 each, ordinary income of 18 x wave squared, real clears and repairs) the purse peaks at ${k$(peak)} and is falling by wave 90 (${k$(sOn?.[75])} at 75, ${k$(sOn?.[90])} at 90), where the same run without the sink holds ${k$(sOff?.[75])} / ${k$(sOff?.[90])}${SINK.err ? ' ' + SINK.err : ''}`);
+
   // ---- a campaign sector after it is a plain campaign sector ----
   const PL = await p.evaluate(() => { const {Z, G, api, KIND} = __z; Z.cp.start('mill', true); const r = {en: Z.endless.on(), obj: Z.cp.run?.obj, hud: (Z.hud(0), document.getElementById('zw').textContent), strip: document.querySelector('#zbase .zcpbar')?.textContent || '', b: __z.plan(60).list.filter(k => KIND[k.split(':')[0]].armor === 'boss').length};
     G.wave = 59; r.dk = Z.dmgK(api.SITES[0], {id: -1, k: 'shahed'}); G.wave = 0; api.startDemo(); r.after = Z.endless.on(); return r; });
@@ -2684,7 +2762,7 @@ if (want('endless')) {
 
   // ---- nothing leaks: restarts, redraws and the menu button add no objects, nodes, listeners or wrappers ----
   await defs();
-  const LK = await p.evaluate(() => { const {Z, G, api} = __z, m = () => { const i = api.renderer.info.memory; return [i.geometries, i.textures, api.renderer.info.programs.length].join(); }, o = {}, hooks = () => [Z.cpCompose, Z.en.dress, Z.dmgK, Z.step, Z.cpOver, Z.cpHTML, Z.waveTxt, Z.syncMode, Z.continue];
+  const LK = await p.evaluate(() => { const {Z, G, api} = __z, m = () => { const i = api.renderer.info.memory; return [i.geometries, i.textures, api.renderer.info.programs.length].join(); }, o = {}, hooks = () => [Z.cpCompose, Z.en.dress, Z.dmgK, Z.upkeep, Z.repairK, Z.step, Z.cpOver, Z.cpHTML, Z.waveTxt, Z.syncMode, Z.continue];
     Z.endless.start('gate'); __z.cont(); __add(3); __clear(); __z.sim(.5); __z.sim(3.5); const fns = hooks(); o.m0 = m();
     for (let i = 0; i < 4; i++) { Z.endless.start(i % 2 ? 'gate' : 'river'); __z.cont(); __add(3); __clear(); __z.sim(.5); __z.sim(3.5); } for (let i = 0; i < 20; i++) Z.syncMode();
     o.same = hooks().every((f, i) => f === fns[i]); o.m1 = m(); o.th = api.TH.length; api.startDemo(); o.boards = document.querySelectorAll('#zendboard').length; o.btns = document.querySelectorAll('#zendgo').length;
@@ -2883,7 +2961,7 @@ if (want('explore')) {
   /* the numbers this section holds the bot to (real-flying benchmark, Champion on Normal, fresh profile: median wave 36.5 over 20 runs before roaming and sorties; cells by wave 12: 208 before, 323 after). BASE_WAVE sits below the benchmark's quarter-point so a bad draw of three does not fail it; the coverage floors sit well under what the bot reaches. */
   /* CI (software GL on a slow runner, the shard has 20 minutes and a retry) runs the light version: one Champion run to wave 13 (the coverage floors are read at wave 12) instead of three to wave 30, beside the full-purse run of two waves from wave 15 instead of five (two windows, not four contexts), the visual run and the campaign
      choice on one page; the same assertions with floors that one run clears (3 standard deviations under what a run reaches by wave 12: a single run is a wider draw than the median of three; it reaches 13 in all but about 1 run in 20, and the shard retries once). Locally: the full one. */
-  const BASE_CAP = CI ? 13 : 30, BASE_WAVE = CI ? 13 : 26, COV_CELLS = CI ? 230 : 240, COV_PLACES = CI ? 12 : 15, COV_SYS = CI ? 14 : 18, N_RUNS = CI ? 1 : 3, SYS_WAVES = CI ? 2 : 5;
+  const BASE_CAP = CI ? 13 : 30, BASE_WAVE = CI ? 13 : 26, COV_CELLS = CI ? 230 : 240, COV_PLACES = CI ? 12 : 15, COV_SYS = CI ? 14 : 18, N_RUNS = CI ? 1 : 3, SYS_WAVES = CI ? 2 : 5, SHOP_ACT = CI ? 3 : 4;  /* SHOP_ACT: kinds of shop action in the full-purse window; two waves draw three or four (CI failed one run in five on 3), five waves four or more */
   const T0 = Date.now(), lap = n => console.log(`  [explore ${n}: ${Math.round((Date.now() - T0) / 1000)} s]`);
   const KINDS = ['shop', 'launch', 'station', 'transit', 'intercept', 'lock', 'line', 'boss', 'sortie', 'bomb', 'return', 'strike', 'relaunch', 'idle'];
   // 1. the visual run: the leaderboard's flying results, the HUD line, Z.bot.intent, and a sortie flown frame by frame (the shop waits for it, then goes on)
@@ -2957,7 +3035,7 @@ if (want('explore')) {
   const S = RS.sum.s;
   console.log('  systems run (wave 15, $60,000):', S.systems + '/' + S.systemsTotal, S.systemIds.join(','), '| unused:', S.unused.join(','));
   const has = pre => S.systemIds.filter(i => i.startsWith(pre)).length;
-  ok(S.systems >= COV_SYS && has('wpn:') + has('def:') >= 2 && has('swarm:') >= 2 && has('perk:') >= 2 && S.systemIds.includes('lock') && has('shop:') >= 4, `Explore: a full purse from wave 15 uses ${S.systems} of ${S.systemsTotal} systems (arsenal ${has('wpn:') + has('def:')}, swarm commands ${has('swarm:')}, perks ${has('perk:')}, lock-on, shop actions ${has('shop:')}; at least ${COV_SYS})`);
+  ok(S.systems >= COV_SYS && has('wpn:') + has('def:') >= 2 && has('swarm:') >= 2 && has('perk:') >= 2 && S.systemIds.includes('lock') && has('shop:') >= SHOP_ACT, `Explore: a full purse from wave 15 uses ${S.systems} of ${S.systemsTotal} systems (arsenal ${has('wpn:') + has('def:')}, swarm commands ${has('swarm:')}, perks ${has('perk:')}, lock-on, shop actions ${has('shop:')} of at least ${SHOP_ACT}; at least ${COV_SYS} systems)`);
   ok(RS.sum.s.stuck === 0, 'Explore: and sat still nowhere');
   const errs = [...RUNS, RS].flatMap(r => r.errs);
   ok(!errs.length, 'Explore: headless runs: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
@@ -2979,7 +3057,9 @@ if (want('director')) {
     const at = (b, R) => [Math.sin(b) * R, 1950 - Math.cos(b) * R], did = {}; let t = 0, boss = null;
     dir.wipe();
     while (G.state !== 'over' && t < 330 && !(G.state === 'base' && t > 5)) {
-      for (let i = 0; i < 12; i++) api.step(TICK); api.visuals(.1, performance.now()); t += .1;
+      for (let i = 0; i < 12; i++) api.step(TICK);
+      if (M.tFlip == null && G.state !== 'wave' && G.state !== 'clear') M.tFlip = dir.now;  /* the wave ended in these steps: from the next tick the director wipes its books (the lock goes with them) and the shot on air finishes on its own */
+      api.visuals(.1, performance.now()); t += .1;
       if (!did.a && t > 2) { did.a = 1; for (const [b, k] of [[-1.1, 'shahed'], [0, 'shahed'], [1, 'shahed'], [.4, 'jet'], [-.5, 'jet'], [.1, 'heavy']]) { const [x, z] = at(b, 3800); __z.make(k, x, z); }
         for (let i = 0; i < 8; i++) { const [x, z] = at(.8, 3600), u = __z.make('swarm', x + i * 20, z + i * 10); u.grp = 77; } }
       if (!did.b && t > 12) { did.b = 1; boss = __z.make('boss', 0, -3200); }
@@ -3004,7 +3084,7 @@ if (want('director')) {
     }
     for (let i = 0; i < 4; i++) { api.step(TICK); api.visuals(.1, performance.now()); Z.cam(.1); }
     Z.flash = f0; M.t = +t.toFixed(1); M.state = G.state; M.end = [G.kills.p + G.kills.h];
-    M.log = dir.log.map(l => ({kind: l.kind, type: l.type, why: l.why, t0: +l.t0.toFixed(2), t1: +l.t1.toFixed(2), locked: l.locked, dist: Math.round(l.dist)}));
+    M.log = dir.log.map(l => ({kind: l.kind, type: l.type, why: l.why, t0: l.t0, t1: l.t1, locked: l.locked, dist: Math.round(l.dist)}));  /* the clock as it was: rounded to hundredths, a cut stamped 8.2168 reads 8.22 and a boom of the same reading (which came after it) looked earlier */
     M.stats = dir.stats; M.leaks = dir.leaks(); M.min = dir.MINL; M.ev = dir.slots.filter(s => s.ev && s.s > 0).length;
     return M; } catch (e) { return {error: String(e.stack).slice(0, 1200)}; } });
   if (run.error) { console.log('  ' + run.error); ok(false, 'Director: the scripted wave ran'); } else {
@@ -3020,7 +3100,8 @@ if (want('director')) {
     const rule = L.filter(l => ['end', 'better'].includes(l.why)), early = rule.filter(l => dur(l) < run.min - .05), hard = L.filter(l => l.why === 'interrupt' && dur(l) < 1.8 - .05);
     ok(rule.length >= 5 && !early.length && !hard.length, `Director: shots keep their minimum (${run.min} s; interrupts 1.8 s): shortest ${Math.min(...rule.map(dur)).toFixed(1)} s of ${rule.length} planned cuts, ${L.filter(l => l.why === 'interrupt').length} interrupts` + (early.length ? ' ' + JSON.stringify(early) : ''));
     /* the director's clock moves at its tick and the sim steps run between ticks: a boom stamped with the same reading as a cut came after that cut, so only an earlier stamp can hold it */
-    const bad = rule.filter(l => l.locked || run.booms.some(b => b.vis && b.k >= 1.2 && b.t < l.t1 - 1e-6 && l.t1 - b.t < b.hold - .15));
+    /* the rule is for the wave: once it is over (the base screen opened) the director drops the lock with everything else and the last shot may end whenever it is due */
+    const bad = rule.filter(l => l.t1 <= (run.tFlip ?? Infinity) && (l.locked || run.booms.some(b => b.vis && b.k >= 1.2 && b.t < l.t1 - 1e-6 && l.t1 - b.t < b.hold - .15)));
     ok(run.booms.filter(b => b.vis && b.k >= 1.2).length >= 5 && !bad.length, `Director: no planned cut while an explosion in view was still going (${run.booms.filter(b => b.vis && b.k >= 1.2).length} explosions in view)` + (bad.length ? ' ' + JSON.stringify(bad) + ' booms: ' + JSON.stringify(run.booms.filter(b => b.vis && b.k >= 1.2 && bad.some(l => b.t < l.t1 && l.t1 - b.t < b.hold + 1))) : ''));
     ok(run.cineHeld === true, "Director: it steps aside while the game's own boss fly-by cinematic has the camera");
     ok(/MOTHERSHIP/.test(run.card) && run.cardOn && /\d+ DOWN/.test(run.kb), `Director: lower-third name card on the boss's arrival ("${run.card.replace(/\s+/g, ' ')}") and a kill count ("${run.kb}")`);

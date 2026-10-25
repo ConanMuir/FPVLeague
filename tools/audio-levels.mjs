@@ -40,6 +40,7 @@ const OAC = () => {
     const tap = (ch) => { const g = c.createGain(); g.channelCount = 2; g.channelCountMode = 'explicit'; g.channelInterpretation = 'speakers'; const sp = c.createChannelSplitter(2); g.connect(sp); sp.connect(mg, 0, ch); sp.connect(mg, 1, ch + 1); return g; };
     Object.defineProperty(c, 'destination', {value: tap(0), configurable: true}); c.__tap = tap; c.__resume = OfflineAudioContext.prototype.resume.bind(c); c.resume = () => Promise.resolve(); window.__oac = c; return c; };
   window.AudioContext = window.webkitAudioContext = OAC;
+  window.__noAudioPrime = true;  /* Zombies opens its context in idle time on the menu; here the context must wait for the timeline's length (the page calls api.audioPrime itself) */
 };
 const PAGE = `window.__lv = (() => {
   const db = x => x > 0 ? +(20 * Math.log10(x)).toFixed(1) : -120;
@@ -321,6 +322,7 @@ async function zombies() {
     tl.at(tl.T, () => { S.zmusv = 1; sfx(1); });
     /* the timeline is known: size the context from it (the game creates it when Play starts a match), start a game, then freeze the frame loop */
     window.__lvDur = tl.end + 2;
+    api.audioPrime();  /* the context is made and its voices built before Play, as the game does in idle time on the menu; Play adopts it */
     document.getElementById('play').click(); await __lv.until(() => !api.demo && !!api.player, 90000); await new Promise(q => setTimeout(q, 300));
     window.requestAnimationFrame = () => 0; await new Promise(q => setTimeout(q, 200)); c = window.__oac;  /* the game loop stops: only the timeline makes sound */
     if (!c || E.AC !== c) return {err: 'no offline context'};

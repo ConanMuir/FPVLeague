@@ -87,7 +87,7 @@ export function initOnboard(api,G,Z){
  function clear(e){const c=card&&!card.hidden&&card.getBoundingClientRect(),r=e.getBoundingClientRect(),t=e.closest('.ztab');if(c&&t&&!(r.right<=c.left||r.left>=c.right||r.bottom<=c.top||r.top>=c.bottom))t.scrollTop+=r.bottom-c.top+12}
  function glow(show){const s=A.cur?.step;for(const e of document.querySelectorAll('.zob-hl'))e.classList.remove('zob-hl');if(!s?.hl||!base())return;try{const e=s.hl();if(e){e.classList.add('zob-hl');if(show===true){e.scrollIntoView?.({block:'nearest'});clear(e)}}}catch(e){}}  /* show: scroll it into view (once, when the prompt opens, not on every redraw) */
  function say(s){const R=Z.radio;if(!R||!s.say)return;let t=Z.craft?.say(s.id)||s.say;if(Z.craft)t=t.replace(/Dart One/g,Z.craft.call());  /* the craft's own line for flying and the camera, and its call sign (ztypes.js) */
-  try{R.say('guide',2,'OVERLORD',t,{nb:1,over:true})}catch(e){}}
+  try{R.say('guide',2,'OVERLORD',t,{nb:1,over:true,soft:1,alive:()=>A.cur?.step===s})}catch(e){}}  /* soft: in a wave a battle call goes first, and may cut in on this line; alive: not worth saying once the prompt is gone (zradio.js) */
 
  /* ---------- the flow ---------- */
  function open(s){A.cur={step:s,left:s.ttl,fin:0};A.n[s.id]=(A.n[s.id]|0)+1;A.log.push(s.id);s.on?.();last='';say(s);
