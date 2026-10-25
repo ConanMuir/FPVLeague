@@ -497,9 +497,14 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   /* the Twins: they split for the pincer, the link snaps on the second strain, the survivor of a kill is enraged */
   const wid = await lastBossToo('twins');
   ok(await onScreens(wid), 'Banners: the Twins are on both clients\' screens');
-  await ev(H, id => { __z.api.TH.find(t => t.id === id).bs.mode = 'split'; __z.sim(.1); }, wid);
+  /* held in form 5.2 km from a site, linked, until every screen has seen them so: the host's own tick would split them (and say so) as soon as they were inside 2.6 km, and in a pincer they are too far apart to strain */
+  await ev(H, id => { const {api} = __z, V = api.THREE.Vector3, t = api.TH.find(t => t.id === id), m = t.bs.mate, s = api.SITES[1]; t.bs.site = s; t.bs.mode = 'form'; t.bs.snap = t.bs.strain = t.bs.rage = 0; m.bs.snap = m.bs.strain = m.bs.rage = 0;
+    t.p.set(s.x, s.y + 450, s.z - 5200); t.pp = t.p.clone(); m.p.copy(t.p).add(new V(45, 0, 0)); m.pp = m.p.clone(); }, wid);
+  for (const C of [A, B]) ok(await until(C, id => { const r = __z.api.TH.find(t => t.id === id)?.bs.rs; return !!r && r.split === 0 && r.snap === 0; }, wid), `Banners: ${C.name} has the Twins in form and linked (the banners are the rise from there)`);
+  /* in one go on the host (nothing moves between): inside 2.6 km its tick splits them and says PINCER, and two strains on the linked pair snap the link */
+  await ev(H, id => { const {api} = __z, V = api.THREE.Vector3, D = __z.Z.bosses.BOSSES.twins, c = __z.Z.bosses.ctx, t = api.TH.find(t => t.id === id), m = t.bs.mate, s = api.SITES[1];
+    t.p.set(s.x, s.y + 450, s.z - 2000); t.pp = t.p.clone(); m.p.copy(t.p).add(new V(45, 0, 0)); __z.sim(.1); m.p.copy(t.p).add(new V(45, 0, 0)); D.hit(c, t, {q: 'damage'}); D.hit(c, t, {q: 'damage'}); }, wid);
   await everywhere('PINCER', 'the pincer');
-  await ev(H, id => { const D = __z.Z.bosses.BOSSES.twins, c = __z.Z.bosses.ctx, t = __z.api.TH.find(t => t.id === id); D.hit(c, t, {q: 'damage'}); D.hit(c, t, {q: 'damage'}); }, wid);
   await everywhere('LINK SNAPPED', 'the link snapping');
   const pid = await ev(H, id => { const t = __z.api.TH.find(t => t.id === id), m = t.bs.mate; __z.Z.bosses.ctx.kill(t, 'p'); return m.id; }, wid);
   await everywhere('POLLUX ENRAGED', 'the twin that is left');
