@@ -246,6 +246,10 @@ jobs:
           - check: zombies-test (keys)
             area: interceptor
             run: node tools/zombies-test.mjs --sections=keys
+          # boss practice (zpractice.js, zpracdata.js): a one-on-one run for every boss from the Enemies screen, its scenario against the boss's descriptor, driven to a kill, the end screen, the saved best time, nothing paid or recorded; who gets the button (co-op, a client, the bots, the guide, a run in progress), the offer on the end screen, the other ways to end, the HUD, a debug-marked run
+          - check: zombies-test (practice)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=practice
     env:
       DL_SWIFTSHADER: '1'   # no GPU on the runner: software WebGL (tools/browser.mjs)
       DL_NORENDER: '1'      # skip draw calls except at the checks' drawFrames() checkpoints (SwiftShader draws ~1 fps)
