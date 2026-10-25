@@ -25,6 +25,7 @@ function model(C){const T=C.THREE,M=mats(C),g=C.group();
  const waves=[];for(let i=0;i<3;i++){const sp=new T.Sprite(new T.SpriteMaterial({map:ringTex(C),color:new T.Color(0x5ff0e0),transparent:true,opacity:0,depthWrite:false,blending:T.AdditiveBlending}));sp.position.set(0,1.6,-2.5);g.add(sp);waves.push(sp)}
  Object.assign(g.userData,{ring,waves});return g}
 const ringTex=C=>C.decal('sr-ring',128,128,(g,w)=>{g.strokeStyle='#fff';g.lineWidth=6;g.beginPath();g.arc(w/2,w/2,w/2-6,0,7);g.stroke()});
+const unmask=C=>C.Z.an?.say('SIREN UNMASKED','that "friendly" is the Siren','#5ff0e0',3);
 const R=t=>t.bs.ph>=1?1200:900,singing=t=>t.net?t.bs.sing!==0:!(t.bs.ph>=2&&(t.bs.age||0)%7>4);  /* a co-op client's copy has no clock of its own: the host says whether it sings (netOut) */
 const group=(C,t)=>{const L=C.api.TH.filter(u=>C.api.live(u)&&!C.BOSSES[u.k]);if(!L.length)return null;const c=new C.V3();let n=0;const near=L.filter(u=>u.p.distanceTo(t.p)<1500);
  const S=(near.length?near:L);for(const u of S){c.add(u.p);n++}return c.divideScalar(n)};
@@ -35,7 +36,7 @@ registerBoss({id:'siren',n:'The Siren',tag:'FRIENDLY',col:'#5ff0e0',spd:70,alt:[
  introFn(C,t){C.Z.an?.radio('OVERLORD','Friendly flight checking in from the north… wait. We have no flights up there.',2);C.api.feed('<span class="cg">IFF: friendly flight inbound.</span> <span class="co">…Nobody filed one.</span>')},
  build:C=>model(C),
  init(C,t){const{api}=C;t.p.y=api.gh(t.p.x,t.p.z)+450;const n=4+Math.floor(C.G.wave/8);for(let i=0;i<n;i++){const u=C.Z.make(i%3?'shahed':'jet',t.p.x+C.rnd(-200,200),t.p.z+C.rnd(-200,200));if(u)u.p.y=t.p.y+C.rnd(-80,80)}},
- tick(C,t,dt){const{api}=C,B=t.bs;for(const d of C.pilots())if(d.p.distanceTo(t.p)<600&&!B.ident){B.ident=1;C.Z.an?.say('SIREN UNMASKED','that "friendly" is the Siren','#5ff0e0',3);(C.Z.team||api.feed)('<span class="cr">That friendly is an enemy: the SIREN.</span> Its covered drones still read green while it sings.')}
+ tick(C,t,dt){const{api}=C,B=t.bs;for(const d of C.pilots())if(d.p.distanceTo(t.p)<600&&!B.ident){B.ident=1;unmask(C);(C.Z.team||api.feed)('<span class="cr">That friendly is an enemy: the SIREN.</span> Its covered drones still read green while it sings.')}
   if(B.age>240&&!B.flee)B.flee=1;if(B.flee){C.steer(t,C.levelTo(t,new C.V3(t.p.x,0,-6000),500),95,.5,dt,100);if(t.p.z<-4400)C.vanish(t,'escaped');return true}
   if(B.ph>=1&&!B.hop){B.hop=1;const L=api.TH.filter(u=>api.live(u)&&!C.BOSSES[u.k]&&u.p.distanceTo(t.p)>1500);if(L.length)B.goal=C.pick(L)}
   let c=B.goal&&api.live(B.goal)?B.goal.p:group(C,t);if(!c){const s=C.pick(C.sites());if(!s)return true;c=new C.V3(s.x,s.y+400,s.z-1800)}
@@ -56,7 +57,7 @@ registerBoss({id:'siren',n:'The Siren',tag:'FRIENDLY',col:'#5ff0e0',spd:70,alt:[
   if(t.iff!==(t.bs.ident?0:1))t.iff=t.bs.ident?0:1e9;
   if(t.net&&on)for(const u of C.api.TH)if(C.api.live(u)&&!C.BOSSES[u.k]&&u.p.distanceTo(t.p)<R(t))u.iff=.6},  /* the song on a co-op client: the covered drones read friendly there too (the host's tick does this for its own) */
  radar(C,rc,P,t){rc.strokeStyle='rgba(61,220,132,.45)';rc.lineWidth=1.5;for(const u of C.api.TH)if(u.iff>0&&C.api.live(u)&&C.Z.seen(u)){const q=P(u.p.x,u.p.z);rc.beginPath();rc.arc(q[0],q[1],9,0,7);rc.stroke()}},
- netOut:(C,t)=>[t.bs.ident|0,singing(t)?1:0],netIn(C,t,a){t.bs.ident=a[0]|0;t.bs.sing=a[1]===0?0:1},
+ netOut:(C,t)=>[t.bs.ident|0,singing(t)?1:0],netIn(C,t,a){if(C.rise(t,'ident',a[0]|0))unmask(C);t.bs.ident=a[0]|0;t.bs.sing=a[1]===0?0:1},  /* the unmasking banner on a co-op client too, when the host's flag rises */
  aim:(C,t,s)=>Math.random()<s*(t.bs.ident?1:.5)?{p:t.p.clone().addScaledVector(t.v.clone().normalize(),-.9)}:null,
  winTxt:'The Siren is silent. IFF is clean again.',
  sting(S){const t0=S.t+.05,o=S.out(.8);for(const[f0,f1,d]of[[500,1100,0],[660,1320,.3]]){const x=S.osc('sine',f0,t0+d,3.2),v=S.osc('sine',6.5,t0+d,3.2),vg=x.context.createGain();vg.gain.value=40;v.connect(vg).connect(x.frequency);

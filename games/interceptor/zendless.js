@@ -7,6 +7,8 @@
 //   speed      the slow drones fly faster, 1% a wave on top of the usual 12% (up to +60%)
 //   armour     1.5% a wave of the Shahed points arrive as armored heavies instead (up to 60%): proximity bursts only damage them
 //   damage     every hit on a site is 1% a wave heavier (no limit)
+//   upkeep     past wave SINK_FROM (40) what the defences cost to keep, and what a repair costs, grow by 1 + SINK_K x (wave - 40) squared (x2 at 50, x5 at
+//              60, x13 at 75): a gentle start that turns into a real bill, so a strong run still has to choose what to keep. Waves 1-40 are untouched
 //   bosses     a boss every 10 waves up to wave 20, every 5 up to 50, every 3 after it; two at a time from RAMP + 30, three from RAMP + 60
 //              (extra boss waves are a quarter lighter in everything else). They are drawn from the boss codex's pool (zcodex.js): the bosses you have unlocked and allowed
 // Milestone every 10 waves: the wave is cleared and every site is repaired by a quarter, with a purse of $800 x (wave / 10).
@@ -26,6 +28,8 @@ export const countK=w=>1+.025*climb(w);
 export const speedK=w=>Math.min(1.6,1+.01*climb(w));
 export const armorK=w=>Math.min(.6,.015*climb(w));
 export const dmgK=w=>1+.01*climb(w);
+export const SINK_FROM=40,SINK_K=.01;
+export const sinkK=w=>{const c=Math.max(0,(w|0)-SINK_FROM);return 1+SINK_K*c*c};  /* x1 up to wave 40 */
 export const bossEvery=w=>w<=RAMP?10:w<=50?5:3;
 export const bossCount=w=>1+(climb(w)>=30?1:0)+(climb(w)>=60?1:0);
 export const bossDue=w=>w>0&&(w%10===0||w>RAMP&&w%bossEvery(w)===0);
@@ -42,7 +46,7 @@ export const label=r=>`Endless, wave ${r.w} · ${SEC[r.sec]?.n||'?'} · ${ZDIFF[
 
 export function initEndless(api,G,Z){
  const {S,save,SITES,feed,banner}=api,$=id=>document.getElementById(id);
- const E=Z.endless={RAMP,CAP_TRACKS,CAP_LIVE,climb,countK,speedK,armorK,dmgK,bossEvery,bossCount,bossDue,milestone,msBonus,cleanEnd,label};
+ const E=Z.endless={RAMP,CAP_TRACKS,CAP_LIVE,climb,countK,speedK,armorK,dmgK,SINK_FROM,sinkK,bossEvery,bossCount,bossDue,milestone,msBonus,cleanEnd,label};
  const rd=()=>S.zend=cleanEnd(S.zend);
  const run=()=>Z.cp?.run?.endless?Z.cp.run:null,on=()=>!!run();
  E.on=on;E.due=w=>on()&&bossDue(w);E.runs=()=>rd().runs;E.state=()=>rd();
@@ -89,11 +93,14 @@ export function initEndless(api,G,Z){
  /* the slow drones fly faster (right after a track is made: its speed, cruise speed and velocity together) */
  const dr0=Z.en.dress;Z.en.dress=t=>{dr0(t);if(on()&&climb(G.wave)>0&&t.spd<150&&!isB(t.k)){const m=speedK(G.wave);t.spd*=m;t.cs*=m;t.v.multiplyScalar(m)}};
  const dk0=Z.dmgK;Z.dmgK=(s,t)=>(dk0?dk0(s,t):1)*(on()?dmgK(G.wave):1);
+ /* the late-game sink: past wave SINK_FROM the upkeep of every defence and the price of a repair grow with the wave (w = the wave being paid for or about to be played; up to 40 the figures are the plain ones) */
+ const up0=Z.upkeep;Z.upkeep=(w=G.wave+1)=>{const U=up0(w);if(!on()||!(w>SINK_FROM))return U;const k=sinkK(w),per=new Map();let total=0;for(const[d,c]of U.per){const v=Math.round(c*k);per.set(d,v);total+=v}return{total,per}};
+ const rk0=Z.repairK;Z.repairK=()=>(rk0?.()??1)*(on()?sinkK(G.wave+1):1);
 
  /* ---------- the briefing says what the climb is (zbrief.js) ---------- */
  Z.brief?.add(D=>{if(!on())return null;const w=D.w;if(climb(w)<=0)return`Endless: the climb starts after wave ${RAMP}`;
   const nm=Math.ceil((w+1)/MS_EVERY)*MS_EVERY,p=v=>Math.round(v*100);
-  return[`Endless +${p(countK(w)-1)}% tracks · +${p(speedK(w)-1)}% speed · ${p(armorK(w))}% of the Shaheds armored · sites take +${p(dmgK(w)-1)}%`,`boss every ${bossEvery(w)} waves${bossCount(w)>1?` (${bossCount(w)} at a time)`:''} · milestone wave ${milestone(w)?w:nm}: +${money(msBonus(milestone(w)?w:nm))} and a repair · at most ${CAP_LIVE} tracks in the air`]});
+  return[`Endless +${p(countK(w)-1)}% tracks · +${p(speedK(w)-1)}% speed · ${p(armorK(w))}% of the Shaheds armored · sites take +${p(dmgK(w)-1)}%`,`boss every ${bossEvery(w)} waves${bossCount(w)>1?` (${bossCount(w)} at a time)`:''} · milestone wave ${milestone(w)?w:nm}: +${money(msBonus(milestone(w)?w:nm))} and a repair · at most ${CAP_LIVE} tracks in the air${w>SINK_FROM?` · upkeep and repairs x${sinkK(w).toFixed(1)}`:''}`]});
 
  /* ---------- the run: banner text, the strip, the milestones ---------- */
  const wt0=Z.waveTxt;Z.waveTxt=()=>on()?G.state==='base'?`WAVE ${G.wave+1} NEXT ∞`:`WAVE ${G.wave} ∞`:wt0?.();

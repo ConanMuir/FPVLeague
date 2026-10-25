@@ -479,11 +479,88 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
 }
 
-// ---------- the wave's end on a client (zbosses.js): the base and game-over screens pause a client's sim, so a client that never gets a step in the wave's clear state must still see the wave end ----------
+// ---------- what the host's bosses announce and do on a pilot's screen (zboss-siren / twins / jammer / hush / mirror / ace): the Siren unmasked, the Twins' pincer, snapped link and enraged survivor, the Jammer King's relays,
+// network down and overload, the Hush's near miss; the Mirror copies the pilot it hunts, not the host; the verdict on a shot at a client (the Deathless trophy) goes back to the host ----------
 { await ev(H, () => { __z.G.cash = 4000; });
   await readyUp(7);
+  await ev(H, () => { const {Z} = __z; window.__say = []; const s0 = Z.an.say; Z.an.say = (...a) => { __say.push(String(a[0])); return s0(...a); }; });  /* the host's own banners, to compare with */
+  for (const P of all) await ev(P, () => { __say.length = 0; });
+  const everywhere = async (t, what) => { const r = await Promise.all(all.map(P => until(P, t => __say.includes(t), t))); ok(r.every(Boolean), `Banners: ${what} says "${t}" on the host and on both clients` + (r.every(Boolean) ? '' : ` (missing on ${all.filter((_, i) => !r[i]).map(P => P.name).join(', ')})`)); };
+  const vanish = id => ev(H, id => { const t = __z.api.TH.find(t => t.id === id); if (t) __z.Z.bosses.ctx.vanish(t, 'gone'); }, id);
+  for (const P of [H, A]) await ev(P, () => { if (__z.api.player.dead > 0) __z.api.launch(); });
+  /* the Siren: a pilot inside 600 m unmasks it */
+  const sid = await ev(H, () => { const {G, api, Z} = __z; G.wq.length = 0; for (const t of api.TH) if (api.live(t)) t.st = 'dead'; const t = Z.bosses.spawn('siren', {x: 3200, z: -1200}); __z.sim(1); return t.id; });  /* far from every mat: nobody is inside its 600 m yet */
+  ok(await onScreens(sid) && await ev(H, id => !__z.api.TH.find(t => t.id === id).bs.ident, sid), 'Banners: the Siren is on both clients\' screens, still hidden as a friendly');
+  await ev(H, id => { const t = __z.api.TH.find(t => t.id === id), V = __z.api.THREE.Vector3; __z.api.player.p.copy(t.p).add(new V(150, 0, 0)); __z.sim(.2); }, sid);
+  await everywhere('SIREN UNMASKED', 'the Siren unmasked');
+  await vanish(sid);
+  /* the Twins: they split for the pincer, the link snaps on the second strain, the survivor of a kill is enraged */
+  const wid = await lastBossToo('twins');
+  ok(await onScreens(wid), 'Banners: the Twins are on both clients\' screens');
+  /* held in form 5.2 km from a site, linked, until every screen has seen them so: the host's own tick would split them (and say so) as soon as they were inside 2.6 km, and in a pincer they are too far apart to strain */
+  await ev(H, id => { const {api} = __z, V = api.THREE.Vector3, t = api.TH.find(t => t.id === id), m = t.bs.mate, s = api.SITES[1]; t.bs.site = s; t.bs.mode = 'form'; t.bs.snap = t.bs.strain = t.bs.rage = 0; m.bs.snap = m.bs.strain = m.bs.rage = 0;
+    t.p.set(s.x, s.y + 450, s.z - 5200); t.pp = t.p.clone(); m.p.copy(t.p).add(new V(45, 0, 0)); m.pp = m.p.clone(); }, wid);
+  for (const C of [A, B]) ok(await until(C, id => { const r = __z.api.TH.find(t => t.id === id)?.bs.rs; return !!r && r.split === 0 && r.snap === 0; }, wid), `Banners: ${C.name} has the Twins in form and linked (the banners are the rise from there)`);
+  /* in one go on the host (nothing moves between): inside 2.6 km its tick splits them and says PINCER, and two strains on the linked pair snap the link */
+  await ev(H, id => { const {api} = __z, V = api.THREE.Vector3, D = __z.Z.bosses.BOSSES.twins, c = __z.Z.bosses.ctx, t = api.TH.find(t => t.id === id), m = t.bs.mate, s = api.SITES[1];
+    t.p.set(s.x, s.y + 450, s.z - 2000); t.pp = t.p.clone(); m.p.copy(t.p).add(new V(45, 0, 0)); __z.sim(.1); m.p.copy(t.p).add(new V(45, 0, 0)); D.hit(c, t, {q: 'damage'}); D.hit(c, t, {q: 'damage'}); }, wid);
+  await everywhere('PINCER', 'the pincer');
+  await everywhere('LINK SNAPPED', 'the link snapping');
+  const pid = await ev(H, id => { const t = __z.api.TH.find(t => t.id === id), m = t.bs.mate; __z.Z.bosses.ctx.kill(t, 'p'); return m.id; }, wid);
+  await everywhere('POLLUX ENRAGED', 'the twin that is left');
+  await vanish(pid);
+  /* the Jammer King: a relay pod down (its bearing line reaches the scopes too), an overload, then every relay gone */
+  const jid = await lastBossToo('jammer');
+  ok(await onScreens(jid), 'Banners: the Jammer King is on both clients\' screens');
+  const pods = await ev(H, () => __z.api.TH.filter(t => t.k === 'jpod' && __z.api.live(t)).map(t => t.id));
+  await ev(H, id => __z.Z.bosses.ctx.kill(__z.api.TH.find(t => t.id === id), 'p'), pods[0]);
+  await everywhere('RELAY DOWN', 'a relay pod falling');
+  for (const C of [A, B]) ok(await until(C, id => __z.api.TH.find(t => t.id === id)?.bs.lines?.length === 1, jid), `Banners: ${C.name} has the first bearing line (the host's fix) on the scope`);
+  await ev(H, id => { const {api} = __z, k = api.TH.find(t => t.id === id); k.bs.cnt = 7; const u = __z.make('shahed', k.p.x, k.p.z); u.p.copy(k.p).add(new api.THREE.Vector3(30, 0, 0)); api.killThreat(u, true); __z.sim(.1); }, jid);
+  await everywhere('NETWORK OVERLOAD', 'the overload');
+  await ev(H, () => { for (const t of __z.api.TH) if (t.k === 'jpod' && __z.api.live(t)) __z.Z.bosses.ctx.kill(t, 'p'); __z.sim(.2); });
+  await everywhere('NETWORK DOWN', 'the last relay going');
+  await vanish(jid);
+  /* the Hush: a pass 65 m off Ash's mat is a near miss, and shakes Ash's picture (not a clip) */
+  await ev(A, () => { window.__shk = 0; const d = Object.getOwnPropertyDescriptor(__z.api, 'shake'); Object.defineProperty(__z.api, 'shake', {configurable: true, enumerable: d.enumerable, get: d.get, set(v) { window.__shk = Math.max(window.__shk, v); d.set.call(this, v); }}); });
+  const hid = await lastBossToo('hush');
+  ok(await until(H, k => { const r = __z.net.n.pil.get(k); return !!r && r.seen && !r.dead; }, aKey), 'Banners: the host sees Ash\'s interceptor on his mat');
+  await ev(H, ([id, k]) => { const t = __z.api.TH.find(t => t.id === id), B = t.bs, V = __z.api.THREE.Vector3, p = __z.net.n.pil.get(k).d.p, dir = new V(1, 0, 0), off = new V(0, 0, 60), start = new V(p.x, p.y + 25, p.z).addScaledVector(dir, -500).add(off);
+    t.p.copy(start); t.pp = start.clone(); t.v.copy(dir).multiplyScalar(170); B.md = 2; B.tg = 'p'; B.site = null; B.A = new V(p.x, p.y + 25, p.z).addScaledVector(dir, 60).add(off); B.rv = 3; B.af = 0; B.ck = 0; B.qs = []; B.tm = 0; B.cd = 1e9; }, [hid, aKey]);
+  let shook = false; for (let i = 0; i < 60 && !shook; i++) { await ev(H, () => __z.sim(.25)); shook = await until(A, () => window.__shk >= .5, null, 150); }  /* the host's sim is driven by hand: three windows do not all get frames */
+  ok(shook, 'Banners: the Hush\'s near miss shakes Ash\'s picture');
+  ok(await ev(A, () => __z.api.player.dead <= 0), 'Banners: ... and it was only a near miss: Ash still has his interceptor');
+  await vanish(hid);
+  /* the Mirror hunts Ash (the only pilot who has flown enough to copy) and copies him: his habits and his perks, on the host and on every bar */
+  await ev(A, () => { __z.G.hab = {n: 300, alt: 126000, spd: 21000, L: 90, R: 10, asp: {'HIGH HEAD': 6, 'LEVEL SIX': 1}, side: {LEFT: 2, RIGHT: 5}, dets: 0, yaw: null, t: 0}; });
+  await ev(H, k => { __z.net.n.perks[k] = {rocket: 1, warhead: 2, fuse: 1}; }, aKey);
+  ok(await until(H, k => __z.Z.pilotHabit(k)?.fav === 'HIGH HEAD', aKey, 20000), 'Mirror: the host has Ash\'s flying habits (they ride in his presence)');
+  const mid = await lastBossToo('mirror');
+  const mi = await ev(H, id => { const t = __z.api.TH.find(t => t.id === id), B = t.bs, ash = __z.net.n.pil.get(B.hk); return {hk: B.hk, fav: B.h.fav, turn: B.h.turn, L: B.L, near: ash ? Math.round(t.p.distanceTo(ash.d.p)) : -1}; }, mid);
+  ok(mi.hk === aKey && mi.fav === 'HIGH HEAD' && mi.turn === 1 && mi.L.warhead === 2 && mi.L.rocket === 1 && mi.L.fuse === 1 && mi.near > 900 && mi.near < 1800, `Mirror: it hunts Ash, comes in at him, and has his habits and perks, not the host's (${JSON.stringify(mi)})`);
+  for (const [C, w] of [[A, 'your'], [B, 'Ash\'s']]) ok(await until(C, ([id, w]) => { const t = __z.api.TH.find(t => t.id === id); return !!t && t.bs.h?.fav === 'HIGH HEAD' && document.getElementById('zbb').textContent.includes(w + ' habit: HIGH HEAD'); }, [mid, w]), `Mirror: ${C.name}'s boss bar reads "${w} habit: HIGH HEAD", the numbers the host copied`);
+  await vanish(mid);
+  await ev(A, () => { __z.G.hab = null; }); await ev(H, k => { delete __z.net.n.perks[k]; }, aKey);
+  /* a shot at Ash: the Deathless trophy (the team's) saves his first interceptor of the wave on his screen, and the host is told so, so its tally counts only what was lost */
+  await ev(H, () => { __z.Z.bosses.ctx.grant('deathless'); });
+  ok(await until(A, () => !!__z.G.brw?.deathless), 'Deathless: Ash holds the trophy the host won');
+  await ev(A, () => { if (__z.api.player.dead > 0) __z.api.launch(); __z.G.dlw = -1; });
+  await until(H, k => { const r = __z.net.n.pil.get(k); return !!r && r.seen && !r.dead; }, aKey);
+  const shoot = why => ev(H, ([k, why]) => { window.__vd = window.__vd || []; const n = __vd.length; __z.Z.bosses.ctx.shoot(why, __z.net.n.pil.get(k).d, lost => __vd.push(lost)); return n; }, [aKey, why]);
+  await shoot('a test missile');
+  ok(await until(H, () => __vd.length === 1), 'Deathless: the verdict on the first shot comes back to the host');
+  ok(await ev(H, () => __vd[0]) === false && await ev(A, () => __z.api.player.dead <= 0), 'Deathless: ... it reads "not lost" (the trophy saved Ash) and Ash is still flying');
+  await shoot('a test missile again');
+  ok(await until(H, () => __vd.length === 2) && await ev(H, () => __vd[1]) === true && await until(A, () => __z.api.player.dead > 0), 'Deathless: the second shot in the wave is lost, the verdict says "lost" and Ash loses his interceptor');
+  await ev(H, () => { for (const t of __z.api.TH) if (__z.api.live(t)) t.st = 'dead'; });  /* the wave is over */
+  for (const P of all) await until(P, () => __z.G.state === 'base' && !document.getElementById('zbase').hidden);
+}
+
+// ---------- the wave's end on a client (zbosses.js): the base and game-over screens pause a client's sim, so a client that never gets a step in the wave's clear state must still see the wave end ----------
+{ await ev(H, () => { __z.G.cash = 4000; });
+  await readyUp(8);
   const id = await lastBoss('boss');
-  ok(await until(B, () => __z.Z.bosses.shadows.some(m => m.visible)), 'Wave end: the Mothership is the last track of wave 7 and its shadow is down on Bea\'s ground');
+  ok(await until(B, () => __z.Z.bosses.shadows.some(m => m.visible)), 'Wave end: the Mothership is the last track of wave 8 and its shadow is down on Bea\'s ground');
   const stages = () => ev(H, id => __z.api.TH.find(t => t.id === id)?.stages | 0, id);
   for (let i = 0; i < 8 && await stages() > 1; i++) await burstAt(A, id);
   ok(await stages() === 1, 'Wave end: Ash\'s bursts have taken the Mothership down to its last pod');
@@ -495,7 +572,7 @@ for (const C of [A, B]) await ev(C, () => { const {Z} = __z; window.__say = []; 
   for (const C of [A, B]) ok(await until(C, () => __z.G.state === 'base') && await until(C, () => !__z.Z.bosses.shadows.some(m => m.visible)), `${C.name}: on the base screen the Mothership's shadow is gone, though ${C.name} never saw the clear state`);
   /* a game over with the Hush in the air: the darkness and the fight go from the client's screen as they do from the host's */
   await ev(H, () => { __z.G.cash = 4000; });
-  await readyUp(8);
+  await readyUp(9);
   await lastBoss('hush');
   ok(await until(A, () => __z.Z.atmos.sources > 0) && await until(B, () => __z.Z.atmos.sources > 0), 'Wave end: the Hush\'s darkness is down on both clients');
   await ev(H, () => { __z.Z.gameOver(); __z.sim(.1); });

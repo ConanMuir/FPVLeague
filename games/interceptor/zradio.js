@@ -8,6 +8,8 @@
    makes its own calls from what its snapshots show. A call goes through note() (merged for a moment: three new tracks from the east are one
    call) and the channel (enqueue / pump): a priority queue with a cooldown per topic, a budget of calls per 20 s per priority, stale calls
    dropped, one call on the air at a time, and only an urgent call (priority 3: a site lost, a missed point defence) cuts the one on the air.
+   The one exception is the first-run guide's lines (zonboard.js, flagged soft): while a wave is on (or a track still up) they rank under every battle call
+   and do not use up the budget, a battle call may cut in on one (it is said again, once), and one that has waited 7 s goes ahead of the routine calls.
    The legacy subtitle (zannounce.js an.radio) is taken over while this is on: its generic lines are covered by the events here and dropped, its
    scripted ones (a boss's taunts) come through the same channel. Off in the settings, the old subtitle comes back.
    Settings (the same dl-interceptor save as the rest): S.zradio, S.zradiov, rows under the other sound sliders.
@@ -37,7 +39,7 @@ const GENERIC=[/^(Mothership is down|Splash the Mothership|The carrier is down)/
  /^(Air raid warning|Wave \d+ incoming|Radar has new tracks)/,/^(All tracks down|Sky is clear|Raid defeated)/];
 /* seconds a topic waits to merge more events into one call (HOLD) and between two of its calls (CD); calls per 20 s by priority (LIM); how long a queued call stays worth saying (TTL) */
 const HOLD={trk:1.6,fast:.8,chain:.3,kill:1.6,site:1.5,boss:.5,help:.6,coop:.6,so:.6},CD={trk:6,fast:2,chain:.8,kill:8,site:8,boss:1.5,help:10,coop:3,so:2,bat:6,line:.6};
-const LIM=[3,4,6,99],TTL=[6,9,14,20],MAXQ=4,GAP=.45,WIN=20;
+const LIM=[3,4,6,99],TTL=[6,9,14,20],MAXQ=4,GAP=.45,WIN=20,SOFTW=7,SOFTT=24;  /* a first-run guide line (soft) ranks under every battle call during a wave until it has waited SOFTW seconds, and stays worth saying for SOFTT */
 
 export function initRadio(api,G,Z){
  const {TH,SITES,S}=api,$=id=>document.getElementById(id);
@@ -67,20 +69,24 @@ export function initRadio(api,G,Z){
  function sound(){const v=vol();if(v<=0||!busOn())return;try{bus.gain.value=v*GAIN_CAP;const t0=AC.currentTime+.01;noise(t0,.04,'highpass',1800,.5,.9,.003);noise(t0+.05,.2,'bandpass',2300,.7,.35,.02);R.au.n++}catch(e){}}
 
  /* ---------- the channel: one call on the air at a time ---------- */
- function play(c){c.end=T+cl(.6+c.txt.length/18,1.1,5.5);R.cur=c;win.push(T);R.st.played++;R.calls.push({t:+T.toFixed(2),at:+c.t0.toFixed(2),pri:c.pri,who:c.who,txt:c.txt,topic:c.topic});if(R.calls.length>80)R.calls.shift();show(c);sound()}
- function cut(){const c=R.cur;if(!c)return;c.cut=1;R.st.cut++;R.cur=null;gapT=T+.1;for(const l of LN)if(l.c===c)l.d.classList.add('cut')}
+ const busy=()=>G.state==='wave'||TH.some(t=>api.live(t));  /* a wave is on, or a track is still on the radar */
+ const rank=(c,b)=>c.soft&&b?(T-c.t0>SOFTW?1.5:.5):c.pri;  /* a guide line (soft) gives way to the battle calls while a wave is on, but not for ever: after SOFTW seconds it goes ahead of the routine ones */
+ function play(c){c.end=T+cl(.6+c.txt.length/18,1.1,5.5);R.cur=c;if(!c.soft)win.push(T);R.st.played++;c.log={t:+T.toFixed(2),at:+c.t0.toFixed(2),pri:c.pri,who:c.who,txt:c.txt,topic:c.topic};R.calls.push(c.log);if(R.calls.length>80)R.calls.shift();show(c);sound()}  /* the guide has its own channel: its lines do not use up the battle calls' budget */
+ function cut(){const c=R.cur;if(!c)return;c.cut=1;if(c.log)c.log.cut=1;R.st.cut++;R.cur=null;gapT=T+.1;const again=c.soft&&!c.re;for(const l of LN)if(l.c===c){if(again){l.d.remove();LN.splice(LN.indexOf(l),1);break}l.d.classList.add('cut')}
+  if(again&&(!c.alive||c.alive()))Q.push({...c,re:1,cut:0,end:0,t0:T,log:null})}  /* a guide line a battle call cut in on is said again, once, when the channel is free (unless its prompt has gone) */
  function pump(){if(R.cur&&T>=R.cur.end){R.cur=null;gapT=T+GAP}if(R.cur)return;
-  for(let i=Q.length-1;i>=0;i--)if(T-Q[i].t0>Q[i].ttl){Q.splice(i,1);R.st.drop.stale++}
-  if(!Q.length)return;let b=0;for(let i=1;i<Q.length;i++)if(Q[i].pri>Q[b].pri)b=i;if(T<gapT&&Q[b].pri<3)return;play(Q.splice(b,1)[0])}
+  for(let i=Q.length-1;i>=0;i--)if(T-Q[i].t0>Q[i].ttl||Q[i].alive&&!Q[i].alive()){Q.splice(i,1);R.st.drop.stale++}  /* alive: a guide line is not worth saying once its prompt is gone */
+  if(!Q.length)return;const bz=busy();let b=0;for(let i=1;i<Q.length;i++)if(rank(Q[i],bz)>rank(Q[b],bz))b=i;if(T<gapT&&rank(Q[b],bz)<3)return;play(Q.splice(b,1)[0])}
  function enqueue(topic,c,gated){const p=cl(c.pri|0,0,3),D=R.st.drop;
   if(!on()||hard()||quiet()&&!c.over){D.quiet++;return false}
   if(!gated&&p<3&&T-(last[topic]??-99)<(CD[topic]||0)){D.cool++;return false}
   const tx=txtAt.get(c.txt);if(p<3&&tx!=null&&T-tx<10){D.dup++;return false}
   while(win.length&&T-win[0]>WIN)win.shift();
-  if(p<3&&!c.nb&&win.length+Q.length>=LIM[p]){D.rate++;return false}
-  if(Q.length>=MAXQ){let lo=0;for(let i=1;i<Q.length;i++)if(Q[i].pri<Q[lo].pri)lo=i;if(Q[lo].pri>p||Q[lo].pri===p&&p<3){D.full++;return false}Q.splice(lo,1);D.full++}
-  Q.push({...c,topic,pri:p,t0:T,ttl:TTL[p],vc:c.vc||vcOf(c.who)});txtAt.set(c.txt,T);if(txtAt.size>40)txtAt.delete(txtAt.keys().next().value);last[topic]=T;R.st.made++;R.st.by[topic]=(R.st.by[topic]|0)+1;
-  if(p>=3&&R.cur&&R.cur.pri<3)cut();pump();return true}
+  const B=Q.filter(x=>!x.soft);  /* the guide's lines wait in the queue too, but they neither count toward the budget nor fill it */
+  if(p<3&&!c.nb&&win.length+B.length>=LIM[p]){D.rate++;return false}
+  if(!c.soft&&B.length>=MAXQ){let lo=B[0];for(const x of B)if(x.pri<lo.pri)lo=x;if(lo.pri>p||lo.pri===p&&p<3){D.full++;return false}Q.splice(Q.indexOf(lo),1);D.full++}
+  Q.push({...c,topic,pri:p,t0:T,ttl:c.soft?SOFTT:TTL[p],vc:c.vc||vcOf(c.who)});txtAt.set(c.txt,T);if(txtAt.size>40)txtAt.delete(txtAt.keys().next().value);last[topic]=T;R.st.made++;R.st.by[topic]=(R.st.by[topic]|0)+1;
+  if(p>=3&&R.cur&&R.cur.pri<3||p>=1&&!c.soft&&R.cur?.soft)cut();pump();return true}  /* an urgent call cuts in on any call; a battle call also on a guide line (which comes back once) */
  /* an event for a topic that merges: it waits HOLD seconds (and the topic's cooldown, unless it is urgent) for company, then one call is made of all of them */
  function note(topic,item){if(quiet()||!on())return;let p=pend[topic];if(!p)p=pend[topic]={t0:T,L:[],over:0,u:false};if(p.L.length<60)p.L.push(item);else p.over++;if(item.u)p.u=true}
  function flushDue(){for(const k in pend){const p=pend[k];if(T-p.t0<(HOLD[k]||0)||!p.u&&T-(last[k]??-99)<(CD[k]||0))continue;delete pend[k];last[k]=T;
