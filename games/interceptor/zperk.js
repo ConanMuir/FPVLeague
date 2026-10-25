@@ -32,7 +32,7 @@ export function initPerks(api,G,Z){
  function reset(){G.perks={};G.ch={};apply()}
  function refill(){G.ch={freeze:FREEZE[lv('freeze')]?.n|0,mark:MARK[lv('mark')]?.n|0,air:AIR[lv('air')]?.n|0,lure:lv('lure')?1:0};G.strike=null}
  Z.perkRows=money=>Object.keys(PERK).filter(k=>lv(k)).map(k=>{const m=Z.perkMaxed(k),c=Z.perkPrice(k);
-  return`<div class="zarm"><span class="zg">${ITEMS[k].glyph}</span><div><b>${ITEMS[k].n}</b><small>level ${lv(k)}${PERK[k].key?` · key ${PERK[k].key}`:''}</small></div><div class="zups"><span class="zst zn">${m?'Max level':'Next: '+Z.perkBlurb(k)}</span>${m?'':`<button class="sm" data-perk="${k}" ${G.cash>=c?'':'disabled'}>Upgrade ${money(c)}</button>`}</div></div>`}).join('');
+  return`<div class="zarm own" data-det="c:${G.cards.findIndex(c=>c.k===k)}"><span class="zg">${ITEMS[k].glyph}</span><div><b>${ITEMS[k].n}</b><small>level ${lv(k)}${PERK[k].key?` · key ${PERK[k].key}`:''}</small></div><div class="zups"><span class="zst zn">${m?'Max level':'Next: '+Z.perkBlurb(k)}</span>${m?'':`<button class="sm pri" data-perk="${k}" ${G.cash>=c?'':'disabled'}>Upgrade ${money(c)}</button>`}</div></div>`}).join('');
 
  // ---------- actives ----------
  const danger=t=>(KIND[t.k]?.dmg||1)/Math.max(1,Math.hypot(t.aim.x-t.p.x,t.aim.z-t.p.z)/Math.max(1,t.spd));

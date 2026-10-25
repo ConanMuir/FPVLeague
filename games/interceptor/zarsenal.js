@@ -1,7 +1,7 @@
 // Zombies arsenal: the pilot weapon loadout (zweapons.js) and five more base defences (zarsdef.js), numbers in zarsdata.js. This file is the glue:
 // per-pilot weapon state, the base screen's Pilot weapon section and the defences' extra controls (carrier parking), the HUD tag, a small
 // WebAudio synth for their sounds, co-op routing and the run's arsenal stats (tools/zombies-arsenal-bench.mjs and tools/arsenal-stats.mjs read them).
-// Hooks it uses: zbase.js Z.shopTop / Z.baseBind / Z.defExtra / Z.mapExtra / Z.mapClick, zdef.js Z.defx, znet.js 'A' requests and events (Z.arsNet),
+// Hooks it uses: zbase.js Z.shop (a section and its detail pane) / Z.baseBind / Z.defExtra / Z.mapExtra / Z.mapClick, zdef.js Z.defx, znet.js 'A' requests and events (Z.arsNet),
 // zombies.js Z.detonate / Z.tstep / Z.helperHit / Z.jink / Z.step / Z.visuals / Z.hud. It is initialised after znet.js, so its Z.detonate is the
 // outermost: a co-op client's special weapon goes to the host as ['A','det', ...], resolved with the solo rules.
 // Co-op: weapons are personal (each pilot buys from the shared purse and loads their own); the defences are the team's, run by the host.
@@ -74,16 +74,22 @@ export function initArsenal(api,G,Z){
  A.netEv=e=>{if(!Array.isArray(e))return;const f=A.on[e[0]];if(f)try{f(e.slice(1))}catch(err){console.warn('arsenal event',err)}};
  A.on.wo=a=>{if(String(a[0])!==A.me()||!Object.hasOwn(WPN,a[1]))return;const P=A.P(A.me());P.own.add(a[1]);P.cur=a[1];P.sch=a[1]==='flare'?FLARE.sortie:0;A.snd.click();Z.base.refresh()};
 
- // ---------- base screen: the Pilot weapon section at the top of the Shop tab ----------
+ // ---------- base screen: the Pilot gear section of the Shop tab (zbase.js Z.shop) ----------
  {const st=document.createElement('style');st.textContent='#zbase .zid p b.zs,#zbase .zid p b.zw{font-size:inherit}#zbase .zs{color:#7ff0b0}#zbase .zw{color:#ff9a8a}.zwp.got{border-color:rgba(95,227,255,.6);background:rgba(95,227,255,.06)}#zbase h3 small{font-weight:500;color:var(--dim);font-size:12px;margin-left:6px}'+
   '#zhud #zwpn{font:700 13px var(--mono);color:#9fe8ff;letter-spacing:.06em}#zbase .zpk{display:flex;flex-wrap:wrap;gap:5px;width:100%}#zbase .zpk button{font-size:11.5px;padding:4px 8px}#zbase .zpk button.on{border-color:#ffc640;color:#ffe08a}';document.head.append(st)}
  const chips=id=>ORDER.concat('boss').filter(e=>Z.kindFrom(e)<=G.wave+1).map(e=>{const v=WEFF[id][e]??0;return`<span class="v${v>=.8?'g':v>0?'m':'n'}" title="${KIND[e].n}">${KIND[e].tag}</span>`}).join('');
- Z.shopTop=()=>{if(!G.on)return'';const P=A.P(A.me()),L=WORDER.filter(id=>!A.ban.has(id));if(L.length<2)return'';
-  return`<h3 class="zwph">Pilot weapon <small>one loaded at a time · yours${Z.online?' (each pilot buys their own)':''} · swap freely here</small></h3><div class="zitems">${L.map(id=>{const w=WPN[id],own=P.own.has(id),eq=P.cur===id,lk=locked(id);
-   const btn=lk?`Wave ${w.from}`:eq?'Loaded ✓':own?'Load':`Buy ${money(w.price)}`;
-   return`<div class="zitem zwp ${eq?'got':''} ${lk?'lock':''}"><span class="zg">${w.glyph}</span><div class="zid"><b>${w.n}</b>${eq?'<em>LOADED</em>':own?'<em>OWNED</em>':''}
-    <p>${lk?`Arrives with wave ${w.from}. `:''}<b class="zs">Strong:</b> ${w.str} <b class="zw">Weak:</b> ${w.wk}</p><div class="zvs">${chips(id)}</div></div>
-    <button class="sm" data-ars="w:${id}" ${lk||eq||!own&&G.cash<w.price?'disabled':''}>${btn}</button></div>`}).join('')}</div>`};
+ const wsec=()=>{const P=A.P(A.me());return WORDER.filter(id=>!A.ban.has(id)).map(id=>({id,w:WPN[id],own:P.own.has(id),eq:P.cur===id,lk:locked(id)}))};
+ const plain=h=>String(h).replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim(),first=h=>{const t=plain(h),m=/^.*?[.;](?=\s|$)/.exec(t),r=m?m[0].replace(/[.;]$/,''):t;return r.length>100?r.slice(0,99).replace(/\s+\S*$/,'')+'…':r};
+ Z.shop.add({id:'gear',label:'Pilot gear',order:30,sub:()=>`one loaded at a time · yours${Z.online?' (each pilot buys their own)':''} · swap freely here`,
+  count:()=>{if(!G.on)return'';const L=wsec();return`${L.filter(x=>!x.lk&&!x.own&&G.cash>=x.w.price).length}/${L.filter(x=>!x.lk&&!x.own).length}`},
+  html:()=>{if(!G.on)return'';const L=wsec();if(L.length<2)return'';
+   return L.map(({id,w,own,eq,lk})=>{const btn=lk?`Wave ${w.from}`:eq?'Loaded ✓':own?'Load':`Buy ${money(w.price)}`,poor=!lk&&!own&&G.cash<w.price,off=lk||eq||poor;
+    return`<div class="zitem zwp${eq?' got':''}${lk?' lock':''}${own?' own':''}${poor?' poor':''}" data-det="w:${id}"><span class="zg">${w.glyph}</span><div class="zid"><b>${w.n}</b>${eq?'<em>LOADED</em>':own?'<em>OWNED</em>':''}
+     <p class="zrole">${lk?`Arrives with wave ${w.from}.`:first(w.str)}</p><span class="zfull" hidden>${lk?`Arrives with wave ${w.from}. `:''}<b class="zs">Strong:</b> ${w.str} <b class="zw">Weak:</b> ${w.wk}</span><div class="zrow2"><div class="zvs">${chips(id)}</div></div></div>
+     <div class="zbuy"><button class="sm${off?'':' pri'}" data-ars="w:${id}" ${off?'disabled':''}>${btn}</button>${poor?`<small class="zneed">need ${money(w.price-G.cash)} more</small>`:''}</div></div>`}).join('')}});
+ Z.shop.detail.w=id=>{const w=WPN[id];if(!w||!Object.hasOwn(WPN,id))return'';const P=A.P(A.me()),own=P.own.has(id),eq=P.cur===id,lk=locked(id);
+  return`<h4><span class="zg">${w.glyph}</span>${w.n}<em>${eq?'loaded':own?'owned':lk?`wave ${w.from}`:'not owned'}</em></h4><p class="zdp"><b class="zs">Strong:</b> ${w.str} <b class="zw">Weak:</b> ${w.wk}</p><div class="zvs">${chips(id)}</div>
+   <dl class="zfacts"><dt>Price</dt><dd>${lk?`from wave ${w.from}`:own?'bought':money(w.price)+(G.cash<w.price?` <span class="co">· need ${money(w.price-G.cash)} more</span>`:'')}</dd><dt>Upkeep</dt><dd>none</dd><dt>Carried</dt><dd>one weapon loaded at a time; swap any you own for free here${Z.online?'; each pilot buys their own':''}</dd></dl>`};
  // a defence's own line in the Armory: what it is doing, and the carrier's parking
  const where=s=>{const a=Math.atan2(s.x,1950-s.z),d=Math.hypot(s.x,s.z-1950);return d<700?'by the radar pad':`${(d/1000).toFixed(1)} km ${a<-.45?'west':a>.45?'east':'north'}`};
  Z.defExtra=d=>{const l=Z.def.L(d);if(!ARS_HELPERS.includes(d.type)||!l)return'';const s=Z.def.SLOTS[d.slot];

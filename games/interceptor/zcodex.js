@@ -273,8 +273,8 @@ export function initCodex(api,G,Z){
  const pd0=Z.pad;Z.pad=e=>{if(ov.hidden)return pd0?pd0(e):false;if(e(1))close();if(e(12))move(0,-1);if(e(13))move(0,1);if(e(14))move(-1,0);if(e(15))move(1,0);if(e(0))document.activeElement?.click?.();return true};
 
  // ---------- the buttons: the start menu and the base screen ----------
- const mb=document.createElement('div');mb.className='zcpm zcdxm';mb.id='zcdxm';($('zcpm')||$('zdiff')).after(mb);  /* a card under the campaign's */
- function sync(){const c=count();mb.innerHTML=`<div><b>Enemies</b><span>${c.n} of ${c.of} bosses beaten · Quick defence boss pool: ${esc(poolTxt())}</span></div><button id="zcdxbtn" title="The campaign's bosses: silhouettes until you beat them; beaten ones can come to Quick defence">Enemies ▸</button>`;$('zcdxbtn').onclick=()=>open()}
+ const mb=Z.home.card('zcdxm',{order:30,tone:'blue'});  /* a launcher card in the start page grid (zhome.js) */
+ function sync(){const c=count();mb.innerHTML=`<button type="button" class="zhc-b" id="zcdxbtn" title="The campaign's bosses: silhouettes until you beat them; beaten ones can come to Quick defence">${Z.home.face({i:'drone',t:'Enemies',d:'The boss codex; pick which bosses can come to Quick defence.',s:`${c.n} of ${c.of} bosses beaten · pool: ${poolTxt()}`})}</button>`;$('zcdxbtn').onclick=()=>open()}
  sync();const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();sync()};
  const ch0=Z.cpHTML;
  Z.cpHTML=()=>{const h=ch0?.()||'',c=count(),run=camp(),S0=run&&SET[run.id],cd=load();

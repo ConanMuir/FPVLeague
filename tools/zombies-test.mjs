@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director,debug,types,keys   run only those sections (CI shards them across jobs); default all
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director,debug,types,layout,keys   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
@@ -113,8 +113,8 @@ if (want('zombies')) {
   ok(b1.base && b1.st === 'base' && b1.wave === 1, 'Zombies: wave 1 clear opens the base screen (no timer)');
   // shop: the whole catalogue is listed; buy a drone rack, place it, upgrade it in the Armory, buy a perk
   await p.evaluate(() => { __z.G.cash = 6000; __z.Z.def && document.querySelector('[data-tab="shop"]').click(); });
-  const cat = await p.evaluate(() => ({n: __z.G.cards.length, all: Object.keys(__z.ITEMS).filter(k => !__z.ITEMS[k].kit).length, kit: __z.G.cards.filter(c => __z.ITEMS[c.k].kit).length, groups: [...document.querySelectorAll('.ztab h3:not(.zwph)')].map(h => h.textContent).join('/'), reroll: !!document.getElementById('zreroll')}));
-  ok(cat.n === cat.all && !cat.kit && cat.groups === 'Helpers/Supplies for the next wave/Active perks/Passive perks' && !cat.reroll, `Shop lists every item but kit (${cat.n}) in groups ${cat.groups}, no reroll`);
+  const cat = await p.evaluate(() => ({n: __z.G.cards.length, all: Object.keys(__z.ITEMS).filter(k => !__z.ITEMS[k].kit).length, kit: __z.G.cards.filter(c => __z.ITEMS[c.k].kit).length, groups: [...document.querySelectorAll('.ztab .zsec h3')].map(h => h.firstChild.textContent.trim()).join('/'), reroll: !!document.getElementById('zreroll')}));
+  ok(cat.n === cat.all && !cat.kit && cat.groups === 'Defences/Supplies/Pilot gear/Perks/Craft' && !cat.reroll, `Shop lists every item but kit (${cat.n}) in the sections ${cat.groups}, no reroll`);
   const bought = await p.evaluate(() => { const i = __z.G.cards.findIndex(c => c.k === 'rack'); if (i < 0) return 'no rack'; document.querySelector(`[data-buy="${i}"]`).click(); return !!document.querySelector('[data-slot]'); });
   ok(bought === true, 'Base: buying the rack card asks for a position');
   await p.keyboard.press('Escape'); const esc1 = await p.evaluate(() => ({menu: __z.api.menuOpen, placing: !!__z.G.placing})); await p.keyboard.press('Escape');
@@ -306,7 +306,7 @@ if (want('weather')) {
   await play(p);
   const r = await p.evaluate(() => { const {api, G, Z} = __z, w = Z.wx, me = api.player, out = {};
     out.strela = me.strela.visible && !me.dart && !!me.nozzle;
-    out.forecast = /visibility/.test(document.querySelector('#zbase footer')?.textContent || '');
+    out.forecast = /visibility/.test(document.querySelector('#zbase .zfc')?.textContent || '');  /* the forecast is the .zfc section now: the panel's footer is the sticky Undo / Start wave bar */
     out.ids = [...new Set(Array.from({length: 80}, (_, i) => w.plan(8 + i % 10).id))].sort().join(',');
     out.early = [...new Set(Array.from({length: 40}, () => w.plan(1).id))].sort().join(',');
     __z.cont(); out.bad = Object.keys(w.T).filter(id => { w.set(id); __z.sim(.5); return api.WX.id !== id || !api.WX.z; }).join(',');
@@ -3458,7 +3458,7 @@ if (want('types')) {
     await p.reload({waitUntil: 'load'}); await inject(p);
     ok(await on(p) === 'plane', 'Types picker: the choice is still there after a reload');
     await play(p);
-    const b0 = await p.evaluate(() => { const me = __z.api.player; return {ty: me.ty, cx: !!me.cx, tag: me.mesh.userData.ty, props: me.props.length, base: __z.G.state, cards: document.querySelectorAll('#zbase [data-zty]').length, on: [...document.querySelectorAll('#zbase .zcr.on')].map(b => b.dataset.zty).join(), head: document.querySelector('#zbase .zcrh')?.textContent || ''}; });
+    const b0 = await p.evaluate(() => { const me = __z.api.player; return {ty: me.ty, cx: !!me.cx, tag: me.mesh.userData.ty, props: me.props.length, base: __z.G.state, cards: document.querySelectorAll('#zbase [data-zty]').length, on: [...document.querySelectorAll('#zbase .zcr.on')].map(b => b.dataset.zty).join(), head: document.querySelector('#zbase #zsec-craft h3')?.textContent || ''}; });  /* the picker is the Shop's Craft section now */
     ok(b0.ty === 'plane' && b0.cx && b0.tag === 'plane' && b0.props === 1 && b0.base === 'base', `Types: a run opens with the chosen craft (${b0.ty}: its own model with ${b0.props} prop, its own flight controller)`);
     ok(b0.cards === 2 && b0.on === 'plane' && /Craft/.test(b0.head), 'Types picker: the base screen has the same cards at the top of the Shop, the Plane on');
     if (SHOTS) { await drawFrames(p, 2); await p.screenshot({path: SHOTS + '/types-base.png'}); }
@@ -3618,7 +3618,7 @@ if (want('types')) {
     const code = await H.evaluate(() => __z.net.n.code);
     await C.$eval('#zcode', (e, c) => { e.value = c; }, code); await C.click('#zjoin');
     ok(await cuntil(C, () => __z.G.on && __z.G.state === 'base' && __z.net.rows().length === 2 && !document.getElementById('zbase').hidden), 'Types, co-op: the client joined');
-    const own = await Promise.all([H, C].map(q => q.evaluate(() => ({pick: __z.Z.craft.pick(), ty: __z.api.player.ty, online: !!__z.Z.online, head: document.querySelector('#zbase .zcrh')?.textContent || ''}))));
+    const own = await Promise.all([H, C].map(q => q.evaluate(() => ({pick: __z.Z.craft.pick(), ty: __z.api.player.ty, online: !!__z.Z.online, head: document.querySelector('#zbase #zsec-craft h3')?.textContent || ''}))));  /* the Craft section's heading */
     ok(own[0].ty === 'dart' && own[1].ty === 'plane' && /each pilot picks their own/.test(own[0].head), `Types, co-op: each pilot has their own pick (host ${own[0].ty}, client ${own[1].ty}); the base screen says each pilot picks`);
     for (const q of [H, C]) await q.evaluate(() => document.querySelector('#zgo').click());
     ok(await cuntil(H, () => __z.G.state === 'wave') && await cuntil(C, () => __z.G.state === 'wave'), 'Types, co-op: wave 1 started on both screens');
@@ -3636,6 +3636,117 @@ if (want('types')) {
     await H.close(); await C.close();
   }
   ok(!terrs.length, 'Types: no errors' + (terrs.length ? '\n  ' + terrs.slice(0, 5).join('\n  ') : ''));
+}
+
+// ---------- layout (zhome.js, zbase.js): the two reworked screens keep their contract at a laptop, a 1080p screen and a short window ----------
+// Start page: ONE big Start button above the fold, every module's card in the #zcards grid (equal cards, the DOM order is the visual order and so the focus order,
+// a fold-out opens across the row), nothing wider than the window. Base screen: a header (cash, next wave's upkeep, integrity, the wave) and a footer (Undo, Start
+// wave) that never leave the screen, the Shop in sections with counts, a row per item with its one action and "need $X more" when it is out of reach, a detail pane,
+// owned things marked, Undo in the footer (and on U).
+if (want('layout')) {
+  const {p, errs} = await page();
+  const SIZES = [[1280, 720], [1920, 1080], [900, 420]], CARDS = ['zcpm', 'zendc', 'zcdxm', 'zspc', 'zmeta', 'zboard', 'zcraft', 'zmp'];
+  const rect = `const R = e => { const b = e.getBoundingClientRect(); return {l: b.left, t: b.top, r: b.right, b: b.bottom, w: b.width, h: b.height}; };`;
+  /* ---- the start page ---- */
+  for (const [w, h] of SIZES) {
+    await p.setViewport({width: w, height: h}); await frames(p, 3);
+    const m = await p.evaluate(`(() => { ${rect}
+      const grid = document.getElementById('zcards'), cards = [...grid.children], play = document.getElementById('play'), pr = R(play), panel = document.getElementById('panel');
+      const others = [...document.querySelectorAll('#zhero button')].filter(b => b !== play && b.offsetParent).map(b => R(b).w * R(b).h);
+      const rows = {}; for (const c of cards) { const r = R(c); (rows[Math.round(r.t / 6)] ||= []).push(r); }
+      const launch = ['zcpm', 'zendc', 'zcdxm', 'zspc', 'zmeta', 'zboard'].map(id => R(document.getElementById(id)));
+      return {ids: cards.map(c => c.id), allCards: cards.every(c => c.classList.contains('zhc')), stray: document.querySelectorAll('.zhc').length - cards.length,
+        play: pr, fs: parseFloat(getComputedStyle(play).fontSize), big: pr.w * pr.h > Math.max(0, ...others), wOver: panel.scrollWidth - panel.clientWidth,
+        bottom: Math.max(...cards.map(c => R(c).b)), inside: cards.every(c => R(c).l >= R(grid).l - 1 && R(c).r <= R(grid).r + 1), cols: new Set(launch.map(r => Math.round(r.l))).size,
+        sameW: Math.max(...launch.map(r => r.w)) - Math.min(...launch.map(r => r.w)), rowH: Object.values(rows).every(L => Math.max(...L.map(r => r.h)) - Math.min(...L.map(r => r.h)) < 1.5),
+        faces: cards.map(c => [c.querySelector('.zhc-t')?.textContent.trim(), c.querySelector('.zhc-d')?.textContent.trim(), c.querySelector('.zhc-s')?.textContent.trim()]).every(f => f.every(Boolean)),
+        coop: R(document.getElementById('zmp')).w / R(document.getElementById('zcpm')).w, vis: cards.map(c => R(c)).sort((a, b) => Math.round(a.t / 6) - Math.round(b.t / 6) || a.l - b.l).map(r => Math.round(r.l) + ',' + Math.round(r.t)).join(';') === cards.map(c => R(c)).map(r => Math.round(r.l) + ',' + Math.round(r.t)).join(';')};
+    })()`);
+    const fold = w >= 1000 && h >= 700;  /* a laptop and up: the whole page of cards is above the fold; a short window scrolls */
+    ok(m.ids.join() === CARDS.join() && m.allCards && !m.stray, `Start page ${w}x${h}: every module's card is in the grid, in order (${m.ids.join(' ')}), nothing outside it (${m.stray})`);
+    ok(m.play.t >= 0 && m.play.b <= h && m.play.l >= 0 && m.play.r <= w && m.big && m.fs >= 18, `Start page ${w}x${h}: ONE big Start button, on screen without scrolling (${Math.round(m.play.w)}x${Math.round(m.play.h)}, ${m.fs}px, the other buttons of the row are smaller)`);
+    ok(m.wOver <= 1 && m.inside, `Start page ${w}x${h}: nothing wider than the panel (overflow ${m.wOver}px)`);
+    ok(m.faces && m.vis, `Start page ${w}x${h}: each card has a title, a line of what it is and its state; the visual order is the DOM (focus) order`);
+    if (fold) ok(m.bottom <= h && m.cols === 3 && m.sameW < 1.5 && m.rowH && m.coop > 1.8, `Start page ${w}x${h}: the whole grid is above the fold (bottom ${Math.round(m.bottom)} of ${h}), ${m.cols} columns of equal cards (width spread ${m.sameW.toFixed(1)}px), co-op takes two`);
+    if (SHOTS) await p.screenshot({path: `${SHOTS}/z-layout-start-${w}x${h}.png`});
+  }
+  await p.setViewport({width: 1280, height: 720}); await frames(p, 2);
+  { /* a fold-out opens across the whole row, one at a time */
+    await p.evaluate(() => { document.getElementById('zspc').open = true; });
+    await p.waitForFunction(() => document.getElementById('zspc').getBoundingClientRect().width > 1000, {timeout: 5000}).catch(() => {});
+    const w1 = await p.evaluate(() => document.getElementById('zspc').getBoundingClientRect().width);
+    await p.evaluate(() => { document.getElementById('zmeta').open = true; });  /* the toggle event is asynchronous: the first one closes when the second opens */
+    await p.waitForFunction(() => !document.getElementById('zspc').open, {timeout: 5000}).catch(() => {});
+    const o = await p.evaluate(`(() => { ${rect} const o = {w1: 0, wBoth: R(document.getElementById('zmeta')).w, aOpen: document.getElementById('zspc').open, grid: R(document.getElementById('zcards')).w}; document.getElementById('zmeta').open = false; return o; })()`); o.w1 = w1;
+    ok(o.w1 >= o.grid - 2 && o.wBoth >= o.grid - 2 && !o.aOpen, `Start page: a fold-out card opens across the whole row (${Math.round(o.w1)} of ${Math.round(o.grid)}px) and opening another closes it`);
+  }
+  { /* the gamepad on the start page (Z.menuPad: the engine reads the pad only in a run): the D-pad walks the buttons in the order you see, A presses, B folds a card back */
+    const g = await p.evaluate(() => { const Z = __z.Z, press = i => Z.menuPad(n => n === i), at = () => document.activeElement.closest('.zhc')?.id || document.activeElement.id, o = {};
+      document.activeElement?.blur?.(); press(13); o.first = at(); document.getElementById('zcpopen').focus(); press(13); o.down = at(); press(15); o.right = at(); press(14); o.left = at();
+      document.getElementById('zspc').querySelector('summary').focus(); press(0); return o; });
+    await p.waitForFunction(() => document.getElementById('zspc').open, {timeout: 5000}).catch(() => {});
+    const o1 = await p.evaluate(() => { const open = document.getElementById('zspc').open; __z.Z.menuPad(n => n === 1); return open; });
+    await p.waitForFunction(() => !document.getElementById('zspc').open, {timeout: 5000}).catch(() => {});
+    const o2 = await p.evaluate(() => !document.getElementById('zspc').open);
+    ok(g.first === 'play' && g.down === 'zspc' && g.right === 'zmeta' && g.left === 'zspc' && o1 && o2, `Start page on a gamepad: the D-pad goes Start -> the cards in order (${g.first}, down ${g.down}, right ${g.right}, left ${g.left}), A opens a fold-out (${o1}), B folds it back (${o2})`);
+  }
+  /* ---- the base screen ---- */
+  await play(p);
+  await p.evaluate(() => { const {G, Z} = __z; G.cash = 1500; Z.base.refresh(); });
+  for (const [w, h] of SIZES) {
+    await p.setViewport({width: w, height: h}); await frames(p, 3);
+    const b = await p.evaluate(`(() => { ${rect}
+      const z = document.getElementById('zbase'), P = z.querySelector('.zpanel'), hd = z.querySelector('.zbh'), ft = z.querySelector('.zbf'), go = document.getElementById('zgo'), un = document.getElementById('zundo');
+      const o = {hdr: R(hd), ftr: R(ft), go: R(go), un: R(un), txt: hd.textContent.replace(/\\s+/g, ' ')}, tab = z.querySelector('.ztab'), left = z.querySelector('.zleft');
+      tab.scrollTop = 1e6; left.scrollTop = 1e6; P.scrollTop = 1e6;  /* scroll everything as far as it goes: the header and the footer stay where they were */
+      o.hdr2 = R(hd); o.ftr2 = R(ft); o.pt = R(P).t; o.scrolls = P.scrollHeight > P.clientHeight + 2; P.scrollTop = 0; tab.scrollTop = 0; left.scrollTop = 0; return o; })()`);
+    ok(b.hdr.t >= 0 && b.hdr.b <= h && /Cash/.test(b.txt) && /\$1,500/.test(b.txt) && /Upkeep next wave/.test(b.txt) && /Base integrity/.test(b.txt) && /100%/.test(b.txt) && /Next: wave 1/.test(b.txt), `Base ${w}x${h}: the header shows the wave, cash, next wave's upkeep and integrity ("${b.txt.slice(0, 90)}")`);
+    ok(b.ftr.b <= h + 1 && b.go.b <= h + 1 && b.go.t >= 0 && b.go.r <= w && b.un.b <= h + 1 && b.un.r <= w, `Base ${w}x${h}: the footer (Undo, Start wave) is on screen (bottom ${Math.round(b.ftr.b)} of ${h}, Start wave ${Math.round(b.go.w)}x${Math.round(b.go.h)})`);
+    ok(Math.abs(b.hdr2.t - b.hdr.t) < 1.5 && Math.abs(b.ftr2.b - b.ftr.b) < 1.5, `Base ${w}x${h}: scrolling the lists, the map column or the whole panel (${b.scrolls ? 'it scrolls' : 'it fits'}) leaves the header and the footer where they are`);
+    if (SHOTS) await p.screenshot({path: `${SHOTS}/z-layout-base-${w}x${h}.png`});
+  }
+  await p.setViewport({width: 1280, height: 720}); await frames(p, 2);
+  /* sections with counts, rows with their one action, what is out of reach, what is owned */
+  const S = await p.evaluate(`(() => { ${rect} const {G, Z} = __z, z = document.getElementById('zbase'), q = s => [...z.querySelectorAll(s)], first = () => q('.zitem')[0];
+    const o = {chips: q('.zsecs [data-sec]').map(b => b.dataset.sec).join(), counts: q('.zsecs [data-sec] i').map(i => i.textContent).join(), heads: q('.zsec h3').length, tabs: q('.ztabs [data-tab]').map(b => b.dataset.tab).join(),
+      roles: q('.zitem').every(e => e.querySelector('.zrole')?.textContent.trim()), acts: q('.zitem').filter(e => !e.querySelector('[data-zty]')).every(e => e.querySelectorAll('.zbuy button').length === 1),
+      brief: R(z.querySelector('#zbrief')).h, map: R(z.querySelector('#zmap')).h, inLeft: !!z.querySelector('.zleft #zbrief')};
+    G.cash = 100; Z.base.refresh(); const ri = G.cards.findIndex(c => c.k === 'rack'), row = z.querySelector('[data-buy="' + ri + '"]').closest('.zitem'), btn = row.querySelector('button');
+    o.poor = {cls: row.classList.contains('poor'), dis: btn.disabled, need: row.querySelector('.zneed')?.textContent, want: Z.itemPrice('rack') - 100};
+    G.cash = 20000; Z.base.refresh(); const row2 = z.querySelector('[data-buy="' + ri + '"]').closest('.zitem'); o.rich = {pri: row2.querySelector('button').classList.contains('pri'), dis: row2.querySelector('button').disabled, need: !!row2.querySelector('.zneed'), own: row2.classList.contains('own')};
+    const d = Z.base.act.place('rack', 0); Z.base.refresh(); const row3 = z.querySelector('[data-buy="' + ri + '"]').closest('.zitem'); o.owned = {own: row3.classList.contains('own'), tag: row3.querySelector('em')?.textContent, n: q('.zitem.own').length, id: d.id};
+    return o; })()`);
+  ok(S.chips === 'def,sup,gear,perk,craft' && S.tabs === 'shop,armory,sites,chain,sortie' && S.heads === 5 && /^\d+\/\d+,\d+\/\d+,\d+\/\d+,\d+\/\d+,\d+$/.test(S.counts), `Base shop: sections ${S.chips} each with a count (${S.counts}), tabs ${S.tabs}`);
+  ok(S.roles && S.acts, 'Base shop: every row says in one line what the item does and has exactly one action button (Buy / Upgrade / Load)');
+  ok(S.poor.cls && S.poor.dis && S.poor.need === `need $${S.poor.want.toLocaleString('en-US')} more` && S.rich.pri && !S.rich.dis && !S.rich.need && !S.rich.own, `Base shop: out of reach greys the action and says "${S.poor.need}"; in reach it is the primary button`);
+  ok(S.owned.own && /×1 OWNED/.test(S.owned.tag) && S.owned.n >= 1, `Base shop: the owned rack is marked (${S.owned.tag}) and styled apart from the unowned`);
+  ok(S.inLeft && S.brief < S.map, `Base: the threat briefing stays readable under the map (${Math.round(S.brief)}px against the map's ${Math.round(S.map)}px)`);
+  /* the detail pane follows the pointer */
+  { const fi = await p.evaluate(() => __z.G.cards.findIndex(c => c.k === 'flak')), ri = await p.evaluate(() => __z.G.cards.findIndex(c => c.k === 'sam'));
+    await p.evaluate(() => { const z = document.getElementById('zbase'); z.querySelector('.ztab').scrollTop = 0; });
+    await p.hover(`#zbase [data-det="c:${fi}"]`); const a = await p.$eval('#zdet', e => e.textContent.replace(/\s+/g, ' '));
+    await p.hover(`#zbase [data-det="c:${ri}"]`); const c = await p.$eval('#zdet', e => e.textContent.replace(/\s+/g, ' '));
+    ok(/Flak mortar/.test(a) && /Price/.test(a) && /Upkeep/.test(a) && /Sells for/.test(a) && /SAM battery/.test(c) && !/Flak mortar/.test(c), `Base shop: the detail pane follows the pointer: full description, price, upkeep and sell value ("${a.slice(0, 70)}…")`); }
+  /* the Armory card of what you own: one primary action, the sell value, the detail pane */
+  await p.evaluate(() => __z.Z.base.setTab('armory')); await frames(p, 2);
+  { const a = await p.evaluate(() => { const z = document.getElementById('zbase'), card = z.querySelector('.zarm.own'); return {n: z.querySelectorAll('.zarm.own').length, pri: card.querySelectorAll('button.pri').length, sell: card.querySelector('[data-sell]')?.textContent, det: document.getElementById('zdet').textContent.replace(/\s+/g, ' ')}; });
+    ok(a.n >= 1 && a.pri === 1 && /^Sell \+\$/.test(a.sell) && /Sells for/.test(a.det) && /Upkeep/.test(a.det), `Base armory: the owned card has one primary action and its sell value (${a.sell}); the detail pane shows its upkeep and sell value`); }
+  /* Undo lives in the footer (and on U) */
+  { await p.evaluate(() => __z.Z.base.setTab('shop')); const id = S.owned.id, c0 = await p.evaluate(() => __z.G.cash);
+    const u0 = await p.evaluate(() => { const b = document.getElementById('zundo'); return {dis: b.disabled, txt: b.textContent}; });
+    await p.evaluate(id => { __z.Z.base.sell(id); }, id); await frames(p, 2);
+    const u1 = await p.evaluate(() => { const b = document.getElementById('zundo'); return {dis: b.disabled, txt: b.textContent, said: document.querySelector('.zbf-s')?.textContent, n: __z.Z.def.D.length}; });
+    await p.click('#zundo'); await frames(p, 2);
+    const u2 = await p.evaluate(() => ({n: __z.Z.def.D.length, dis: document.getElementById('zundo').disabled, cash: __z.G.cash}));
+    await p.evaluate(id => { __z.Z.base.sell(id); }, id); await frames(p, 2);
+    await p.evaluate(() => document.activeElement?.blur?.()); await p.keyboard.press('KeyU'); await frames(p, 2);
+    const u3 = await p.evaluate(() => ({n: __z.Z.def.D.length, dis: document.getElementById('zundo').disabled}));
+    ok(u0.dis && /Undo/.test(u0.txt) && !u1.dis && /^Undo −\$\d/.test(u1.txt) && /Sold/.test(u1.said) && u1.n === 0 && u2.n === 1 && u2.dis && u2.cash === c0 && u3.n === 1 && u3.dis, `Base footer: Undo is always there (greyed with nothing sold), after a sale it reads "${u1.txt}" and takes it back (${u1.n} -> ${u2.n} defence, purse back to $${u2.cash}); U does the same`); }
+  { /* the header and the footer frame the working area */
+    const g = await p.evaluate(() => { const r = e => e.getBoundingClientRect(); return {ftr: r(document.querySelector('#zbase .zbf')).top, hdr: r(document.querySelector('#zbase .zbh')).bottom}; });
+    ok(g.ftr > g.hdr + 200, `Base: header ends at ${Math.round(g.hdr)}, footer starts at ${Math.round(g.ftr)}: the middle is the working area`); }
+  ok(!errs.length, 'Layout: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+  await p.close();
 }
 
 // ---------- keys: rebinding the keyboard / mouse side of the controller panel's switch rows (engine/keys.js, engine/input.js, zkeys.js) ----------

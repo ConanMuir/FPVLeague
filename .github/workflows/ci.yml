@@ -238,6 +238,10 @@ jobs:
             area: interceptor
             minutes: 35
             run: node tools/zombies-test.mjs --sections=types
+          # the start page and the base screen (zhome.js, zbase.js): one big Start button above the fold, every card in the grid, a header and footer that stay on screen, shop sections and rows, the detail pane, Undo, a gamepad on the menu; at 1280x720, 1920x1080 and 900x420
+          - check: zombies-test (layout)
+            area: interceptor
+            run: node tools/zombies-test.mjs --sections=layout
           # key rebinding (engine/keys.js, engine/input.js, zkeys.js): the four switch rows' key cells in the controller panel, the capture (key, mouse button, Esc), clashes refused, the new key acts and the old one does not, Reset, the saved bindings and a hand-edited save, the text that names the keys
           - check: zombies-test (keys)
             area: interceptor

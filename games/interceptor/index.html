@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;1,700&family=JetBrains+Mono:wght@500;700&display=swap">
 <link rel="stylesheet" href="../../engine/engine.css">
 <link rel="stylesheet" href="zombies.css">
+<link rel="stylesheet" href="zhome.css">
 <link rel="stylesheet" href="zfx.css">
 <link rel="stylesheet" href="zcampaign.css">
 <link rel="stylesheet" href="zreentry.css">
@@ -41,33 +42,48 @@ button.go{background:linear-gradient(90deg,#3a6b3a,#6b7d2a 50%,var(--red));borde
 </div>
 
 <div id="menu">
-  <div id="panel">
-    <div>
-      <h1><span class="b">DRONE LEAGUE</span><br><span class="o">INTERCEPTOR</span></h1>
-      <p class="sub">Fly a Ukrainian-style tail-sitter dart interceptor (about 360 km/h level at 85° of pitch, hover around 32% throttle) against Shahed-136 and jet Geran-3 attack drones before they reach the substation, the fuel depot and the apartment blocks. You sit on the launch mat at a forward position on the river line, take off vertically, flip the camera to 90° and run them down. Same acro flight model, rates and radio setup as Drone League, at real scale, with weather and wind.</p>
-      <p class="gmdesc" id="gmdesc"></p>
-      <div class="btns"><button class="go" id="play">Quick defence</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Quit to menu</button><button id="modbtn">Mod panel</button><button id="dlback" onclick="location.href='../drone-league/'">Back to Drone League</button></div>
-      <div class="keys">
-        <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
-        <kbd>A / D</kbd><span>Yaw</span>
-        <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
-        <kbd id="kk_fire">F / click</kbd><span>Detonate: you time the burst. The Proximity fuse perk also fires it by itself at closest approach, but only inside its window, and the window shrinks as closing speed goes up: run them down from behind</span>
-        <kbd id="kk_tiltSw">L</kbd><span>Camera tilt switch: 90° for cruise / level for take-off and hover</span>
-        <kbd id="kk_thermSw">H</kbd><span>Thermal camera switch (white-hot)</span>
-        <kbd id="kk_nextSw">N</kbd><span>Next track (otherwise the most urgent one is selected)</span>
-        <kbd>V</kbd><span>Radar range 2 / 5 / 10 km</span>
-        <kbd>C</kbd><span>Camera: FPV → chase → threat cam</span>
-        <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
-        <kbd>R</kbd><span>Fresh interceptor on the mat at the forward position nearest the most urgent track · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
-        <kbd>Gamepad</kbd><span>Mode 2 sticks, RB detonate, LB camera, Y relaunch, Start menu</span>
+  <div id="panel" class="zhome">
+    <section class="zhm" aria-label="Zombies">
+      <header class="zhh">
+        <h1><span class="b">DRONE LEAGUE</span> <span class="o">INTERCEPTOR</span></h1>
+        <p class="sub" id="zpitch">Fly the interceptor and hold the line against endless drone waves. Every intercept pays; spend it between waves on defences and perks.</p>
+      </header>
+      <!-- zombies.js puts the difficulty tabs (#zdiff) first, then the Start row, then #gmdesc, which describes the chosen difficulty and your best on it -->
+      <div class="zhero" id="zhero">
+        <div class="btns zact"><button class="go" id="play">Quick defence</button><button id="resume" hidden>Resume</button><button id="leave" hidden>Quit to menu</button><button id="modbtn">Mod panel</button><button id="dlback" onclick="location.href='../drone-league/'">Back to Drone League</button></div>
+        <p class="gmdesc" id="gmdesc"></p>
       </div>
-      <p class="note">Shaheds come in at 100–900 m, about 185 km/h, and dive on their target from about a kilometre out. Jet Geran-3s run at 300–370 km/h but throttle back to piston speed in the middle of the route, which is your window. The radar scope shows every track; the amber one is the most urgent. Trees and houses are solid. With FPV angle mix on, roll stick still rolls the picture when the camera is at 90°.</p>
-    </div>
-    <div>
-      <h2>Mission &amp; flight</h2>
-      <div class="set" id="set"></div><div class="mp"><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div>
-      <div id="pilotpad"></div>
-    </div>
+      <!-- the modes and tools: every module adds its card here through Z.home (zhome.js) -->
+      <div class="zcards" id="zcards"></div>
+    </section>
+    <section class="zhs" aria-label="Settings and controls">
+      <div class="zhs-set">
+        <h2>Mission &amp; flight</h2>
+        <div class="set" id="set"></div><div class="mp"><button class="sm" id="ratesbtn">Rates (Betaflight style)…</button><button class="sm" id="copyset">Copy all my settings</button></div>
+        <div id="pilotpad"></div>
+      </div>
+      <div class="zhs-help">
+        <h2>Controls</h2>
+        <div class="keys">
+          <kbd>W / S</kbd><span>Throttle up / down (released = hover)</span>
+          <kbd>A / D</kbd><span>Yaw</span>
+          <kbd>↑ ↓ ← →</kbd><span>Pitch / roll</span>
+          <kbd id="kk_fire">F / click</kbd><span>Detonate: you time the burst. The Proximity fuse perk also fires it by itself at closest approach, but only inside its window, and the window shrinks as closing speed goes up: run them down from behind</span>
+          <kbd id="kk_tiltSw">L</kbd><span>Camera tilt switch: 90° for cruise / level for take-off and hover</span>
+          <kbd id="kk_thermSw">H</kbd><span>Thermal camera switch (white-hot)</span>
+          <kbd id="kk_nextSw">N</kbd><span>Next track (otherwise the most urgent one is selected)</span>
+          <kbd>V</kbd><span>Radar range 2 / 5 / 10 km</span>
+          <kbd>C</kbd><span>Camera: FPV → chase → threat cam</span>
+          <kbd>M</kbd><span>Toggle Acro / Angle (keyboard players: try Angle)</span>
+          <kbd>R</kbd><span>Fresh interceptor on the mat at the forward position nearest the most urgent track · <kbd>Esc</kbd> menu · <kbd>T</kbd> mod panel</span>
+          <kbd>Gamepad</kbd><span>Mode 2 sticks, RB detonate, LB camera, Y relaunch, Start menu</span>
+        </div>
+        <h2 class="zhs-h2">About</h2>
+        <p class="note">Zombies: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a Mothership every 10, and the other bosses you have beaten in the campaign join the boss waves (Enemies).</p>
+        <p class="note">Fly a Ukrainian-style tail-sitter dart interceptor (about 360 km/h level at 85° of pitch, hover around 32% throttle) against Shahed-136 and jet Geran-3 attack drones before they reach the substation, the fuel depot and the apartment blocks. You sit on the launch mat at a forward position on the river line, take off vertically, flip the camera to 90° and run them down. Same acro flight model, rates and radio setup as Drone League, at real scale, with weather and wind.</p>
+        <p class="note">Shaheds come in at 100–900 m, about 185 km/h, and dive on their target from about a kilometre out. Jet Geran-3s run at 300–370 km/h but throttle back to piston speed in the middle of the route, which is your window. The radar scope shows every track; the amber one is the most urgent. Trees and houses are solid. With FPV angle mix on, roll stick still rolls the picture when the camera is at 90°.</p>
+      </div>
+    </section>
   </div>
 </div>
 

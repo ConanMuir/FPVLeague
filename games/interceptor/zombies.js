@@ -40,6 +40,7 @@ import {initEndless} from './zendless.js';
 import {initBuddy} from './zbuddy.js';
 import {initTypes} from './ztypeui.js';
 import {initDebug} from './zdebug.js';
+import {initHome} from './zhome.js';
 
 const $=id=>document.getElementById(id),cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
 
@@ -50,16 +51,17 @@ export function initZombies(api){
  const Z={get on(){return G.on},G};
  const SITE_C={x:0,z:1950};  // centre of the defended area
 
+ initHome(api,G,Z);  /* the start page grid the modules put their cards in (zhome.js): before any of them */
  // ---------- Zombies difficulty on the start menu; best wave is kept per difficulty ----------
  if(!Number.isInteger(S.zdiff))S.zdiff=1;  // a hand-edited or foreign save: Normal (a string here broke the start menu)
  // G.dfo: the host's difficulty while in a co-op game, or the campaign's in a campaign sector; Z.dfMod (zcampaign.js) puts the sector's modifiers on top
  const DFI=Z.dfi=()=>cl(G.dfo??S.zdiff??1,0,ZDIFF.length-1),DF=()=>{const d=ZDIFF[DFI()];return Z.dfMod?Z.dfMod(d):d};
  const bestOf=d=>((S.zbests||{})[d.n]||(d.n==='Normal'&&S.zbest)||{}).wave|0;  // S.zbest = best from before difficulties existed (Normal)
  {const desc=$('gmdesc'),dbox=document.createElement('div');dbox.className='gmode zdiff';dbox.id='zdiff';dbox.setAttribute('role','group');dbox.setAttribute('aria-label','Zombies difficulty');
-  dbox.innerHTML=ZDIFF.map((d,i)=>`<button data-d="${i}">${d.n}</button>`).join('');desc.before(dbox);
+  dbox.innerHTML=ZDIFF.map((d,i)=>`<button data-d="${i}">${d.n}</button>`).join('');$('zhero').prepend(dbox);
   const sync=()=>{const D=DF();G.best=bestOf(D);
    for(const b of dbox.querySelectorAll('button'))b.classList.toggle('on',+b.dataset.d===DFI());
-   desc.innerHTML=`<b>Zombies</b>: endless, growing waves from every edge. Earn money for each intercept, then spend it between waves on helper drones, guns, missiles, domes and perks. New enemy types every 5 waves, a Mothership every 10, and the other bosses you have beaten in the campaign join the boss waves (Enemies).<br><b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`};
+   desc.innerHTML=`<b>${D.n}</b>: ${D.txt} ${G.best?`Best on ${D.n}: wave ${G.best}.`:''}`};
   for(const b of dbox.querySelectorAll('button'))b.onclick=()=>{S.zdiff=+b.dataset.d;save();sync()};
   sync();Z.syncMode=sync}
  // doctrine & unlocks between runs (zmeta.js): the start-menu panel, the loadout, goals. DOC = the doctrine in play, dk = one of its numbers (default 1)
@@ -351,5 +353,4 @@ export function initZombies(api){
  initCodex(api,G,Z);  /* enemies codex (zcodex.js): campaign boss set pieces, the Enemies screen, the Quick defence boss pool; last, so it wraps the boss roster's hooks and sees the Bot Spectator */
  initTypes(api,G,Z);  /* craft types (ztypeui.js, ztypes.js): the Dart or the Plane; the picker on the start card and the base screen, the HUD panel, the radio line, the saved choice */
  initDebug(api,G,Z);  /* debug mode (zdebug.js): off unless ?debug=1 or Ctrl+Shift+D; a panel with cheats, readouts and the developer report; a marked run saves nothing; the outermost wrapper, so it goes last */
- $('zdiff').after($('play').parentNode);  /* the start / resume row sits right under the difficulty tabs: the cards the modules added below them (campaign, enemies, watch a bot, doctrine, leaderboard, co-op) had pushed it below the fold of a 1080p window */
  return Z}

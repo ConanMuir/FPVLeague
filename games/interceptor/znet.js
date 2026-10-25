@@ -61,16 +61,16 @@ export function initNet(api,G,Z){
  Z.netPlan=()=>net&&!net.host?net.nx:null;  /* a client's copy of the host's plan for the wave (zbosses.js: the boss warning) */
 
  // ---------- lobby on the Zombies start menu: name, Host co-op, code + Join (and open games, in a claude.ai room) ----------
- const box=document.createElement('div');box.id='zmp';box.className='zmp';
- box.innerHTML=`<h3>Co-op <small>2–4 pilots, one shared purse</small></h3><div class="mp"><input id="zname" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><button class="sm" id="zhost">Host co-op</button></div>
-  <div class="mp"><input id="zcode" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="zjoin">Join</button></div><div id="zgames"></div>
-  <p class="note" id="zmpnote">One pilot hosts and gets a game code; friends open this page, type the code and press Join. Pilots who join mid-wave come in at the next base screen.</p>`;
- ($('zboard')||$('zmeta')||$('zdiff')).after(box);
+ const box=Z.home.card('zmp',{order:80,tone:'green',cls:'zmp zhc-form'});  /* a form card in the start page grid (zhome.js): its controls stay in reach; #zmpnote is its live state line */
+ const HOW='One pilot hosts and gets a game code; friends open this page, type the code and press Join. Pilots who join mid-wave come in at the next base screen.';
+ box.innerHTML=`<div class="zhc-b"><span class="zhc-g">${Z.home.icon('team')}</span><span class="zhc-t">Co-op</span><span class="zhc-d">2–4 pilots, one shared purse.</span><span class="zhc-s" id="zmpnote" title="${HOW}">Host a game, or type a friend's code.</span></div>
+  <div class="zhc-f"><div class="mp"><input id="zname" maxlength="16" placeholder="Pilot name" aria-label="Pilot name"><button class="sm" id="zhost">Host co-op</button></div>
+  <div class="mp"><input id="zcode" maxlength="6" placeholder="Game code" aria-label="Game code"><button class="sm" id="zjoin">Join</button></div><div id="zgames"></div></div>`;
  const lobby=()=>{$('zhost').disabled=$('zjoin').disabled=!!net};
  const sy0=Z.syncMode;Z.syncMode=()=>{sy0?.();lobby()};lobby();
  $('zname').value=S.zname||'';$('zname').onchange=()=>{S.zname=clean($('zname').value);save()};
  $('zhost').onclick=()=>enter(Math.random().toString(36).slice(2,6),true);$('zjoin').onclick=()=>enter($('zcode').value,false);$('zcode').onkeydown=e=>{if(e.key==='Enter')enter($('zcode').value,false)};
- const msg=(t,warn)=>{const n=$('zmpnote');n.textContent=t;n.classList.toggle('warn',!!warn);if(G.on&&!api.menuOpen)feed(t.replace(/[<>&]/g,''))};
+ const msg=(t,warn)=>{const n=$('zmpnote');n.textContent=n.title=t;n.classList.toggle('warn',!!warn);if(G.on&&!api.menuOpen)feed(t.replace(/[<>&]/g,''))};
  // while in a co-op game, Quick defence just goes back to it (a restart is the host's call)
  $('play').addEventListener('click',e=>{if(net&&G.on){e.stopImmediatePropagation();api.showMenu(false)}},true);
  function games(peers){const b=$('zgames');b.textContent='';for(const p of peers){const pr=p.presence;if(!pr?.zg||p.sameTab)continue;const code=String(pr.zg).replace(/[^a-z0-9]/g,'').slice(0,6);if(!code||net?.code===code)continue;

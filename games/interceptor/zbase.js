@@ -1,8 +1,9 @@
-// Zombies base screen, shown between waves with no timer. An overview map of the defended area (sites, slots, your defences, where the
-// next wave comes from), a Shop listing every helper, supply and perk, the Armory (upgrade, refit, move or sell anything you own), Base (repairs,
-// rebuilding a destroyed site, opening more positions, upkeep), and Continue.
-// Keyboard: arrows move focus, Enter / Space activate, 1-4 tabs, C continue (Esc opens the menu; Cancel backs out of a placement). Gamepad: D-pad, A, B cancel, LB/RB tabs, Y continue.
-import {KIND,ITEMS,RESIST,REPAIR_PER_HP,PERK,RACK_TIERS,RACK_CAP,RACK_CAP_COST,RACK_RANGE,ORDER,HELP,REFIT,LRACK,SUPPLY,UPKEEP_FROM,expCost,rebuildCost,REBUILD_HP,moveCost} from './zdata.js';
+// Zombies base screen, shown between waves with no timer. A header that is always on screen (cash, next wave's upkeep, base integrity, the wave), an overview map
+// of the defended area (sites, slots, your defences, where the next wave comes from) with the threat briefing under it, tabs on the right, and a footer that is always
+// on screen (the sale you can undo, Start wave). Shop: every helper, supply, pilot weapon and perk in sections with counts, each item a row with its one action and a detail
+// pane; the Armory (upgrade, refit, move or sell anything you own), Base (repairs, rebuilding a destroyed site, opening more positions, upkeep), and Continue.
+// Keyboard: arrows move focus, Enter / Space activate, 1-5 tabs, C continue, U undo the last sale (Esc opens the menu; Cancel backs out of a placement). Gamepad: D-pad, A, B cancel, X undo, LB/RB tabs, Y continue.
+import {KIND,ITEMS,RESIST,REPAIR_PER_HP,PERK,RACK_TIERS,RACK_CAP,RACK_CAP_COST,RACK_RANGE,ORDER,HELP,REFIT,LRACK,SUPPLY,UPKEEP_FROM,UPKEEP_K,FWD_UPKEEP,expCost,rebuildCost,REBUILD_HP,moveCost} from './zdata.js';
 const $=id=>document.getElementById(id);
 import {money} from '../../engine/hot.js';
 const MAPX=[-3200,3200],MAPZ=[-1900,2900],MW=640,MH=Math.round(MW*(MAPZ[1]-MAPZ[0])/(MAPX[1]-MAPX[0]));
@@ -10,7 +11,7 @@ export function initBase(Z,api,G){
  const {SITES,PADP,FOBS}=api;
  const el=document.createElement('div');el.id='zbase';el.hidden=true;$('menu').before(el);
  const over=document.createElement('div');over.id='zover';over.hidden=true;$('menu').before(over);
- let tab='shop',focusSlot=-1,mapImg=null;
+ let tab='shop',focusSlot=-1,mapImg=null,sel='',hov='',onlyAff=false,lastTab='',lastP=false;  /* sel / hov: the item the detail pane shows (chosen / under the pointer); lastTab: the redraw keeps the scroll while the tab stays */
  const doc=()=>Z.meta.doc(),dk=(k,d=1)=>Z.meta.k(k,d);
  // Z.xTab (sorties, zsortie.js): one extra tab {id, n, html(), wire(el), map(g, W, H), click(x, y, W, H), legend()} that draws its own map
  const tabList=()=>[['shop','Shop'],['armory','Armory'],['sites','Base'],...(Z.chainHTML?[['chain','Kill chain']]:[]),...(Z.xTab?[[Z.xTab.id,Z.xTab.n]]:[])],xt=()=>!!Z.xTab&&tab===Z.xTab.id&&!G.placing;
@@ -62,30 +63,72 @@ export function initBase(Z,api,G){
 
  // how a defence does against the kinds you have met or are about to meet
  const vsChips=k=>{const R=RESIST[k];if(!R)return'';return ORDER.concat('boss').filter(e=>Z.kindFrom(e)<=G.wave+1).map(e=>{const v=R[e]??0;return`<span class="v${v>=.8?'g':v>0?'m':'n'}" title="${KIND[e].n}">${KIND[e].tag}</span>`}).join('')};
- // one compact row per item: glyph, name and level, one-line description (and what a helper is good against), price button
- function rowHTML(c,i){const it=ITEMS[c.k],L=locked(c.k),M=maxed(c.k),p=price(c.k),sup=it.type==='supply',lvl=it.type==='perk'?Z.perkLevel(c.k):0,own=it.type==='helper'?def.D.filter(d=>d.type===c.k).length:0;
-  const tag=it.type==='perk'?(lvl?`LV ${lvl}${M?' · MAX':''}`:''):sup?(M?'READY':''):(own?`×${own} OWNED`:'');
-  const txt=L?`Arrives with wave ${Z.itemFrom(c.k)}.`:it.type==='perk'?(M?'Fully upgraded.':Z.perkBlurb(c.k)):sup?`${SUPPLY[c.k].txt} ${M?`Loaded for wave ${G.wave+1}.`:`This wave only.`}`:it.blurb;
-  return`<div class="zitem ${L?'lock':''} ${sup&&M?'got':''}"><span class="zg">${it.glyph}</span><div class="zid"><b>${it.n}</b>${tag?`<em>${tag}</em>`:''}${it.kit?'<em>KIT</em>':''}
-   <p>${txt}</p>${it.type==='helper'&&!L?`<div class="zvs">${vsChips(c.k)}</div>`:''}</div>
-   <button class="sm" data-buy="${i}" ${L||M||G.cash<p?'disabled':''}>${L?`Wave ${Z.itemFrom(c.k)}`:M?(sup?'Loaded ✓':'Max'):`${it.type==='perk'&&lvl?'Upgrade':'Buy'} ${money(p)}`}</button></div>`}
- function shopHTML(){let h=Z.shopTop?.()||'',g='';G.cards.forEach((c,i)=>{if(c.g!==g){h+=`${g?'</div>':''}<h3>${c.g}</h3><div class="zitems">`;g=c.g}h+=rowHTML(c,i)});return h+'</div>'}  /* Z.shopTop: the pilot weapon loadout (zarsenal.js) */
+ const esc=s=>String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
+ /* one short line of what each defence does, for the list (the detail pane has the whole blurb); a perk or a supply says its own first sentence */
+ const ROLE={rack:'Launches drones that hunt any air track (3.2 km)',flak:'Airburst shells for slow, low tracks: swarms (1.8 km)',ew:'Jams guidance: spoofed tracks hit empty fields',gepard:'Radar-guided guns: drones, jets, cruise missiles',sam:'Long-range missiles that ignore armor (9 km)',idome:'Intercepts ballistic and cruise missiles',gdome:'Space interceptors against hypersonic and ICBM tracks',
+  lrack:'A small cheap rack: 2 drones, 2.2 km',hflak:'Heavy mortar: reaches jets and cruise missiles',mpads:'Three heat-seeking missiles a wave; moves for free',laser:'Holds a beam on one track until it burns through',mwave:'One pulse fries every FPV swarm drone near it',barrage:'Cables snag low flyers over a position',smoke:'Smoke makes diving tracks miss, swarms most',carrier:'A truck of 12 drones, parked anywhere on the map'};
+ const UNIT={rack:'rack',launcher:'launcher',site:'site',helper:'helper'};
+ const plain=h=>String(h??'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim();
+ const short=(h,n=100)=>{const t=plain(h),m=/^.*?[.;](?=\s|$)/.exec(t),s=m?m[0].replace(/[.;]$/,''):t;return s.length>n?s.slice(0,n-1).replace(/\s+\S*$/,'')+'…':s};
+ const nFree=k=>def.SLOTS.filter((_,j)=>def.slotFree(j,k)).length;
+ /* what an item is right now: unlocked, finished (a perk at its top level, a supply already loaded), affordable, and by how much it is out of reach */
+ const state=c=>{const k=c.k,L=locked(k),M=maxed(k),p=L||M?0:price(k);return{L,M,p,avail:!L&&!M,aff:!L&&!M&&G.cash>=p,need:!L&&!M&&G.cash<p?p-G.cash:0}};
+ const upkeepNote=k=>{const q=dk('upkeepK');return q===0?'none (Quartermaster)':G.wave+1<UPKEEP_FROM?`none until wave ${UPKEEP_FROM}`:`${money(Math.round(ITEMS[k].price*UPKEEP_K*q))} a wave, double on a forward position (${FWD_UPKEEP}x)`};
+ // one row per item: glyph, name and what you own, one line of what it does, who it is good against, the slot or level hint, and the one action with its price (greyed, with how far short you are, when it is out of reach)
+ function rowHTML(c,i){const k=c.k,it=ITEMS[k],S=state(c),{L,M,p}=S,sup=it.type==='supply',perk=it.type==='perk',helper=it.type==='helper',lvl=perk?Z.perkLevel(k):0,own=helper?def.D.filter(d=>d.type===k).length:0;
+  const tag=perk?(lvl?`LV ${lvl}${M?' · MAX':''}`:''):sup?(M?'READY':''):(own?`×${own} OWNED`:'');
+  const full=L?`Arrives with wave ${Z.itemFrom(k)}.`:perk?(M?'Fully upgraded.':Z.perkBlurb(k)):sup?`${SUPPLY[k].txt} ${M?`Loaded for wave ${G.wave+1}.`:`This wave only.`}`:it.blurb;
+  const role=L?full:ROLE[k]||short(full),n=sup?supN(k):0,free=helper&&!L?nFree(k):0,off=L||M||!S.aff||helper&&!L&&!free;  /* a helper with no free position cannot be bought: the button says so instead of doing nothing */
+  const hint=L?`<span class="zhn">unlocks at wave ${Z.itemFrom(k)}</span>`:helper?(free?`<span class="zhn">${free} free position${free>1?'s':''}</span>`:'<span class="zhn cr">no free position</span>'):perk?`<span class="zhn"><span class="zpips" title="level ${lvl} of ${PERK[k].cost.length}">${PERK[k].cost.map((_,j)=>`<i class="${j<lvl?'on':''}"></i>`).join('')}</span>${PERK[k].key?` key ${PERK[k].key}`:' passive'}</span>`:sup?`<span class="zhn">covers ${n} ${UNIT[SUPPLY[k].of]}${n>1?'s':''}</span>`:'';
+  return`<div class="zitem${L?' lock':''}${sup&&M?' got':''}${own||lvl?' own':''}${S.avail&&!S.aff?' poor':''}${M&&!sup?' max':''}${sel==='c:'+i?' sel':''}" data-det="c:${i}"><span class="zg">${it.glyph}</span><div class="zid"><b>${it.n}</b>${tag?`<em>${tag}</em>`:''}${it.kit?'<em>KIT</em>':''}
+   <p class="zrole">${role}</p><span class="zfull" hidden>${full}</span><div class="zrow2">${helper&&!L?`<div class="zvs"><span class="zvl">vs</span>${vsChips(k)}</div>`:''}${hint}</div></div>
+   <div class="zbuy"><button class="sm${off?'':' pri'}" data-buy="${i}" ${off?'disabled':''}${helper&&!L&&!free?' title="No free position: open one in the Base tab, or sell or move a defence"':''}>${L?`Wave ${Z.itemFrom(k)}`:M?(sup?'Loaded ✓':'Max'):`${perk&&lvl?'Upgrade':'Buy'} ${money(p)}`}</button>${S.need?`<small class="zneed">need ${money(S.need)} more</small>`:''}</div></div>`}
+ /* the sections of the Shop tab (Z.shopTop, zbuddy.js: a note above them): each a heading, a count (items you can afford now / items you can buy now) and its rows; zarsenal.js adds Pilot gear, ztypeui.js Craft */
+ const SEC=[],shop=Z.shop={add(o){const i=SEC.findIndex(s=>s.id===o.id);if(i>=0)SEC[i]=o;else SEC.push(o)},detail:{},secs:()=>SEC.slice().sort((a,b)=>a.order-b.order)};
+ const rowsOf=f=>G.cards.map((c,i)=>f(c.k)?[c,i]:null).filter(Boolean),cnt=L=>`${L.filter(([c])=>state(c).aff).length}/${L.filter(([c])=>state(c).avail).length}`;
+ shop.add({id:'def',label:'Defences',order:10,sub:'one per free position; they fight while you fly',count:()=>cnt(rowsOf(k=>ITEMS[k].type==='helper')),html:()=>rowsOf(k=>ITEMS[k].type==='helper').map(([c,i])=>rowHTML(c,i)).join('')});
+ shop.add({id:'sup',label:'Supplies',order:20,sub:'for the next wave only',count:()=>cnt(rowsOf(k=>ITEMS[k].type==='supply')),html:()=>rowsOf(k=>ITEMS[k].type==='supply').map(([c,i])=>rowHTML(c,i)).join('')});
+ {const isA=k=>ITEMS[k].type==='perk'&&!!PERK[k].key,isP=k=>ITEMS[k].type==='perk'&&!PERK[k].key;
+  shop.add({id:'perk',label:'Perks',order:40,sub:'yours: they upgrade level by level',count:()=>cnt(rowsOf(k=>isA(k)||isP(k))),
+   html:()=>`<h4>Active <small>a key or pad button, charges refill every wave</small></h4>${rowsOf(isA).map(([c,i])=>rowHTML(c,i)).join('')}<h4>Passive <small>always on</small></h4>${rowsOf(isP).map(([c,i])=>rowHTML(c,i)).join('')}`})}
+ const subOf=s=>typeof s.sub==='function'?s.sub():s.sub||'';
+ function shopHTML(){const L=shop.secs().map(s=>({s,h:s.html()})).filter(x=>x.h);
+  return`<nav class="zsecs" aria-label="Shop sections">${L.map(({s})=>`<button type="button" class="zsc" data-sec="${s.id}" title="${esc(subOf(s))}${/^\d+\/\d+$/.test(s.count?.()||'')?` · ${s.count()}: in reach / can be bought now`:''}">${s.label}<i>${s.count?.()??''}</i></button>`).join('')}<button type="button" class="zsc zaff${onlyAff?' on':''}" data-aff aria-pressed="${onlyAff}" title="Hide what you can't buy right now">Affordable only</button></nav>
+   ${Z.shopTop?.()||''}${L.map(({s,h})=>`<section class="zsec" id="zsec-${s.id}"><h3>${s.label}${subOf(s)?` <small>${esc(subOf(s))}</small>`:''}</h3><div class="zitems">${h}</div></section>`).join('')}`}
+ const affCount=()=>G.cards.filter(c=>state(c).aff).length;
+ /* the detail pane: the whole description, what it costs to keep and what it sells for, for the item under the pointer or the one last chosen (sel / hov: "c:<card>", "d:<defence>", or a section's own kind, Z.shop.detail) */
+ const facts=L=>`<dl class="zfacts">${L.filter(Boolean).map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>`;
+ function catDetail(c){const k=c.k,it=ITEMS[k],S=state(c),lvl=it.type==='perk'?Z.perkLevel(k):0,helper=it.type==='helper',own=helper?def.D.filter(d=>d.type===k).length:0,n=it.type==='supply'?supN(k):0;
+  const full=S.L?`Arrives with wave ${Z.itemFrom(k)}.`:it.type==='perk'?(S.M?'Fully upgraded.':Z.perkBlurb(k)):it.type==='supply'?SUPPLY[k].txt:it.blurb;
+  return`<h4><span class="zg">${it.glyph}</span>${it.n}<em>${helper?(own?`×${own} owned`:'not owned'):it.type==='perk'?`level ${lvl} of ${PERK[k].cost.length}`:S.M?'loaded':'for the next wave'}</em></h4><p class="zdp">${full}</p>${helper&&!S.L&&vsChips(k)?`<div class="zvs">${vsChips(k)}<small class="zlg">green strong · amber partial · struck through: no effect</small></div>`:''}
+   ${facts([['Price',S.L?`from wave ${Z.itemFrom(k)}`:S.M?'bought':`${money(S.p)}${S.need?` <span class="co">· need ${money(S.need)} more</span>`:''}`],
+    helper?['Needs',`a free position (${nFree(k)} free)`]:it.type==='supply'?['Covers',`${n} ${UNIT[SUPPLY[k].of]}${n>1?'s':''}, this wave only`]:PERK[k]?.key?['Key',`${PERK[k].key} · ${PERK[k].pad}`]:null,
+    helper?['Upkeep',upkeepNote(k)]:null,helper?['Sells for',`${Z.sell.pct()}% back (all of it on this screen)`]:null])}`}
+ function defDetail(d){const it=ITEMS[d.type],s=def.SLOTS[d.slot],up=upkeepOf(d),RF=REFIT[d.type]||[],cur=RF.find(r=>r.id===d.refit);
+  return`<h4><span class="zg">${it.glyph}</span>${it.n}<em>${s.n}</em></h4><p class="zdp">${it.blurb}</p>${vsChips(d.type)?`<div class="zvs">${vsChips(d.type)}<small class="zlg">green strong · amber partial · struck through: no effect</small></div>`:''}
+   ${facts([['Upkeep',up?`${money(up)} a wave`:dk('upkeepK')===0?'none (Quartermaster)':G.wave+1<UPKEEP_FROM?`none until wave ${UPKEEP_FROM}`:'none'],['Sells for',`<b>+${money(refund(d))}</b> · ${Z.sell.dwhy(d)}`],['Kills',d.kills|0],cur?['Refit',cur.n]:null,d.short?['Ammo','<span class="co">short: upkeep was unpaid</span>']:null])}`}
+ function detailHTML(key){const[t,id]=String(key||'').split(':');
+  if(t==='c'){const c=G.cards[+id];if(c)return catDetail(c)}
+  else if(t==='d'){const d=byId(+id);if(d)return defDetail(d)}
+  else if(shop.detail[t]){const h=shop.detail[t](id);if(h)return h}
+  return`<p class="zhint">Move to an item to see what it does, what it costs to keep and what it sells for.</p>`}
+ function detShow(){const d=el.querySelector('#zdet');if(!d)return;const k=hov||sel;d.innerHTML=detailHTML(k);for(const r of el.querySelectorAll('[data-det].sel'))r.classList.remove('sel');if(sel)for(const r of el.querySelectorAll('[data-det]'))if(r.dataset.det===sel)r.classList.add('sel')}
  const upkeepOf=d=>Z.upkeep?Z.upkeep().per.get(d)|0:0;
  function defRow(d){const s=def.SLOTS[d.slot],it=ITEMS[d.type],up=upkeepOf(d);let ups='';
   if(def.isRack(d)){const T=RACK_TIERS[d.tier],top=d.type==='lrack'?LRACK.maxTier:RACK_TIERS.length-1,N=d.tier<top?RACK_TIERS[d.tier+1]:null,ci=RACK_CAP.indexOf(d.cap),nc=d.type==='rack'?RACK_CAP[ci+1]:null,cc=nc&&upCost(RACK_CAP_COST[ci+1]);
    ups=`<span class="zst">${T.n} · ${Math.round(T.hit*100)}% kill per hit · ${def.capOf(d)} drones · ${(def.rangeOf(d)/1000).toFixed(1)} km · ${d.kills} kills</span>
     ${N?`<span class="zst zn">Next: ${N.n}, ${Math.round(N.hit*100)}% per hit, ${N.note}</span>`:''}
-    <button class="sm" data-up="${d.id}:tier" ${N&&G.cash>=upCost(N.cost)?'':'disabled'}>${N?`${N.n} ${money(upCost(N.cost))}`:`${T.n}: max`}</button>
+    <button class="sm pri" data-up="${d.id}:tier" ${N&&G.cash>=upCost(N.cost)?'':'disabled'}>${N?`${N.n} ${money(upCost(N.cost))}`:`${T.n}: max`}</button>
     ${d.type==='rack'?`<button class="sm" data-up="${d.id}:cap" ${nc&&G.cash>=cc?'':'disabled'}>${nc?`+1 drone ${money(cc)}`:'4 drones: max'}</button>`:''}`}
   else{const H=HELP[d.type],l=H.lv[d.lvl],n=H.lv[d.lvl+1],m=def.magOf(d);
    ups=`<span class="zst">${H.lv.length>1?`level ${d.lvl+1}`:'no upgrades'}${m?` · ${m} shots per wave`:''} · ${(def.rangeOf(d)/1000).toFixed(1)} km${d.type==='ew'?` · ${d.kills} spoofed`:` · ${d.kills} kills`}</span>
     ${n?`<span class="zst zn">Next: level ${d.lvl+2}, ${n.txt}</span>`:''}
-    ${H.lv.length>1?`<button class="sm" data-up="${d.id}:lvl" ${n&&G.cash>=upCost(n.cost)?'':'disabled'}>${n?`Level ${d.lvl+2} ${money(upCost(n.cost))}`:'Max level'}</button>`:''}`}
+    ${H.lv.length>1?`<button class="sm pri" data-up="${d.id}:lvl" ${n&&G.cash>=upCost(n.cost)?'':'disabled'}>${n?`Level ${d.lvl+2} ${money(upCost(n.cost))}`:'Max level'}</button>`:''}`}
   const RF=REFIT[d.type]||[],cur=RF.find(r=>r.id===d.refit);
   if(RF.length)ups+=`<span class="zst zn">${cur?`Refit: <b>${cur.n}</b>. ${cur.txt}`:'Refit (one per defence, each a trade):'}</span>${RF.map(r=>`<button class="sm zfit ${d.refit===r.id?'on':''}" data-fit="${d.id}:${r.id}" title="${r.txt}" ${d.refit!==r.id&&G.cash>=upCost(r.cost)?'':'disabled'}>${d.refit===r.id?'✓ '+r.n:`${r.n} ${money(upCost(r.cost))}`}</button>`).join('')}`;
   const mc=moveCost(d);ups+=Z.defExtra?.(d)||'';  // Z.defExtra: a defence's own controls (the carrier's parking, zarsenal.js)
   ups+=`<button class="sm" data-mv="${d.id}" ${G.cash>=mc&&def.SLOTS.some((_,j)=>def.slotFree(j,d.type))?'':'disabled'}>Move${mc?' '+money(mc):' (free)'}</button>`;
-  return`<div class="zarm"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}${d.by?' · '+d.by:''}${up?` · upkeep ${money(up)}`:''}${d.short?' · <span class="co">short of ammo</span>':''}</small></div><div class="zups">${ups}<span class="zst zrf">${Z.sell.dwhy(d)}</span><button class="sm zsell" data-sell="${d.id}" title="${Z.sell.dwhy(d)}">Sell +${money(refund(d))}</button></div></div>`}
+  return`<div class="zarm own" data-det="d:${d.id}"><span class="zg">${it.glyph}</span><div><b>${it.n}</b><small>${s.n}${d.by?' · '+d.by:''}${up?` · upkeep ${money(up)}`:''}${d.short?' · <span class="co">short of ammo</span>':''}</small></div><div class="zups">${ups}<span class="zst zrf">${Z.sell.dwhy(d)}</span><button class="sm zsell" data-sell="${d.id}" title="${Z.sell.dwhy(d)}">Sell +${money(refund(d))}</button></div></div>`}
  // selling frees the position and pays at once: everything spent on it this base screen back, and the doctrine's share (half) of the rest. The card stays
  // with an Undo until the wave starts (zsell.js), so there is no confirm press
  function sell(id){const d=byId(id);if(!d)return;const nm=ITEMS[d.type].n.toLowerCase(),at=def.SLOTS[d.slot].n,r=refund(d);
@@ -93,6 +136,8 @@ export function initBase(Z,api,G){
  /* take a sale back / close a position you paid to open (zsell.js) */
  function undo(id){const r=(G.sold||[]).find(q=>q.id===id);if(!r)return;
   if(Z.req)Z.req(['U',id]);else{const u=Z.sell.undo(id);if(u)Z.sell.say(`<span class="cg">Undone: ${u.msg}</span> · −${money(u.c)}`)}render();focus(r.k==='x'?'[data-xs]':r.k==='d'?'[data-sell]':'[data-kc]')}
+ /* the footer's Undo and the U key / pad X: take back the most recent sale */
+ function undoLast(){const r=(G.sold||[]).slice(-1)[0];if(r)undo(r.id)}
  function closeX(j){const nm=def.SLOTS[j].n,r=Z.sell.xval(j);
   if(Z.req)Z.req(['q',j]);else if(Z.sell.closeX(j)!=null)Z.sell.say(`<span class="co">Closed ${nm}</span> · +${money(r)} (Undo until the wave starts)`);render();focus('[data-undo]')}
  /* the card of a sale taken this base screen: what was sold, what it paid, Undo */
@@ -127,24 +172,36 @@ export function initBase(Z,api,G){
   return h}
 
  // ---------- render ----------
+ // The panel is three rows: the header (cash, next wave's upkeep, base integrity, the wave: always on screen), the body (the map and the briefing on the left,
+ // the tabs with their list and the detail pane on the right, each column scrolling on its own) and the footer (the sale you can undo, and Start wave: always on screen).
+ const tabBadge=k=>k==='shop'?`<i class="zn" title="items you can afford now">${affCount()}</i>`:k==='armory'?`<i class="zn" title="defences placed">${def.D.length}</i>`:k==='sites'?(()=>{const n=SITES.filter(s=>s.hp<s.max).length;return n?`<i class="zn warn" title="sites with damage">${n}</i>`:''})():'';
+ function headerHTML(integ,f,U,sh){const D=doc(),nw=G.wave+1,qm=dk('upkeepK')===0;
+  const why=qm?'none (Quartermaster)':nw<UPKEEP_FROM?`none until wave ${UPKEEP_FROM}`:U&&U.total?`due when wave ${nw} is cleared`:'nothing due';
+  return`<header class="zbh"><div class="zbh-c"><span class="zbh-k" title="${D.n} doctrine">${G.wave?`Wave ${G.wave} cleared`:'Briefing'} · <b>${D.n}</b></span><div class="zbh-r"><h2>Next: wave ${nw}</h2></div></div>
+   <div class="zbh-c zbh-cash"><span class="zbh-k">Cash</span><div class="zbh-r"><b class="zbig">${money(G.cash)}</b><small>${affCount()} item${affCount()===1?'':'s'} in reach</small></div></div>
+   <div class="zbh-c"><span class="zbh-k">Upkeep next wave</span><div class="zbh-r"><b class="zbh-v${U&&U.total?' co':''}">${money(U?U.total:0)}</b><small title="${why}${G.lastUp?` · last upkeep ${money(G.lastUp)}`:''}">${why}${sh?` · <span class="co">${sh} short of ammo</span>`:''}</small></div></div>
+   <div class="zbh-c zint"><span class="zbh-k">Base integrity</span><div class="zbh-r"><b><i style="width:${(f*100).toFixed(1)}%" class="${f<.3?'lo':f<.6?'mid':''}"></i></b><small>${Math.round(f*100)}% · ${Math.ceil(integ.hp)}/${integ.max}</small></div></div></header>`}
+ function footerHTML(){const P=G.placing,L=G.sold||[],r=L[L.length-1],w=r?Z.sell.can(r):'';
+  const undo=r?`<span class="zbf-s">Sold <b>${esc(r.name)}</b> · +${money(r.r)}${L.length>1?` · ${L.length} sales`:''}</span><button type="button" class="sm" id="zundo" data-undo="${r.id}" ${w?`disabled title="${esc(w)}"`:''}>Undo −${money(r.r)}</button>`
+   :`<span class="zbf-s dim">Nothing sold. Selling is in the Armory; a sale can be undone until the wave starts.</span><button type="button" class="sm" id="zundo" disabled>Undo sale</button>`;
+  return`<footer class="zbf"><div class="zbf-u">${undo}</div><span class="zbf-k">${P?'Placing: pick a position, or Cancel':`<kbd>C</kbd> start · <kbd>1</kbd>-<kbd>${tabList().length}</kbd> tabs · <kbd>U</kbd> undo`}</span><button class="go" id="zgo">${Z.goTxt?.()||`Start wave ${G.wave+1} ▸`}</button></footer>`}
  function render(){const integ=SITES.reduce((a,s)=>(a.hp+=Math.max(0,s.hp),a.max+=s.max,a),{hp:0,max:0}),f=integ.hp/integ.max,P=G.placing;
   let body='';
   if(P)body=`<h3>${P.mv?`Move the ${ITEMS[P.k].n.toLowerCase()} to`:`Choose a position for the ${ITEMS[P.k].n.toLowerCase()}`}</h3><p class="zhint">Pick a slot here or click a free circle on the map. It deploys when the wave starts.</p>
    <div class="zslots">${def.SLOTS.map((s,j)=>def.slotFree(j,P.k)?`<button class="sm" data-slot="${j}">${s.n}</button>`:'').join('')}</div><div class="mp"><button class="sm" id="zcancel">Cancel</button></div>`;
   else if(tab==='shop')body=shopHTML();
-  else if(tab==='armory'){const perks=Z.perkRows?.(money)||'';body=`${def.D.length||Z.sell.list('d').length?armoryRows():'<p class="zhint">No defences yet. Buy helpers from the shop cards.</p>'}${perks?`<h3 style="margin-top:14px">Perks</h3>${perks}`:''}`}
+  else if(tab==='armory'){const perks=Z.perkRows?.(money)||'';body=`${def.D.length||Z.sell.list('d').length?armoryRows():'<p class="zhint">No defences yet. Buy helpers from the Shop.</p>'}${perks?`<h3 style="margin-top:14px">Perks</h3>${perks}`:''}`}
   else if(tab==='chain'&&Z.chainHTML)body=Z.chainHTML();  /* the kill chain against the fast missiles (zchain.js) */
   else if(xt())body=Z.xTab.html();
   else body=baseHTML();
-  const fc=forecast(),D=doc(),U=Z.upkeep?.(),sh=Z.def.D.filter(d=>d.short).length;
-  el.innerHTML=`<div class="zpanel zb"><header><div><h2>${G.wave?`Wave ${G.wave} cleared`:'Briefing'}</h2><div class="zbig">${money(G.cash)}</div></div>
-   <div class="zint"><span>Defense integrity ${Math.round(f*100)}% · ${Math.ceil(integ.hp)}/${integ.max}</span><b><i style="width:${(f*100).toFixed(1)}%" class="${f<.3?'lo':f<.6?'mid':''}"></i></b></div>
-   <button class="go" id="zgo">${Z.goTxt?.()||`Start wave ${G.wave+1} ▸`}</button>
-   <div class="zdoc">Doctrine <b>${D.n}</b>${U&&U.total?` · upkeep <b>${money(U.total)}</b> after this wave`:''}${sh?` · <span class="co">${sh} short of ammo (upkeep unpaid)</span>`:''}${G.lastUp?` · last upkeep ${money(G.lastUp)}`:''}</div></header>${Z.coopHTML?.()||''}${Z.cpHTML?.()||''}${Z.briefHTML?.()||''}
-   <div class="zcols"><div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
-    <div class="zleg">${xt()?Z.xTab.legend():`<span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>your defence</span><span><i class="lf"></i>forward position</span><span><i class="lx">+</i>position to open (Base tab)</span><span><i class="lt"></i>next wave's approach</span>`}</div></div>
-   <div class="zside"><nav class="ztabs">${tabList().map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}</button>`).join('')}</nav><div class="ztab">${body}</div></div></div>
-   <footer class="zfc"><h3>Wave ${G.wave+1}${fc.boss?' · <span class="cr">BOSS</span>':''}${Z.wx?.note(G.next.wx)||''}</h3>${fc.html}</footer></div>`;
+  const fc=forecast(),U=Z.upkeep?.(),sh=Z.def.D.filter(d=>d.short).length,old=el.querySelector('.ztab'),oldL=el.querySelector('.zleft'),keep=old&&lastTab===tab&&lastP===!!P?[old.scrollTop,oldL?.scrollTop||0]:null,det=!P&&(tab==='shop'||tab==='armory');
+  lastTab=tab;lastP=!!P;
+  el.innerHTML=`<div class="zpanel zb">${headerHTML(integ,f,U,sh)}<div class="zbody"><div class="zcols"><div class="zleft">${Z.coopHTML?.()||''}${Z.cpHTML?.()||''}<div class="zmapw"><canvas id="zmap" width="${MW*2}" height="${MH*2}"></canvas>
+    <div class="zleg">${xt()?Z.xTab.legend():`<span><i class="ls"></i>site</span><span><i class="le"></i>free slot</span><span><i class="ld"></i>defence</span><span><i class="lf"></i>forward</span><span><i class="lx">+</i>to open (Base tab)</span><span><i class="lt"></i>next approach</span>`}</div></div>
+    ${Z.briefHTML?.()||''}<section class="zfc"><h3>Wave ${G.wave+1}${fc.boss?' · <span class="cr">BOSS</span>':''}${Z.wx?.note(G.next.wx)||''}</h3>${fc.html}</section></div>
+   <div class="zside"><nav class="ztabs">${tabList().map(([k,n],i)=>`<button class="sm ${tab===k&&!P?'on':''}" data-tab="${k}"><kbd>${i+1}</kbd> ${n}${tabBadge(k)}</button>`).join('')}</nav><div class="ztab${onlyAff?' onaff':''}">${body}</div>${det?`<aside class="zdet" id="zdet" aria-live="polite">${detailHTML(sel)}</aside>`:''}</div></div></div>${footerHTML()}</div>`;
+  if(keep){const t=el.querySelector('.ztab'),l=el.querySelector('.zleft');if(t)t.scrollTop=keep[0];if(l)l.scrollTop=keep[1]}
+  if(det&&!(sel&&el.querySelector(`.ztab [data-det="${sel}"]`))){const r=el.querySelector('.ztab [data-det]');sel=r?r.dataset.det:'';detShow()}  /* the pane shows the first item of the tab until one is chosen */
   $('zgo').onclick=()=>{if(!G.placing)Z.continue()};$('zcancel')&&($('zcancel').onclick=cancelPlace);
   for(const b of el.querySelectorAll('[data-tab]'))b.onclick=()=>{if(G.placing)return;tab=b.dataset.tab;render();focus(`[data-tab="${tab}"]`)};
   for(const b of el.querySelectorAll('[data-buy]'))b.onclick=()=>buy(+b.dataset.buy);
@@ -159,14 +216,23 @@ export function initBase(Z,api,G){
   for(const b of el.querySelectorAll('[data-xs]'))b.onclick=()=>closeX(+b.dataset.xs);
   for(const b of el.querySelectorAll('[data-rb]'))b.onclick=()=>rebuild(+b.dataset.rb);
   for(const b of el.querySelectorAll('[data-kc]'))b.onclick=()=>{const k=b.dataset.kc,i=k.indexOf(':');Z.chain.req(k.slice(0,i),k.slice(i+1));render();focus(`[data-kc="${k}"]`)};
+  for(const b of el.querySelectorAll('[data-sec]'))b.onclick=()=>{const t=el.querySelector('.ztab'),s=el.querySelector(`#zsec-${b.dataset.sec}`),n=el.querySelector('.zsecs');if(t&&s)t.scrollTo({top:s.offsetTop-(n?n.offsetHeight:0)-2,behavior:'smooth'})};
+  {const a=el.querySelector('[data-aff]'),t=el.querySelector('.ztab');if(a)a.onclick=()=>{onlyAff=!onlyAff;t.classList.toggle('onaff',onlyAff);a.classList.toggle('on',onlyAff);a.setAttribute('aria-pressed',onlyAff)}}
+  /* the section chip of the section on screen is lit as the list scrolls */
+  {const t=el.querySelector('.ztab'),n=el.querySelector('.zsecs'),chips=[...el.querySelectorAll('[data-sec]')];if(t&&n&&chips.length){const spy=()=>{let cur=chips[0].dataset.sec;for(const c of chips){const s=el.querySelector(`#zsec-${c.dataset.sec}`);if(s&&s.offsetTop-n.offsetHeight-12<=t.scrollTop)cur=c.dataset.sec}for(const c of chips)c.classList.toggle('on',c.dataset.sec===cur)};t.onscroll=spy;spy()}}
   if(xt())Z.xTab.wire(el);
-  Z.baseBind?.(el);  // the arsenal's buttons (zarsenal.js)
+  Z.baseBind?.(el);  /* the arsenal's buttons (zarsenal.js) */
   for(const b of el.querySelectorAll('[data-rep]'))b.onclick=()=>{const i=+b.dataset.rep,s=SITES[i],k=repairK(),hp=Math.min(s.max-s.hp,Math.floor(G.cash/(REPAIR_PER_HP*k)));if(hp<=0)return;if(Z.req)Z.req(['r',i,hp]);else act.repair(i,hp);render();focus(`[data-rep="${b.dataset.rep}"]`)};
   const cv=$('zmap');cv.onclick=e=>{const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*MW,y=(e.clientY-r.top)/r.height*MH;let bj=-1,bd=24;if(xt()){Z.xTab.click(x,y,MW,MH);return}
-   if(Z.mapClick?.(MAPX[0]+x/MW*(MAPX[1]-MAPX[0]),MAPZ[0]+y/MH*(MAPZ[1]-MAPZ[0])))return;  // parking a carrier (zarsenal.js)
+   if(Z.mapClick?.(MAPX[0]+x/MW*(MAPX[1]-MAPX[0]),MAPZ[0]+y/MH*(MAPZ[1]-MAPZ[0])))return;  /* parking a carrier (zarsenal.js) */
    const can=j=>G.placing?def.slotFree(j,G.placing.k):tab==='sites'&&def.canOpen(j,doc());def.SLOTS.forEach((s,j)=>{const[sx,sy]=spx(j),d=Math.hypot(sx-x,sy-y);if(can(j)&&d<bd){bd=d;bj=j}});
    if(bj<0)return;if(G.placing)place(bj);else{focusSlot=bj;drawMap();el.querySelector(`[data-ex="${bj}"]`)?.focus()}};
   drawMap()}
+ /* the detail pane follows the pointer and the keyboard focus (one set of listeners: the panel's contents are replaced on every redraw) */
+ el.addEventListener('mouseover',e=>{const r=e.target.closest?.('[data-det]'),k=r?r.dataset.det:'';if(k!==hov){hov=k;detShow()}});
+ el.addEventListener('mouseleave',()=>{if(hov){hov='';detShow()}});
+ el.addEventListener('focusin',e=>{const r=e.target.closest?.('[data-det]');if(r&&r.dataset.det!==sel){sel=r.dataset.det;detShow()}});
+ el.addEventListener('click',e=>{const r=e.target.closest?.('[data-det]');if(r&&r.dataset.det!==sel){sel=r.dataset.det;detShow()}});
  // next wave preview: counts per kind, new kinds flagged, approach bearings drawn on the map
  function forecast(){const n={};for(const q of G.next.list){const[k,c]=q.split(':');n[k]=(n[k]||0)+(+c||1)}
   const isNew=k=>Z.kindFrom(k)===G.wave+1;
@@ -203,10 +269,10 @@ export function initBase(Z,api,G){
  function spx(j){const s=def.SLOTS[j];if(s.park)return[mx(s.x),mz(s.z)];if(s.site){const dx=s.x-s.site.x,dz=s.z-s.site.z,l=Math.hypot(dx,dz)||1;return[mx(s.site.x)+dx/l*24,mz(s.site.z)+dz/l*24]}
   if(/^Radar/.test(s.n))return[mx(PADP.x)+(s.x<PADP.x?-18:18),mz(PADP.z)-6];if(s.out)return[mx(s.x),mz(s.z)];return[mx(s.x)+(/pad 2$/.test(s.n)?14:-14),mz(s.z)+12]}
  const focus=q=>setTimeout(()=>{const b=el.querySelector(q+':not([disabled])');(b||$('zgo'))?.focus();drawMap()},0);
- function open(){document.body.classList.add('zb-open');G.state="base";G.placing=null;tab='shop';deal();el.hidden=false;render();focus('[data-buy]')}
+ function open(){document.body.classList.add('zb-open');G.state="base";G.placing=null;tab='shop';sel=hov='';deal();el.hidden=false;render();focus('[data-buy]')}
  function close(){el.hidden=true;G.placing=null;document.body.classList.remove('zb-open')}
  // redraw for a change made elsewhere (co-op: the purse, the defences, who is ready), keeping focus and the tab's scroll
- function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','so','tab','ars','undo','xs'].find(x=>a.dataset[x]!=null):null,
+ function refresh(){if(el.hidden)return;deal();const a=document.activeElement,mine=a&&el.contains(a),k=mine?['buy','slot','up','fit','mv','perk','sell','rep','rb','ex','kc','so','tab','ars','undo','xs','sec'].find(x=>a.dataset[x]!=null):null,
    q=k?`[data-${k}="${a.dataset[k]}"]`:mine&&a.id?'#'+a.id:null,sc=el.querySelector('.ztab')?.scrollTop||0;
   render();const t=el.querySelector('.ztab');if(t)t.scrollTop=sc;if(q)el.querySelector(q)?.focus()}
  // spatial focus move between the visible buttons
@@ -219,9 +285,9 @@ export function initBase(Z,api,G){
   if(c==='ArrowUp')move(0,-1);else if(c==='ArrowDown')move(0,1);else if(c==='ArrowLeft')move(-1,0);else if(c==='ArrowRight')move(1,0);
   else if(c==='Space'&&el.contains(document.activeElement))document.activeElement.click();
   else if(/^Digit[1-9]$/.test(c)&&TABS()[+c.slice(5)-1])setTab(TABS()[+c.slice(5)-1]);
-  else if(c==='KeyC'&&!G.placing)Z.continue();else if(c==='Escape')return false;  /* Esc is the menu's (it ran first); the Esc that closes the menu must not also drop a pending placement: Cancel and pad B do that */
+  else if(c==='KeyC'&&!G.placing)Z.continue();else if(c==='KeyU'&&!G.placing)undoLast();else if(c==='Escape')return false;  /* Esc is the menu's (it ran first); the Esc that closes the menu must not also drop a pending placement: Cancel and pad B do that */
   else return true;e.preventDefault?.();return true}
  function pad(e){if(el.hidden&&over.hidden)return false;const host=el.hidden?over:el;
   if(e(12))move(0,-1);if(e(13))move(0,1);if(e(14))move(-1,0);if(e(15))move(1,0);if(e(0)&&host.contains(document.activeElement))document.activeElement.click();
-  if(!el.hidden){if(e(1))cancelPlace();if(e(4)||e(5)){const T=TABS(),i=T.indexOf(tab);setTab(T[(i+(e(5)?1:T.length-1))%T.length])}if(e(3)&&!G.placing)Z.continue()}return true}
+  if(!el.hidden){if(e(1))cancelPlace();if(e(4)||e(5)){const T=TABS(),i=T.indexOf(tab);setTab(T[(i+(e(5)?1:T.length-1))%T.length])}if(e(3)&&!G.placing)Z.continue();if(e(2)&&!G.placing)undoLast()}return true}
  return{open,close,render,refresh,act,key,pad,el,buy,place,upgrade,refit,startMove,expand,rebuild,setTab,sell,offered,supPrice,undo,closeX}}

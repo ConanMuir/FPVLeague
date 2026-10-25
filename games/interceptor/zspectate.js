@@ -27,8 +27,6 @@ export function initSpectate(api,G,Z){
 
  // ---------- style ----------
  const css=document.createElement('style');css.textContent=`
-.zspc{margin:0 0 12px;border:1px solid rgba(95,227,255,.45);border-radius:8px;background:linear-gradient(90deg,rgba(95,227,255,.08),rgba(61,220,132,.05))}.zspc[hidden]{display:none}
-.zspc summary{cursor:pointer;padding:10px 12px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#5fe3ff}.zspc summary span{letter-spacing:.02em;text-transform:none;color:var(--dim);margin-left:6px;font-size:12.5px}
 .zspc .zmb{padding:0 12px 12px;display:grid;gap:8px}.zspc h4{margin:4px 0 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}.zspc .zdocs{display:flex;flex-wrap:wrap;gap:6px}
 .zspc select{font:13px var(--mono);background:rgba(0,0,0,.35);color:var(--ink);border:1px solid var(--edge);border-radius:5px;padding:5px}.zspc .zsp-go{justify-self:start}
 #zspbar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:92vw;top:calc(76px + env(safe-area-inset-top,0px));z-index:7;display:grid;justify-items:center;gap:1px;pointer-events:none;font:700 13px var(--mono);text-shadow:0 0 4px #000;text-align:center;padding:4px 12px;border-radius:6px;background:rgba(4,10,18,.55)}
@@ -37,7 +35,7 @@ export function initSpectate(api,G,Z){
 #zspctl button{font:700 11.5px var(--mono);padding:5px 8px}#zspctl button.on{background:#5fe3ff;color:#04121a;border-color:#5fe3ff}#zspctl i{width:1px;background:var(--edge);margin:0 3px}
 #zspcap{position:fixed;left:0;right:0;margin:0 auto;width:max-content;top:calc(10px + env(safe-area-inset-top,0px));z-index:7;max-width:min(760px,94vw);padding:9px 16px;border-radius:8px;background:rgba(4,18,26,.92);border:1px solid #5fe3ff;font:700 15px var(--disp);color:#fff;text-align:center;pointer-events:none}
 #zspcap small{display:block;font:11px var(--mono);color:#5fe3ff;letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px}#zspcap[hidden]{display:none}
-body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on #zradio{bottom:calc(168px + env(safe-area-inset-bottom,0px))}body.zsp-on #zbase{pointer-events:none}body.zsp-on #zbase .zpanel{opacity:.97}.zsp-hl{outline:3px solid #5fe3ff!important;outline-offset:2px;box-shadow:0 0 18px #5fe3ff!important}
+body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on #zradio{bottom:calc(168px + env(safe-area-inset-bottom,0px))}body.zsp-on #zbase .zpanel{opacity:.97}.zsp-hl{outline:3px solid #5fe3ff!important;outline-offset:2px;box-shadow:0 0 18px #5fe3ff!important}
 #zsptune{position:fixed;right:12px;top:calc(12px + env(safe-area-inset-top,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));width:min(380px,calc(100% - 24px));overflow:auto;z-index:8;box-sizing:border-box;padding:12px 14px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(8px)}
 #zsptune h2{margin:0 0 4px;font-size:18px}#zsptune details{border-top:1px solid var(--edge);padding:4px 0}#zsptune summary{cursor:pointer;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);padding:5px 0}
 #zsptune .tr{display:grid;grid-template-columns:1fr 6.5em 1.6em;gap:6px;align-items:center;font-size:12.5px;padding:1px 0}#zsptune .tr label{color:var(--dim)}#zsptune .tr.chg label{color:#5fe3ff}
@@ -53,9 +51,9 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
 
  // ---------- start menu: the Watch a bot card ----------
  const cfg=()=>{const c=S.zspec&&typeof S.zspec==='object'?S.zspec:{};return{lv:brain.level(c.lv)?brain.level(c.lv).n:'Champion',d:cl(c.d|0,0,ZDIFF.length-1),sec:SECTORS.some(s=>s.id===c.sec)?c.sec:'',doc:DOCS[c.doc]?c.doc:'std',auto:!!c.auto,kit:Array.isArray(c.kit)?c.kit.filter(k=>KIT[k]).slice(0,KIT_MAX):[]}};
- const card=document.createElement('details');card.className='zspc';card.id='zspc';($('zcpm')||$('zdiff')).after(card);
+ const card=Z.home.card('zspc',{order:40,tone:'cyan',tag:'details',cls:'zspc'});  /* a fold-out card in the start page grid (zhome.js) */
  function renderCard(){const c=cfg(),L=brain.level(c.lv);
-  card.innerHTML=`<summary>Watch a bot <span>${esc(c.lv)} · ${ZDIFF[c.d].n}${c.sec?' · '+esc(SECTORS.find(s=>s.id===c.sec).n):''} · ${c.auto?"Bot's choice":DOCS[c.doc].n}${!c.auto&&c.kit.length?' · '+c.kit.map(k=>KIT[k].n).join(', '):''}</span></summary>
+  card.innerHTML=`<summary class="zhc-b">${Z.home.face({i:'eye',t:'Watch a bot',d:'A bot flies the real game and tells you why.',s:`${c.lv} · ${ZDIFF[c.d].n}${c.sec?' · '+SECTORS.find(s=>s.id===c.sec).n:''} · ${c.auto?"Bot's choice":DOCS[c.doc].n}${!c.auto&&c.kit.length?' · '+c.kit.map(k=>KIT[k].n).join(', '):''}`})}</summary>
    <div class="zmb"><p class="note" style="margin:0">A bot pilot plays the real game while you watch: it flies the interceptor, shops between waves and tells you why. Speed, cameras, a live tuning panel and a report at the end. Its runs never touch your saves.</p>
    <h4>Bot level</h4><div class="zdocs">${brain.LEVELS.map(l=>`<button class="sm ${l.n===c.lv?'on':''}" data-zsl="${esc(l.n)}">${esc(l.n)}</button>`).join('')}</div>
    <h4>Difficulty</h4><div class="zdocs">${ZDIFF.map((d,i)=>`<button class="sm ${i===c.d?'on':''}" data-zsd="${i}">${d.n}</button>`).join('')}</div>
@@ -84,14 +82,14 @@ body.zsp-on #osd{bottom:calc(62px + env(safe-area-inset-bottom,0px))}body.zsp-on
   Z.botIn=(d,dt)=>sp.on&&(G.state!=='base'||Z.bot?.sortie?.on())&&G.state!=='over'?sp.pilot.input(d,dt):null;Z.botFire=()=>sp.on&&sp.pilot.fire();Z.sightCam=sight;
   const ld=Z.meta.load;Z.meta.load=()=>({doc:DOCS[o.doc]?o.doc:'std',kit:(o.kit||[]).filter(k=>KIT[k]).slice(0,KIT_MAX)});sp.starting=true;
   try{if(o.sec&&Z.cp?.start)Z.cp.start(o.sec,true);else api.startMatch()}finally{Z.meta.load=ld;sp.starting=false}
-  reseed(o.d);document.body.classList.add('zsp-on');api.camMode=1;if(sp.cam==='director')dir.on();
+  reseed(o.d);document.body.classList.add('zsp-on');$('zbase').inert=true;  /* the bot shops on the base screen, which stays on show: not yours to press (it replaces the old pointer-events:none, so the layout probe skips it) */api.camMode=1;if(sp.cam==='director')dir.on();
   if(!sp.bench){ui();api.feed(`<span class="cb">Bot spectator: ${esc(P.n)} on ${ZDIFF[o.d].n}</span>. Keys: C camera · 1-4 speed · Space pause · . step · K tuning · Esc menu`)}
   logMoney();return true}
  // the bot's difficulty, whatever the menu or the campaign says: start cash and site hit points follow it, and the first wave is planned again
  function reseed(d){const D0=Z.diff();G.dfo=d;const D=Z.diff(),k=Z.meta.k('startK');G.cash+=Math.round(D.start*k)-Math.round(D0.start*k);
   for(const s of SITES){s.max=Math.max(1,Math.round(s.max*D.hp/D0.hp));s.hp=s.max}G.next=Z.plan(G.wave+1);Z.wx?.start?.(G.next.wx);Z.base.refresh?.()}
  function stop(){if(!sp.on)return;sp.on=false;Z.craft?.bot('');dir.off();delete Z.botIn;delete Z.botFire;delete Z.sightCam;Z.stepCap=0;sp.pilot=null;sp.gen=null;
-  document.body.classList.remove('zsp-on');api.camMode=S.cam|0;G.dfo=undefined;for(const id of['zspbar','zspctl','zspcap','zsptune'])$(id)?.remove()}
+  document.body.classList.remove('zsp-on');$('zbase').inert=false;api.camMode=S.cam|0;G.dfo=undefined;for(const id of['zspbar','zspctl','zspcap','zsptune'])$(id)?.remove()}
  // the bot's sights: its FPV camera (down the nose with the tilt switch up), whatever camera the spectator is watching through
  const sq=new THREE.Quaternion(),sx=new V3(1,0,0),sightO={position:new V3(),quaternion:new THREE.Quaternion()};
  function sight(){const me=api.player;if(!me)return null;sightO.position.copy(me.p);sightO.quaternion.copy(me.q).multiply(sq.setFromAxisAngle(sx,api.camA()*Math.PI/180));return sightO}
