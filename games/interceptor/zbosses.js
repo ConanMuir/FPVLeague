@@ -21,6 +21,12 @@
 //   spawn {boss: first boss wave it can replace the Mothership on, event: {from, p, once}}, reward {id, n, txt, ...effect hooks},
 //   intro {title, sub, col} (or introFn), sting(snd) its signature sound, loop(snd) its presence sound (volume from loopVol(ctx,t))
 //   g {init, start, step, vis, overlay, radar, wave, base, stop, note}: run-wide hooks (the Ghost of the Ace's wreck, the Undertaker's trigger)
+//   practice {...}        what a one-on-one practice run of this boss needs to show its design (zpractice.js; the Mothership's is BASE_PRACTICE below). All optional,
+//                         the defaults are the boss alone against your craft and a standard pre-placed kit:
+//                         wave (the wave number it plays at, 12), lead (seconds before it appears, 8), R (how far out it appears, 2600), lives (interceptors it may shoot down, 3),
+//                         radio (the lead-in line: what is coming), kit [[helper, 'position name']] (placed instead of the standard kit), more [[..]] (placed as well),
+//                         perks {perk: level} (your loadout), stream {kinds: {kind: weight}, gap: [min, max] s, cap} (a steady stream of ordinary tracks),
+//                         setup(C, P) (as the lead-in starts: seed the run's state), spawn(C, P) (the options the boss is spawned with), step(C, t, dt, P) (every step while it lives)
 // Numbers are game-balance values for feel, not real-world figures.
 import {KIND,RESIST} from './zdata.js';
 import {tex,dot} from '../../engine/render.js';
@@ -35,6 +41,8 @@ const cl=(v,a,b)=>v<a?a:v>b?b:v,rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.
 let DS=0x2545f491;const drnd=(a,b)=>a+((DS=Math.imul(DS,1664525)+1013904223>>>0)/4294967296)*(b-a);
 const money=n=>'$'+Math.round(n).toLocaleString('en-US');
 export const BOSSES={},ROSTER=[],REWARDS={};
+/* the practice descriptors of the bosses without a module of their own: the Mothership (zenemy.js) brings its swarms itself, so it needs only a wave where it has its stages and the standard kit to meet them */
+export const BASE_PRACTICE={boss:{wave:10,R:2000,radio:'A heavy carrier is crossing the line, slow and big. Take its pods out one by one; its swarms are for the flak and the rack.'}};
 export function registerBoss(def){const id=def.id;
  KIND[id]={n:def.n,tag:def.tag||def.n.toUpperCase(),pts:0,cash:def.cash??0,dmg:def.dmg??0,spd:def.spd??60,alt:def.alt||[400,600],hitR:def.hitR??3,armor:def.armor??'boss',from:999,det:def.det??9000,far:def.far,bossy:1,minor:def.minor?1:0};
  for(const h of Object.keys(RESIST))RESIST[h][id]=def.resist?.[h]??0;
@@ -64,7 +72,7 @@ export function initBosses(api,G,Z){
  const rec=()=>{let r=S.zboss;if(!r||typeof r!=='object'||Array.isArray(r))r={};if(!r.b||typeof r.b!=='object'||Array.isArray(r.b))r.b={};
   for(const k of['ace','ghost']){if(!r[k]||typeof r[k]!=='object'||Array.isArray(r[k]))r[k]={};for(const f of Object.keys(r[k]))if(!Number.isFinite(r[k][f]))r[k][f]=0}
   for(const k of Object.keys(r.b)){const o=r.b[k];if(!o||typeof o!=='object'||Array.isArray(o))r.b[k]={met:0,won:0,lost:0};else for(const f of['met','won','lost'])o[f]=Number.isFinite(o[f])?o[f]:0}r.v=1;S.zboss=r;return r};
- const bot=()=>!!window.__z?.spec?.on;  /* a Bot Spectator run never writes your record: the Ace's tally, the wreck it unlocks, the wear on the bosses are yours */
+ const bot=()=>!!window.__z?.spec?.on||!!Z.practice?.on;  /* a Bot Spectator run or a practice run never writes your record: the Ace's tally, the wreck it unlocks, the wear on the bosses are yours */
  const bump=(id,f,n=1)=>{if(bot())return;const r=rec();const o=r.b[id]||(r.b[id]={met:0,won:0,lost:0});o[f]=(o[f]|0)+n;save()};
  const recAdd=(k,f,n=1)=>{if(bot())return;const r=rec();r[k][f]=(r[k][f]|0)+n;save()};
 
@@ -182,10 +190,10 @@ export function initBosses(api,G,Z){
  const rew=()=>{const o=G.brw||NORW;let n=0;for(const k in o)n++;if(o===rwO&&n===rwN)return rwL;rwO=o;rwN=n;return rwL=Object.keys(o).map(k=>REWARDS[k]).filter(Boolean)};
  function grant(id,silent){const R=REWARDS[id];if(!R)return false;G.brw=G.brw||{};if(G.brw[id])return false;G.brw[id]=1;R.grant?.(ctx);
   if(!silent){feed(`<span class="cg">Boss trophy: <b>${R.n}</b></span> · ${R.txt}`);Z.an?.radio('OVERLORD',`Trophy recovered: ${R.n}. ${R.short||''}`,2)}return true}
- function won(e){if(e.over)return;e.over=true;e.won=true;const D=e.D;bump(e.id,'won');const w=Math.max(1,G.wave),cash=Math.round((D.bounty||2500)*(1+w/25));Z.earn?.(cash,e.main.p,' BOSS');
-  Z.an?.say(`${D.tag||D.n.toUpperCase()} DEFEATED`,`+${money(cash)}${D.reward?' · '+D.reward.n:''}`,D.col||'#ff9a3c',3);Z.an?.radio('OVERLORD',D.winTxt||`${D.n} is down. Outstanding.`,2);
+ function won(e){if(e.over)return;e.over=true;e.won=true;const D=e.D,pr=!!Z.practice?.on;bump(e.id,'won');const w=Math.max(1,G.wave),cash=pr?0:Math.round((D.bounty||2500)*(1+w/25));if(!pr)Z.earn?.(cash,e.main.p,' BOSS');
+  Z.an?.say(`${D.tag||D.n.toUpperCase()} DEFEATED`,pr?'practice · no reward':`+${money(cash)}${D.reward?' · '+D.reward.n:''}`,D.col||'#ff9a3c',3);Z.an?.radio('OVERLORD',D.winTxt||`${D.n} is down. Outstanding.`,2);
   Z.netEv?.(['B',e.id,cash,D.reward?.n||'']);  /* the other pilots' screens get the same banner (Z.bossWon) */
-  if(D.reward)grant(D.reward.id);D.won?.(ctx,e)}
+  if(D.reward&&!pr)grant(D.reward.id);D.won?.(ctx,e)}  /* a practice run pays nothing and keeps no trophy */
  function lost(e){if(e.over)return;e.over=true;bump(e.id,'lost');e.D.lost?.(ctx,e)}
  function encTick(){for(const e of encs()){if(e.over)continue;const bodies=e.list.filter(t=>!BOSSES[t.k].minor);if(e.D.done?e.D.done(ctx,e):bodies.length&&bodies.every(t=>t.bs.dead&&!t.bs.gone)){won(e);continue}if(!encLive(e)&&!e.list.some(t=>t.st==='fall'))lost(e)}
   G.benc=encs().filter(e=>!e.over||(G.wt||0)-e.t0<1)}

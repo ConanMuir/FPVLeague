@@ -17,7 +17,7 @@ import {hooks} from '../../engine/settings.js';
 import {install as logOn,ev,events,setCtx,fps,consoleLines,consoleCount,clock,wall} from './zdbglog.js';
 import {initCheats,WEATHERS} from './zdbgcheat.js';
 import {buildReport,fileName,download,copy,shot,dataBlob} from './zdbgreport.js';
-export const PROT=['zruns','zbests','zbest','zboss','zcodex','zmeta','zend','zcamp'];  /* the records a debug run must not touch */
+export const PROT=['zruns','zbests','zbest','zboss','zcodex','zmeta','zend','zcamp','zprac'];  /* the records a debug run must not touch */
 const SPEEDS=[.25,.5,1,2,4,8],esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
 const tally=L=>{const o={};for(const k of L){const[a,n]=String(k).split(':');o[a]=(o[a]|0)+(+n||1)}return Object.entries(o).map(([k,n])=>`${k}x${n}`).join(' ')||'-'};
 

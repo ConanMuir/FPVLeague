@@ -1,6 +1,6 @@
 // Interceptor harness: headless Edge runs Zombies (waves, money, integrity, base screen, game over) by stepping the sim directly through
 // window.__z. Run: node tools/zombies-test.mjs [--shots DIR] [--throttle N]
-//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director,debug,types,layout,keys   run only those sections (CI shards them across jobs); default all
+//   --sections=saves,zombies,roster,helpers,weather,meta,chain,campaign,swarm,spectator,reentry,grid,bosses,sorties,arsenal,ew,sell,codex,radio,onboard,scars,briefing,endless,buddy,explore,director,debug,types,layout,keys,practice   run only those sections (CI shards them across jobs); default all
 import {serve, launch, open, sleep, frames, drawFrames, newWindow, until} from './zlib.mjs';
 import {front as campFront, SECTORS as CAMP_SECTORS, modsOf, modName, rankMods, MAP_MODS} from '../games/interceptor/zcampaign.js';
 import {SHOP as BOT_SHOP, level as botLevel} from './zbot.mjs';
@@ -3896,6 +3896,233 @@ if (want('keys')) {
   await q.evaluate(() => localStorage.removeItem('dl-interceptor'));
   ok(!kerrs.length, 'Keys: saves: no errors' + (kerrs.length ? '\n  ' + kerrs.slice(0, 5).join('\n  ') : ''));
   await q.close();
+}
+
+// ---------- boss practice (zpractice.js, zpracdata.js): a one-on-one run against a boss from the Enemies screen, set up from the boss's own descriptor, driven to a kill, nothing paid or recorded but the best time ----------
+if (want('practice')) {
+  const PZ = await import('../games/interceptor/zpracdata.js'), PURL = origin + '/games/interceptor/';
+  const IDS = [...CDX_ORDER, 'gace'];  /* the 12 campaign bosses in sector order (the Mothership first), then the secret one */
+  /* the pure side, in Node: the scenario table, what a kit costs, the save cleaned, the times read */
+  const dirty = PZ.cleanPrac({v: 1, b: {ace: {t: [0, 41.26, 'x', 99999], w: 2}, nope: {t: [1]}, twins: {t: 'x', w: -1}, jugg: [1], hive: {t: [5, 0, 0, 0], w: 1.5}, constructor: {t: [1]}}});
+  ok([null, 'x', 7, [], {v: 2, b: {ace: {w: 1}}}, {v: 1, b: [1]}, {v: 1, b: 'x'}].every(c => JSON.stringify(PZ.cleanPrac(c)) === '{"v":1,"b":{}}') && JSON.stringify(dirty.b.ace) === '{"t":[0,41.3,0,0],"w":2}' && JSON.stringify(Object.keys(dirty.b).sort()) === '["ace","hive"]'
+    && dirty.b.hive.t[0] === 5 && dirty.b.hive.w === 0 && JSON.stringify(PZ.cleanPrac(JSON.parse(JSON.stringify(dirty)))) === JSON.stringify(dirty),
+    'Practice save: any value cleans to a valid record (wrong types, unknown ids, times out of range drop out; a time keeps a tenth of a second), and it round-trips through JSON');
+  ok(PZ.fmtT(48.34) === '48.3 s' && PZ.fmtT(72.4) === '1:12.4' && PZ.fmtT(119.97) === '2:00.0' && PZ.fmtT(-3) === '0.0 s' && PZ.fmtT('x') === '0.0 s', `Practice: a time reads 48.3 s or 1:12.4 (${PZ.fmtT(48.34)}, ${PZ.fmtT(72.4)}, ${PZ.fmtT(119.97)})`);
+  const m0 = PZ.merge({}), m1 = PZ.merge({more: [['sam', 'fuel depot west']], perks: {freeze: 1}, wave: 18});
+  ok(JSON.stringify(m0.kit) === JSON.stringify(PZ.DEF.kit) && PZ.cost(m0) === 2750 && m1.kit.length === 4 && m1.kit[3][0] === 'sam' && m1.wave === 18 && m1.lead === 8 && PZ.cost(m1) === 2750 + 2800 + 900 && PZ.DEF.perks.freeze === undefined
+    && PZ.cost(PZ.merge({perks: {swarm: 1}})) === 2750 + 2400 + 4 * 30,
+    `Practice scenario: the standard kit (a drone rack, a flak mortar, a Gepard gun) costs $${PZ.cost(m0)}; a descriptor's extra kit and loadout are added over it and priced (what rebuilding it costs), the personal swarm's first deployment included`);
+
+  const {p, errs} = await page();
+  const reload = async (qs = '') => { await p.goto(PURL + qs, {waitUntil: 'load'}); await p.waitForFunction(() => window.__z, {timeout: 60000}); await frames(p, 3); };
+  /* a profile for the player's rules: the bosses on, no codex or boss record, the weather the menu's; extra = more saved keys */
+  const fresh = async (extra = {}, qs = '') => {
+    await p.evaluate(x => { sessionStorage.setItem('zbossRoster', '1'); sessionStorage.removeItem('zcodex'); localStorage.setItem('dl-interceptor', JSON.stringify({wx: 'clear', zwx: 'menu', ...x})); }, extra);
+    await reload(qs);
+    await p.evaluate(() => {
+      window.__pk = {
+        /* the records a practice run must leave alone, as one string */
+        rec() { const S = __z.api.S, b = S.zboss?.b || {}; let n = 0; for (const k in b) n += (b[k].met | 0) + (b[k].won | 0) + (b[k].lost | 0);
+          const sum = o => Object.values(o || {}).reduce((x, y) => x + (+y || 0), 0);
+          return JSON.stringify({zruns: S.zruns, zbests: S.zbests, zbest: S.zbest, zend: S.zend, zcamp: S.zcamp, zmeta: S.zmeta, zcodex: S.zcodex, zonb: S.zonb, boss: n, ace: sum(S.zboss?.ace), ghost: sum(S.zboss?.ghost)}); },
+        /* the bot pilots' kills, boss by boss, until the fight is over (the Mothership stage by stage, the Puppeteer by direct strikes) */
+        drive(id, max = 900) { const {api, Z} = __z, R = Z.practice.run; let n = 0;
+          for (; n < max && !R.res; n++) { if (api.player.dead > 0) api.launch();
+            if (R.spawned && R.t) { if (id === 'boss') { if (api.live(R.t)) Z.bossHit(R.t); } else if (id === 'puppet') { if (api.live(R.t)) Z.bosses.hitAt(R.t, 'kill', R.t.p.clone()); } else Z.bosses.bot(1); }  /* (the Hive's first body is gone at the split: the bots go on with its broods) */
+            __z.sim(.3); }
+          return {res: R.res, n, tt: R.tt}; }};
+    });
+  };
+  const openEnemies = async () => { await p.evaluate(() => { document.getElementById('zover').hidden = true; if (__z.G.on) __z.api.startDemo(); __z.Z.codex.close(); }); await frames(p, 2); await p.click('#zcdxbtn'); await p.waitForFunction(() => __z.Z.codex.opened, {timeout: 5000}); };
+  const btns = () => p.evaluate(() => [...__z.Z.codex.el.querySelectorAll('[data-prac]')].map(b => ({id: b.dataset.prac, off: b.disabled, txt: b.textContent, title: b.title})));
+  const starts = async id => { await p.waitForFunction(i => !!__z.Z.codex.el.querySelector(`[data-prac="${i}"]`), {timeout: 5000}, id); await p.evaluate(i => { __z.Z.codex.el.querySelector(`[data-prac="${i}"]`).scrollIntoView({block: 'center'}); }, id);
+    await p.click(`#zcdx [data-prac="${id}"]`); await p.waitForFunction(() => __z.Z.practice.on && __z.G.state === 'wave' && !__z.api.menuOpen, {timeout: 20000}); };
+
+  /* ---- who gets the button: a fresh profile has the free baseline boss, a beaten boss has one, a silhouette none; no co-op, no client, no bots ---- */
+  await fresh();
+  await openEnemies();
+  const a0 = await p.evaluate(() => { const X = __z.Z.codex, g = X.el.querySelector('.zcdxg').textContent; return {cards: X.el.querySelectorAll('.zcdxc').length, sil: X.el.querySelectorAll('.zcdxc.new').length, leak: g.includes('Mothership'), practiceText: (g.match(/Practice/g) || []).length}; });
+  const b0 = await btns();
+  ok(a0.cards === 12 && a0.sil === 12 && b0.length === 1 && b0[0].id === 'boss' && !b0[0].off && b0[0].txt === 'Practice' && !a0.leak && a0.practiceText === 1,
+    `Practice button: a fresh profile has exactly one, on the free baseline boss (no name leaks from it); the 11 silhouettes have none (${JSON.stringify(b0.map(b => b.id))})`);
+  const a1 = await p.evaluate(() => { const X = __z.Z.codex; X.set('twins', 'beaten', true); X.close(); X.open(); const el = X.el, has = id => !!el.querySelector(`[data-id="${id}"] [data-prac]`);
+    const ids = [...el.querySelectorAll('[data-prac]')].map(b => b.dataset.prac); X.set('hive', 'seen', true); X.close(); X.open(); return {ids, jugg: has('jugg'), twins: has('twins'), seenHive: has('hive')}; });
+  ok(a1.ids.join() === 'boss,twins' && !a1.jugg && !a1.seenHive && a1.twins, `Practice button: a boss beaten gets one (${a1.ids}); a boss that was only met, or never, has none (jugg ${a1.jugg}, hive met ${a1.seenHive})`);
+  const co = await p.evaluate(() => { const {Z} = __z, X = Z.codex, d0 = Object.getOwnPropertyDescriptor(Z, 'online'), c0 = Z.isClient, out = {};
+    Object.defineProperty(Z, 'online', {get: () => true, configurable: true}); X.close(); X.open(); out.coop = [...X.el.querySelectorAll('[data-prac]')].map(b => [b.dataset.prac, b.disabled, b.textContent, b.title.length > 20]); out.coopStart = Z.practice.start('boss'); out.coopOn = Z.practice.on;
+    Object.defineProperty(Z, 'online', d0); Z.isClient = () => true; X.close(); X.open(); out.client = X.el.querySelectorAll('[data-prac]').length; out.clientStart = Z.practice.start('boss'); Z.isClient = c0;
+    sessionStorage.setItem('zcodex', 'all'); X.close(); X.open(); out.bots = X.el.querySelectorAll('[data-prac]').length; out.botStart = Z.practice.start('boss'); sessionStorage.removeItem('zcodex'); X.close(); X.open(); out.back = X.el.querySelectorAll('[data-prac]').length; return out; });
+  ok(co.coop.length === 2 && co.coop.every(b => b[1] && /not in co-op/.test(b[2]) && b[3]) && co.coopStart === false && !co.coopOn && co.client === 0 && co.clientStart === false && co.bots === 0 && co.botStart === false && co.back === 2,
+    `Practice: in a co-op game the button says so and is off, a co-op client sees none, the bots and the tests (everything unlocked) get none, and none of them can start one (${JSON.stringify(co)})`);
+  if (SHOTS) { await p.evaluate(() => { const X = __z.Z.codex; for (const id of ['undertaker', 'puppet', 'siren', 'ace', 'jammer', 'hush']) X.set(id, 'beaten', true); X.close(); X.open(); });
+    await p.waitForFunction(() => [...document.querySelectorAll('#zcdx img[data-img]')].every(i => i.src.startsWith('data:image/png')), {timeout: 30000}).catch(() => {});
+    await p.evaluate(() => { __z.Z.codex.el.querySelector('[data-id="twins"]').scrollIntoView({block: 'center'}); }); await drawFrames(p, 2); await p.screenshot({path: SHOTS + '/practice-enemies.png'}); }
+
+  /* ---- a run in progress: the button is there but off, and nothing starts over it ---- */
+  await fresh({zcodex: {v: 1, b: {twins: {seen: true, beaten: true, allowed: true}}}});
+  await play(p);
+  const ru = await p.evaluate(() => { const {Z, G} = __z; Z.codex.open(); const b = [...Z.codex.el.querySelectorAll('[data-prac]')].map(x => [x.dataset.prac, x.disabled, x.textContent]); const st = Z.practice.start('twins'); Z.codex.close(); return {b, st, on: Z.practice.on, state: G.state}; });
+  ok(ru.b.length === 2 && ru.b.every(x => x[1] && /after this run/.test(x[2])) && ru.st === false && !ru.on && ru.state === 'base', `Practice: over a run in progress the buttons are off ("${ru.b[0]?.[2]}") and a practice cannot start over it (it would throw the run away)`);
+
+  /* ---- the offer when a boss is first added to the codex: on the end screen ---- */
+  const of = await p.evaluate(() => { const {Z, G} = __z; Z.codex.note('jugg', 'won'); const nw = [...G.cdx.new]; Z.gameOver(); const zo = document.getElementById('zover'), b = zo.querySelector('[data-prac]');
+    const d0 = Object.getOwnPropertyDescriptor(Z, 'online'); Object.defineProperty(Z, 'online', {get: () => true, configurable: true}); const coop = Z.overNote().includes('data-prac'); Object.defineProperty(Z, 'online', d0);
+    return {nw, shown: !zo.hidden, text: zo.querySelector('.zcdxnew')?.textContent || '', id: b?.dataset.prac, label: b?.textContent, coop}; });
+  ok(of.nw.join() === 'jugg' && of.shown && /Juggernaut/.test(of.text) && of.id === 'jugg' && /^Practice it now/.test(of.label) && !of.coop, `Practice offer: the game-over screen that reports the Juggernaut as added to the codex offers "${of.label}" (${of.text.slice(0, 90)}); not in co-op`);
+  await frames(p, 2);
+  ok(await p.evaluate(() => { const o = document.getElementById('zover'), n = o.querySelector('.zcdxnew'), b = o.querySelector('.btns'); return !!n && !!b && !!(b.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_PRECEDING); }), 'Practice offer: on the game-over screen it sits above the buttons (not under them, out of sight), as on the sector result');
+  if (SHOTS) { await p.evaluate(() => { document.querySelector('#zover [data-prac]')?.scrollIntoView({block: 'center'}); }); await drawFrames(p, 2); await p.screenshot({path: SHOTS + '/practice-offer.png'}); }
+  await p.click('#zover [data-prac="jugg"]'); await p.waitForFunction(() => __z.Z.practice.on && __z.G.state === 'wave', {timeout: 10000});
+  const of2 = await p.evaluate(() => { const {Z} = __z; return {id: Z.practice.run.id, over: document.getElementById('zover').hidden, menu: __z.api.menuOpen, c: Z.codex.c.b.jugg}; });
+  ok(of2.id === 'jugg' && of2.over && !of2.menu && of2.c.beaten, 'Practice offer: pressing it starts the practice run straight away (the end screen is gone, the game is on)');
+
+  /* ---- the first-run guide never gets practice: it does not start in one, does not use up the flag, and holds the buttons off while it runs ---- */
+  await fresh({}, '?guide=1');
+  const g1 = await p.evaluate(() => { const {Z, api} = __z; const st = Z.practice.start('boss'); return {st, on: Z.practice.on, guide: Z.onboard.on, why: Z.onboard.why, flag: api.S.zonb}; });
+  ok(g1.st && g1.on && !g1.guide && g1.why === 'practice' && g1.flag === undefined, `Practice: with the first-run guide due, a practice run does not start it or use up its flag (${JSON.stringify(g1)})`);
+  await p.evaluate(() => { __z.api.startDemo(); }); await p.click('#play'); await p.waitForFunction(() => !__z.api.demo && __z.Z.onboard.on, {timeout: 20000});
+  const g3 = await p.evaluate(() => { const {Z} = __z; Z.codex.open(); const b = [...Z.codex.el.querySelectorAll('[data-prac]')].map(x => [x.disabled, x.textContent]), st = Z.practice.start('boss'); Z.codex.close(); Z.onboard.skip(); return {b, st, on: Z.practice.on}; });
+  ok(g3.b.length === 1 && g3.b[0][0] && /after the guide/.test(g3.b[0][1]) && g3.st === false && !g3.on, `Practice: while the guide runs the button is off ("${g3.b[0]?.[1]}") and nothing starts`);
+
+  /* ---- every boss, from the Enemies screen: set up from its descriptor, driven to a kill, the end screen, the best time, nothing paid or recorded ---- */
+  const ALLB = {}; for (const id of IDS) ALLB[id] = {seen: true, beaten: true, allowed: true};
+  await fresh({zcodex: {v: 1, b: ALLB}, zmeta: {v: 1, g: {w10: 15, norep: 15, lean: 15, perfect3: 15, hard20: 15, night15: 15, helpers: 15, streak: 15, boss: 0, clutch: 15}}, zload: {doc: 'fortress', kit: ['lrack', 'hflak']}});
+  const ctl = await p.evaluate(() => ({doc: __z.Z.meta.load().doc, kit: __z.Z.meta.load().kit.join()}));
+  ok(ctl.doc === 'fortress' && ctl.kit === 'lrack,hflak', `Practice (control): this profile plays the Fortress doctrine with the Light rack and Heavy flak kit in an ordinary run (${JSON.stringify(ctl)})`);
+  const before = await p.evaluate(() => __pk.rec());
+  const T = {};  /* the time to the kill, boss by boss */
+  const SPEC = {  /* what each boss's design needs, read just after it appears */
+    boss: () => { const t = __z.api.TH.find(u => u.k === 'boss' && __z.api.live(u)); return {stages: t?.stages}; },
+    undertaker: () => { const {api, Z} = __z, t = Z.bosses.alive().find(u => u.k === 'undertaker'), a = t?.bs.anchor; if (!t || !a) return {}; const hp0 = t.bs.hp, frac = +(a.hp / a.max).toFixed(2);
+      t.p.set(a.x + 8, a.y + 30, a.z - 6); t.bs.gt = 0; Z.practice.run.ut = 44.9; __z.sim(1.2); return {anchor: true, frac, grew: t.bs.hp - hp0, drain: api.SITES.filter(s => s !== a && s.hp < s.max).length}; },
+    puppet: () => { const {api, Z} = __z; return {ord: api.TH.filter(u => api.live(u) && !Z.bosses.BOSSES[u.k]).length, rack: Z.def.D.some(d => d.type === 'rack')}; },
+    twins: () => { const {api, G} = __z; return {pair: api.TH.filter(u => u.k === 'twins' && api.live(u)).length, freeze: G.perks.freeze, ch: G.ch.freeze | 0}; },
+    siren: () => { const {api, Z} = __z, o = api.TH.filter(u => api.live(u) && !Z.bosses.BOSSES[u.k]); return {ord: o.length, iff: o.filter(u => u.iff > 0).length}; },
+    jugg: () => ({sam: __z.Z.def.D.some(d => d.type === 'sam')}),
+    mirror: () => { const {api, Z, G} = __z, t = Z.bosses.alive().find(u => u.k === 'mirror'), L = t?.bs.L; return {L, spect: api.TH.filter(u => u.k === 'spectre' && api.live(u)).length, hab: G.hab?.n, fav: t?.bs.h?.fav}; },
+    ace: () => ({ord: __z.api.TH.filter(u => __z.api.live(u) && !__z.Z.bosses.BOSSES[u.k]).length}),
+    jammer: () => { const {api, G, Z} = __z; return {pods: api.TH.filter(u => u.k === 'jpod' && api.live(u)).length, ew: Z.def.D.some(d => d.type === 'ew'), optics: G.perks.optics}; },
+    hive: () => ({sam: __z.Z.def.D.some(d => d.type === 'sam')}),
+    ghost: () => ({ord: __z.api.TH.filter(u => __z.api.live(u) && !__z.Z.bosses.BOSSES[u.k]).length}),
+    hush: () => ({perks: Object.keys(__z.G.perks).length}),
+    gace: () => { const {api, G} = __z; return {spect: api.TH.filter(u => u.k === 'spectre' && api.live(u)).length, fallen: Object.keys(G.fallen || {}).length}; }};
+  await openEnemies();
+  for (const id of IDS) {
+    const tag = id === 'boss' ? 'Mothership' : id;
+    /* start it from its button on the Enemies screen */
+    await starts(id);
+    const s0 = await p.evaluate(id => { const {Z, G, api} = __z; Z.hud(.016); const R = Z.practice.run, o = Z.practice.scenario(id), K = (a, b) => a.localeCompare(b);
+      const kit = Z.def.D.map(d => d.type + '@' + Z.def.SLOTS[d.slot].n.toLowerCase()).sort(K), want = o.kit.map(([t, n]) => t + '@' + n).sort(K), up = o.perks.swarm ? [0, 4, 6, 8, 10, 12][o.perks.swarm] * 30 : 0, cost = Z.practice.cost(o);
+      return {id: R.id, wave: G.wave, want: o.wave, kit: kit.join(), wantKit: want.join(), perks: JSON.stringify(Object.entries(G.perks).sort()), wantPerks: JSON.stringify(Object.entries(o.perks).sort()),
+        cashOk: G.cash <= cost && G.cash >= cost - up, cash: G.cash, cost, doc: G.doc, kitOwn: (G.kit || []).length, earned: G.earned, state: G.state, menu: api.menuOpen, demo: api.demo, boss: Z.bosses.alive().length + api.TH.filter(u => u.k === 'boss').length,
+        label: document.getElementById('zw').textContent, inb: document.getElementById('zinb').textContent, line: Z.brief.line(), card: Z.briefHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), radio: o.radio, name: R.name,
+        buddy: Z.bd ? Z.bd.force?.has === false : true, guide: Z.onboard.on, cp: !!Z.cp.run}; }, id);
+    ok(s0.id === id && s0.wave === s0.want && s0.kit === s0.wantKit && s0.perks === s0.wantPerks && s0.cashOk && s0.doc === 'std' && !s0.kitOwn && s0.earned === 0 && s0.state === 'wave' && !s0.menu && !s0.demo && s0.boss === 0 && s0.buddy && !s0.guide && !s0.cp,
+      `Practice ${tag}: started from its button, wave ${s0.wave}, kit [${s0.kit}], loadout ${s0.perks}, purse $${s0.cash} (the kit and loadout cost $${s0.cost}), the standard doctrine and none of your kit, nothing yet in the air, no guide / campaign sector${s0.kit === s0.wantKit ? '' : ' (wanted ' + s0.wantKit + ')'}`);
+    ok(s0.label === 'PRACTICE · ' + s0.name.toUpperCase() && /^.+ IN \d+ s$/.test(s0.inb) && s0.line === `PRACTICE · ${s0.name}. ${s0.radio}` && s0.card.includes('PRACTICE · ' + s0.name.toUpperCase()) && s0.card.includes('Nothing is paid or recorded'),
+      `Practice ${tag}: the HUD reads "${s0.label}" with a count-down ("${s0.inb}"); the briefing's line and card say PRACTICE · ${s0.name} ("${s0.line.slice(0, 70)}…")`);
+    /* the lead-in with nothing of the boss in the air, then the boss; the scenario's stream and seeds */
+    const o = await p.evaluate(id => { const {Z, api} = __z, R = Z.practice.run, seen = new Set(), sc = Z.practice.scenario(id), ord = () => api.TH.filter(u => api.live(u) && !Z.bosses.BOSSES[u.k] && u.k !== 'boss'), out = {lead: sc.lead};
+      for (let t = 0; t < sc.lead - 1; t += .5) { __z.sim(.5); for (const u of ord()) seen.add(u.id); } out.before = !R.spawned && !Z.bosses.alive().length && !api.TH.some(u => u.k === 'boss'); out.seenLead = seen.size;
+      __z.sim(1.5); out.spawned = R.spawned; out.alive = id === 'boss' ? api.TH.some(u => u.k === 'boss' && api.live(u)) : Z.bosses.alive().some(u => u.k === id); out.t = +R.t0.toFixed(1);
+      Z.hud(.016); out.hud = document.getElementById('zinb').textContent; __z.sim(.5); return out; }, id);
+    const sp = await p.evaluate(`(${SPEC[id].toString()})()`);
+    const o2 = await p.evaluate(() => { const {Z, api} = __z, seen = new Set(), ord = () => api.TH.filter(u => api.live(u) && !Z.bosses.BOSSES[u.k] && u.k !== 'boss' && u.k !== 'swarm'); let swarm = false;
+      for (let t = 0; t < 14; t += .5) { __z.sim(.5); for (const u of ord()) seen.add(u.id); swarm = swarm || api.TH.some(u => u.k === 'swarm'); if (api.player.dead > 0) api.launch(); } return {seen: seen.size, swarm, res: Z.practice.run.res}; });
+    ok(o.before && o.spawned && o.alive && o.t >= o.lead - .1 && o.t < o.lead + 1 && /LIVES 3\/3$/.test(o.hud), `Practice ${tag}: ${o.lead} s of lead-in with nothing of the boss in the air, then it appears (t ${o.t} s) and the HUD runs its clock ("${o.hud}")`);
+    const SC = {
+      boss: () => sp.stages === 3 && o2.swarm,
+      undertaker: () => sp.anchor && sp.frac <= .23 && sp.grew === 2 && sp.drain >= 1,
+      puppet: () => o.seenLead >= 3 && sp.ord >= 2 && o2.seen >= 3 && sp.rack,
+      twins: () => sp.pair === 2 && sp.freeze === 1 && sp.ch === 1,
+      siren: () => o.seenLead >= 3 && sp.ord >= 4 && sp.iff >= 3 && o2.seen >= 3,
+      jugg: () => sp.sam,
+      mirror: () => sp.L && sp.L.rocket === 1 && sp.L.warhead === 1 && sp.L.fuse === 1 && sp.L.swarm === 4 && sp.spect === 4 && sp.hab >= 400 && sp.fav === 'LEVEL SIX',
+      ace: () => o.seenLead === 0 && sp.ord === 0 && o2.seen === 0,
+      jammer: () => sp.pods >= 3 && sp.ew && sp.optics === 1,
+      hive: () => sp.sam && o2.swarm,
+      ghost: () => o.seenLead === 0 && o2.seen === 0,
+      hush: () => sp.perks === 0 && o.seenLead === 0,
+      gace: () => sp.spect >= 4 && sp.fallen === 3}[id];
+    ok(SC(), `Practice ${tag}: what its descriptor asks for is in place ${JSON.stringify({spec: sp, leadIn: o.seenLead, later: o2.seen, swarm: o2.swarm})}`);
+    if (id === 'ace' && SHOTS) { await p.evaluate(() => { __z.Z.fxTest?.endCine(); __z.api.camMode = 1; __z.sim(.3); }); await drawFrames(p, 3); await p.screenshot({path: SHOTS + '/practice-hud.png'}); await p.evaluate(() => { __z.api.camMode = 0; }); }
+    /* the fight: driven to a kill with the bot hooks; the clock stops on it, a short beat, then the end screen */
+    const cash0 = await p.evaluate(() => __z.G.cash);
+    const k = await p.evaluate(id => __pk.drive(id), id);
+    const en = await p.evaluate(() => { const {Z} = __z, R = Z.practice.run; Z.hud(.016); return {res: R.res, tt: R.tt, hud: document.getElementById('zinb').textContent}; });
+    await p.evaluate(() => __z.sim(3));
+    const end = await p.evaluate(() => { const {G, Z, api} = __z, R = Z.practice.run, zo = document.getElementById('zover');
+      return {state: G.state, res: R.res, tt: R.tt, shown: !zo.hidden, h2: zo.querySelector('h2')?.textContent, big: zo.querySelector('.zbig')?.textContent, text: zo.textContent, btns: [...zo.querySelectorAll('button')].map(b => b.id + ':' + b.textContent).join(), cash: G.cash, earned: G.earned,
+        brw: Object.keys(G.brw || {}).length, rec: __pk.rec(), stored: JSON.parse(localStorage.getItem('dl-interceptor')).zprac, goal: Z.meta.award('boss'), gotGoals: (G.run?.got || []).length, cx: JSON.stringify(Z.codex.c), name: R.name}; });
+    ok(k.res === 'won' && en.res === 'won' && en.tt > 0 && en.tt < 600 && /^DESTROYED · /.test(en.hud), `Practice ${tag}: driven to a kill (${k.n} steps), the run ends on the boss's destruction at ${PZ.fmtT(en.tt)} ("${en.hud}")`);
+    T[id] = end.tt;
+    const best = end.stored?.b?.[id], shown = PZ.fmtT(end.tt);
+    ok(end.state === 'over' && end.shown && end.h2 === 'Practice complete' && end.big === end.name.toUpperCase() && end.text.includes('Time to the kill') && end.text.includes(shown) && end.text.includes('NEW BEST') && end.btns === 'zpracretry:Retry,zpracback:Back to Enemies' && end.text.includes('pays nothing'),
+      `Practice ${tag}: the end screen reads "${end.h2}", the time to the kill ${shown}, NEW BEST, with Retry and Back to Enemies`);
+    ok(best && best.t[1] === Math.round(end.tt * 10) / 10 && best.t[0] === 0 && best.t[2] === 0 && best.t[3] === 0 && best.w === 1, `Practice ${tag}: the best time is saved for this boss on this difficulty (${JSON.stringify(best)})`);
+    ok(end.earned === 0 && end.cash === cash0 && end.brw === 0 && end.rec === before && end.goal === false && end.gotGoals === 0 && end.cx === JSON.stringify({v: 1, b: ALLB}),
+      `Practice ${tag}: nothing was paid (earned $${end.earned}, purse $${end.cash} as it was), no trophy, and no codex, boss record, goal, leaderboard, best wave or scar was written` + (end.rec === before ? '' : '\n  ' + before + '\n  ' + end.rec));
+    if (id === 'ace') {
+      if (SHOTS) { await drawFrames(p, 3); await p.screenshot({path: SHOTS + '/practice-end.png'}); }
+      /* Retry: the same boss again at once; a slower kill keeps the old best, a faster one replaces it */
+      await p.click('#zpracretry'); await p.waitForFunction(() => __z.Z.practice.on && __z.G.state === 'wave' && !__z.Z.practice.run.res && __z.Z.practice.run.id === 'ace', {timeout: 20000});
+      const rt = await p.evaluate(() => { const {Z, G} = __z; return {id: Z.practice.run.id, wt: G.wt, over: document.getElementById('zover').hidden, shot: Z.practice.run.shot}; });
+      ok(rt.id === 'ace' && rt.wt < 2 && rt.over && rt.shot === 0, `Practice: Retry starts the same boss again at once (${JSON.stringify(rt)})`);
+      await p.evaluate(() => __pk.drive('ace')); await p.evaluate(() => __z.sim(3));
+      const r2 = await p.evaluate(() => { const {Z} = __z, R = Z.practice.run; return {tt: R.tt, text: document.getElementById('zover').textContent, best: Z.practice.best('ace'), nb: R.newBest}; });
+      const t1 = Math.round(T.ace * 10) / 10, t2 = Math.round(r2.tt * 10) / 10;
+      ok(r2.best === Math.min(t1, t2) && r2.nb === (t2 < t1) && (r2.nb ? r2.text.includes('NEW BEST') && r2.text.includes(`(was ${PZ.fmtT(t1)})`) : !r2.text.includes('NEW BEST') && r2.text.includes(PZ.fmtT(t1))),
+        `Practice: a second kill (${PZ.fmtT(t2)}) against the first (${PZ.fmtT(t1)}): the best time stays the lower, ${PZ.fmtT(r2.best)}, and the screen says ${r2.nb ? 'NEW BEST' : 'the old best'}`);
+    }
+    /* Back to Enemies: the menu with the Enemies screen open, the run gone */
+    await p.click('#zpracback'); await p.waitForFunction(() => __z.Z.codex.opened && !__z.G.on, {timeout: 10000});
+    const bk = await p.evaluate(() => ({on: __z.Z.practice.on, menu: __z.api.menuOpen, cb: __z.Z.codex.el.querySelectorAll('[data-prac]').length, best: __z.Z.codex.el.querySelector('.zcdxpt')?.textContent, n: __z.Z.codex.el.querySelectorAll('.zcdxpt').length}));
+    ok(!bk.on && bk.menu && bk.cb === IDS.length && bk.n >= 1, `Practice ${tag}: Back to Enemies leaves the run and opens the Enemies screen on the menu (${bk.cb} buttons, ${bk.n} best times shown, e.g. "${bk.best}")`);
+  }
+  const after = await p.evaluate(() => __pk.rec());
+  ok(after === before, 'Practice: after all 13 runs the records are as they were (boss counters, codex, goals, leaderboard, best waves, Endless, campaign, the guide flag)');
+  const pz = await p.evaluate(() => JSON.parse(localStorage.getItem('dl-interceptor')).zprac);
+  ok(IDS.every(id => pz.b[id] && pz.b[id].t[1] > 0 && pz.b[id].w >= 1) && Object.keys(pz.b).length === IDS.length, `Practice save: a best time for each of the ${IDS.length} bosses (${IDS.map(id => id + ' ' + PZ.fmtT(pz.b[id]?.t[1])).join(', ')})`);
+
+  /* ---- the ways a practice run ends other than a kill: shot down, the sites fall, the boss gets away ---- */
+  const endings = {};
+  for (const how of ['craft', 'sites', 'gone']) {
+    await openEnemies(); await starts('ace');
+    endings[how] = await p.evaluate(how => { const {Z, G, api} = __z, R = Z.practice.run, C = Z.bosses.ctx, rec0 = __pk.rec(), out = {}; __z.sim(how === 'gone' ? 11 : 1);
+      if (how === 'craft') for (let i = 0; i < 3; i++) { if (api.player.dead > 0) api.launch(); C.shoot('test'); out['lives' + i] = R.shot; }
+      if (how === 'sites') { for (const s of api.SITES) s.hp = 1; for (const s of api.SITES) Z.impact(Z.make('shahed', 0, -2500, s)); }
+      if (how === 'gone') C.vanish(R.t, 'escaped');
+      __z.sim(3); const zo = document.getElementById('zover'); out.res = R.res; out.state = G.state; out.h2 = zo.querySelector('h2')?.textContent; out.text = zo.textContent; out.shown = !zo.hidden; out.w = JSON.parse(localStorage.getItem('dl-interceptor')).zprac.b.ace.w; out.rec = __pk.rec() === rec0; out.nb = zo.textContent.includes('NEW BEST'); return out; }, how);
+  }
+  ok(endings.craft.res === 'craft' && endings.craft.lives0 === 1 && endings.craft.lives2 === 3 && endings.craft.state === 'over' && endings.craft.h2 === 'Out of interceptors' && /3 of 3/.test(endings.craft.text) && !endings.craft.nb && endings.craft.rec,
+    `Practice end: three interceptors shot down by the boss and the run is over ("${endings.craft.h2}"); a loss shows no new best`);
+  ok(endings.sites.res === 'sites' && endings.sites.state === 'over' && endings.sites.h2 === 'Defense collapsed' && /Every site fell/.test(endings.sites.text) && endings.sites.rec, `Practice end: when every site falls the run is over ("${endings.sites.h2}")`);
+  ok(endings.gone.res === 'gone' && endings.gone.state === 'over' && /got away/.test(endings.gone.h2) && /It escaped/.test(endings.gone.text) && endings.gone.rec && endings.gone.w === 2 && endings.craft.w === 2 && endings.sites.w === 2,
+    `Practice end: a boss that gets away ends it too ("${endings.gone.h2}", "It escaped"); a run that is not a kill adds no win to the record (${endings.gone.w} saved)`);
+
+  /* ---- the HUD fits: the label and the clock at a laptop, a big screen and a short window; the page does not scroll sideways ---- */
+  await openEnemies(); await starts('siren'); await p.evaluate(() => __z.sim(10));
+  const fit = [];
+  for (const [w, h] of [[1280, 720], [1920, 1080], [900, 420]]) {
+    await p.setViewport({width: w, height: h}); await frames(p, 3);
+    fit.push(await p.evaluate(() => { __z.Z.hud(.016); const L = [...document.getElementById('zhud').querySelector('.zt').children].filter(e => e.getBoundingClientRect().width), r = L.map(e => e.getBoundingClientRect());
+      return {vp: innerWidth + 'x' + innerHeight, inside: r.every(q => q.left >= -1 && q.right <= innerWidth + 1), apart: r.every((q, i) => !i || q.left >= r[i - 1].right - 1 || q.top >= r[i - 1].bottom - 1), side: document.documentElement.scrollWidth <= innerWidth + 1, label: document.getElementById('zw').textContent}; }));
+  }
+  await p.setViewport({width: 1280, height: 720});
+  ok(fit.every(f => f.inside && f.apart && f.side && f.label === 'PRACTICE · THE SIREN'), `Practice HUD: the label and the clock stay on screen, apart, with no sideways scroll at ${fit.map(f => f.vp + ' ' + (f.inside && f.apart && f.side ? 'ok' : 'BAD ' + JSON.stringify(f))).join(', ')}`);
+
+  /* ---- a debug-marked run keeps even its best time out of the save ---- */
+  const dp = await open(browser, PURL + '?debug=1', errs);
+  await dp.evaluate(x => { sessionStorage.setItem('zbossRoster', '1'); sessionStorage.removeItem('zcodex'); localStorage.setItem('dl-interceptor', JSON.stringify({wx: 'clear', zwx: 'menu', ...x})); }, {zcodex: {v: 1, b: {ace: {seen: true, beaten: true, allowed: true}}}});
+  await dp.reload({waitUntil: 'load'}); await dp.waitForFunction(() => window.__z, {timeout: 60000}); await frames(dp, 3);
+  const dbg = await dp.evaluate(() => { const {Z, api} = __z, st = Z.practice.start('ace'); __z.sim(10); const m0 = Z.dbg.marked, cheat = Z.dbg.c.money(5), M = Z.dbg.marked, R = Z.practice.run;
+    for (let n = 0; n < 600 && !R.res; n++) { if (api.player.dead > 0) api.launch(); Z.bosses.bot(1); __z.sim(.3); } __z.sim(3);
+    return {st, m0, cheat, M, res: R.res, text: document.getElementById('zover').textContent, stored: JSON.parse(localStorage.getItem('dl-interceptor')).zprac, mem: api.S.zprac, dbg: R.dbg}; });
+  ok(dbg.st && !dbg.m0 && dbg.M && dbg.res === 'won' && !dbg.stored && !dbg.mem?.b?.ace && dbg.dbg && /Debug run/.test(dbg.text) && !/NEW BEST/.test(dbg.text), `Practice (debug): a cheat marks the run; the Ace is beaten but no best time is saved, in memory or on disk, and the end screen says "Debug run" (${JSON.stringify({m0: dbg.m0, M: dbg.M, res: dbg.res, stored: dbg.stored})})`);
+  await dp.close();
+
+  ok(!errs.length, 'Practice: no errors' + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
+  await p.close();
 }
 
 

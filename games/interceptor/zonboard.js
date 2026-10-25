@@ -117,7 +117,7 @@ export function initOnboard(api,G,Z){
  function end(why,quiet){if(!A.on)return;A.on=false;A.ended=why;A.cur=null;A.gentle=false;if(mo){mo.disconnect();mo=null}
   for(const e of document.querySelectorAll('.zob-hl'))e.classList.remove('zob-hl');card?.remove();card=null;last='';sk2.hidden=true}
  /* eligible: a first solo run on a human's browser. The save flag is set as the guide starts, so a run left halfway never brings it back */
- function begin(){const why=S.zonb?'seen':Z.online?'coop':window.__z?.spec?.on?'bot':Q==='0'||auto&&Q!=='1'?'auto':'';A.why=why;if(why)return;
+ function begin(){const why=S.zonb?'seen':Z.practice?.on?'practice':Z.online?'coop':window.__z?.spec?.on?'bot':Q==='0'||auto&&Q!=='1'?'auto':'';A.why=why;if(why)return;
   S.zonb=1;api.save();Object.assign(A,{on:true,ended:'',cur:null,st:{},n:{},ev:{},log:[],acc:0,gap:0,gentle:false,p0:null,d0:Z.def.D.length,sw0:null});
   card=mk();sk2.hidden=false}
 

@@ -37,6 +37,8 @@ registerBoss({id:'mirror',n:'The Mirror',tag:'MIRROR',col:'#ff2a2a',spd:90,alt:[
  resist:{rack:.2,gepard:.25,sam:.4,mpads:.4,idome:.2},hp:5,phases:['REFLECTION','DISTORTION','SHATTERING'],
  note:'a copy of your own interceptor with your loadout and your flying habits. Bursts from your usual approach glance off: break your habits.',warn:'something that flies like you',
  spawn:{event:{from:15,p:.04}},can:C=>habs(C).some(h=>h.n>=240&&h.approaches>=4),
+ practice:{radio:'A contact in the dust is flying our pilot\'s pattern, turn for turn. It is learning you.',perks:{rocket:1,warhead:1,fuse:1,swarm:1},  /* it copies a loadout and some habits: the run starts with a standard loadout and a pilot who has flown a few waves */
+  setup(C){C.G.hab={n:400,alt:300*400,spd:90*400,L:300,R:100,asp:{'LEVEL SIX':9,'HIGH BEAM':2},side:{LEFT:6,RIGHT:5},dets:0,yaw:null,t:0}}},
  intro:{title:'THE MIRROR',sub:(C,t)=>{const h=t.bs.h||C.habit();return`it flies like ${who(C,t.bs).obj} · ${h.fav} · turns ${h.turn>0?'left':'right'} · ${Math.round(h.alt)} m · ${Math.round(h.spd*3.6)} km/h`},col:'#ff2a2a',radio:'"…" Overlord, there is a contact flying exactly like our pilot. It IS our pilot.'},
  build:C=>model(C),
  init(C,t){const B=t.bs,{api}=C,d=target(C);copy(C,t,d||api.player);const h=B.h;

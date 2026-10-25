@@ -42,6 +42,10 @@ function starve(C,t){const B=t.bs,a=armor(t),k=Math.min(3,a);if(k){B.hp-=k;C.Z.p
 registerBoss({id:'undertaker',n:'The Undertaker',tag:'UNDERTAKER',col:'#ff5a40',spd:45,alt:[25,40],hitR:5,det:9000,cash:1000,bounty:3500,far:5200,persist:1,
  resist:{rack:.45,lrack:.45,gepard:.5,sam:.7,mpads:.4,flak:.35,hflak:.45,idome:.3},hp:C=>2/C.hpK(),
  note:'a salvage drone that strips a wrecked or neglected site and leeches the others, growing armour while you leave it. Repair the site it strips, or kill it early.',warn:'a scavenger over your wreck',
+ /* a practice run has no base screens to grow it over: saboteurs break a site as the run begins (the set piece's 22%) and it adds two plates every 45 s, a break's worth */
+ practice:{radio:'Saboteurs hit us in the dark. Something is coming to strip what they broke. Kill it small.',
+  spawn(C,P){const L=C.api.SITES.filter(s=>s.hp>0&&!s.zb).sort((a,b)=>b.hp/b.max-a.hp/a.max),s=L[0];if(!s)return{};s.hp=Math.round(s.max*.22);C.G.utW=C.G.wave;return{x:s.x,z:s.z-1600,set:{anchor:s}}},
+  step(C,t,dt,P){if(t.bs.on&&(P.ut=(P.ut||0)+dt)>=45){P.ut=0;grow(C,t,2,'grew while you were busy')}}},
  introFn(C,t){C.Z.an?.say('THE UNDERTAKER','it feeds on what you neglect','#ff5a40',3);C.Z.an?.radio('OVERLORD','Something is stripping our wreck. It is draining the other sites!',2)},
  build:C=>model(C),warm:C=>tethers(C),
  init(C,t){const B=t.bs;B.anchor=B.anchor||victim(C);B.gt=0;B.waves=0;t.p.y=C.api.gh(t.p.x,t.p.z)+260},

@@ -157,6 +157,7 @@ const ACE={id:'ace',n:'Ace of Aces',tag:KN,col:'#ff3b3b',spd:88,alt:[500,800],hi
  resist:{rack:.25,gepard:.3,sam:.6,mpads:.5,idome:.3,hflak:.15},hp:6,phases:['DUEL','WOUNDED','DESPERATE'],
  note:`a named enemy ace who duels you: he locks your six (break hard when you hear the tone), snaps guns on a head-on pass, bombs your sites while you are down, and learns your favourite approach. Rare, with a big bounty.`,
  warn:'an enemy ace hunting you',spawn:{event:{from:12,p:.04,once:false,again:.3}},
+ practice:{radio:'The enemy ace is on the net and hunting our interceptor. When you hear the tone, break hard.'},  /* a duel: it needs only you, and sites to bomb */
  can:(C,w)=>!C.G.bseen?.ace||C.G.aceEsc&&w-C.G.aceEsc>=6,
  intro:{title:'ACE OF ACES',sub:(C)=>{const r=C.rec().ace;return`${KN} · ${r.kills|0} kills · ${r.hits|0} sites hit · beaten ${r.beaten|0}× · escaped ${r.escaped|0}×`},
   radio:(C)=>C.rec().ace.beaten?`${KN}: "You again. I remember how you fly."`:`${KN}: "Your little drones. Come and dance."`,who:KN},
@@ -199,6 +200,7 @@ registerBoss({id:'spectre',n:'Spectre',tag:'SPECTRE',minor:1,armor:0,spd:80,alt:
 registerBoss({id:'gace',clear(){if(WK.snd){try{WK.snd.g.gain.value=0;WK.snd.stop()}catch(e){}WK.snd=null}},fxLeft:()=>({whisper:WK.snd?1:0}),n:'Ghost of the Ace',tag:'THE DEATHLESS',col:'#5dffc8',spd:96,alt:[500,800],hitR:3,det:12000,cash:3000,bounty:9000,far:6000,
  resist:{rack:.15,gepard:.2,sam:.4,mpads:.3,idome:.2},hp:9,phases:['HAUNT','LEGION','DEATHLESS'],
  note:'KOSCHEI returns from his wreck with a legion of spectres raised from what you shot down this run.',warn:'he does not stay dead',
+ practice:{radio:'The dead are flying again. He has raised a legion from everything shot down before him.',setup(C){C.G.fallen={shahed:10,jet:6,heavy:4}}},  /* nothing was shot down in a practice run: the legion is raised from a standard tally */
  intro:{title:'HE DOES NOT STAY DEAD',sub:C=>`the Ghost of ${KN} · a legion of ${Object.values(C.G.fallen||{}).reduce((a,b)=>a+b,0)} fallen`,col:'#5dffc8',radio:`${KN}: "Did you think a drone could kill me?"`,who:'???'},
  build(C){const g=aceModel(C,true),T=C.THREE,a=new T.Sprite(new T.SpriteMaterial({map:dot,color:new T.Color(0x30ffb0).multiplyScalar(1.6),transparent:true,opacity:.5,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false}));a.scale.set(30,30,1);g.add(a);g.userData.aura=a;return g},
  init(C,t){const B=t.bs;B.learn={};B.form=3;C.recAdd('ghost','met');const n=Math.min(12,4+Math.floor(Object.values(C.G.fallen||{}).reduce((a,b)=>a+b,0)/8));B.legion=n;legionRaise(C,t,n,C.G.fallen&&Object.keys(C.G.fallen).length?C.G.fallen:{shahed:1})},

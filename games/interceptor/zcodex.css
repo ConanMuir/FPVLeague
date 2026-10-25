@@ -27,6 +27,13 @@
 .zcdxa{justify-self:start;font-size:12px;padding:6px 10px}.zcdxa small{font-size:11px;opacity:.7}
 .zcdxa.on{background:rgba(61,220,132,.16);border-color:#3ddc84;color:#bdf5d3}
 .zcdxa:not(.on){background:rgba(255,77,77,.12);border-color:rgba(255,120,120,.6);color:#ffc4c4}
+.zcdxbt{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.zcdxpr{font-size:12px;padding:6px 10px;background:rgba(95,227,255,.12);border-color:rgba(95,227,255,.6);color:#bdeeff}.zcdxpr[disabled]{opacity:.6}
+.zcdxpt{font:11px var(--mono);color:var(--dim)}
+.zcdxpo{display:inline-flex;flex-wrap:wrap;gap:6px;margin-left:8px;vertical-align:middle}
+.zprac .zbig{color:var(--bc,#fff)}.zprac.lost h2{color:#ffb4a8}
+/* a practice run's top bar (zpractice.js): the boss's name in the wave label and the clock in the right-hand one, so no purse (nothing is earned) and a narrower integrity bar keep it inside a short window */
+#hud.zprac #zhud #zw{font-size:13px}#hud.zprac #zhud #zc{display:none}#hud.zprac #zhud .zi{min-width:150px}
 .zcdxf{display:flex;flex-wrap:wrap;align-items:center;gap:10px}.zcdxf .zsell{margin-left:auto}
 .zcdxnew{padding:6px 10px;border:1px solid rgba(61,220,132,.5);border-radius:6px;background:rgba(61,220,132,.08)}
 

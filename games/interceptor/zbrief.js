@@ -10,7 +10,7 @@
 // raid and the moment of peak pressure. The types and numbers are the same at every level (the footer's list shows them too).
 // Hooks: zbase.js calls Z.briefHTML in the base screen; Z.brief.add(fn) lets another module put a line in (fn(data) -> text or [text]).
 // Everything is read from G.next, so a sortie that cuts the plan changes the card at once (the base screen redraws).
-import {KIND,ORDER,SECTORS,FAST,sectorOf,isBoss} from './zdata.js';
+import {KIND,ITEMS,ORDER,SECTORS,FAST,sectorOf,isBoss} from './zdata.js';
 const esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]);
 export const TIERS=['BASIC','GOOD','HIGH','FULL'],TIER_AT=[32,48,64];  /* warning time (s) at which each level starts: 20 s is the base, a full radar and early-warning net is 74 s */
 export const tierOf=s=>TIER_AT.filter(c=>s>=c).length;
@@ -91,7 +91,8 @@ export function initBrief(api,G,Z){
   if(D.boss.length)a+=` Boss: ${andL(D.boss.map(b=>b.nm))}.`;
   else if(D.fast.length)a+=` Fast missiles from the ${andL([...new Set(D.fast.flatMap(f=>f.secs))]).toLowerCase()}.`;
   return a};
- B.line=()=>{const D=B.data();return D?lineOf(D):''};
+ /* a practice run (zpractice.js) briefs itself: the line names it ("PRACTICE · The Ace of Aces. ...") so it is never taken for a run */
+ B.line=()=>{const p=Z.practice?.info();if(p)return`PRACTICE · ${p.name}. ${p.radio}`;const D=B.data();return D?lineOf(D):''};
  /* ---------- the card ---------- */
  const rows=D=>{const L=[];
   /* 1 the tracks */
@@ -119,7 +120,11 @@ export function initBrief(api,G,Z){
   for(const s of D.extra)ev.push(esc(s));
   if(ev.length)L.push(['⚑','',ev.join(' · ')]);
   return L};
- B.html=()=>{const D=B.data();if(!D)return'';const col=collapsed(),pips=[0,1,2,3].map(i=>`<i class="${i<=D.tier?'on':''}"></i>`).join('');
+ const pracHTML=p=>{const hs=p.kit.map(([t])=>t),n={};for(const t of hs)n[t]=(n[t]|0)+1;
+  return`<section class="zbrief prac" id="zbrief" aria-label="Practice briefing" style="--bc:${p.col}"><header><b>PRACTICE · ${esc(p.name.toUpperCase())}</b><span class="zbw">ONE ON ONE</span></header>
+   <ul class="zbrows" id="zbrows"><li><i class="zbg">⚠</i><span>${esc(p.radio)}</span></li><li><i class="zbg">✈</i><span>Placed: ${Object.entries(n).map(([t,c])=>`${c>1?c+'× ':''}${esc(ITEMS[t]?.n||t)}`).join(', ')||'nothing'}${Object.keys(p.perks).length?` · loadout: ${Object.entries(p.perks).map(([k,l])=>`${esc(ITEMS[k]?.n||k)} ${l}`).join(', ')}`:''}</span></li>
+   <li><i class="zbg">⚑</i><span>Nothing is paid or recorded; your best time to the kill is saved.</span></li></ul></section>`};
+ B.html=()=>{const p=Z.practice?.info();if(p)return pracHTML(p);const D=B.data();if(!D)return'';const col=collapsed(),pips=[0,1,2,3].map(i=>`<i class="${i<=D.tier?'on':''}"></i>`).join('');
   return`<section class="zbrief${col?' col':''}" id="zbrief" aria-label="Threat briefing">
    <header><b>THREAT BRIEFING</b><span class="zbw">WAVE ${D.w}</span><span class="zbi" title="Intel ${D.tn}: ${D.warn} s of warning. The Long-range radar and the early-warning radar (Kill chain tab) sharpen the briefing.">${pips}<em>INTEL ${D.tn}</em></span>
    <button class="sm" id="zbtog" aria-expanded="${!col}" aria-controls="zbrows">${col?'Show ▾':'Hide ▴'}</button></header>

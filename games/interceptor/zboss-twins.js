@@ -42,6 +42,7 @@ registerBoss({id:'twins',n:'The Twins',tag:'TWINS',col:'#7fb2ff',spd:100,alt:[35
  resist:{rack:.4,gepard:.5,sam:.8,mpads:.8,idome:.4,hflak:.3},hp:3,
  note:'two fast jets flying as a linked pair: the link soaks proximity hits until it snaps or they split for a pincer. Kill one and the other enrages.',warn:'CASTOR and POLLUX',
  spawn:{event:{from:14,p:.05},boss:20},
+ practice:{radio:'Two fast movers over the junction, flying as one. Freeze one of them and the link breaks.',perks:{freeze:1}},  /* they come as the linked pair; Freeze is how a pilot splits them */
  intro:{title:'THE TWINS',sub:'CASTOR & POLLUX · linked · they shield each other',col:'#7fb2ff',radio:'Two fast movers in tight formation. They are linked, split them up!'},
  build:(C,t)=>model(C,0),warm:C=>[tether(C),model(C,1)],
  init(C,t){const B=t.bs;if(B.role==null){B.role=0;B.runs=0;B.mode='form';const m=C.spawn('twins',{x:t.p.x+50,z:t.p.z+40,y:t.p.y,enc:B.enc,v:t.v.clone(),set:{role:1,mate:t}});if(m){B.mate=m;swap(C,m)}}

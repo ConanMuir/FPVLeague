@@ -31,6 +31,7 @@ registerBoss({id:'ghost',n:'Ghost',tag:'GHOST',col:'#b8c4d0',spd:75,alt:[1050,11
  resist:{gepard:.3,sam:.5,mpads:.2},hp:4,phases:['HIGH','WOUNDED','LAST PASS'],phaseAt:[.75,.26],
  note:'a stealth bomber: no radar track, no bracket. Find its contrail, its heat shimmer (thermal sees it farther) or its leak trail; your lock slips off it.',warn:'something on the edge of the radar',
  spawn:{event:{from:16,p:.05},boss:40},
+ practice:{radio:'A flash on the scope and gone. A stealth bomber over the belt. Look for the contrail.'},  /* it hides from the radar on its own: it needs only you and sites to bomb */
  intro:{title:'GHOST',sub:'stealth bomber · no radar track · follow the contrail',col:'#b8c4d0',radio:'A flash on the scope and gone. Stealth bomber. Eyes up, look for the contrail.'},
  build:C=>model(C),
  init(C,t){const B=t.bs;B.pass=0;B.site=null;t.p.y=C.api.gh(t.p.x,t.p.z)+1100},
