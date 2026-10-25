@@ -11,6 +11,7 @@
    Harness: Z.onboard (tools/zombies-test.mjs, "onboard"). */
 import {pad} from '../../engine/input.js';
 import {SO} from './zsites.js';
+import {kl,fireWith} from './zkeys.js';
 export const GN={max:3,lead:3,space:1.9,slow:.75};  /* the guided wave: at most 3 tracks, the first after 3 s and the rest spread 1.9x wider, flying at 3/4 speed */
 const FLY=60,NEAR=160,SEE=1800,POLL=.1,GAP=.5,OKT=1.1,OPENS=3;  /* metres flown to count as flying; metres from its locked track the pip has done its job; metres from a track that ends the look-around; seconds between checks, between two prompts, a done prompt stays; times a dropped prompt may come back */
 const k=s=>`<kbd>${s}</kbd>`,gp=()=>{try{return!!pad()}catch(e){return false}};
@@ -36,7 +37,7 @@ export function initOnboard(api,G,Z){
    hud:()=>Z.craft?.guide('fly',gp())||(gp()?`Raise the throttle to take off. Left stick throttle and yaw, right stick pitch and roll. Fly out toward the blips on the radar.`:`Press ${k('W')} to take off. ${k('W')}${k('S')} throttle (let go to hover), ${k('A')}${k('D')} yaw, ${k('↑')}${k('↓')}${k('←')}${k('→')} pitch and roll. Fly out toward the blips on the radar.`),
    say:'Dart One, you are cleared to launch. Get up and fly out toward the contacts.'},
   {id:'look',ttl:12,flight:1,ready:()=>w1()&&!near(SEE),done:()=>!!A.ev.look,ok:'Good view.',
-   hud:()=>Z.craft?.guide('look',gp())||(gp()?`The camera switch sets 90° for cruising (level for hover). LB changes the view: FPV, chase, threat.`:`${k('L')} tilts the camera up to 90° for cruising (level for hover). ${k('C')} changes the view: FPV, chase, threat.`),
+   hud:()=>Z.craft?.guide('look',gp())||(gp()?`The camera switch sets 90° for cruising (level for hover). LB changes the view: FPV, chase, threat.`:`${k(kl('tiltSw'))} tilts the camera up to 90° for cruising (level for hover). ${k('C')} changes the view: FPV, chase, threat.`),
    say:'Tilt the camera up for the cruise. Change the view if you want a look around.'},
   {id:'lock',ttl:60,flight:1,ready:()=>w1()&&seen(),done:()=>!!A.ev.lock,ok:'Locked.',
    hud:()=>`Track inbound: the amber blip on the radar, bottom right. Fly at it and hold the dashed ring on it until it locks.`,
@@ -45,7 +46,7 @@ export function initOnboard(api,G,Z){
    hud:()=>`Locked. The cyan marker is the <b>pip</b>: where you meet the track if you fly straight at it, with the seconds to intercept. Fly at the pip, not at the drone.`,
    say:'Locked. Fly at the pip, the marker, not at the drone. That is where you meet it.'},
   {id:'burst',ttl:40,flight:1,ready:()=>w1()&&seen()&&(!!A.ev.lock||near(400)),done:()=>!!A.ev.burst,ok:'Burst away.',
-   hud:()=>gp()?`Detonate with the fire button (RB) within a few metres of the track. The Proximity fuse perk (Shop) fires at closest approach for you.`:`Detonate with ${k('F')} or click within a few metres of the track. The Proximity fuse perk (Shop) fires at closest approach for you.`,
+   hud:()=>gp()?`Detonate with the fire button (RB) within a few metres of the track. The Proximity fuse perk (Shop) fires at closest approach for you.`:`Detonate with ${fireWith(k)} within a few metres of the track. The Proximity fuse perk (Shop) fires at closest approach for you.`,
    say:'Get close and burst. A few metres is a kill. The proximity fuse in the shop will do the timing for you.'},
   {id:'helper',ttl:75,by:3,ready:()=>base()&&G.wave>=1&&rackAt()>=0&&G.cash>=Z.itemPrice('rack')&&!A.ev.helper,done:()=>!!A.ev.helper,ok:'Helper bought.',
    hl:()=>G.placing?$('zbase').querySelector('[data-slot]'):shopBtn('rack'),
@@ -130,5 +131,5 @@ export function initOnboard(api,G,Z){
 
  /* ---------- harness (tools/zombies-test.mjs): read the guide, drive it, end it ---------- */
  Z.onboard={get on(){return A.on},get why(){return A.why},get ended(){return A.ended},get step(){return A.cur?.step.id||null},get fin(){return!!A.cur?.fin},get log(){return A.log},get st(){return A.st},get ev(){return A.ev},get gentle(){return A.gentle},
-  get text(){return card?.querySelector('.t')?.textContent||''},get shown(){return!!card&&!card.hidden},steps:STEPS.map(s=>s.id),skip:()=>end('skip'),run,GN};
+  get text(){return card?.querySelector('.t')?.textContent||''},get shown(){return!!card&&!card.hidden},steps:STEPS.map(s=>s.id),hud:id=>STEPS.find(s=>s.id===id)?.hud()||'',skip:()=>end('skip'),run,GN};
  return Z.onboard}

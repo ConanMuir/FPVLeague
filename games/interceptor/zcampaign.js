@@ -19,6 +19,7 @@
 // Z.cp.n('launchSites'). Modifiers that drive another branch's feature (need) only show up when that feature is there (Z.feat[need] or Z[need]).
 import {money} from '../../engine/hot.js';
 import {ZDIFF} from './zdata.js';
+import {kl} from './zkeys.js';
 import {DOCS,DOC_IDS,KIT,KIT_IDS,KIT_MAX} from './zmeta.js';
 
 // ---------- modifiers ----------
@@ -28,7 +29,7 @@ import {DOCS,DOC_IDS,KIT,KIT_IDS,KIT_MAX} from './zmeta.js';
 // need = another branch's feature this modifier drives (alt = what the sector gets instead when that feature isn't in this build)
 export const MODS={
  clear:{g:'☼',n:'Clear skies',txt:'Fair weather in most waves: a gentle start.',wx:[.7,['clear','scattered','golden']]},
- night:{g:'☾',n:'Night-heavy',txt:'Most waves are flown at night. Thermal (H) sees in the dark.',wx:[.6,['night']]},
+ night:{g:'☾',n:'Night-heavy',get txt(){return`Most waves are flown at night. Thermal (${kl('thermSw')}) sees in the dark.`},wx:[.6,['night']]},
  storm:{g:'ϟ',n:'Storm season',txt:'Rain, heavy storms and fog in most waves.',wx:[.6,['rain','storm','fog']]},
  dust:{g:'∴',n:'Dust and fog',txt:'Dust haze and fog in most waves.',wx:[.55,['dust','fog']]},
  swarm:{g:'⁘',n:'Swarm-heavy',txt:'FPV swarms from wave 3: a third of the Shaheds come as swarms instead.',mix:'swarm'},
